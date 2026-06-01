@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] - 2026-06-01
+
+### Changed
+- Add helper-script test suite, CI workflow, generated-plugin LICENSE, and a dirty-tree/changelog guard in bump-version.sh.
+
 ## [1.2.0] - 2026-06-01
 
 ### Changed
