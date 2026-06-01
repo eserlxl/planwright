@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0] - 2026-06-01
+
+### Changed
+- Add bump-version.sh and make-plugin.sh helper scripts.
+
 ## [1.0.0] - 2026-06-01
 
 ### Added

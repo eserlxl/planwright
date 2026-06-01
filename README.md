@@ -91,6 +91,23 @@ There is no settings file.
    reject anything stale, unsafe, duplicated, hallucinated, or under-verified.
 6. **Write** — append survivors to `.planwright/plan.md`.
 
+## Development
+
+Helper scripts live in `scripts/`:
+
+```
+scripts/bump-version.sh <major|minor|patch|X.Y.Z> [-m "note"]
+    Bump the version in plugin.json, marketplace.json, and CHANGELOG.md in one shot.
+
+scripts/make-plugin.sh <plugin-name> [dest-dir]
+    Scaffold a fresh self-hosting Claude Code plugin (manifests, a starter skill,
+    README, CHANGELOG, .gitignore, git init) and bundle bump-version.sh into it.
+    Honors AUTHOR_NAME, AUTHOR_EMAIL, PLUGIN_DESC, NO_GIT=1.
+```
+
+Typical loop: edit the skill → `scripts/bump-version.sh patch -m "..."` → commit →
+`/plugin marketplace update planwright`.
+
 ## License
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
