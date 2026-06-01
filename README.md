@@ -140,7 +140,8 @@ scripts/bump-version.sh <major|minor|patch|X.Y.Z> [-m "note"]
 
 scripts/make-plugin.sh <plugin-name> [dest-dir]
     Scaffold a fresh self-hosting Claude Code plugin (manifests, a starter skill,
-    README, CHANGELOG, .gitignore, git init) and bundle bump-version.sh into it.
+    README, CHANGELOG, .gitignore, LICENSE, a tests/run.sh smoke test, a CI workflow,
+    git init) and bundle bump-version.sh into it.
     Honors AUTHOR_NAME, AUTHOR_EMAIL, PLUGIN_DESC, NO_GIT=1.
 ```
 
