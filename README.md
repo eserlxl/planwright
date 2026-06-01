@@ -29,7 +29,7 @@ For deep dives into how `planwright` operates, refer to the documentation:
 Or add a local clone as a marketplace:
 
 ```bash
-/plugin marketplace add /opt/lxl/claude/planwright
+/plugin marketplace add <PLANWRIGHT_FOLDER>
 /plugin install planwright@planwright
 ```
 
