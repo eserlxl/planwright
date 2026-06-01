@@ -163,6 +163,30 @@ fi
 
 chmod +x "$DEST/scripts/"*.sh 2>/dev/null || true
 
+# --- LICENSE ---------------------------------------------------------------
+# Keep the generated LICENSE consistent with the "license" field in the
+# manifests. Prefer the full GPL text bundled next to this script; otherwise
+# emit a self-contained GPL-3.0-or-later notice for the named plugin.
+if [ -f "$SELF_DIR/../LICENSE" ]; then
+  cp "$SELF_DIR/../LICENSE" "$DEST/LICENSE"
+else
+  cat > "$DEST/LICENSE" <<EOF
+$NAME
+Copyright (C) $(date -u +%Y) $AUTHOR_NAME
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+General Public License for more details: <https://www.gnu.org/licenses/>.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+EOF
+fi
+
 if [ "${NO_GIT:-0}" != "1" ]; then
   git -C "$DEST" init -q
   git -C "$DEST" add -A
@@ -170,8 +194,7 @@ if [ "${NO_GIT:-0}" != "1" ]; then
     commit -q -m "Initial scaffold: $NAME Claude Code plugin (v0.1.0)"
 fi
 
-echo "Created plugin '$NAME' at: $DEST"
-echo "Remember to add a LICENSE file (GPL-3.0-or-later) before publishing."
+echo "Created plugin '$NAME' at: $DEST (LICENSE: GPL-3.0-or-later)"
 echo
 echo "Try it:"
 echo "  /plugin marketplace add $DEST"
