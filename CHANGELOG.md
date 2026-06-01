@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-06-01
+
+### Changed
+- Add execute subcommand: implement plan items, verify, commit; FIFO-capped completed.md/rejected.md; rejection-reason feedback into planning.
+
 ## [1.1.1] - 2026-06-01
 
 ### Changed

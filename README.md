@@ -2,15 +2,19 @@
 
 **Grounded codebase planning for Claude Code.**
 
-`planwright` is a Claude Code plugin that turns a repository into a verification-ready
-work plan. It scans and audits the codebase, then runs an 8-stage
-*dossier → draft → finalize → quality-gate* pipeline to emit concrete plan items in
-`.planwright/plan.md`.
+`planwright` is a Claude Code plugin with two partitioned paths:
+
+- **Plan** — scans and audits the codebase, then runs an 8-stage
+  *dossier → draft → finalize → quality-gate* pipeline to emit concrete plan items in
+  `.planwright/plan.md`. Read-only: the plan path writes only the plan file, never your source.
+- **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and
+  records the rest. This is the only path that edits source.
 
 Claude runs every stage directly, so it costs no separate model calls and needs no external
 binary.
 
-> The plugin only ever writes the plan file. It never edits your application source to "plan".
+> Planning never edits your application source. Only `/planwright execute` does — and even then,
+> Claude Code's normal permission prompts for edits and commits still apply.
 
 ## What it produces
 
@@ -34,9 +38,12 @@ Files live under `<repo>/.planwright/`:
 | File | Purpose |
 |------|---------|
 | `plan.md` | active plan (pending + completed items) |
-| `completed.md` | archived `[x]` items |
-| `rejected.md` | drained `Status:Rejected` items |
+| `completed.md` | items that passed verification — FIFO capped at 100 |
+| `rejected.md` | items that failed, with a `Rejection:` reason — FIFO capped at 100 |
 | `plans/` | full-plan snapshots when a plan is archived |
+
+Rejection reasons feed back into the next plan run, so planwright avoids re-proposing work that has
+already failed — rejections trend down over time.
 
 ## Install
 
@@ -57,16 +64,23 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 ## Usage
 
 ```
+PLAN (read-only)
 /planwright                   Plan from audit (propose 5, defaults)
 /planwright <instruction>     Break a specific request into plan items
 /planwright propose <N>       Override items proposed this run (1..max)
 /planwright max <N>           Override the pending-item cap for this run
 /planwright no-compact        Skip lifecycle housekeeping this run
 /planwright dry-run           Run all stages but print the plan, write nothing
+
+EXECUTE (edits source)
+/planwright execute               Auto: implement every pending item, commit each that passes
+/planwright execute --interactive Prompt per item: approve, show diff, verify, confirm commit
+/planwright execute N             Implement only pending item number N
+
 /planwright help              Show usage and stop
 ```
 
-Options may be combined with an instruction, e.g.
+Plan options may be combined with an instruction, e.g.
 `/planwright add OAuth login propose 3 dry-run`.
 
 ### Defaults
@@ -90,6 +104,24 @@ There is no settings file.
 5. **Draft → Finalize → Quality gate** — convert the dossier into items, correct them, then
    reject anything stale, unsafe, duplicated, hallucinated, or under-verified.
 6. **Write** — append survivors to `.planwright/plan.md`.
+
+## Execute
+
+`/planwright execute` implements the plan. It first requires a **clean git working tree** (so its
+per-item commits never entangle your uncommitted work) and announces the branch it will commit to.
+Then, for each pending item in order:
+
+1. **Implement** the `Development:` step, editing only the item's declared surfaces.
+2. **Verify** by running the item's `Verification:` command. An item with no runnable verification
+   cannot be marked done.
+3. **On pass** — mark `[x]`, commit (`planwright: <title>`), move to `completed.md`.
+4. **On fail** — retry up to twice, then revert the item's edits and move it to `rejected.md` with a
+   `Rejection:` reason.
+
+After all items it runs a **broad final build + test** to catch fixes that pass in isolation but
+break the whole. Auto mode runs the entire plan, pausing only on a hard blocker (an item that needs
+an unresolved design decision, or a failing final verification). `--interactive` adds an
+approve/diff/confirm step per item.
 
 ## Development
 

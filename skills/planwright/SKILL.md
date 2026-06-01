@@ -5,24 +5,31 @@ description: >
   checkbox plan in .planwright/plan.md using the exact 8-field item format
   (Mode/Rationale/Evidence/Surfaces/New Surfaces/Development/Acceptance/Verification).
   Runs a multi-stage dossier -> draft -> finalize -> quality-gate pipeline with Claude doing
-  every stage directly.
+  every stage directly. The `execute` subcommand then implements the plan items, verifies each,
+  and records completed/rejected items.
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
-  "propose plan items", or mentions .planwright/plan.md. Run `/planwright help` for usage and options.
-  Supports options: propose <N>, max <N>, no-compact, dry-run, help.
+  "propose plan items", "execute the plan", "implement the plan", or mentions .planwright/plan.md.
+  Run `/planwright help` for usage and options.
+  Supports: execute [--interactive] [N], propose <N>, max <N>, no-compact, dry-run, help.
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.1.1"
+  version: "1.2.0"
 ---
 
 # planwright
 
-This skill turns a repository into a verification-ready work plan. It scans and audits the
-codebase, then runs a multi-stage *dossier → draft → finalize → quality-gate* pipeline to emit
-concrete plan items in `.planwright/plan.md`. Claude itself runs every stage, so it needs no
-external binary and spends no separate model calls.
+This skill has two clearly partitioned paths:
 
-Do not edit application source to "plan". The output of this skill is **only** the plan file.
+- **Plan** (`/planwright`, default) — scans and audits the codebase, then runs a multi-stage
+  *dossier → draft → finalize → quality-gate* pipeline to emit concrete plan items in
+  `.planwright/plan.md`. **Read-only: it writes only the plan file, never application source.**
+- **Execute** (`/planwright execute`) — implements the pending plan items, verifies each, commits
+  the ones that pass, and records the rest. **This is the only path that edits source.**
+
+Claude itself runs every stage, so it needs no external binary and spends no separate model calls.
+
+When planning, do not edit application source. The output of the plan path is **only** the plan file.
 
 ## Invocation & help
 
@@ -30,22 +37,32 @@ Before doing anything else, inspect the argument the skill was invoked with:
 
 - If it is `help`, `--help`, `-h`, `?`, or empty-with-an-explicit-help-request, **print the Usage
   reference below verbatim and STOP.** Do not scan, audit, plan, or write any file.
+- If the first token is `execute`, dispatch to the **Execute** section near the end of this file and
+  follow that procedure instead of the planning Procedure. Remaining tokens are execute options
+  (`--interactive`, an item index `N`).
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
-  **option overrides** (see Options), then run the Procedure.
+  **option overrides** (see Options), then run the planning Procedure.
 
 ### Usage
 
 ```
+PLAN (read-only)
 /planwright                      Plan from audit (propose 5, default settings)
 /planwright <instruction>        Break a specific request into plan items
 /planwright propose <N>          Override items proposed this run (1..max)
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
 /planwright dry-run              Do all stages but print the plan instead of writing the file
+
+EXECUTE (edits source)
+/planwright execute              Auto: implement every pending item, commit each that passes
+/planwright execute --interactive  Prompt per item: approve, show diff, verify, confirm commit
+/planwright execute N            Implement only pending item number N
+
 /planwright help                 Show this help and stop
 ```
 
-Options may be combined with an instruction, e.g.
+Plan options may be combined with an instruction, e.g.
 `/planwright add OAuth login propose 3 dry-run`.
 
 ### Options
@@ -80,9 +97,11 @@ If `no-compact` was passed, skip this entire stage (still read pending items in 
 Create `<target>/.planwright/` if it does not exist, then operate on it:
 
 1. If `plan.md` exists, move every completed item (`- [x] ...` and its indented continuation lines)
-   into `completed.md` (append). Keep at most the configured tail in `plan.md`; archive the rest.
+   into `completed.md` (append). Then enforce the **FIFO cap of 100**: if `completed.md` holds more
+   than 100 items, drop the oldest (top of file) until 100 remain.
 2. Drain any item carrying a `Status:Rejected` / `Status: Rejected` continuation line into
-   `rejected.md` (append), removing it from `plan.md`.
+   `rejected.md` (append, preserving its `Rejection:` reason line), removing it from `plan.md`. Then
+   enforce the **FIFO cap of 100** on `rejected.md` the same way.
 3. If, after that, **all** remaining items are completed (or the file is empty of pending items),
    archive the whole file to `plans/plan_<UTC-timestamp>.md` and start fresh.
 4. Read the remaining **pending** (`- [ ]`) items — these are the existing plan you must not duplicate.
@@ -102,6 +121,15 @@ route through context-mode (`ctx_batch_execute`) so raw bytes stay out of contex
   / `ctest -N`, or the project's test runner). Verification commands must use these verbatim.
 
 Also read any project mission/charter file if present and treat it as a constraint.
+
+Then load the planning memory so this run learns from prior ones:
+
+- **PREVIOUSLY REJECTED** — read `.planwright/rejected.md` (titles + `Rejection:` reasons). Carry
+  these into every dossier pass as a constraint: do **not** re-propose a rejected item unless its
+  specific rejection reason is now resolved, and if you do, the Development line must state what
+  changed. Use the recurring reasons to steer away from whole classes of doomed work.
+- **RECENTLY COMPLETED** — read `.planwright/completed.md` so you do not re-propose finished work
+  (unless the audit shows a regression).
 
 ### Stage 2 — Audit (mechanical + reasoning)
 
@@ -226,3 +254,76 @@ preamble, headings, code, or commentary in the plan file.
   audit shows regression; do not re-propose previously rejected items unless the rejection reason is
   resolved (and Development must state what changed).
 - Output **only** the plan file. No code, no edit bundles.
+
+# Execute (implement the plan)
+
+Reached only via `/planwright execute`. This is the mutating path: it edits source, runs
+verification, and commits. Everything below replaces the planning Procedure.
+
+## Preconditions (check first, in order)
+
+1. **Plan exists** — `.planwright/plan.md` has at least one pending `- [ ]` item. If none, report
+   "No pending items to execute" and STOP.
+2. **Clean working tree** — run `git status --porcelain`. If it reports anything, STOP and report the
+   dirty tree (do not entangle the user's uncommitted work with per-item commits). Exception: ignored
+   paths such as `.planwright/` do not count.
+3. **Announce the branch** — print the current branch (`git branch --show-current`); per-item commits
+   land here. There is no safety branch by design.
+
+## Modes and scope
+
+- **Auto (default)** — implement every pending item in plan order without asking item-by-item.
+- **`--interactive`** — for each item: show it, wait for approval, implement, show the diff, run
+  verification, and confirm before committing. Skipped items stay pending.
+- **`execute N`** — act on pending item number `N` only (1-based over pending items).
+
+In both modes, Claude Code's normal tool permission prompts for edits and commits still apply — auto
+only suppresses planwright's *own* item-by-item questions, never the permission system.
+
+## Per-item loop
+
+For each targeted pending item, in plan order:
+
+1. **Implement** the `Development:` line. Edit only the declared `Surfaces:` (and create the declared
+   `New Surfaces:`). If the work would require touching files outside those surfaces, treat the item
+   as **blocked** (see below) rather than expanding scope silently.
+2. **Verify** — run the item's `Verification:` command exactly.
+   - If the item has no `Verification:` line, or the command cannot be run (missing target, unknown
+     tool), do **not** mark it done — reject it with reason `unverifiable: <detail>`.
+3. **On PASS** — flip `- [ ]` to `- [x]` in `plan.md`, then commit on the current branch with message
+   `planwright: <item title>` (use the Haiku commit convention if configured). Move the completed item
+   to `completed.md` and enforce the FIFO cap of 100.
+4. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
+   fails, **reject**: revert this item's edits (`git restore` / `git checkout --` the touched paths so
+   no partial change is committed), append a `Status:Rejected` and `Rejection: <one-line reason>` to
+   the item, move it to `rejected.md` (FIFO cap 100), and continue.
+5. **Blocked** — if the item depends on an unresolved design decision, or needs surfaces it does not
+   declare, leave it pending, record why, and treat it as a **hard blocker**: in auto mode STOP here.
+
+## After all targeted items — broad final verification
+
+Run the project's full build + test (not just per-item focused tests). If it fails, STOP and report:
+the per-item commits stand, but the batch is **not** clean — do not claim success. A green per-item
+verify that breaks the overall build is exactly what this step catches.
+
+## Stop conditions (auto mode)
+
+Keep going across items, sending failures to `rejected.md`. Pause/STOP only on a **hard blocker**:
+a blocked item (design decision / undeclared surfaces) or a failing broad final verification.
+
+## Rejection schema (must be machine-readable for the feedback loop)
+
+A rejected item keeps its original lines and gains:
+
+```
+      Status: Rejected
+      Rejection: <one concise reason: what failed and why; e.g. "verification planwright_foo_tests failed: <symptom>">
+```
+
+The next plan run reads these reasons (Stage 1 → PREVIOUSLY REJECTED) to avoid re-proposing doomed
+work, which is how rejections trend down over time.
+
+## Final report
+
+Print: items completed (with commit short-SHAs), items rejected (with reasons), items left pending or
+blocked, and the broad final-verify result.
