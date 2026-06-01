@@ -2,10 +2,29 @@
 
 **Grounded codebase planning for Claude Code.**
 
-`planwright` is a Claude Code plugin with two partitioned paths:
+Planwright is a planning-first Claude Code skill that analyzes software projects, generates implementation plans, and optionally executes approved development tasks.
+
+It operates using two distinct, partitioned paths:
 
 - **Plan** — scans and audits the codebase, then runs a multi-stage pipeline to emit concrete, verified plan items into `.planwright/plan.md`. Read-only: the plan path writes only the plan file, never your source.
 - **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and records the rest. This is the only path that edits source.
+
+```mermaid
+flowchart TD
+    A[User Request] --> B{Command}
+    
+    %% Planning Path
+    B -- "/planwright" --> C[Scan & Audit Codebase]
+    C --> D[11-Stage Planning Pipeline]
+    D --> E[.planwright/plan.md]
+    
+    %% Execution Path
+    B -- "/planwright execute" --> F[Read Pending Items]
+    F --> G[Implement Changes]
+    G --> H[Run Verification]
+    H -- Pass --> I[Commit & Complete]
+    H -- Fail --> J[Revert & Record Reject]
+```
 
 Claude runs every stage directly, so it costs no separate model calls and needs no external binary.
 
