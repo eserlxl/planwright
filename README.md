@@ -42,8 +42,10 @@ Files live under `<repo>/.planwright/`:
 | `rejected.md` | items that failed, with a `Rejection:` reason — FIFO capped at 100 |
 | `plans/` | full-plan snapshots when a plan is archived |
 
-Rejection reasons feed back into the next plan run, so planwright avoids re-proposing work that has
-already failed — rejections trend down over time.
+A failed item is marked in `plan.md` with a `Status:Rejected` line plus a `Rejection:` reason; the
+next plan run **drains** every `Status:Rejected` item from `plan.md` into `rejected.md` during its
+lifecycle housekeeping. Those rejection reasons then feed back into planning, so planwright avoids
+re-proposing work that has already failed — rejections trend down over time.
 
 ## Install
 
