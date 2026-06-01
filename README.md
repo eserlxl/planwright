@@ -10,20 +10,12 @@ It operates using two distinct, partitioned paths:
 - **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and records the rest. This is the only path that edits source.
 
 ```mermaid
-flowchart TD
-    A[User Request] --> B{Command}
+flowchart LR
+    User -->|/planwright| Plan[Plan Pipeline] --> Doc[.planwright/plan.md]
     
-    %% Planning Path
-    B -- "/planwright" --> C[Scan & Audit Codebase]
-    C --> D[11-Stage Planning Pipeline]
-    D --> E[.planwright/plan.md]
-    
-    %% Execution Path
-    B -- "/planwright execute" --> F[Read Pending Items]
-    F --> G[Implement Changes]
-    G --> H[Run Verification]
-    H -- Pass --> I[Commit & Complete]
-    H -- Fail --> J[Revert & Record Reject]
+    User -->|/planwright execute| Exec[Implement & Verify]
+    Exec -- Pass --> Commit[Commit]
+    Exec -- Fail --> Revert[Revert]
 ```
 
 Claude runs every stage directly, so it costs no separate model calls and needs no external binary.
