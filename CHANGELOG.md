@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.0] - 2026-06-01
+
+### Changed
+- Add /planwright upgrade subcommand to update the installed plugin.
+
 ## [1.5.0] - 2026-06-01
 
 ### Changed
