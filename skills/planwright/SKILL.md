@@ -40,6 +40,8 @@ Before doing anything else, inspect the argument the skill was invoked with:
 - If the first token is `execute`, dispatch to the **Execute** section near the end of this file and
   follow that procedure instead of the planning Procedure. Remaining tokens are execute options
   (`--interactive`, an item index `N`).
+- If the first token is `upgrade`, dispatch to the **Upgrade** section at the end of this file and
+  follow that procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
   **option overrides** (see Options), then run the planning Procedure.
 
@@ -59,6 +61,8 @@ EXECUTE (edits source)
 /planwright execute --interactive  Prompt per item: approve, show diff, verify, confirm commit
 /planwright execute N            Implement only pending item number N
 
+MAINTENANCE
+/planwright upgrade              Update planwright itself to the latest version
 /planwright help                 Show this help and stop
 ```
 
@@ -327,3 +331,28 @@ work, which is how rejections trend down over time.
 
 Print: items completed (with commit short-SHAs), items rejected (with reasons), items left pending or
 blocked, and the broad final-verify result.
+
+# Upgrade (update planwright itself)
+
+Reached only via `/planwright upgrade`. Updates the installed planwright plugin to the latest version.
+This path does **not** plan or edit your project; it only refreshes planwright.
+
+## Procedure
+
+1. **Locate the marketplace source.** Read `~/.claude/plugins/known_marketplaces.json` and find the
+   `planwright` entry. Note its `source` (a `github` repo, or a local `directory`/`git` path) and the
+   installed version from `~/.claude/plugins/installed_plugins.json` (`planwright@planwright`).
+2. **Refresh the source when it is a local git clone.** If the source is a `directory`/`git` path that
+   is a git repo, run `git -C <path> pull --ff-only` to fetch the latest. If that tree is dirty or the
+   pull is not fast-forward, STOP and report — do not force it. For a `github` source, skip this step
+   (the marketplace update fetches directly).
+3. **Report versions.** Print installed version → latest available `version` from the source's
+   `.claude-plugin/plugin.json`. If they already match, say "already up to date" and skip step 4.
+4. **Hand off the two interactive steps.** The skill cannot run `/plugin` or `/reload-plugins` itself
+   (they are user UI commands). Tell the user to run, in order:
+   - `/plugin marketplace update planwright`
+   - `/plugin install planwright@planwright` (only if the version did not advance after the update)
+   - `/reload-plugins`
+5. **Confirm.** After the user reloads, the new version is active; suggest `/planwright help` to verify.
+
+Report: source type, old → new version, whether a local pull ran, and the handoff steps.

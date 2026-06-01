@@ -57,6 +57,23 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 - **Interactive Mode** (`--interactive`): Halts on every item to let you approve the implementation, show the diff, run the verification, and explicitly confirm the commit.
 - **Targeted Mode** (`N`): Executes only the `N`th pending item.
 
+## Maintenance
+
+```bash
+/planwright upgrade              Update planwright itself to the latest version
+```
+
+`upgrade` neither plans nor edits your project — it refreshes the planwright plugin. It locates the
+`planwright` marketplace source, fast-forwards it if it is a local git clone, reports the installed
+version versus the latest, then hands you the interactive steps it cannot run itself:
+
+```bash
+/plugin marketplace update planwright
+/reload-plugins
+```
+
+(Run `/plugin install planwright@planwright` between those two only if the version did not advance.)
+
 ## Output Format
 
 Items are generated in a precise 8-field checkbox format within `.planwright/plan.md`. This format is strict so that it can be parsed and executed cleanly.
