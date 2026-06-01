@@ -5,12 +5,10 @@
 `planwright` is a Claude Code plugin that turns a repository into a verification-ready
 work plan. It scans and audits the codebase, then runs an 8-stage
 *dossier → draft → finalize → quality-gate* pipeline to emit concrete plan items in
-`.ai-developer/plan.md`.
+`.planwright/plan.md`.
 
-It is a Claude-native reimplementation of the [`ai-developer`](https://github.com/eserlxl/ai-developer-lab)
-binary's `plan` command: same artifact, same format, same multi-stage reasoning and
-quality gates — but Claude runs every stage directly, so it costs no separate model calls
-and needs no external binary.
+Claude runs every stage directly, so it costs no separate model calls and needs no external
+binary.
 
 > The plugin only ever writes the plan file. It never edits your application source to "plan".
 
@@ -31,7 +29,7 @@ code signals:
       Verification: <exact command, e.g. ctest --test-dir build -R "<target>" --output-on-failure>
 ```
 
-Files live under `<repo>/.ai-developer/`:
+Files live under `<repo>/.planwright/`:
 
 | File | Purpose |
 |------|---------|
@@ -39,9 +37,6 @@ Files live under `<repo>/.ai-developer/`:
 | `completed.md` | archived `[x]` items |
 | `rejected.md` | drained `Status:Rejected` items |
 | `plans/` | full-plan snapshots when a plan is archived |
-
-No `.planwright/` folder is created — it reuses the `.ai-developer/` convention so it is
-interchangeable with the original tool.
 
 ## Install
 
@@ -62,7 +57,7 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 ## Usage
 
 ```
-/planwright                   Plan from audit + mission (propose 5, defaults)
+/planwright                   Plan from audit (propose 5, defaults)
 /planwright <instruction>     Break a specific request into plan items
 /planwright propose <N>       Override items proposed this run (1..max)
 /planwright max <N>           Override the pending-item cap for this run
@@ -94,7 +89,7 @@ There is no settings file.
 4. **Dossier (5 passes)** — architecture, quality/tests, behavior, operations, prioritization.
 5. **Draft → Finalize → Quality gate** — convert the dossier into items, correct them, then
    reject anything stale, unsafe, duplicated, hallucinated, or under-verified.
-6. **Write** — append survivors to `.ai-developer/plan.md`.
+6. **Write** — append survivors to `.planwright/plan.md`.
 
 ## License
 

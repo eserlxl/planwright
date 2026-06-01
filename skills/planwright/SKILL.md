@@ -1,27 +1,25 @@
 ---
 name: planwright
 description: >
-  Replicate ai-developer's plan mode: scan + audit a codebase and produce a grounded,
-  verification-ready checkbox plan in .ai-developer/plan.md using the exact 8-field item
-  format (Mode/Rationale/Evidence/Surfaces/New Surfaces/Development/Acceptance/Verification).
-  Runs the same multi-stage dossier → draft → finalize → quality-gate pipeline that the
-  ai-developer binary's `plan` command runs, but with Claude doing the reasoning directly
-  instead of issuing separate LLM calls.
+  Grounded codebase planning. Scans + audits a repository and produces a verification-ready
+  checkbox plan in .planwright/plan.md using the exact 8-field item format
+  (Mode/Rationale/Evidence/Surfaces/New Surfaces/Development/Acceptance/Verification).
+  Runs a multi-stage dossier -> draft -> finalize -> quality-gate pipeline with Claude doing
+  every stage directly.
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
-  "propose plan items", or mentions .ai-developer/plan.md. Run `/planwright help` for usage and options.
+  "propose plan items", or mentions .planwright/plan.md. Run `/planwright help` for usage and options.
   Supports options: propose <N>, max <N>, no-compact, dry-run, help.
 metadata:
-  author: ai-developer-lab
+  author: Eser KUBALI
   version: "1.0.0"
-  source: src/workflow/planning_pipeline.cpp, src/workflow/detail/planning_stage_executor.cpp
 ---
 
 # planwright
 
-This skill makes Claude act as the planner that the `ai-developer plan` command implements.
-It produces the **same artifact** (`.ai-developer/plan.md`) in the **same format**, following the
-**same multi-stage reasoning and quality gates** — but without spending separate model calls,
-because Claude itself runs every stage.
+This skill turns a repository into a verification-ready work plan. It scans and audits the
+codebase, then runs a multi-stage *dossier → draft → finalize → quality-gate* pipeline to emit
+concrete plan items in `.planwright/plan.md`. Claude itself runs every stage, so it needs no
+external binary and spends no separate model calls.
 
 Do not edit application source to "plan". The output of this skill is **only** the plan file.
 
@@ -37,7 +35,7 @@ Before doing anything else, inspect the argument the skill was invoked with:
 ### Usage
 
 ```
-/planwright                      Plan from audit + mission (propose 5, default settings)
+/planwright                      Plan from audit (propose 5, default settings)
 /planwright <instruction>        Break a specific request into plan items
 /planwright propose <N>          Override items proposed this run (1..max)
 /planwright max <N>              Override the pending-item cap for this run
@@ -65,11 +63,10 @@ Precedence: **inline option > built-in default.** There is no settings file; opt
 ## Inputs
 
 - **Target**: the repo to plan for. Default `.` (current working directory).
-- **Instruction** (optional): a user request to break down. If absent, plan from audit + mission.
-- **Capacity**: propose at most `5` new items per run (`plan_feature_count`), and never let the
-  active plan's *pending* items exceed `20` (`max_plan_feature_count`).
-  `propose_count = min(5, 20 − pending_unchecked_items)`. If `propose_count == 0`, stop and report
-  "Plan is at capacity"; do not invent filler items.
+- **Instruction** (optional): a user request to break down. If absent, plan from the audit.
+- **Capacity**: propose at most `5` new items per run, and never let the active plan's *pending*
+  items exceed `20`. `propose_count = min(5, 20 − pending_unchecked_items)`. If `propose_count == 0`,
+  stop and report "Plan is at capacity"; do not invent filler items.
 
 ## Procedure
 
@@ -79,7 +76,7 @@ you perform yourself — treat each as a distinct lens and carry forward a cumul
 ### Stage 0 — Lifecycle housekeeping (mechanical)
 
 If `no-compact` was passed, skip this entire stage (still read pending items in step 4).
-Operate on `<target>/.ai-developer/`:
+Create `<target>/.planwright/` if it does not exist, then operate on it:
 
 1. If `plan.md` exists, move every completed item (`- [x] ...` and its indented continuation lines)
    into `completed.md` (append). Keep at most the configured tail in `plan.md`; archive the rest.
@@ -100,10 +97,10 @@ route through context-mode (`ctx_batch_execute`) so raw bytes stay out of contex
 - **PROJECT IMPLEMENTATION SIGNALS** — actual non-comment symbols: function/method/type names,
   `constexpr` declarations, `TEST`/`TEST_F` group names, public API signatures. This is your
   ground truth for what exists.
-- **PROJECT TEST TARGETS** — exact CTest target names (e.g. from `add_test`/`gtest_discover_tests`
-  / `ctest -N`). Verification commands must use these verbatim.
+- **PROJECT TEST TARGETS** — exact test target names (e.g. from `add_test`/`gtest_discover_tests`
+  / `ctest -N`, or the project's test runner). Verification commands must use these verbatim.
 
-Also read `MISSION.yaml` (PROJECT MISSION) if present.
+Also read any project mission/charter file if present and treat it as a constraint.
 
 ### Stage 2 — Audit (mechanical + reasoning)
 
@@ -118,9 +115,9 @@ Targets, Rejected Ideas**. Do *not* emit checkbox items yet. Each pass preserves
 findings and adds/corrects for its lens:
 
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
-   direction, source/header/test clusters, C++ header-only/template constraints.
+   direction, source/header/test clusters, language-specific header-only/template constraints.
 4. **Quality & tests** — weak/missing focused tests, wrong verification targets, refactors needing
-   coverage, exact CTest anchors. For any test split/consolidation candidate, enumerate **every**
+   coverage, exact test anchors. For any test split/consolidation candidate, enumerate **every**
    `TEST`/`TEST_F` group in the file and flag compile-time-sensitive tests (preprocessor-manipulating,
    include-order-sensitive, distinct-translation-unit-dependent) that must stay isolated.
 5. **Behavior & features** — work that adds/integrates runtime behavior, user workflows,
@@ -145,13 +142,13 @@ between candidates first. Select the highest-value `propose_count` items.
 
 ### Stage 9 — Finalize
 
-Re-check every draft item against PROJECT FILE PATHS, PROJECT TEST TARGETS, mode rules, mission, and
-recently completed work. Fix: vague titles, wrong modes, missing source/test surfaces, weak
-Development, generic Acceptance, non-existent Verification targets; stale missing-file/missing-test
-claims; unsafe C++ template-header moves; `constexpr`-to-`.cpp` extractions; invented symbol/fixture
-names (replace with verbatim names from signals or drop); singleton/global-API assumptions (rewrite
-to the real instance API or split); coverage-preservation claims without measurable before/after.
-Use exact CTest target names.
+Re-check every draft item against PROJECT FILE PATHS, PROJECT TEST TARGETS, mode rules, and recently
+completed work. Fix: vague titles, wrong modes, missing source/test surfaces, weak Development,
+generic Acceptance, non-existent Verification targets; stale missing-file/missing-test claims; unsafe
+template-header moves; `constexpr`-to-`.cpp` extractions; invented symbol/fixture names (replace with
+verbatim names from signals or drop); singleton/global-API assumptions (rewrite to the real instance
+API or split); coverage-preservation claims without measurable before/after. Use exact test target
+names.
 
 ### Stage 10 — Strict quality gate (final)
 
@@ -179,12 +176,12 @@ better-verified item or drop it:
 ### Stage 11 — Write the plan
 
 If `dry-run` was passed, print the surviving items to the chat and STOP — write no file.
-Otherwise append the surviving items (separated by a blank line) to `<target>/.ai-developer/plan.md`
+Otherwise append the surviving items (separated by a blank line) to `<target>/.planwright/plan.md`
 below any existing pending items, preserving them. If the file was archived/fresh, create it with the
 header:
 
 ```
-# AI Developer Plan — <target-or-".">
+# planwright Plan — <target-or-".">
 <!-- Session: <UTC ISO-8601 timestamp> -->
 ```
 
