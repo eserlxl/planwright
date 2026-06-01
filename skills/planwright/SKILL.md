@@ -9,9 +9,10 @@ description: >
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
   "propose plan items", or mentions .planwright/plan.md. Run `/planwright help` for usage and options.
   Supports options: propose <N>, max <N>, no-compact, dry-run, help.
+license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.0.0"
+  version: "1.1.1"
 ---
 
 # planwright

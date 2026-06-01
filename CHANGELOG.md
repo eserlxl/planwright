@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.1] - 2026-06-01
+
+### Changed
+- Add SPDX license headers to scripts and SKILL.md; generated plugins inherit them.
+
 ## [1.1.0] - 2026-06-01
 
 ### Changed

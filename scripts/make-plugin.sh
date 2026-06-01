@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Eser KUBALI
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 # Scaffold a new, self-hosting Claude Code plugin (one skill) ready to install
 # via /plugin. Produces the same layout as this repo.
 #
@@ -76,6 +79,7 @@ name: $NAME
 description: >
   $PLUGIN_DESC
   Trigger when the user asks to ... . Run \`/$NAME help\` for usage.
+license: GPL-3.0-or-later
 metadata:
   author: $AUTHOR_NAME
   version: "0.1.0"

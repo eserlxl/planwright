@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Eser KUBALI
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 # Bump the plugin version in lockstep across plugin.json, marketplace.json,
 # and CHANGELOG.md.
 #
