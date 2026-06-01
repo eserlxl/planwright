@@ -96,17 +96,25 @@ PY
 SKILLS_SYNCED=""
 for skill in "$ROOT"/skills/*/SKILL.md; do
   [ -f "$skill" ] || continue
-  python3 - "$skill" "$NEW" <<'PY'
+  rel="$(realpath --relative-to="$ROOT" "$skill")"
+  changed="$(python3 - "$skill" "$NEW" <<'PY'
 import re, sys
 path, new = sys.argv[1], sys.argv[2]
 with open(path) as f:
     text = f.read()
 # Rewrite the metadata version line in the YAML frontmatter (2-space indent).
-text, _ = re.subn(r'(\n  version:\s*)"[^"]*"', rf'\g<1>"{new}"', text, count=1)
-with open(path, "w") as f:
-    f.write(text)
+text, n = re.subn(r'(\n  version:\s*)"[^"]*"', rf'\g<1>"{new}"', text, count=1)
+if n:
+    with open(path, "w") as f:
+        f.write(text)
+print(n)
 PY
-  SKILLS_SYNCED="$SKILLS_SYNCED $(realpath --relative-to="$ROOT" "$skill")"
+)"
+  if [ "$changed" = "0" ]; then
+    echo "warning: no metadata 'version:' line in $rel; skipped" >&2
+  else
+    SKILLS_SYNCED="$SKILLS_SYNCED $rel"
+  fi
 done
 
 # --- Prepend a CHANGELOG entry --------------------------------------------
