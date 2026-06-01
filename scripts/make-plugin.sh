@@ -202,13 +202,10 @@ fi
 chmod +x "$DEST/scripts/"*.sh 2>/dev/null || true
 
 # --- LICENSE ---------------------------------------------------------------
-# Keep the generated LICENSE consistent with the "license" field in the
-# manifests. Prefer the full GPL text bundled next to this script; otherwise
-# emit a self-contained GPL-3.0-or-later notice for the named plugin.
-if [ -f "$SELF_DIR/../LICENSE" ]; then
-  cp "$SELF_DIR/../LICENSE" "$DEST/LICENSE"
-else
-  cat > "$DEST/LICENSE" <<EOF
+# Write a self-contained GPL-3.0-or-later notice naming THIS plugin, consistent
+# with the "license" field in the manifests. (Copying a bundled LICENSE verbatim
+# would carry the source project's name in the GPL appendix.)
+cat > "$DEST/LICENSE" <<EOF
 $NAME
 Copyright (C) $(date -u +%Y) $AUTHOR_NAME
 
@@ -223,7 +220,6 @@ General Public License for more details: <https://www.gnu.org/licenses/>.
 
 SPDX-License-Identifier: GPL-3.0-or-later
 EOF
-fi
 
 if [ "${NO_GIT:-0}" != "1" ]; then
   git -C "$DEST" init -q
