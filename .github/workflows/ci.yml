@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shellcheck scripts
+        run: shellcheck scripts/*.sh tests/*.sh
+
+      - name: Validate plugin manifests
+        run: python3 -c "import json,glob;[json.load(open(f)) for f in glob.glob('.claude-plugin/*.json')]"
+
+      - name: Smoke tests
+        run: bash tests/run.sh
