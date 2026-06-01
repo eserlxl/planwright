@@ -154,6 +154,44 @@ cat > "$DEST/.gitignore" <<EOF
 .claude/settings.local.json
 EOF
 
+# --- tests/ + CI -----------------------------------------------------------
+# Give every generated plugin the same verification baseline this repo uses.
+mkdir -p "$DEST/tests" "$DEST/.github/workflows"
+
+cat > "$DEST/tests/run.sh" <<'EOF'
+#!/usr/bin/env bash
+# Smoke test for this plugin: the .claude-plugin manifests parse as JSON.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+python3 - "$ROOT" <<'PY'
+import glob, json, sys
+for f in glob.glob(sys.argv[1] + "/.claude-plugin/*.json"):
+    json.load(open(f))
+print("ok - manifests parse")
+PY
+EOF
+chmod +x "$DEST/tests/run.sh"
+
+cat > "$DEST/.github/workflows/ci.yml" <<'EOF'
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck
+        run: shellcheck scripts/*.sh tests/*.sh
+      - name: Validate manifests
+        run: python3 -c "import json,glob;[json.load(open(f)) for f in glob.glob('.claude-plugin/*.json')]"
+      - name: Smoke tests
+        run: bash tests/run.sh
+EOF
+
 # --- bundled bump-version helper ------------------------------------------
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SELF_DIR/bump-version.sh" ]; then
