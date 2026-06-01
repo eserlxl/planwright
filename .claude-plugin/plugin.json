@@ -1,0 +1,20 @@
+{
+  "name": "planwright",
+  "version": "1.0.0",
+  "description": "Grounded codebase planning for Claude Code. Scans + audits a repository and produces a verification-ready checkbox plan in .ai-developer/plan.md using an 8-stage dossier -> draft -> finalize -> quality-gate pipeline. Replicates the ai-developer binary's plan mode with Claude doing the reasoning directly.",
+  "author": {
+    "name": "Eser KUBALI",
+    "email": "eserlxl@gmail.com"
+  },
+  "homepage": "https://github.com/eserlxl/planwright",
+  "repository": "https://github.com/eserlxl/planwright",
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "planning",
+    "plan-mode",
+    "codebase",
+    "audit",
+    "skill",
+    "ai-developer"
+  ]
+}
