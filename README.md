@@ -125,13 +125,18 @@ break the whole. Auto mode runs the entire plan, pausing only on a hard blocker 
 an unresolved design decision, or a failing final verification). `--interactive` adds an
 approve/diff/confirm step per item.
 
+`execute` refuses to start on a dirty working tree so its per-item commits stay isolated from your
+uncommitted work — commit or stash first. (`bump-version.sh` enforces the same clean-tree rule and
+accepts `ALLOW_DIRTY=1` to override it when you deliberately want to bump alongside other changes.)
+
 ## Development
 
 Helper scripts live in `scripts/`:
 
 ```
 scripts/bump-version.sh <major|minor|patch|X.Y.Z> [-m "note"]
-    Bump the version in plugin.json, marketplace.json, and CHANGELOG.md in one shot.
+    Bump the version in plugin.json, marketplace.json, every skills/*/SKILL.md
+    frontmatter, and CHANGELOG.md in one shot. Refuses a dirty tree (ALLOW_DIRTY=1 overrides).
 
 scripts/make-plugin.sh <plugin-name> [dest-dir]
     Scaffold a fresh self-hosting Claude Code plugin (manifests, a starter skill,
