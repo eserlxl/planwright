@@ -39,6 +39,15 @@ for f in "$PLUGIN_JSON" "$MARKET_JSON" "$CHANGELOG"; do
   [ -f "$f" ] || { echo "Missing required file: $f" >&2; exit 1; }
 done
 
+# Refuse to mutate a dirty tree so the bump's edits stay isolated and revertible.
+# Skipped when not inside a git work tree (e.g. the test harness) or ALLOW_DIRTY=1.
+if [ "${ALLOW_DIRTY:-0}" != "1" ] && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
+    echo "Working tree not clean; commit or stash first, or set ALLOW_DIRTY=1." >&2
+    exit 1
+  fi
+fi
+
 CURRENT="$(python3 -c "import json;print(json.load(open('$PLUGIN_JSON'))['version'])")"
 
 NEW="$(python3 - "$CURRENT" "$BUMP" <<'PY'
@@ -91,8 +100,11 @@ note = note or "Version bump."
 block = f"## [{new}] - {date}\n\n### Changed\n- {note}\n\n"
 with open(path) as f:
     lines = f.readlines()
-# Insert above the first existing version section, else append.
-idx = next((i for i, ln in enumerate(lines) if ln.startswith("## [")), len(lines))
+# Insert above the first existing version section; warn and append if none exists.
+idx = next((i for i, ln in enumerate(lines) if ln.startswith("## [")), None)
+if idx is None:
+    sys.stderr.write("warning: no '## [' version section in changelog; appending entry at end\n")
+    idx = len(lines)
 lines[idx:idx] = [block]
 with open(path, "w") as f:
     f.writelines(lines)
