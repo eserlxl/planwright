@@ -92,6 +92,23 @@ with open(market_path, "w") as f:
     json.dump(market, f, indent=2); f.write("\n")
 PY
 
+# --- Sync skill frontmatter versions --------------------------------------
+SKILLS_SYNCED=""
+for skill in "$ROOT"/skills/*/SKILL.md; do
+  [ -f "$skill" ] || continue
+  python3 - "$skill" "$NEW" <<'PY'
+import re, sys
+path, new = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    text = f.read()
+# Rewrite the metadata version line in the YAML frontmatter (2-space indent).
+text, _ = re.subn(r'(\n  version:\s*)"[^"]*"', rf'\g<1>"{new}"', text, count=1)
+with open(path, "w") as f:
+    f.write(text)
+PY
+  SKILLS_SYNCED="$SKILLS_SYNCED $(realpath --relative-to="$ROOT" "$skill")"
+done
+
 # --- Prepend a CHANGELOG entry --------------------------------------------
 python3 - "$CHANGELOG" "$NEW" "$DATE" "$NOTE" <<'PY'
 import sys
@@ -113,6 +130,7 @@ PY
 echo "Bumped: $CURRENT -> $NEW"
 echo "  updated $(realpath --relative-to="$ROOT" "$PLUGIN_JSON")"
 echo "  updated $(realpath --relative-to="$ROOT" "$MARKET_JSON")"
+[ -n "$SKILLS_SYNCED" ] && echo "  updated$SKILLS_SYNCED"
 echo "  changelog entry added ($DATE)"
 echo
 echo "Next: review the diff, commit, then run /plugin marketplace update <name>"
