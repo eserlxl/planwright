@@ -76,6 +76,7 @@ git -C "$GREPO" add -A
 git -C "$GREPO" -c user.name=test -c user.email=test@example.com commit -qm init
 echo "dirt" >> "$GREPO/README.md"
 if "$GREPO/scripts/bump-version.sh" patch -m x >/dev/null 2>&1; then bad "guard did not abort on dirty tree"; else ok "guard aborts on dirty git tree"; fi
+if ALLOW_DIRTY=1 "$GREPO/scripts/bump-version.sh" patch -m x >/dev/null 2>&1; then ok "ALLOW_DIRTY=1 bypasses dirty-tree guard"; else bad "ALLOW_DIRTY=1 did not bypass dirty-tree guard"; fi
 
 # --- Test 4: skill-sync warns and skips when no version: line matches ------
 WREPO="$TMP/warnrepo"
