@@ -69,7 +69,7 @@ EXECUTE (edits source)
 /planwright execute N            Implement only pending item number N
 
 CYCLE (automated plan → execute loops)
-/planwright cycle <N>            Plan then execute, repeated N times (1..10)
+/planwright cycle <N>            Plan then execute, repeated N times (1..100)
 /planwright cycle <-N>           Plan then execute until nothing remains (unlimited, negative N)
 
 MAINTENANCE
@@ -353,7 +353,7 @@ results into the next round's audit. Useful for unattended dogfooding or bulk pr
 
 ## Preconditions
 
-1. **N is valid** — N must be a non-zero integer. Positive values (1–10) run exactly N cycles.
+1. **N is valid** — N must be a non-zero integer. Positive values (1–100) run exactly N cycles.
    **Negative values run unlimited cycles** — the loop continues until a stop condition fires (no
    more work, hard blocker, or failed broad verify). Zero is invalid.
    If missing or non-integer, print `Usage: /planwright cycle <N>  (N ≠ 0; negative = unlimited)`
