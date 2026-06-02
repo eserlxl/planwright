@@ -57,6 +57,10 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 
 # Execute the pending plan items automatically
 /planwright execute
+
+# Maintenance
+/planwright version    # show current and latest available version
+/planwright upgrade    # update planwright itself to the latest version
 ```
 
 ## License
