@@ -37,7 +37,9 @@ NOTE=""
 DRY_RUN=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    -m|--message) NOTE="${2:-}"; shift 2 ;;
+    -m|--message)
+      [ $# -ge 2 ] || { echo "Option $1 requires a value" >&2; usage; }
+      NOTE="$2"; shift 2 ;;
     --dry-run)    DRY_RUN=1; shift ;;
     -h|--help) echo "Usage: $(basename "$0") <major|minor|patch|X.Y.Z> [-m \"changelog note\"] [--dry-run]"; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage ;;
