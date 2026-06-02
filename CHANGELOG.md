@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.1] - 2026-06-02
+
+### Changed
+- Add 'update' alias for upgrade subcommand
+
 ## [1.8.0] - 2026-06-02
 
 ### Changed
