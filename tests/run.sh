@@ -64,7 +64,12 @@ GEN2="$TMP/gen2"
 NO_GIT=1 "$ROOT/scripts/make-plugin.sh" demo "$GEN2" >/dev/null
 if NO_GIT=1 "$ROOT/scripts/make-plugin.sh" demo "$GEN2" >/dev/null 2>&1; then bad "make-plugin accepted duplicate destination"; else ok "make-plugin rejects duplicate destination"; fi
 
-# --- Test 2d: bump-version.sh rejects unknown arguments --------------------
+# --- Test 2d: make-plugin.sh injects AUTHOR_NAME into generated LICENSE -----
+GEN_AUTH="$TMP/gen_auth"
+AUTHOR_NAME="Test Author" NO_GIT=1 "$ROOT/scripts/make-plugin.sh" demo "$GEN_AUTH" >/dev/null
+if grep -q "Test Author" "$GEN_AUTH/LICENSE" 2>/dev/null; then ok "AUTHOR_NAME appears in generated LICENSE"; else bad "AUTHOR_NAME missing from generated LICENSE"; fi
+
+# --- Test 2e: bump-version.sh rejects unknown arguments --------------------
 if "$ROOT/scripts/bump-version.sh" patch --garbage >/dev/null 2>&1; then bad "bump-version accepted unknown argument --garbage"; else ok "bump-version rejects unknown argument (--garbage)"; fi
 
 # --- Test 3: bump-version.sh refuses a dirty git tree ---------------------
