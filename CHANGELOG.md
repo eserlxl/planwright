@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [1.14.0] - 2026-06-02
 
 ### Changed
-- Interactive effort prompt: depth now maps to a /effort tier and offers to raise it
+- Depth maps to a reasoning-intensity tier (low→ultra) that planwright self-applies for the run; no interactive prompt and no change to the session /effort level (that stays the user's to set)
 
 ## [1.13.0] - 2026-06-02
 

@@ -63,7 +63,7 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 # Break a specific request into plan items
 /planwright "add OAuth login"
 
-# Tune analysis depth 1..10 (effort + audit thoroughness; default 6)
+# Tune analysis depth 1..10 (intensity + audit thoroughness; default 6)
 /planwright depth 9          # exhaustive audit
 /planwright depth 2          # quick cosmetic pass
 

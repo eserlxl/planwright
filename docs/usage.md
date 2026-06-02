@@ -19,7 +19,7 @@ The `/planwright` command scans the codebase and generates plan items in `.planw
 ```bash
 /planwright                      Plan from audit (depth 6, propose 5, default settings)
 /planwright <instruction>        Break a specific request into plan items
-/planwright depth <N>            Set analysis depth 1..10 (effort + audit thoroughness; default 6)
+/planwright depth <N>            Set analysis depth 1..10 (intensity + audit thoroughness; default 6)
 /planwright propose <N>          Override items proposed this run (1..max)
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
@@ -37,7 +37,7 @@ You can combine options and instructions. For example:
 | Option | Default | Effect |
 |--------|---------|--------|
 | `<instruction>` | none | A free-text request to break down into plan items. |
-| `depth <N>` | `6` | Analysis depth `1..10`. Scales reasoning effort (low→ultra), Stage 2 audit sub-passes, function bodies read, Stages 3–7 lenses, and the default propose count. `1` = cosmetic pass, `10` = exhaustive audit. |
+| `depth <N>` | `6` | Analysis depth `1..10`. Scales reasoning intensity (low→ultra), Stage 2 audit sub-passes, function bodies read, Stages 3–7 lenses, and the default propose count. `1` = cosmetic pass, `10` = exhaustive audit. |
 | `propose <N>` | from depth (`5` at depth 6) | Number of items to propose this run (clamped to `1..max`). |
 | `max <N>` | `20` | Cap on pending, unchecked items in the active plan. |
 | `no-compact` | off | Skip the lifecycle housekeeping stage (no archiving or draining). |

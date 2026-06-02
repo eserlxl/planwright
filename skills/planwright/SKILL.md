@@ -59,7 +59,7 @@ Before doing anything else, inspect the argument the skill was invoked with:
 PLAN (read-only)
 /planwright                      Plan from audit (depth 6, propose 5, default settings)
 /planwright <instruction>        Break a specific request into plan items
-/planwright depth <N>            Set analysis depth 1..10 (effort + audit thoroughness; default 6)
+/planwright depth <N>            Set analysis depth 1..10 (intensity + audit thoroughness; default 6)
 /planwright propose <N>          Override items proposed this run (1..max)
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
@@ -90,7 +90,7 @@ Plan options may be combined with an instruction, e.g.
 | Option | Default | Effect |
 |--------|---------|--------|
 | `<instruction>` | none | free-text request to decompose into items |
-| `depth <N>` | `6` | analysis depth `1..10` — scales reasoning effort + audit thoroughness (see **Depth**) |
+| `depth <N>` | `6` | analysis depth `1..10` — scales reasoning intensity + audit thoroughness (see **Depth**) |
 | `propose <N>` | from depth (`5` at depth 6) | items to propose this run (clamped to `1..max`) |
 | `max <N>` | `20` | cap on pending unchecked items in the plan |
 | `no-compact` | off | skip Stage 0 housekeeping for this run |
@@ -103,13 +103,13 @@ Precedence: **inline option > built-in default.** There is no settings file; opt
 
 `depth <N>` (1–10, default **6**) is a single dial that scales the whole planning pipeline: how hard
 you reason, how many audit sub-passes run, how many function bodies you read, how many dossier lenses
-you apply, and how many items you propose by default. Read it as the analysis-effort knob —
+you apply, and how many items you propose by default. Read it as the analysis-intensity knob —
 **1 = cosmetic pass** (typos, formatting, trivial one-line fixes), **10 = exhaustive whole-project
 audit**. Non-integer or out-of-range values are clamped to `1..10`; report the clamp.
 
 Resolve the run's depth first, then apply this table for the rest of the Procedure:
 
-| Depth | Reasoning effort | Stage 2 audit sub-passes | Stage 2b functions to read | Stages 3–7 lenses | Default `propose` | Character |
+| Depth | Reasoning intensity | Stage 2 audit sub-passes | Stage 2b functions to read | Stages 3–7 lenses | Default `propose` | Character |
 |------:|------------------|--------------------------|---------------------------:|-------------------|------------------:|-----------|
 | 1  | low    | 2a only          | 0  | one quick combined pass | 1 | cosmetic: typos, formatting, trivial fixes |
 | 2  | low    | 2a only          | 1  | one quick combined pass | 2 | small, low-risk fixes |
@@ -124,17 +124,11 @@ Resolve the run's depth first, then apply this table for the rest of the Procedu
 
 How to read it:
 
-- **Reasoning effort** matches the user's `/effort` convention (low / medium / high / ultra). Run the
-  pipeline at that intensity. A skill cannot invoke `/effort` itself, but it must not leave the
-  depth→effort link to a silent footnote: **before Stage 0**, resolve depth→tier and compare it to the
-  session's current effort. If the mapped tier is **above** the current setting, present an interactive
-  prompt (the question/option mechanism) offering to raise it — e.g. *"Depth 9 maps to **high** effort;
-  the session is at medium. Raise it?"* with choices like *"Yes — I'll run `/effort high` now"*,
-  *"Proceed at current effort"*. The user acts on their choice (the prompt makes the switch one tap to
-  decide, then they type `/effort <tier>`); planwright **self-applies the mapped intensity regardless**
-  of the answer. Skip the prompt entirely when the mapped tier already matches or is below the current
-  setting, and — in `cycle` mode — fire it **once at cycle start**, not every round, so long runs are
-  not interrupted.
+- **Reasoning intensity** uses the familiar low / medium / high / ultra scale. **Before Stage 0**,
+  resolve depth→tier and **self-apply that reasoning intensity for the rest of the run**, reasoning at
+  that tier throughout the pipeline. planwright does not read or change the session's `/effort` level —
+  that setting is the user's to adjust if they want; planwright never prompts about it and never blocks
+  on it. Just run at the mapped intensity.
 - **Stage 2 audit sub-passes** — only the listed sub-passes run; the rest are skipped entirely at that
   depth. Low depth is deliberately structural-only; correctness/invariant/behavioral tracing is reserved
   for depth ≥ 5.
