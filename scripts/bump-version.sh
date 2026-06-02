@@ -27,9 +27,11 @@ usage() {
 [ $# -ge 1 ] || usage
 BUMP="$1"; shift
 NOTE=""
+DRY_RUN=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -m|--message) NOTE="${2:-}"; shift 2 ;;
+    --dry-run)    DRY_RUN=1; shift ;;
     -h|--help) usage ;;
     *) echo "Unknown argument: $1" >&2; usage ;;
   esac
@@ -71,6 +73,7 @@ PY
 DATE="$(date -u +%Y-%m-%d)"
 
 # --- Update both JSON manifests -------------------------------------------
+if [ -z "$DRY_RUN" ]; then
 python3 - "$PLUGIN_JSON" "$MARKET_JSON" "$NEW" <<'PY'
 import json, sys
 plugin_path, market_path, new = sys.argv[1:4]
@@ -91,9 +94,11 @@ for entry in market.get("plugins", []):
 with open(market_path, "w") as f:
     json.dump(market, f, indent=2); f.write("\n")
 PY
+fi
 
 # --- Sync skill frontmatter versions --------------------------------------
 SKILLS_SYNCED=""
+if [ -z "$DRY_RUN" ]; then
 for skill in "$ROOT"/skills/*/SKILL.md; do
   [ -f "$skill" ] || continue
   rel="$(realpath --relative-to="$ROOT" "$skill")"
@@ -116,8 +121,10 @@ PY
     SKILLS_SYNCED="$SKILLS_SYNCED $rel"
   fi
 done
+fi
 
 # --- Prepend a CHANGELOG entry --------------------------------------------
+if [ -z "$DRY_RUN" ]; then
 python3 - "$CHANGELOG" "$NEW" "$DATE" "$NOTE" <<'PY'
 import sys
 path, new, date, note = sys.argv[1:5]
@@ -134,11 +141,22 @@ lines[idx:idx] = [block]
 with open(path, "w") as f:
     f.writelines(lines)
 PY
+fi
 
-echo "Bumped: $CURRENT -> $NEW"
-echo "  updated $(realpath --relative-to="$ROOT" "$PLUGIN_JSON")"
-echo "  updated $(realpath --relative-to="$ROOT" "$MARKET_JSON")"
-[ -n "$SKILLS_SYNCED" ] && echo "  updated$SKILLS_SYNCED"
-echo "  changelog entry added ($DATE)"
-echo
-echo "Next: review the diff, commit, then run /plugin marketplace update <name>"
+if [ -n "$DRY_RUN" ]; then
+  echo "dry-run: $CURRENT -> $NEW (files not modified)"
+  echo
+  echo "Would add to CHANGELOG.md:"
+  echo "## [$NEW] - $DATE"
+  echo
+  echo "### Changed"
+  echo "- ${NOTE:-Version bump.}"
+else
+  echo "Bumped: $CURRENT -> $NEW"
+  echo "  updated $(realpath --relative-to="$ROOT" "$PLUGIN_JSON")"
+  echo "  updated $(realpath --relative-to="$ROOT" "$MARKET_JSON")"
+  [ -n "$SKILLS_SYNCED" ] && echo "  updated$SKILLS_SYNCED"
+  echo "  changelog entry added ($DATE)"
+  echo
+  echo "Next: review the diff, commit, then run /plugin marketplace update <name>"
+fi
