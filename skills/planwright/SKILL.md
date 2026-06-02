@@ -47,8 +47,8 @@ Before doing anything else, inspect the argument the skill was invoked with:
   (`--interactive`, an item index `N`).
 - If the first token is `cycle`, dispatch to the **Cycle** section near the end of this file and
   follow that procedure instead of the planning Procedure. The remaining token is the repeat count `N`.
-- If the first token is `upgrade`, dispatch to the **Upgrade** section at the end of this file and
-  follow that procedure instead of the planning Procedure.
+- If the first token is `upgrade` or `update`, dispatch to the **Upgrade** section at the end of
+  this file and follow that procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
   **option overrides** (see Options), then run the planning Procedure.
 
@@ -75,6 +75,7 @@ CYCLE (automated plan → execute loops)
 MAINTENANCE
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version
+/planwright update               Alias for upgrade
 /planwright help                 Show this help (with version) and stop
 ```
 
