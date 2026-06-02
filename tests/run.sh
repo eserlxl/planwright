@@ -135,6 +135,13 @@ if [ "$pinpj" = "2.5.0" ]; then ok "X.Y.Z explicit pin sets version to 2.5.0"; e
 pinmm="$(python3 -c "import json;print(json.load(open('$PINRR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
 if [ "$pinpj" = "$pinmm" ]; then ok "X.Y.Z explicit pin synced across manifests"; else bad "X.Y.Z pin not synced: plugin=$pinpj market=$pinmm"; fi
 
+# --- Test 7c: bump-version.sh exits non-zero when a required file is missing -
+MISRR="$TMP/misrr"
+mkdir -p "$MISRR"
+( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$MISRR" && tar -xf - )
+rm "$MISRR/.claude-plugin/plugin.json"
+if "$MISRR/scripts/bump-version.sh" patch >/dev/null 2>&1; then bad "bump-version did not exit on missing plugin.json"; else ok "bump-version exits non-zero when required file is missing"; fi
+
 # --- Test 8: bump-version.sh --dry-run does not modify files ---------------
 DRYR="$TMP/dryr"
 mkdir -p "$DRYR"
