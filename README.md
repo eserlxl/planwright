@@ -4,23 +4,28 @@
 
 Planwright is a planning-first Claude Code skill that analyzes software projects, generates implementation plans, and optionally executes approved development tasks.
 
-It operates using two distinct, partitioned paths:
+It operates using three distinct, partitioned paths:
 
 - **Plan** — scans and audits the codebase, then runs a multi-stage pipeline to emit concrete, verified plan items into `.planwright/plan.md`. Read-only: the plan path writes only the plan file, never your source.
 - **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and records the rest. This is the only path that edits source.
+- **Cycle** — runs N sequential plan→execute rounds unattended. Pass a positive number for a fixed count, or a negative number to run until the audit finds nothing left to do.
 
 ```mermaid
 flowchart LR
     User -->|/planwright| Plan[Plan Pipeline] --> Doc[.planwright/plan.md]
-    
+
     User -->|/planwright execute| Exec[Implement & Verify]
     Exec -- Pass --> Commit[Commit]
     Exec -- Fail --> Revert[Revert]
+
+    User -->|/planwright cycle N| Cycle[Plan → Execute × N]
+    Cycle -->|repeat| Cycle
+    Cycle -->|nothing left| Done[Done]
 ```
 
 Claude runs every stage directly, so it costs no separate model calls and needs no external binary.
 
-> **Note**: Planning never edits your application source. Only `/planwright execute` does — and even then, Claude Code's normal permission prompts for edits and commits still apply.
+> **Note**: Planning never edits your application source. Only `/planwright execute` and `/planwright cycle` do — and even then, Claude Code's normal permission prompts for edits and commits still apply.
 
 ## Documentation
 
@@ -57,6 +62,10 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 
 # Execute the pending plan items automatically
 /planwright execute
+
+# Run plan→execute in a loop
+/planwright cycle 3    # exactly 3 rounds
+/planwright cycle -1   # unlimited rounds until the audit finds nothing left
 
 # Maintenance
 /planwright version    # show current and latest available version
