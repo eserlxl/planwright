@@ -33,11 +33,12 @@ mkdir -p "$WORK"
 ( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$WORK" && tar -xf - )
 
 before="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
-"$WORK/scripts/bump-version.sh" patch -m "smoke-test bump" >/dev/null
+bs_out="$("$WORK/scripts/bump-version.sh" patch -m "smoke-test bump")"
 pj="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
 mm="$(ver "$WORK/.claude-plugin/marketplace.json" "['metadata']['version']")"
 me="$(ver "$WORK/.claude-plugin/marketplace.json" "['plugins'][0]['version']")"
 
+if printf '%s' "$bs_out" | grep -q "Bumped:"; then ok "bump-version prints Bumped: summary on success"; else bad "bump-version missing Bumped: summary on success"; fi
 if [ "$pj" != "$before" ]; then ok "bump-version changed version ($before -> $pj)"; else bad "version unchanged"; fi
 if [ "$pj" = "$mm" ] && [ "$pj" = "$me" ]; then ok "manifests in lockstep ($pj)"; else bad "out of sync: plugin=$pj meta=$mm entry=$me"; fi
 if grep -q "## \[$pj\]" "$WORK/CHANGELOG.md"; then ok "changelog gained [$pj] section"; else bad "changelog missing [$pj]"; fi
