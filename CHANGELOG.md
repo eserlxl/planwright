@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.0] - 2026-06-02
+
+### Changed
+- Show running version in /planwright help; add /planwright version (current vs latest).
+
 ## [1.6.0] - 2026-06-01
 
 ### Changed
