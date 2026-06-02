@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.9.0] - 2026-06-02
+
+### Changed
+- Dogfooding cycle: 5 new tests (38 total), update alias in Supports line
+
 ## [1.8.1] - 2026-06-02
 
 ### Changed
