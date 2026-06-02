@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.10.0] - 2026-06-02
+
+### Changed
+- dry-run for bump-version, --help for scripts, cycle cap 10→100, version/upgrade in Supports, 38+ tests, shellcheck CI
+
 ## [1.9.0] - 2026-06-02
 
 ### Changed
