@@ -232,6 +232,43 @@ rskill="$(grep -m1 '  version:' "$ROOT/skills/planwright/SKILL.md" | sed -E 's/.
 if [ "$rv" = "$rmeta" ] && [ "$rv" = "$rentry" ] && [ "$rv" = "$rskill" ]; then ok "repo version sources agree at rest ($rv)"; else bad "repo version drift: plugin=$rv meta=$rmeta entry=$rentry skill=$rskill"; fi
 if grep -q "## \[$rv\]" "$ROOT/CHANGELOG.md"; then ok "CHANGELOG.md has a section for the current version [$rv]"; else bad "CHANGELOG.md missing a section for the current version [$rv]"; fi
 
+# --- Test 10: SKILL.md structural lint -------------------------------------
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1]).read()
+missing = []
+if not re.search(r'\n  version:\s*"\d+\.\d+\.\d+"', t): missing.append("version-frontmatter")
+for h in ["### Stage 0", "### Stage 1 ", "### Stage 1.5", "### Stage 2 ", "### Stages 3", "### Stage 8", "### Stage 9", "### Stage 10", "### Stage 11"]:
+    if h not in t: missing.append("heading:" + h)
+for s in ["## Inputs", "## Maturity ladder", "## OUTPUT FORMAT", "## Hard rules"]:
+    if s not in t: missing.append("section:" + s)
+for f in ["Mode:", "Rationale:", "Evidence:", "Surfaces:", "New Surfaces:", "Development:", "Acceptance:", "Verification:"]:
+    if f not in t: missing.append("field:" + f)
+sys.exit(1 if missing else 0)
+PY
+then ok "SKILL.md structural lint passes (stages, sections, item fields present)"; else bad "SKILL.md structural lint failed (missing stage/section/field)"; fi
+
+# --- Test 11: scripts/build-graph.py builds a schema-conforming graph -------
+gj_file="$TMP/build_graph_out.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" > "$gj_file" 2>/dev/null
+if python3 - "$gj_file" <<'PY' 2>/dev/null
+import json, re, sys
+g = json.load(open(sys.argv[1]))
+assert g["version"] == 1
+assert re.fullmatch(r"[0-9a-f]{40}", g["graph_built_at_sha"])
+assert {"coupling_window_commits", "coupling_min_cooccurrence", "ranked_surface_limit"} <= set(g["params"])
+assert g["nodes"], "no nodes"
+need = {"sha256", "loc", "lang", "git_churn", "defines", "imports", "pagerank", "is_articulation", "last_audited_sha"}
+for f, n in g["nodes"].items():
+    assert need <= set(n), f
+assert isinstance(g["ranked"], list) and all(x in g["nodes"] for x in g["ranked"])
+for c in g["clusters"]:
+    assert isinstance(c["id"], int) and isinstance(c["members"], list)
+for e in g["coupling_edges"]:
+    assert {"a", "b", "cooccur", "weight"} <= set(e)
+PY
+then ok "build-graph.py output conforms to graph-memory schema"; else bad "build-graph.py output missing or non-conforming"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]
