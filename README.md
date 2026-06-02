@@ -33,6 +33,7 @@ To keep large-codebase audits affordable, the plan path builds a **graph memory*
 
 For deep dives into how `planwright` operates, refer to the documentation:
 
+- [Mission](MISSION.md): Purpose, scope, and non-goals — the charter the maturity ladder aligns to.
 - [Usage](docs/usage.md): Detailed CLI reference, options, and execute modes.
 - [Architecture](docs/architecture.md): Explanation of the 11-stage planning pipeline and execute loop.
 - [Development](docs/development.md): How to develop this plugin and use the provided helper scripts.
