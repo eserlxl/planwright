@@ -31,6 +31,15 @@ AUTHOR_EMAIL="${AUTHOR_EMAIL:-$(git config user.email 2>/dev/null || echo "you@e
 PLUGIN_DESC="${PLUGIN_DESC:-A Claude Code plugin.}"
 DATE="$(date -u +%Y-%m-%d)"
 
+# JSON-escape the free-text values before interpolating them into the manifests,
+# so quotes/backslashes in PLUGIN_DESC/AUTHOR_NAME/AUTHOR_EMAIL cannot produce
+# invalid JSON. json.dumps emits the surrounding quotes, so these expand bare.
+# (NAME is already validated kebab-case above and is always JSON-safe.)
+json_escape() { python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$1"; }
+AUTHOR_NAME_JSON="$(json_escape "$AUTHOR_NAME")"
+AUTHOR_EMAIL_JSON="$(json_escape "$AUTHOR_EMAIL")"
+PLUGIN_DESC_JSON="$(json_escape "$PLUGIN_DESC")"
+
 mkdir -p "$DEST/.claude-plugin" "$DEST/skills/$NAME" "$DEST/scripts"
 
 # --- plugin.json -----------------------------------------------------------
@@ -38,10 +47,10 @@ cat > "$DEST/.claude-plugin/plugin.json" <<EOF
 {
   "name": "$NAME",
   "version": "0.1.0",
-  "description": "$PLUGIN_DESC",
+  "description": $PLUGIN_DESC_JSON,
   "author": {
-    "name": "$AUTHOR_NAME",
-    "email": "$AUTHOR_EMAIL"
+    "name": $AUTHOR_NAME_JSON,
+    "email": $AUTHOR_EMAIL_JSON
   },
   "license": "GPL-3.0-or-later",
   "keywords": ["skill"]
@@ -53,8 +62,8 @@ cat > "$DEST/.claude-plugin/marketplace.json" <<EOF
 {
   "name": "$NAME",
   "owner": {
-    "name": "$AUTHOR_NAME",
-    "email": "$AUTHOR_EMAIL"
+    "name": $AUTHOR_NAME_JSON,
+    "email": $AUTHOR_EMAIL_JSON
   },
   "metadata": {
     "description": "Marketplace hosting the $NAME plugin for Claude Code.",
@@ -64,7 +73,7 @@ cat > "$DEST/.claude-plugin/marketplace.json" <<EOF
     {
       "name": "$NAME",
       "source": "./",
-      "description": "$PLUGIN_DESC",
+      "description": $PLUGIN_DESC_JSON,
       "version": "0.1.0",
       "license": "GPL-3.0-or-later",
       "keywords": ["skill"]
