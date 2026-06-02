@@ -14,7 +14,7 @@ description: >
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.15.0"
+  version: "1.16.0"
 ---
 
 # planwright
@@ -75,7 +75,7 @@ EXECUTE (edits source)
 
 CYCLE (automated plan → execute loops)
 /planwright cycle <N>            Plan then execute, repeated N times (1..100)
-/planwright cycle <-N>           Plan then execute until nothing remains (unlimited, negative N)
+/planwright cycle <-N>           Plan then execute until a recorded final point (unlimited, negative N)
 /planwright cycle <N> depth <M>  Run the cycle with planning depth M (1..10) every round
 
 MAINTENANCE

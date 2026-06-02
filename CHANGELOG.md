@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.16.0] - 2026-06-02
+
+### Changed
+- Maturity ladder (repair->coverage->opportunity->vision) with a recorded final point; cycles climb instead of idling on a clean tree
+
 ## [1.15.0] - 2026-06-02
 
 ### Changed

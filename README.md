@@ -8,7 +8,7 @@ It operates using three distinct, partitioned paths:
 
 - **Plan** — scans and audits the codebase, then runs a multi-stage pipeline to emit concrete, verified plan items into `.planwright/plan.md`. Read-only: the plan path writes only the plan file, never your source.
 - **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and records the rest. This is the only path that edits source.
-- **Cycle** — runs N sequential plan→execute rounds unattended. Pass a positive number for a fixed count, or a negative number to run until the audit finds nothing left to do.
+- **Cycle** — runs N sequential plan→execute rounds unattended, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Pass a positive number for a fixed count, or a negative number to run until it reaches a recorded final point (all rungs dry).
 
 ```mermaid
 flowchart LR
@@ -73,7 +73,7 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 # Run plan→execute in a loop
 /planwright cycle 3            # exactly 3 rounds
 /planwright cycle 3 depth 8    # 3 rounds, deep planning each round
-/planwright cycle -1           # unlimited rounds until the audit finds nothing left
+/planwright cycle -1           # unlimited rounds until a recorded final point (all rungs dry)
 
 # Maintenance
 /planwright version    # show current and latest available version
