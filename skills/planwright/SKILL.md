@@ -142,8 +142,8 @@ How to read it:
 - **Default `propose`** — used only when `propose <N>` is *not* given. An explicit `propose <N>` always
   overrides it, and the `1..max` / `min(…, max − pending)` capacity clamps still apply on top.
 
-Stages 0, 1, and 8–11 always run regardless of depth — depth never skips lifecycle housekeeping,
-scanning, drafting, finalizing, the quality gate, or writing. It scales how much analysis feeds the
+Stages 0, 1, 1.5, and 8–11 always run regardless of depth — depth never skips lifecycle housekeeping,
+scanning, graph building, drafting, finalizing, the quality gate, or writing. It scales how much analysis feeds the
 draft, never whether the output stays grounded and verified.
 
 ## Inputs
@@ -199,6 +199,36 @@ Then load the planning memory so this run learns from prior ones:
   changed. Use the recurring reasons to steer away from whole classes of doomed work.
 - **RECENTLY COMPLETED** — read `.planwright/completed.md` so you do not re-propose finished work
   (unless the audit shows a regression).
+
+### Stage 1.5 — Build code graph (mechanical)
+
+Build a structural model of the repo that **routes audit attention** to the highest-blast-radius
+code. This stage always runs (lifecycle-level, like Stages 0 and 1; depth never skips it). Run the
+whole build in the ctx sandbox (`ctx_batch_execute` / `ctx_execute`) so raw bytes stay out of
+context — surface only the capped ranked node list. Write the result to `.planwright/graph.json`
+with the native Write tool, conforming field-for-field to `docs/graph-memory-schema.md` (`version: 1`).
+
+1. **Enumerate** tracked files via `git ls-files`. For each node record `sha256`, `loc`, and `lang`
+   (by extension/shebang).
+2. **Import edges** — extract with `rg` per language family (best-effort, recall over precision):
+   bash `source X` / `. X`; python `import X` / `from X import`; js/ts `import … from "X"` /
+   `require("X")`; c/c++ `#include "X"`; markdown relative `[..](X)` links. Resolve targets to
+   repo-relative paths; drop unresolved (a miss only fails to route — it never produces a finding).
+3. **Change-coupling edges** — from `git log --name-only --format=%H -n <coupling_window_commits>`,
+   count file pairs that co-commit; keep pairs with `cooccur ≥ coupling_min_cooccurrence`. These
+   capture hidden dependencies a reader cannot see by reading code.
+4. **Metrics** — over the import graph compute `pagerank` (centrality) and `is_articulation` (cut
+   vertices = fragile chokepoints with wide blast radius).
+5. **Cluster** — partition by connected components / community detection; give each cluster a short
+   label.
+6. **Rank** nodes by descending audit priority: primary `pagerank`, boosted when `is_articulation`,
+   tiebreak `git_churn`. Emit the top `ranked_surface_limit` (~20) into the `ranked` list and surface
+   only that list to context.
+
+`last_audited_sha` stays `null` this phase (the graph is built and used for routing; nothing is
+skipped yet). If the build cannot run (no `git`/`rg`, or a tooling error), record the failure, skip
+graph-aware routing for this run, and fall back to depth's default selection — never block planning
+on the graph.
 
 ### Stage 2 — Audit (mechanical + reasoning)
 

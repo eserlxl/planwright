@@ -6,7 +6,7 @@
 
 When invoked via `/planwright`, the plugin executes a multi-stage pipeline. The entire planning phase is **read-only**: it never edits your application source. It only writes the generated plan items to `<repo>/.planwright/plan.md`.
 
-The pipeline consists of 11 stages:
+The pipeline consists of 11 numbered stages plus a mechanical graph-building pass (Stage 1.5):
 
 ### Stage 0: Lifecycle Housekeeping
 Maintains the `.planwright/` directory.
@@ -21,6 +21,13 @@ Collects ground-truth data from the project to ensure plan items are actionable 
 - **Implementation Signals**: Actual non-comment symbols (functions, types, test names).
 - **Test Targets**: Exact test targets (e.g., from `ctest` or your project's test runner).
 - Loads previously rejected/completed items to avoid re-proposing them.
+
+### Stage 1.5: Build Code Graph
+Builds a structural model of the repo (`.planwright/graph.json`) to **route audit attention** toward high-blast-radius code instead of spreading effort uniformly. Computed entirely in the context-mode sandbox, surfacing only a capped ranked node list:
+- **Import edges** extracted with `rg` per language family (bash/python/js/c/markdown), best-effort.
+- **Change-coupling edges** from `git log` co-commit history — hidden dependencies a reader cannot see.
+- **PageRank** (centrality) and **articulation points** (fragile chokepoints) over the import graph.
+- A `ranked` node list later stages use to prioritize what to read. See `docs/graph-memory-schema.md` for the full schema. This stage always runs (lifecycle-level, like Stages 0 and 1) and falls back gracefully when `git`/`rg` are unavailable.
 
 ### Stage 2: Audit
 Derives audit findings such as oversized modules, missing tests, risky refactors, and correctness gaps. Each finding must point to concrete file paths or implementation signals.
