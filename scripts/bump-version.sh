@@ -26,12 +26,12 @@ MARKET_JSON="$ROOT/.claude-plugin/marketplace.json"
 CHANGELOG="$ROOT/CHANGELOG.md"
 
 usage() {
-  echo "Usage: $(basename "$0") <major|minor|patch|X.Y.Z> [-m \"changelog note\"]" >&2
+  echo "Usage: $(basename "$0") <major|minor|patch|X.Y.Z> [-m \"changelog note\"] [--dry-run]" >&2
   exit 1
 }
 
 [ $# -ge 1 ] || usage
-[ "$1" = "-h" ] || [ "$1" = "--help" ] && { echo "Usage: $(basename "$0") <major|minor|patch|X.Y.Z> [-m \"changelog note\"]"; exit 0; }
+[ "$1" = "-h" ] || [ "$1" = "--help" ] && { echo "Usage: $(basename "$0") <major|minor|patch|X.Y.Z> [-m \"changelog note\"] [--dry-run]"; exit 0; }
 BUMP="$1"; shift
 NOTE=""
 DRY_RUN=""
@@ -39,7 +39,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -m|--message) NOTE="${2:-}"; shift 2 ;;
     --dry-run)    DRY_RUN=1; shift ;;
-    -h|--help) echo "Usage: $(basename "$0") <major|minor|patch|X.Y.Z> [-m \"changelog note\"]"; exit 0 ;;
+    -h|--help) echo "Usage: $(basename "$0") <major|minor|patch|X.Y.Z> [-m \"changelog note\"] [--dry-run]"; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage ;;
   esac
 done
