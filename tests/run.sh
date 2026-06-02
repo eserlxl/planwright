@@ -111,6 +111,16 @@ if python3 -c "v='$majpj'; parts=v.split('.'); exit(0 if parts[1]=='0' and parts
 majmm="$(python3 -c "import json;print(json.load(open('$MAJRR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
 if [ "$majpj" = "$majmm" ]; then ok "major increment synced across manifests ($majpj)"; else bad "major increment not synced: plugin=$majpj market=$majmm"; fi
 
+# --- Test 7b: bump-version.sh accepts explicit X.Y.Z version pinning -------
+PINRR="$TMP/pinrr"
+mkdir -p "$PINRR"
+( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$PINRR" && tar -xf - )
+"$PINRR/scripts/bump-version.sh" 2.5.0 >/dev/null
+pinpj="$(python3 -c "import json;print(json.load(open('$PINRR/.claude-plugin/plugin.json'))['version'])")"
+if [ "$pinpj" = "2.5.0" ]; then ok "X.Y.Z explicit pin sets version to 2.5.0"; else bad "X.Y.Z explicit pin failed: got $pinpj"; fi
+pinmm="$(python3 -c "import json;print(json.load(open('$PINRR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
+if [ "$pinpj" = "$pinmm" ]; then ok "X.Y.Z explicit pin synced across manifests"; else bad "X.Y.Z pin not synced: plugin=$pinpj market=$pinmm"; fi
+
 # --- Test 8: bump-version.sh --dry-run does not modify files ---------------
 DRYR="$TMP/dryr"
 mkdir -p "$DRYR"
