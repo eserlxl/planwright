@@ -143,6 +143,26 @@ $PLUGIN_DESC
 GPL-3.0-or-later. See [LICENSE](LICENSE).
 EOF
 
+# --- MISSION.md ------------------------------------------------------------
+# A charter stub so the generated plugin's planwright opportunity/vision rungs
+# (and Stage 1, which reads a mission/charter file) have something to align to.
+cat > "$DEST/MISSION.md" <<EOF
+# $NAME — Mission
+
+## Purpose
+
+$PLUGIN_DESC
+
+## Scope
+
+Describe what this plugin does — and the boundaries it will not cross — so planwright's
+opportunity and vision rungs (and Stage 1) have a concrete charter to align proposals to.
+
+## Non-goals
+
+List what this plugin deliberately will not do, so the maturity ladder does not drift into it.
+EOF
+
 # --- CHANGELOG.md ----------------------------------------------------------
 cat > "$DEST/CHANGELOG.md" <<EOF
 # Changelog
