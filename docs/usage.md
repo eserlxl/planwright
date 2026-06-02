@@ -49,7 +49,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 /planwright execute              Auto: implement every pending item, commit each that passes
 /planwright execute --interactive  Prompt per item: approve, show diff, verify, confirm commit
 /planwright execute N            Implement only pending item number N
-/planwright cycle N              Run N sequential plan→execute rounds (use -1 for unlimited)
+/planwright cycle N              Run N plan→execute rounds (1..100 for exact count, -N for unlimited)
 ```
 
 ### Execute Modes
@@ -57,7 +57,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 - **Auto Mode** (`/planwright execute`): Runs through all pending items in order, implements them, verifies them, and automatically commits the successful ones. Pauses only if there is a hard blocker or a failing final verification. Note: Claude Code's standard permission prompts for edits and commits still apply.
 - **Interactive Mode** (`--interactive`): Halts on every item to let you approve the implementation, show the diff, run the verification, and explicitly confirm the commit.
 - **Targeted Mode** (`N`): Executes only the `N`th pending item.
-- **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times. Use a negative number (e.g., `-1`) to run unlimited rounds until planning finds no remaining tasks.
+- **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until planning finds no remaining tasks.
 
 ## Maintenance
 
