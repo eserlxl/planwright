@@ -182,6 +182,11 @@ findings and adds/corrects for its lens:
    coverage, exact test anchors. For any test split/consolidation candidate, enumerate **every**
    `TEST`/`TEST_F` group in the file and flag compile-time-sensitive tests (preprocessor-manipulating,
    include-order-sensitive, distinct-translation-unit-dependent) that must stay isolated.
+   **Correctness of existing behavior** — for each Stage 2b/2c/2d finding, trace the call from
+   entry point to the defect site; confirm whether the output is provably wrong (wrong value returned,
+   error silently swallowed, invariant violated at runtime) or merely unspecified (no test covers it).
+   Classify as `repair` only when a specific wrong output is confirmed; classify as `improve` when
+   the behavior is unspecified and coverage is the gap. Do not conflate "untested" with "incorrect".
 5. **Behavior & features** — work that adds/integrates runtime behavior, user workflows,
    automation, external integrations, data flow, recovery paths, public APIs → classify as `develop`.
 6. **Operations & reliability** — config seams, sensitive-data handling, persistence, retry,
