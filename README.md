@@ -72,6 +72,23 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 /planwright upgrade    # update planwright itself to the latest version (alias: update)
 ```
 
+## Development & Releasing
+
+```bash
+# Run the test suite
+bash tests/run.sh
+
+# Bump the version in manifests + CHANGELOG (does NOT tag or release)
+scripts/bump-version.sh patch -m "what changed"
+
+# Create a tagged release — only at milestones (every 25-50 commits or a
+# meaningful feature: new subcommand, major behaviour change, etc.)
+git tag vX.Y.Z <release-commit-sha>
+git push origin vX.Y.Z
+```
+
+**Release policy:** `bump-version.sh` is for keeping version numbers current during development. Git tags and GitHub releases are reserved for milestones — not every small fix. Tagging too frequently fragments the changelog and dilutes the signal of what a "release" means.
+
 ## License
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).

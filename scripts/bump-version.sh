@@ -5,6 +5,12 @@
 # Bump the plugin version in lockstep across plugin.json, marketplace.json,
 # and CHANGELOG.md.
 #
+# This script updates version numbers and the changelog — it does NOT create a
+# git tag or GitHub release. Tags should only be created at release milestones:
+# every 25-50 commits or when a meaningful feature ships (new subcommand, major
+# behaviour change). Run bump-version.sh freely during development; tag and
+# push the release manually when the milestone is reached.
+#
 # Usage:
 #   scripts/bump-version.sh <major|minor|patch|X.Y.Z> [-m "changelog note"]
 #
