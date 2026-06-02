@@ -245,6 +245,12 @@ Then load the planning memory so this run learns from prior ones:
   changed. Use the recurring reasons to steer away from whole classes of doomed work.
 - **RECENTLY COMPLETED** — read `.planwright/completed.md` so you do not re-propose finished work
   (unless the audit shows a regression).
+- **FINAL POINT** — read `.planwright/final.md` if present. Once Stage 1.5 has computed the dirty set,
+  if `final.md`'s recorded sha equals the current HEAD **and** the dirty set is empty **and** no new
+  instruction or higher depth was given this run, the project is unchanged since the ladder was last
+  exhausted: report `already at final point (<sha>)` and treat all four maturity rungs as dry (the run
+  writes 0 items, and Stage 11 leaves the existing `final.md` in place). Otherwise treat `final.md` as
+  stale and proceed normally — Stage 11 step 3 deletes it once ≥1 item is written.
 
 ### Stage 1.5 — Build code graph (mechanical)
 
