@@ -1,8 +1,14 @@
-# planwright graph memory — Stage 1.5 spec & schema (draft)
+# planwright graph memory — Stage 1.5 spec & schema
 
 Status: **Phase 1 + Phase 2 invalidation wired**. This document specifies the structural memory artifact
 (`.planwright/graph.json`) and the mechanical stage that builds it. The graph **routes
 attention**; it is never cited as evidence for a plan item (see [Guardrails](#guardrails)).
+
+The canonical, deterministic builder is **`scripts/build-graph.py`** — it implements the procedure
+below and emits schema-conforming JSON to stdout (Stage 1.5 writes that to `.planwright/graph.json`
+with the native Write tool). Its conformance to this schema is verified by `tests/run.sh`
+("build-graph.py output conforms to graph-memory schema"); the prose steps here are the spec it
+implements, also usable as a by-hand fallback.
 
 ## Why
 
@@ -26,6 +32,7 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   "graph_built_at_sha": "<git HEAD sha when this graph was built>",
   "built_at": "<UTC ISO-8601>",
   "target": ".",
+  "ranking_signal": "centrality",     // "centrality" (pagerank) or "coupling" (degenerate-graph fallback)
   "params": {
     "coupling_window_commits": 200,   // git history depth for change-coupling
     "coupling_min_cooccurrence": 3,   // min co-commits to record a coupling edge
@@ -62,7 +69,11 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   hidden dependencies a reader cannot see. `weight = cooccur / min(churn_a, churn_b)`.
 - **`is_articulation`** marks cut vertices of the import graph: a defect there has wide
   blast radius, so Stage 2b auto-promotes them regardless of depth.
-- **`last_audited_sha`** stays `null` in Phase 1 (graph built, nothing skipped yet).
+- **`last_audited_sha`** stays `null` until a node is first deep-audited (then Stage 11 stamps it).
+- **`ranking_signal`** records which signal drove the `ranked` list: `centrality` (PageRank over the
+  import graph) normally, or `coupling` when the import graph is degenerate (too few edges, or PageRank
+  barely discriminates — common in docs/scripts repos), in which case nodes rank by change-coupling
+  degree instead. Both are boosted by `is_articulation` and tiebroken by `git_churn`.
 
 ## Stage 1.5 build procedure (mechanical, in-sandbox)
 

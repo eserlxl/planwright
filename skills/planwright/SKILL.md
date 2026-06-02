@@ -260,6 +260,14 @@ whole build in the ctx sandbox (`ctx_batch_execute` / `ctx_execute`) so raw byte
 context — surface only the capped ranked node list. Write the result to `.planwright/graph.json`
 with the native Write tool, conforming field-for-field to `docs/graph-memory-schema.md` (`version: 1`).
 
+**Canonical builder.** Prefer the deterministic, test-covered `scripts/build-graph.py` over improvising
+the build: run `python3 scripts/build-graph.py --prior .planwright/graph.json` in the sandbox and write
+its stdout to `.planwright/graph.json` with the native Write tool (`--prior` preserves each surviving
+node's `last_audited_sha`). Its output is schema-conforming by construction and verified by the suite
+(`tests/run.sh`, "build-graph.py output conforms to graph-memory schema"). The numbered steps below are
+the **specification** the script implements — follow them by hand only as a fallback when the script
+cannot run (no `python3`, etc.).
+
 1. **Enumerate** tracked files via `git ls-files`. For each node record `sha256`, `loc`, and `lang`
    (by extension/shebang).
 2. **Import edges** — extract with `rg` per language family (best-effort, recall over precision):
