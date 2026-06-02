@@ -372,7 +372,22 @@ header:
 <!-- Session: <UTC ISO-8601 timestamp> -->
 ```
 
-Print a short summary: counts proposed/written, pending total, and any capacity stop.
+If `dry-run` was passed, stop here (no graph-memory state is persisted on a dry run). Otherwise,
+**persist the incremental-audit baseline** so the next run's Stage 1.5 dirty-set comparison has
+something to diff against:
+
+1. **Stamp `last_audited_sha`** — in `.planwright/graph.json`, set `last_audited_sha = graph_built_at_sha`
+   for every node that was in scope this run (the dirty set on an incremental run, or all nodes on a
+   first/whole-graph-invalidation run). Leave skipped nodes' prior `last_audited_sha` untouched. Write
+   with the native Write tool. Without this stamp every future run looks like a first run and re-audits
+   everything, so this step is what actually activates incremental skipping.
+2. **Refresh `digest.md`** — write `.planwright/digest.md` with one short block per cluster (id, label,
+   member count, a one-line routing summary), each block prefixed `UNVERIFIED — routing only`. This is
+   the carried-forward dossier Stages 3–7 resume from; it is **never** valid Evidence (Stage 10 bars
+   citing it). Refresh only audited clusters; leave untouched clusters' prior blocks in place.
+
+Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested, and
+any capacity stop.
 
 ## OUTPUT FORMAT (exact)
 
