@@ -85,6 +85,16 @@ version versus the latest, then hands you the interactive steps it cannot run it
 
 (Run `/plugin install planwright@planwright` between those two only if the version did not advance.)
 
+## Graph Memory (audit routing)
+
+To keep audits affordable on large codebases, the plan path builds a structural **graph memory** before auditing (Stage 1.5) and persists it under the gitignored `.planwright/`:
+
+- **`.planwright/graph.json`** — every tracked file as a node with its content hash, plus **import edges** (extracted per language) and **change-coupling edges** (files that co-commit in git history). Over that graph planwright computes **PageRank** (centrality) and **articulation points** (fragile chokepoints), then a ranked node list.
+- **What it changes:** the audit reads the highest-blast-radius code first instead of sweeping uniformly, and on repeat runs it re-audits only the **dirty subgraph** — files whose hash changed since they were last audited, plus their 1-hop blast radius along import and coupling edges. A first run, a config/version change, or an unavailable graph falls back to auditing everything.
+- **`.planwright/digest.md`** — one routing-only summary block per cluster, carried forward between runs. It is marked `UNVERIFIED — routing only` and **can never be cited as Evidence**; the graph routes attention, but every plan item's proof must come from code re-read that run.
+
+See [Graph memory](graph-memory-schema.md) for the full `graph.json` schema and the per-stage build procedure.
+
 ## Output Format
 
 Items are generated in a precise 8-field checkbox format within `.planwright/plan.md`. This format is strict so that it can be parsed and executed cleanly.

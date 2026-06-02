@@ -25,6 +25,8 @@ flowchart LR
 
 Claude runs every stage directly, so it costs no separate model calls and needs no external binary.
 
+To keep large-codebase audits affordable, the plan path builds a **graph memory** (`.planwright/graph.json`) — import and change-coupling edges, PageRank, and articulation points — that routes audit attention toward high-blast-radius code and lets repeat runs re-audit only the changed subgraph. A companion `.planwright/digest.md` carries routing-only summaries that are never cited as Evidence. Both live under the gitignored `.planwright/`. See [Graph memory](docs/graph-memory-schema.md) for the schema and stages.
+
 > **Note**: Planning never edits your application source. Only `/planwright execute` and `/planwright cycle` do — and even then, Claude Code's normal permission prompts for edits and commits still apply.
 
 ## Documentation
@@ -34,6 +36,7 @@ For deep dives into how `planwright` operates, refer to the documentation:
 - [Usage](docs/usage.md): Detailed CLI reference, options, and execute modes.
 - [Architecture](docs/architecture.md): Explanation of the 11-stage planning pipeline and execute loop.
 - [Development](docs/development.md): How to develop this plugin and use the provided helper scripts.
+- [Graph memory](docs/graph-memory-schema.md): The `.planwright/graph.json` / `digest.md` schema and how Stage 1.5 routes audit attention.
 
 ## Install
 
