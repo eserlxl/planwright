@@ -105,11 +105,14 @@ fi
 
 # --- Sync skill frontmatter versions --------------------------------------
 SKILLS_SYNCED=""
-if [ -z "$DRY_RUN" ]; then
 for skill in "$ROOT"/skills/*/SKILL.md; do
   [ -f "$skill" ] || continue
   rel="$(realpath --relative-to="$ROOT" "$skill")"
-  changed="$(python3 - "$skill" "$NEW" <<'PY'
+  if [ -n "$DRY_RUN" ]; then
+    has_ver="$(python3 -c "import re,sys;t=open(sys.argv[1]).read();print('1' if re.search(r'\n  version:', t) else '0')" "$skill")"
+    if [ "$has_ver" = "1" ]; then SKILLS_SYNCED="$SKILLS_SYNCED $rel"; else echo "warning: no metadata 'version:' line in $rel; skipped" >&2; fi
+  else
+    changed="$(python3 - "$skill" "$NEW" <<'PY'
 import re, sys
 path, new = sys.argv[1], sys.argv[2]
 with open(path) as f:
@@ -122,13 +125,13 @@ if n:
 print(n)
 PY
 )"
-  if [ "$changed" = "0" ]; then
-    echo "warning: no metadata 'version:' line in $rel; skipped" >&2
-  else
-    SKILLS_SYNCED="$SKILLS_SYNCED $rel"
+    if [ "$changed" = "0" ]; then
+      echo "warning: no metadata 'version:' line in $rel; skipped" >&2
+    else
+      SKILLS_SYNCED="$SKILLS_SYNCED $rel"
+    fi
   fi
 done
-fi
 
 # --- Prepend a CHANGELOG entry --------------------------------------------
 if [ -z "$DRY_RUN" ]; then
@@ -158,6 +161,7 @@ if [ -n "$DRY_RUN" ]; then
   echo
   echo "### Changed"
   echo "- ${NOTE:-Version bump.}"
+  [ -n "$SKILLS_SYNCED" ] && echo "  would sync$SKILLS_SYNCED"
 else
   echo "Bumped: $CURRENT -> $NEW"
   echo "  updated $(realpath --relative-to="$ROOT" "$PLUGIN_JSON")"
