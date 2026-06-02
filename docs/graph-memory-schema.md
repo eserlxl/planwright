@@ -90,9 +90,9 @@ raw output never enters context.
 
 ## Phase 2 — incremental invalidation
 
-The dirty-set computation and lens gating below are wired into the pipeline (Stage 1.5
-step 7 computes the dirty set; Stages 3–7 restrict scope to it). The `last_audited_sha`
-restamp + `digest.md` refresh is the remaining Stage 11 work.
+The full Phase 2 loop is wired into the pipeline: Stage 1.5 step 7 computes the dirty
+set, Stages 3–7 restrict scope to it, and Stage 11 restamps `last_audited_sha` and
+refreshes `digest.md`.
 
 - **Dirty set** = nodes whose current `sha256` ≠ recorded `sha256`, **plus their 1-hop
   blast radius** along import + coupling edges. *(Stage 1.5 step 7)*
@@ -101,8 +101,8 @@ restamp + `digest.md` refresh is the remaining Stage 11 work.
 - **First run / unavailable graph** = no baseline ⇒ every node is dirty, full tree audited.
 - **Whole-graph invalidation** (re-audit everything) when any of: lockfile/build-config
   changed, `version` bumped, or HEAD diverged from `graph_built_at_sha` beyond a threshold.
-- **Stage 11** (pending) rewrites `last_audited_sha` for audited nodes and refreshes
-  `digest.md`.
+- **Stage 11** rewrites `last_audited_sha` for audited nodes and refreshes `digest.md`
+  (blocks marked `UNVERIFIED — routing only`). *(Stage 11 "persist the baseline")*
 
 ## Guardrails
 
