@@ -60,12 +60,17 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 # Break a specific request into plan items
 /planwright "add OAuth login"
 
+# Tune analysis depth 1..10 (effort + audit thoroughness; default 6)
+/planwright depth 9          # exhaustive audit
+/planwright depth 2          # quick cosmetic pass
+
 # Execute the pending plan items automatically
 /planwright execute
 
 # Run plan→execute in a loop
-/planwright cycle 3    # exactly 3 rounds
-/planwright cycle -1   # unlimited rounds until the audit finds nothing left
+/planwright cycle 3            # exactly 3 rounds
+/planwright cycle 3 depth 8    # 3 rounds, deep planning each round
+/planwright cycle -1           # unlimited rounds until the audit finds nothing left
 
 # Maintenance
 /planwright version    # show current and latest available version

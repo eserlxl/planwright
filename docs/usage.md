@@ -17,8 +17,9 @@
 The `/planwright` command scans the codebase and generates plan items in `.planwright/plan.md`.
 
 ```bash
-/planwright                      Plan from audit (propose 5, default settings)
+/planwright                      Plan from audit (depth 6, propose 5, default settings)
 /planwright <instruction>        Break a specific request into plan items
+/planwright depth <N>            Set analysis depth 1..10 (effort + audit thoroughness; default 6)
 /planwright propose <N>          Override items proposed this run (1..max)
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
@@ -36,7 +37,8 @@ You can combine options and instructions. For example:
 | Option | Default | Effect |
 |--------|---------|--------|
 | `<instruction>` | none | A free-text request to break down into plan items. |
-| `propose <N>` | `5` | Number of items to propose this run (clamped to `1..max`). |
+| `depth <N>` | `6` | Analysis depth `1..10`. Scales reasoning effort (low→ultra), Stage 2 audit sub-passes, function bodies read, Stages 3–7 lenses, and the default propose count. `1` = cosmetic pass, `10` = exhaustive audit. |
+| `propose <N>` | from depth (`5` at depth 6) | Number of items to propose this run (clamped to `1..max`). |
 | `max <N>` | `20` | Cap on pending, unchecked items in the active plan. |
 | `no-compact` | off | Skip the lifecycle housekeeping stage (no archiving or draining). |
 | `dry-run` | off | Run the whole pipeline but only print the items, writing nothing. |
@@ -50,6 +52,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 /planwright execute --interactive  Prompt per item: approve, show diff, verify, confirm commit
 /planwright execute N            Implement only pending item number N
 /planwright cycle N              Run N plan→execute rounds (1..100 for exact count, -N for unlimited)
+/planwright cycle N depth M      Run the cycle with planning depth M (1..10) on every round
 ```
 
 ### Execute Modes
@@ -57,7 +60,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 - **Auto Mode** (`/planwright execute`): Runs through all pending items in order, implements them, verifies them, and automatically commits the successful ones. Pauses only if there is a hard blocker or a failing final verification. Note: Claude Code's standard permission prompts for edits and commits still apply.
 - **Interactive Mode** (`--interactive`): Halts on every item to let you approve the implementation, show the diff, run the verification, and explicitly confirm the commit.
 - **Targeted Mode** (`N`): Executes only the `N`th pending item.
-- **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until planning finds no remaining tasks.
+- **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until planning finds no remaining tasks. Append `depth M` to plan at depth `M` (1–10) on every round, e.g. `/planwright cycle 3 depth 8`.
 
 ## Maintenance
 

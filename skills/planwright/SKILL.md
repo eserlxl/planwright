@@ -10,11 +10,11 @@ description: >
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
   "propose plan items", "execute the plan", "implement the plan", "cycle", "dogfood", or mentions
   .planwright/plan.md. Run `/planwright help` for usage and options.
-  Supports: execute [--interactive] [N], cycle <N>, update, version, upgrade, propose <N>, max <N>, no-compact, dry-run, help.
+  Supports: execute [--interactive] [N], cycle <N>, update, version, upgrade, depth <N>, propose <N>, max <N>, no-compact, dry-run, help.
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.11.0"
+  version: "1.12.1"
 ---
 
 # planwright
@@ -46,7 +46,8 @@ Before doing anything else, inspect the argument the skill was invoked with:
   follow that procedure instead of the planning Procedure. Remaining tokens are execute options
   (`--interactive`, an item index `N`).
 - If the first token is `cycle`, dispatch to the **Cycle** section near the end of this file and
-  follow that procedure instead of the planning Procedure. The remaining token is the repeat count `N`.
+  follow that procedure instead of the planning Procedure. The next token is the repeat count `N`; a
+  trailing `depth <N>` (and other plan options) applies to every planning round in the cycle.
 - If the first token is `upgrade` or `update`, dispatch to the **Upgrade** section at the end of
   this file and follow that procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
@@ -56,8 +57,9 @@ Before doing anything else, inspect the argument the skill was invoked with:
 
 ```
 PLAN (read-only)
-/planwright                      Plan from audit (propose 5, default settings)
+/planwright                      Plan from audit (depth 6, propose 5, default settings)
 /planwright <instruction>        Break a specific request into plan items
+/planwright depth <N>            Set analysis depth 1..10 (effort + audit thoroughness; default 6)
 /planwright propose <N>          Override items proposed this run (1..max)
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
@@ -71,6 +73,7 @@ EXECUTE (edits source)
 CYCLE (automated plan → execute loops)
 /planwright cycle <N>            Plan then execute, repeated N times (1..100)
 /planwright cycle <-N>           Plan then execute until nothing remains (unlimited, negative N)
+/planwright cycle <N> depth <M>  Run the cycle with planning depth M (1..10) every round
 
 MAINTENANCE
 /planwright version              Show the current and latest available version
@@ -87,7 +90,8 @@ Plan options may be combined with an instruction, e.g.
 | Option | Default | Effect |
 |--------|---------|--------|
 | `<instruction>` | none | free-text request to decompose into items |
-| `propose <N>` | `5` | items to propose this run (clamped to `1..max`) |
+| `depth <N>` | `6` | analysis depth `1..10` — scales reasoning effort + audit thoroughness (see **Depth**) |
+| `propose <N>` | from depth (`5` at depth 6) | items to propose this run (clamped to `1..max`) |
 | `max <N>` | `20` | cap on pending unchecked items in the plan |
 | `no-compact` | off | skip Stage 0 housekeeping for this run |
 | `dry-run` | off | run everything but print the plan, write nothing |
@@ -95,13 +99,61 @@ Plan options may be combined with an instruction, e.g.
 
 Precedence: **inline option > built-in default.** There is no settings file; options are per-run only.
 
+### Depth
+
+`depth <N>` (1–10, default **6**) is a single dial that scales the whole planning pipeline: how hard
+you reason, how many audit sub-passes run, how many function bodies you read, how many dossier lenses
+you apply, and how many items you propose by default. Read it as the analysis-effort knob —
+**1 = cosmetic pass** (typos, formatting, trivial one-line fixes), **10 = exhaustive whole-project
+audit**. Non-integer or out-of-range values are clamped to `1..10`; report the clamp.
+
+Resolve the run's depth first, then apply this table for the rest of the Procedure:
+
+| Depth | Reasoning effort | Stage 2 audit sub-passes | Stage 2b functions to read | Stages 3–7 lenses | Default `propose` | Character |
+|------:|------------------|--------------------------|---------------------------:|-------------------|------------------:|-----------|
+| 1  | low    | 2a only          | 0  | one quick combined pass | 1 | cosmetic: typos, formatting, trivial fixes |
+| 2  | low    | 2a only          | 1  | one quick combined pass | 2 | small, low-risk fixes |
+| 3  | low    | 2a, 2b           | 2  | 3, 4, 7                 | 3 | shallow audit |
+| 4  | medium | 2a, 2b           | 3  | 3, 4, 7                 | 4 | moderate audit |
+| 5  | medium | 2a–2d (all four) | 4  | all (3–7)               | 5 | standard depth |
+| 6  | medium | 2a–2d (all four) | 5  | all (3–7)               | 5 | **default** — full standard pipeline |
+| 7  | high   | 2a–2d (all four) | 6  | all (3–7)               | 6 | thorough |
+| 8  | high   | 2a–2d (all four) | 8  | all (3–7) + adversarial re-review | 7 | exhaustive |
+| 9  | high   | 2a–2d (all four) | 10 | all (3–7) + adversarial re-review | 8 | exhaustive |
+| 10 | ultra  | 2a–2d (all four) | 12 | all (3–7) + adversarial re-review + second-opinion cross-check | 8 | maximum |
+
+How to read it:
+
+- **Reasoning effort** matches the user's `/effort` convention (low / medium / high / ultra). Run the
+  pipeline at that intensity. The skill cannot invoke `/effort` itself; if the mapped tier is above the
+  session's current setting and the run is large, note that the user may run `/effort <tier>` for best
+  results — but still apply the corresponding care yourself.
+- **Stage 2 audit sub-passes** — only the listed sub-passes run; the rest are skipped entirely at that
+  depth. Low depth is deliberately structural-only; correctness/invariant/behavioral tracing is reserved
+  for depth ≥ 5.
+- **Stage 2b functions to read** — the top-N most complex function bodies to open and trace. `0` skips
+  body-level correctness tracing at that depth.
+- **Stages 3–7 lenses** — which dossier passes to run. `one quick combined pass` collapses Stages 3–7
+  into a single shallow sweep; otherwise run exactly the listed stage numbers.
+- **Adversarial re-review** (depth ≥ 8) — after Stage 7, re-read every surviving candidate as a hostile
+  reviewer and try to break it (false premise, stale claim, undeclared dependency) before it reaches
+  Draft. **Second-opinion cross-check** (depth 10) — additionally re-derive each item's Evidence from
+  signals independently and drop any that does not reproduce.
+- **Default `propose`** — used only when `propose <N>` is *not* given. An explicit `propose <N>` always
+  overrides it, and the `1..max` / `min(…, max − pending)` capacity clamps still apply on top.
+
+Stages 0, 1, and 8–11 always run regardless of depth — depth never skips lifecycle housekeeping,
+scanning, drafting, finalizing, the quality gate, or writing. It scales how much analysis feeds the
+draft, never whether the output stays grounded and verified.
+
 ## Inputs
 
 - **Target**: the repo to plan for. Default `.` (current working directory).
 - **Instruction** (optional): a user request to break down. If absent, plan from the audit.
-- **Capacity**: propose at most `5` new items per run, and never let the active plan's *pending*
-  items exceed `20`. `propose_count = min(5, 20 − pending_unchecked_items)`. If `propose_count == 0`,
-  stop and report "Plan is at capacity"; do not invent filler items.
+- **Capacity**: propose at most the resolved propose count — the depth-derived default (see **Depth**;
+  depth 6 → `5`) or the explicit `propose <N>` when given — and never let the active plan's *pending*
+  items exceed `20`. `propose_count = min(<resolved propose>, 20 − pending_unchecked_items)`. If
+  `propose_count == 0`, stop and report "Plan is at capacity"; do not invent filler items.
 
 ## Procedure
 
@@ -150,15 +202,16 @@ Then load the planning memory so this run learns from prior ones:
 
 ### Stage 2 — Audit (mechanical + reasoning)
 
-Run four named sub-passes in order. Each must emit findings with **file:line anchors** — category
-labels alone are not findings. Carry all findings forward into the dossier.
+Run the named sub-passes **enabled by the run's depth** (see the Depth table) in order — 2a alone at
+depth 1–2, 2a–2b at depth 3–4, all four at depth ≥ 5. Each must emit findings with **file:line anchors** —
+category labels alone are not findings. Carry all findings forward into the dossier.
 
 **2a. Structural** — inventory: oversized modules (>300 lines), missing focused tests (only when
 genuinely absent from PROJECT TEST TARGETS), risky refactors lacking coverage, signal/surface
 mismatches. Each finding: path, size or gap, why it matters.
 
 **2b. Correctness** — open and read the bodies of the top-N most complex functions (rank by line
-count or branching). For each, trace every non-trivial path: look for silent failures (error return
+count or branching), where **N is the Depth table's "Stage 2b functions to read"** for this run. For each, trace every non-trivial path: look for silent failures (error return
 ignored, wrong default returned, exit 0 on bad state), unchecked preconditions, and off-by-one or
 boundary errors. Findings must cite file:line, the specific path, and the defect.
 
@@ -173,8 +226,10 @@ dependency. Findings must name the entry point (file:line) and the uncovered inp
 ### Stages 3–7 — Cumulative planning dossier (reasoning passes)
 
 Build one growing `PLANNING DOSSIER` with sections **Findings, Candidate Work, Risks, Verification
-Targets, Rejected Ideas**. Do *not* emit checkbox items yet. Each pass preserves prior useful
-findings and adds/corrects for its lens:
+Targets, Rejected Ideas**. Do *not* emit checkbox items yet. Run only the lenses the run's **depth**
+enables (see the Depth table): at depth 1–2 collapse all of 3–7 into one quick combined sweep; at
+depth 3–4 run lenses 3, 4, and 7; at depth ≥ 5 run all five. Each pass preserves prior useful findings
+and adds/corrects for its lens:
 
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
    direction, source/header/test clusters, language-specific header-only/template constraints.
@@ -204,8 +259,14 @@ findings and adds/corrects for its lens:
 
 ### Stage 8 — Draft
 
-Convert the dossier into draft checkbox items in the exact OUTPUT FORMAT below. Resolve conflicts
-between candidates first. Select the highest-value `propose_count` items.
+If the run's **depth ≥ 8**, first run the *adversarial re-review* over the dossier candidates: re-read
+each as a hostile reviewer and drop any with a false premise, stale claim, or undeclared dependency. At
+**depth 10**, also run the *second-opinion cross-check* — independently re-derive each candidate's
+Evidence from signals and drop any that does not reproduce.
+
+Convert the surviving dossier into draft checkbox items in the exact OUTPUT FORMAT below. Resolve
+conflicts between candidates first. Select the highest-value `propose_count` items (`propose_count` is
+the resolved propose count from **Inputs/Depth**).
 
 ### Stage 9 — Finalize
 
@@ -384,8 +445,8 @@ results into the next round's audit. Useful for unattended dogfooding or bulk pr
    and STOP.
 2. **Clean working tree** — run `git status --porcelain`. If it reports anything (excluding
    `.planwright/`), STOP and report the dirty paths. Do not mix uncommitted work with per-item commits.
-3. **Announce** — print the current branch (`git branch --show-current`) and the cycle mode
-   (`N cycles` or `unlimited`) before starting any work.
+3. **Announce** — print the current branch (`git branch --show-current`), the cycle mode
+   (`N cycles` or `unlimited`), and the planning depth (`depth <M>`, default 6) before starting any work.
 
 ## Per-cycle loop (repeat up to N times, or indefinitely when N < 0)
 
@@ -393,8 +454,10 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
 
 1. **Print header** — `=== Cycle i/N ===` (or `=== Cycle i/∞ ===` for unlimited) so progress is
    visible in long runs.
-2. **Plan** — run the full planning Procedure (Stages 0–11) with default settings: `propose 5`,
-   no instruction, no `no-compact`, no `dry-run`. Record the number of new items Stage 11 wrote.
+2. **Plan** — run the full planning Procedure (Stages 0–11) at the cycle's depth (the `depth <N>`
+   passed to `cycle`, else default **6**) with otherwise-default settings: depth-derived `propose`,
+   no instruction, no `no-compact`, no `dry-run`. The same depth applies to every round. Record the
+   number of new items Stage 11 wrote.
 3. **Check for work** — count pending `- [ ]` items in `.planwright/plan.md`.
    - If Stage 11 wrote **0 new items** AND there are **0 pending items**: print
      `Cycle i/N: nothing to do — stopping early.` and STOP. This is the natural-completion signal:

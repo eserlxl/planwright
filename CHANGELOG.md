@@ -3,6 +3,16 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.12.1] - 2026-06-02
+
+### Changed
+- depth: reserve ultra for N=10; effort bands 1-3 low, 4-6 medium, 7-9 high
+
+## [1.12.0] - 2026-06-02
+
+### Changed
+- Add depth <N> option (1..10, default 6): scales reasoning effort + audit thoroughness; usable with cycle
+
 ## [1.11.0] - 2026-06-02
 
 ### Changed
