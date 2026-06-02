@@ -70,6 +70,7 @@ EXECUTE (edits source)
 
 CYCLE (automated plan → execute loops)
 /planwright cycle <N>            Plan then execute, repeated N times (1..10)
+/planwright cycle <-N>           Plan then execute until nothing remains (unlimited, negative N)
 
 MAINTENANCE
 /planwright version              Show the current and latest available version
@@ -351,18 +352,22 @@ results into the next round's audit. Useful for unattended dogfooding or bulk pr
 
 ## Preconditions
 
-1. **N is valid** — N must be a positive integer from 1 to 10. If missing, non-integer, or out of
-   range, print `Usage: /planwright cycle <N>  (N is 1..10)` and STOP.
+1. **N is valid** — N must be a non-zero integer. Positive values (1–10) run exactly N cycles.
+   **Negative values run unlimited cycles** — the loop continues until a stop condition fires (no
+   more work, hard blocker, or failed broad verify). Zero is invalid.
+   If missing or non-integer, print `Usage: /planwright cycle <N>  (N ≠ 0; negative = unlimited)`
+   and STOP.
 2. **Clean working tree** — run `git status --porcelain`. If it reports anything (excluding
    `.planwright/`), STOP and report the dirty paths. Do not mix uncommitted work with per-item commits.
-3. **Announce** — print the current branch (`git branch --show-current`) and the number of cycles
-   requested before starting any work.
+3. **Announce** — print the current branch (`git branch --show-current`) and the cycle mode
+   (`N cycles` or `unlimited`) before starting any work.
 
-## Per-cycle loop (repeat up to N times)
+## Per-cycle loop (repeat up to N times, or indefinitely when N < 0)
 
-For each cycle i (1 ≤ i ≤ N):
+For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
 
-1. **Print header** — `=== Cycle i/N ===` so progress is visible in long runs.
+1. **Print header** — `=== Cycle i/N ===` (or `=== Cycle i/∞ ===` for unlimited) so progress is
+   visible in long runs.
 2. **Plan** — run the full planning Procedure (Stages 0–11) with default settings: `propose 5`,
    no instruction, no `no-compact`, no `dry-run`. Record the number of new items Stage 11 wrote.
 3. **Check for work** — count pending `- [ ]` items in `.planwright/plan.md`.
@@ -377,10 +382,10 @@ For each cycle i (1 ≤ i ≤ N):
 6. **Cycle summary** — print: cycle number, items proposed / completed / rejected this cycle, broad
    verify result (`PASS` or `FAIL`).
 
-## After all N cycles (or early stop)
+## After all cycles (or early stop)
 
 Print a cumulative summary:
-- Total cycles completed (out of N requested)
+- Total cycles completed (out of N requested, or `∞` for unlimited mode)
 - Total items implemented (with all commit short-SHAs)
 - Total items rejected (titles + one-line reasons)
 - Stop reason if stopped before N: `hard blocker`, `broad-verify failed`, or `no more work`
