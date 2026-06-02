@@ -1,6 +1,6 @@
 # planwright graph memory — Stage 1.5 spec & schema (draft)
 
-Status: **draft / Phase 1**. This document specifies the structural memory artifact
+Status: **Phase 1 + Phase 2 invalidation wired**. This document specifies the structural memory artifact
 (`.planwright/graph.json`) and the mechanical stage that builds it. The graph **routes
 attention**; it is never cited as evidence for a plan item (see [Guardrails](#guardrails)).
 
@@ -88,15 +88,21 @@ raw output never enters context.
 7. **Write** `graph.json` (native Write — sandbox FS is discarded). **Surface** only the
    top `ranked_surface_limit` nodes as a compact list into context.
 
-## Phase 2 — incremental invalidation (added after the graph is trusted)
+## Phase 2 — incremental invalidation
+
+The dirty-set computation and lens gating below are wired into the pipeline (Stage 1.5
+step 7 computes the dirty set; Stages 3–7 restrict scope to it). The `last_audited_sha`
+restamp + `digest.md` refresh is the remaining Stage 11 work.
 
 - **Dirty set** = nodes whose current `sha256` ≠ recorded `sha256`, **plus their 1-hop
-  blast radius** along import + coupling edges.
-- Stages 3–7 spin up lenses only for clusters intersecting the dirty set.
-- **Stage 11** rewrites `last_audited_sha = graph HEAD` for audited nodes and refreshes
-  `digest.md`.
-- **Whole-graph invalidation** (rebuild from scratch) when any of: lockfile/build-config
+  blast radius** along import + coupling edges. *(Stage 1.5 step 7)*
+- Stages 3–7 spin up lenses only for clusters intersecting the dirty set; unchanged
+  clusters carry forward their prior dossier findings. *(Stages 3–7 "Incremental scope")*
+- **First run / unavailable graph** = no baseline ⇒ every node is dirty, full tree audited.
+- **Whole-graph invalidation** (re-audit everything) when any of: lockfile/build-config
   changed, `version` bumped, or HEAD diverged from `graph_built_at_sha` beyond a threshold.
+- **Stage 11** (pending) rewrites `last_audited_sha` for audited nodes and refreshes
+  `digest.md`.
 
 ## Guardrails
 

@@ -225,11 +225,21 @@ with the native Write tool, conforming field-for-field to `docs/graph-memory-sch
 6. **Rank** nodes by descending audit priority: primary `pagerank`, boosted when `is_articulation`,
    tiebreak `git_churn`. Emit the top `ranked_surface_limit` (~20) into the `ranked` list and surface
    only that list to context.
+7. **Incremental invalidation (only when a prior `.planwright/graph.json` exists)** — compute the
+   **dirty set** so unchanged code can be skipped downstream. A node is *dirty* when its freshly
+   computed `sha256` differs from the value recorded in the prior graph. The dirty set is those
+   changed nodes **plus their 1-hop blast radius** along import + coupling edges. Map the dirty set to
+   the clusters it touches and carry both forward — Stages 3–7 gate on it. Preserve each surviving
+   node's prior `last_audited_sha` (Stage 11 restamps audited nodes).
+   - **Whole-graph invalidation** — treat **every** node as dirty (re-audit everything) when any of:
+     a lockfile or build-config file changed, the planwright `version` advanced, or HEAD has diverged
+     from the prior graph's `graph_built_at_sha` beyond a sane threshold (e.g. the coupling window).
+   - **First run** — when no prior graph exists, there is no baseline: every node is dirty and the
+     full tree is audited. `last_audited_sha` is `null` until Stage 11 records it.
 
-`last_audited_sha` stays `null` this phase (the graph is built and used for routing; nothing is
-skipped yet). If the build cannot run (no `git`/`rg`, or a tooling error), record the failure, skip
-graph-aware routing for this run, and fall back to depth's default selection — never block planning
-on the graph.
+If the build cannot run (no `git`/`rg`, or a tooling error), record the failure, skip graph-aware
+routing **and incremental skipping** for this run, and fall back to depth's default selection over the
+whole tree — never block planning, and never skip audit work when the graph is unavailable.
 
 ### Stage 2 — Audit (mechanical + reasoning)
 
@@ -266,7 +276,13 @@ Build one growing `PLANNING DOSSIER` with sections **Findings, Candidate Work, R
 Targets, Rejected Ideas**. Do *not* emit checkbox items yet. Run only the lenses the run's **depth**
 enables (see the Depth table): at depth 1–2 collapse all of 3–7 into one quick combined sweep; at
 depth 3–4 run lenses 3, 4, and 7; at depth ≥ 5 run all five. Each pass preserves prior useful findings
-and adds/corrects for its lens:
+and adds/corrects for its lens.
+
+**Incremental scope** — when Stage 1.5 produced a dirty set (a prior graph existed and this was not a
+whole-graph invalidation), restrict each lens to the **clusters intersecting the dirty set**, and
+carry forward unchanged clusters' prior dossier findings instead of re-deriving them. On a first run,
+a whole-graph invalidation, or when the graph is unavailable, every cluster is in scope (audit
+everything). Never skip a cluster a dirty node reaches via its 1-hop blast radius.
 
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
    direction, source/header/test clusters, language-specific header-only/template constraints.
