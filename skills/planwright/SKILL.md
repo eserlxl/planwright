@@ -321,6 +321,9 @@ Treat every item as suspect until it passes all of these; otherwise replace it w
 better-verified item or drop it:
 
 - Evidence cites a real AUDIT FINDING or non-comment SIGNAL proving the gap (not "related code exists").
+- Evidence must never cite `.planwright/graph.json` or `.planwright/digest.md`; the graph routes
+  attention only — proof must come from code re-read this run. An item whose Evidence references graph
+  memory fails the gate.
 - For `repair` items, Evidence must name a specific execution path or return value that is wrong —
   "X is absent" is insufficient; cite the call site (file:line), the incorrect output, and the
   expected output. For `improve` and `docs` items, structural absence Evidence remains acceptable.
@@ -385,6 +388,8 @@ preamble, headings, code, or commentary in the plan file.
 ## Hard rules (do not violate)
 
 - Every item is actionable, non-trivial, and grounded in AUDIT FINDINGS or non-comment SIGNALS.
+- Evidence must never cite `.planwright/graph.json` or `.planwright/digest.md`; graph memory routes
+  attention, it never serves as proof.
 - Do not default everything to `improve`; use `develop` when the item adds/integrates runtime behavior.
 - Repair/correctness items come before feature items when the audit demands them.
 - Do not claim files/tests/config are missing when they're listed in FILE PATHS / TEST TARGETS.
