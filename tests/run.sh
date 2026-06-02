@@ -76,6 +76,14 @@ if grep -q "Test Author" "$GEN_AUTH/LICENSE" 2>/dev/null; then ok "AUTHOR_NAME a
 # --- Test 2e: bump-version.sh rejects unknown arguments --------------------
 if "$ROOT/scripts/bump-version.sh" patch --garbage >/dev/null 2>&1; then bad "bump-version accepted unknown argument --garbage"; else ok "bump-version rejects unknown argument (--garbage)"; fi
 
+# --- Test 2f: make-plugin.sh git init path creates an initial commit -------
+GEN_GIT="$TMP/gen_git"
+if AUTHOR_NAME="Test Author" AUTHOR_EMAIL="test@test.com" "$ROOT/scripts/make-plugin.sh" demo "$GEN_GIT" >/dev/null 2>&1; then
+  if git -C "$GEN_GIT" log --oneline 2>/dev/null | grep -q "Initial scaffold"; then ok "make-plugin.sh git path creates initial commit"; else bad "make-plugin.sh git path: initial commit message missing"; fi
+else
+  bad "make-plugin.sh git path: scaffolding failed"
+fi
+
 # --- Test 3: bump-version.sh refuses a dirty git tree ---------------------
 GREPO="$TMP/gitrepo"
 mkdir -p "$GREPO"
