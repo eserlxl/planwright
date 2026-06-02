@@ -8,9 +8,9 @@ description: >
   every stage directly. The `execute` subcommand then implements the plan items, verifies each,
   and records completed/rejected items.
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
-  "propose plan items", "execute the plan", "implement the plan", or mentions .planwright/plan.md.
-  Run `/planwright help` for usage and options.
-  Supports: execute [--interactive] [N], propose <N>, max <N>, no-compact, dry-run, help.
+  "propose plan items", "execute the plan", "implement the plan", "cycle", "dogfood", or mentions
+  .planwright/plan.md. Run `/planwright help` for usage and options.
+  Supports: execute [--interactive] [N], cycle <N>, propose <N>, max <N>, no-compact, dry-run, help.
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
@@ -19,13 +19,15 @@ metadata:
 
 # planwright
 
-This skill has two clearly partitioned paths:
+This skill has three clearly partitioned paths:
 
 - **Plan** (`/planwright`, default) — scans and audits the codebase, then runs a multi-stage
   *dossier → draft → finalize → quality-gate* pipeline to emit concrete plan items in
   `.planwright/plan.md`. **Read-only: it writes only the plan file, never application source.**
 - **Execute** (`/planwright execute`) — implements the pending plan items, verifies each, commits
   the ones that pass, and records the rest. **This is the only path that edits source.**
+- **Cycle** (`/planwright cycle N`) — runs N sequential plan→execute rounds unattended: proposes
+  items, implements them all, verifies, then repeats. Stops early when there is nothing left to do.
 
 Claude itself runs every stage, so it needs no external binary and spends no separate model calls.
 
@@ -43,6 +45,8 @@ Before doing anything else, inspect the argument the skill was invoked with:
 - If the first token is `execute`, dispatch to the **Execute** section near the end of this file and
   follow that procedure instead of the planning Procedure. Remaining tokens are execute options
   (`--interactive`, an item index `N`).
+- If the first token is `cycle`, dispatch to the **Cycle** section near the end of this file and
+  follow that procedure instead of the planning Procedure. The remaining token is the repeat count `N`.
 - If the first token is `upgrade`, dispatch to the **Upgrade** section at the end of this file and
   follow that procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
@@ -63,6 +67,9 @@ EXECUTE (edits source)
 /planwright execute              Auto: implement every pending item, commit each that passes
 /planwright execute --interactive  Prompt per item: approve, show diff, verify, confirm commit
 /planwright execute N            Implement only pending item number N
+
+CYCLE (automated plan → execute loops)
+/planwright cycle <N>            Plan then execute, repeated N times (1..10)
 
 MAINTENANCE
 /planwright version              Show the current and latest available version
@@ -335,6 +342,59 @@ work, which is how rejections trend down over time.
 
 Print: items completed (with commit short-SHAs), items rejected (with reasons), items left pending or
 blocked, and the broad final-verify result.
+
+# Cycle (plan → execute, repeated)
+
+Reached only via `/planwright cycle N`. Runs N sequential plan→execute rounds on the current branch
+without interruption. Each round proposes new items, implements them all, verifies, and feeds the
+results into the next round's audit. Useful for unattended dogfooding or bulk progress on a feature.
+
+## Preconditions
+
+1. **N is valid** — N must be a positive integer from 1 to 10. If missing, non-integer, or out of
+   range, print `Usage: /planwright cycle <N>  (N is 1..10)` and STOP.
+2. **Clean working tree** — run `git status --porcelain`. If it reports anything (excluding
+   `.planwright/`), STOP and report the dirty paths. Do not mix uncommitted work with per-item commits.
+3. **Announce** — print the current branch (`git branch --show-current`) and the number of cycles
+   requested before starting any work.
+
+## Per-cycle loop (repeat up to N times)
+
+For each cycle i (1 ≤ i ≤ N):
+
+1. **Print header** — `=== Cycle i/N ===` so progress is visible in long runs.
+2. **Plan** — run the full planning Procedure (Stages 0–11) with default settings: `propose 5`,
+   no instruction, no `no-compact`, no `dry-run`. Record the number of new items Stage 11 wrote.
+3. **Check for work** — count pending `- [ ]` items in `.planwright/plan.md`.
+   - If Stage 11 wrote **0 new items** AND there are **0 pending items**: print
+     `Cycle i/N: nothing to do — stopping early.` and STOP. This is the natural-completion signal:
+     the audit found no further gaps and the backlog is empty.
+4. **Execute** — run the full per-item execute loop over every pending item (same as
+   `/planwright execute` auto mode). Collect per-cycle stats: items completed, items rejected.
+5. **Broad final verification** — run the project's full build + test suite (not just per-item
+   focused tests). If it fails, STOP and report; per-item commits from this cycle stand but the
+   batch is not clean — do not start the next cycle.
+6. **Cycle summary** — print: cycle number, items proposed / completed / rejected this cycle, broad
+   verify result (`PASS` or `FAIL`).
+
+## After all N cycles (or early stop)
+
+Print a cumulative summary:
+- Total cycles completed (out of N requested)
+- Total items implemented (with all commit short-SHAs)
+- Total items rejected (titles + one-line reasons)
+- Stop reason if stopped before N: `hard blocker`, `broad-verify failed`, or `no more work`
+
+## Stop conditions
+
+Stop and do **not** start the next cycle on any of:
+
+- A **hard blocker** during execute (item needs undeclared surfaces or an unresolved design decision).
+- A **failing broad final verification** after execute.
+- **No progress**: Stage 11 proposed 0 new items AND plan has 0 pending items (step 3 above).
+
+Individual item rejections are **not** a stop condition — the cycle continues and the next planning
+round's audit will learn from the rejection reasons in `rejected.md`.
 
 # Upgrade (update planwright itself)
 
