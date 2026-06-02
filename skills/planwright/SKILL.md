@@ -27,7 +27,10 @@ This skill has three clearly partitioned paths:
 - **Execute** (`/planwright execute`) — implements the pending plan items, verifies each, commits
   the ones that pass, and records the rest. **This is the only path that edits source.**
 - **Cycle** (`/planwright cycle N`) — runs N sequential plan→execute rounds unattended: proposes
-  items, implements them all, verifies, then repeats. Stops early when there is nothing left to do.
+  items, implements them all, verifies, then repeats. It climbs a **maturity ladder** (repair →
+  coverage → opportunity → vision) so a clean tree keeps producing valuable work, and stops early only
+  when it reaches a **recorded final point** (all four rungs dry — see **Maturity ladder & the final
+  point**).
 
 Claude itself runs every stage, so it needs no external binary and spends no separate model calls.
 
@@ -147,6 +150,47 @@ How to read it:
 Stages 0, 1, 1.5, and 8–11 always run regardless of depth — depth never skips lifecycle housekeeping,
 scanning, graph building, drafting, finalizing, the quality gate, or writing. It scales how much analysis feeds the
 draft, never whether the output stays grounded and verified.
+
+## Maturity ladder & the final point
+
+A purely defect-driven auditor reaches a *false* fixed point: once the bugs are fixed and coverage
+exists, the dirty set empties and it idles — "no defects I can prove" is mistaken for "as good as it
+should be." planwright instead proposes along a four-rung **maturity ladder**, lowest first:
+
+1. **repair** — confirmed defects: wrong output, swallowed error, violated invariant (mode `repair`).
+2. **coverage** — behaviour-preserving quality: missing focused tests, weak verification, consistency,
+   maintainability (mode `improve`/`reorganize`).
+3. **opportunity** — net-new value grounded in a real surface *and* the project's mission: features,
+   DX, ergonomics, robustness, observability, teaching docs (mode `develop`/`docs`).
+4. **vision** — roadmap-level, design-first initiatives: a stated design decision precedes
+   implementation; larger multi-step bets (mode `develop`, often with a preceding design item).
+
+Each run proposes from the **lowest non-empty rung**, and may seed a few items from the next rung up to
+keep forward motion. The decisive rule that prevents premature idling:
+
+- **Rungs 1–2 are change-gated** — the Stage 1.5 dirty set scopes them; they look only where code
+  changed. An empty dirty set means rungs 1–2 are dry, *not* that there is no work.
+- **Rungs 3–4 are maturity-gated, not change-gated** — when rungs 1–2 are dry they run over the
+  **whole project** against its mission/charter, **even when the dirty set is empty**. This is what
+  lets a clean, fully-audited tree keep producing valuable work instead of stopping.
+
+**Convergence guard (so creativity still terminates):**
+
+- Every item must clear the strict Stage 10 gate **and** a rung-appropriate **value bar** that *rises*
+  with the rung: an opportunity item must name a concrete user/maintainer payoff; a vision item must
+  name a concrete, mission-aligned outcome — not a vague nicety. Marginal "could-do" ideas fail the bar.
+- Ideas that fail the bar/gate are dropped; if proposed and later rejected they land in `rejected.md`
+  and are not re-proposed unless their reason resolves (the existing feedback loop). This makes each
+  rung monotonically drain.
+- A rung is **dry** when, surveyed at full intensity, it yields no item above its value bar that is not
+  already pending, completed, or rejected.
+
+**The final point** is reached only when **all four rungs are dry**. When a planning round determines
+that, it writes `.planwright/final.md` — one block recording the HEAD sha, the rungs surveyed, and why
+each is dry — and reports "final point reached". This is a *justified* terminal state, distinct from an
+empty-dirty-set idle. A later run re-opens the ladder only if the project changed (non-empty dirty
+set), the mission/charter changed, or the user raises ambition (an explicit instruction, or higher
+depth). Any planning round that writes ≥1 item deletes a stale `final.md`.
 
 ## Inputs
 
@@ -287,11 +331,18 @@ enables (see the Depth table): at depth 1–2 collapse all of 3–7 into one qui
 depth 3–4 run lenses 3, 4, and 7; at depth ≥ 5 run all five. Each pass preserves prior useful findings
 and adds/corrects for its lens.
 
-**Incremental scope** — when Stage 1.5 produced a dirty set (a prior graph existed and this was not a
-whole-graph invalidation), restrict each lens to the **clusters intersecting the dirty set**, and
-carry forward unchanged clusters' prior dossier findings instead of re-deriving them. On a first run,
-a whole-graph invalidation, or when the graph is unavailable, every cluster is in scope (audit
-everything). Never skip a cluster a dirty node reaches via its 1-hop blast radius.
+**Incremental scope** — the dirty-set restriction applies only to the **change-gated rungs** (repair,
+coverage — lenses 3, 4, and the correctness sub-lens). For those, when Stage 1.5 produced a dirty set
+(a prior graph existed and this was not a whole-graph invalidation), restrict the lens to the
+**clusters intersecting the dirty set**, and carry forward unchanged clusters' prior dossier findings
+instead of re-deriving them. On a first run, a whole-graph invalidation, or when the graph is
+unavailable, every cluster is in scope. Never skip a cluster a dirty node reaches via its 1-hop blast
+radius.
+
+The **maturity-gated rungs** (opportunity, vision — lenses 5 and 6) are **not** change-gated: when the
+change-gated rungs are dry (e.g. an empty dirty set), run lenses 5–6 over the **whole project** against
+its mission/charter regardless of the dirty set, bounded by the convergence guard (see **Maturity
+ladder & the final point**). This is the mechanism that keeps a clean tree climbing instead of idling.
 
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
    direction, source/header/test clusters, language-specific header-only/template constraints.
@@ -304,8 +355,18 @@ everything). Never skip a cluster a dirty node reaches via its 1-hop blast radiu
    error silently swallowed, invariant violated at runtime) or merely unspecified (no test covers it).
    Classify as `repair` only when a specific wrong output is confirmed; classify as `improve` when
    the behavior is unspecified and coverage is the gap. Do not conflate "untested" with "incorrect".
-5. **Behavior & features** — work that adds/integrates runtime behavior, user workflows,
-   automation, external integrations, data flow, recovery paths, public APIs → classify as `develop`.
+5. **Behavior & features (opportunity + vision — generative)** — this is the creative lens; run it
+   project-wide whenever the change-gated rungs are dry, not only over the dirty set. Ask *"what would
+   make this project genuinely better for its users and maintainers?"* and propose net-new value:
+   runtime behavior, user workflows, automation, external integrations, data flow, recovery paths,
+   public APIs (mode `develop`), and teaching docs (mode `docs`). Two sub-tiers:
+   - **opportunity** — concrete enhancements tied to a real surface and the mission; each must name a
+     concrete user/maintainer payoff to clear the value bar.
+   - **vision** — roadmap-level, design-first bets; state the design decision explicitly and require a
+     preceding design item (Stage 7 rule b). A vision item must name a concrete, mission-aligned
+     outcome, not a vague nicety — speculative niceties fail the value bar and are dropped.
+   Stay grounded: every proposal still cites real surfaces and a runnable verification, and still
+   passes Stage 10. Creativity widens *what* is proposed; it never lowers the grounding bar.
 6. **Operations & reliability** — config seams, sensitive-data handling, persistence, retry,
    observability, maintenance — with concrete surfaces.
 7. **Prioritization review** — rank, drop low-value/duplicate items, ensure mode diversity, confirm
@@ -368,6 +429,10 @@ better-verified item or drop it:
   Verification covers every declared surface using exact PROJECT TEST TARGETS.
 - No item depends on an unresolved design decision unless the design item precedes it or the decision
   is stated explicitly in Development.
+- **Value bar (maturity rungs):** an `opportunity` item must name a concrete user/maintainer payoff; a
+  `vision` item must name a concrete, mission-aligned outcome. A proposal that amounts to a vague
+  nicety ("could be cleaner", "might be nice") fails the bar — drop it. Better to declare the final
+  point honestly than to pad the plan with sub-bar items.
 
 ### Stage 11 — Write the plan
 
@@ -394,9 +459,15 @@ something to diff against:
    member count, a one-line routing summary), each block prefixed `UNVERIFIED — routing only`. This is
    the carried-forward dossier Stages 3–7 resume from; it is **never** valid Evidence (Stage 10 bars
    citing it). Refresh only audited clusters; leave untouched clusters' prior blocks in place.
+3. **Maintain `final.md`** — if this round wrote **≥1 item**, delete any stale `.planwright/final.md`
+   (the ladder is live again). If this round wrote **0 items because all four maturity rungs were dry**
+   (not merely an empty dirty set — the maturity-gated rungs were surveyed project-wide and produced
+   nothing above their value bar), write `.planwright/final.md` with one block: the HEAD sha, the date,
+   each rung (repair/coverage/opportunity/vision) marked dry, and a one-line reason per rung. This is
+   the recorded **final point**; it is routing/status only and is **never** valid Evidence.
 
-Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested, and
-any capacity stop.
+Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested,
+rungs surveyed (lowest non-empty / final-point), and any capacity stop.
 
 ## OUTPUT FORMAT (exact)
 
@@ -437,6 +508,10 @@ preamble, headings, code, or commentary in the plan file.
 - Do not re-propose existing pending items; do not re-propose recently completed items unless the
   audit shows regression; do not re-propose previously rejected items unless the rejection reason is
   resolved (and Development must state what changed).
+- Climb the maturity ladder before idling: when the change-gated rungs are dry, survey the
+  opportunity and vision rungs project-wide. Declare the final point (write `.planwright/final.md`)
+  only when all four rungs are genuinely dry — never pad the plan with sub-value-bar filler to avoid
+  stopping, and never stop merely because the dirty set is empty.
 - Output **only** the plan file. No code, no edit bundles.
 
 # Execute (implement the plan)
@@ -516,7 +591,9 @@ blocked, and the broad final-verify result.
 
 Reached only via `/planwright cycle N`. Runs N sequential plan→execute rounds on the current branch
 without interruption. Each round proposes new items, implements them all, verifies, and feeds the
-results into the next round's audit. Useful for unattended dogfooding or bulk progress on a feature.
+results into the next round's audit, **climbing the maturity ladder** (repair → coverage → opportunity
+→ vision) as lower rungs run dry. Useful for unattended dogfooding or bulk progress on a feature. It
+stops only at a hard blocker, a failed broad verify, or a **recorded final point** (all rungs dry).
 
 ## Preconditions
 
@@ -540,10 +617,13 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
    passed to `cycle`, else default **6**) with otherwise-default settings: depth-derived `propose`,
    no instruction, no `no-compact`, no `dry-run`. The same depth applies to every round. Record the
    number of new items Stage 11 wrote.
-3. **Check for work** — count pending `- [ ]` items in `.planwright/plan.md`.
-   - If Stage 11 wrote **0 new items** AND there are **0 pending items**: print
-     `Cycle i/N: nothing to do — stopping early.` and STOP. This is the natural-completion signal:
-     the audit found no further gaps and the backlog is empty.
+3. **Check for work** — Stage 11 writing **0 new items** with **0 pending items** is **not** by itself
+   a stop: it only means the change-gated rungs are dry. The planning round must have climbed the
+   **maturity ladder** (surveyed the opportunity and vision rungs project-wide; see **Maturity ladder &
+   the final point**) before idling. Stop early **only when the planning round declared the final
+   point** — i.e. it wrote `.planwright/final.md` because all four rungs were dry. Then print
+   `Cycle i/N: final point reached — <one-line why>.` and STOP. If items are pending or were written,
+   proceed to Execute as normal.
 4. **Execute** — run the full per-item execute loop over every pending item (same as
    `/planwright execute` auto mode). Collect per-cycle stats: items completed, items rejected.
 5. **Broad final verification** — run the project's full build + test suite (not just per-item
@@ -558,7 +638,8 @@ Print a cumulative summary:
 - Total cycles completed (out of N requested, or `∞` for unlimited mode)
 - Total items implemented (with all commit short-SHAs)
 - Total items rejected (titles + one-line reasons)
-- Stop reason if stopped before N: `hard blocker`, `broad-verify failed`, or `no more work`
+- Stop reason if stopped before N: `hard blocker`, `broad-verify failed`, or `final point reached`
+  (all four maturity rungs dry — see `.planwright/final.md`)
 
 ## Stop conditions
 
@@ -566,7 +647,9 @@ Stop and do **not** start the next cycle on any of:
 
 - A **hard blocker** during execute (item needs undeclared surfaces or an unresolved design decision).
 - A **failing broad final verification** after execute.
-- **No progress**: Stage 11 proposed 0 new items AND plan has 0 pending items (step 3 above).
+- **Final point**: the planning round declared all four maturity rungs dry and wrote
+  `.planwright/final.md` (step 3 above). An empty dirty set / empty backlog alone is **not** a stop —
+  the maturity-gated rungs must have been surveyed and come up empty first.
 
 Individual item rejections are **not** a stop condition — the cycle continues and the next planning
 round's audit will learn from the rejection reasons in `rejected.md`.

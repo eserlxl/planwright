@@ -66,4 +66,17 @@ When invoked via `/planwright execute`, the plugin enters the **Execute** path. 
 
 ## The Cycle Path
 
-When invoked via `/planwright cycle N`, the plugin automates both phases by running sequential plan→execute rounds. It is ideal for unattended autonomous development. A negative `N` value (e.g., `-1`) runs the cycle continuously until the audit phase finds no further work.
+When invoked via `/planwright cycle N`, the plugin automates both phases by running sequential plan→execute rounds. It is ideal for unattended autonomous development. A negative `N` value (e.g., `-1`) runs the cycle continuously until it reaches a recorded final point.
+
+### The Maturity Ladder & the Final Point
+
+A purely defect-driven auditor idles the moment the bugs are fixed and coverage exists — a *false* fixed point. planwright instead proposes along a four-rung **maturity ladder**, lowest first:
+
+1. **repair** — confirmed defects (`repair`).
+2. **coverage** — behaviour-preserving quality and tests (`improve`/`reorganize`).
+3. **opportunity** — net-new value grounded in a real surface and the project's mission (`develop`/`docs`).
+4. **vision** — roadmap-level, design-first initiatives (`develop`, preceded by a design item).
+
+Rungs 1–2 are **change-gated** (scoped by the Stage 1.5 dirty set — they look only where code changed). Rungs 3–4 are **maturity-gated**: when the lower rungs are dry they are surveyed across the **whole project**, even when the dirty set is empty. That is what keeps a clean, fully-audited tree producing valuable work instead of idling.
+
+Creativity is bounded by a **convergence guard** so it still terminates: every item must clear the Stage 10 gate *and* a rung-appropriate **value bar** that rises with the rung; sub-bar ideas are dropped, and rejected ones do not return unless their reason resolves. The **final point** is reached only when all four rungs are dry — at which point the planning round writes `.planwright/final.md` (HEAD sha + why each rung is dry) and the cycle stops. A later run re-opens the ladder only if the project changed, the mission changed, or the user raises ambition.
