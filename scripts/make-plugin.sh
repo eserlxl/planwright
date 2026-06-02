@@ -20,6 +20,7 @@ set -euo pipefail
 NAME="${1:-}"
 DEST="${2:-./$NAME}"
 
+[ "$NAME" = "--help" ] || [ "$NAME" = "-h" ] && { echo "Usage: $(basename "$0") <plugin-name> [dest-dir]"; echo "Env: AUTHOR_NAME, AUTHOR_EMAIL, PLUGIN_DESC, NO_GIT=1"; exit 0; }
 [ -n "$NAME" ] || { echo "Usage: $(basename "$0") <plugin-name> [dest-dir]" >&2; exit 1; }
 echo "$NAME" | grep -Eq '^[a-z][a-z0-9-]*$' \
   || { echo "Plugin name must be lowercase kebab-case (e.g. my-plugin)" >&2; exit 1; }
