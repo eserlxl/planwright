@@ -150,9 +150,25 @@ Then load the planning memory so this run learns from prior ones:
 
 ### Stage 2 — Audit (mechanical + reasoning)
 
-Derive AUDIT FINDINGS: oversized modules, missing focused tests (only when genuinely absent from
-PROJECT TEST TARGETS), risky refactors lacking coverage, correctness/safety gaps, structural
-defects, missing runtime behavior. Each finding must point at concrete paths/signals.
+Run four named sub-passes in order. Each must emit findings with **file:line anchors** — category
+labels alone are not findings. Carry all findings forward into the dossier.
+
+**2a. Structural** — inventory: oversized modules (>300 lines), missing focused tests (only when
+genuinely absent from PROJECT TEST TARGETS), risky refactors lacking coverage, signal/surface
+mismatches. Each finding: path, size or gap, why it matters.
+
+**2b. Correctness** — open and read the bodies of the top-N most complex functions (rank by line
+count or branching). For each, trace every non-trivial path: look for silent failures (error return
+ignored, wrong default returned, exit 0 on bad state), unchecked preconditions, and off-by-one or
+boundary errors. Findings must cite file:line, the specific path, and the defect.
+
+**2c. Invariants** — enumerate data contracts that the code *assumes* but never enforces: value
+ranges, non-empty inputs, sorted order, clean-tree state, valid format strings, unique names. For
+each assumed-but-unenforced invariant, note the assumption site (file:line) and the enforcement gap.
+
+**2d. Behavioral coverage** — for each public entry point, identify inputs that produce untested or
+unspecified output: boundary values, empty collections, concurrent calls, failure return from a
+dependency. Findings must name the entry point (file:line) and the uncovered input class.
 
 ### Stages 3–7 — Cumulative planning dossier (reasoning passes)
 
