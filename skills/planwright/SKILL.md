@@ -131,8 +131,9 @@ How to read it:
 - **Stage 2 audit sub-passes** — only the listed sub-passes run; the rest are skipped entirely at that
   depth. Low depth is deliberately structural-only; correctness/invariant/behavioral tracing is reserved
   for depth ≥ 5.
-- **Stage 2b functions to read** — the top-N most complex function bodies to open and trace. `0` skips
-  body-level correctness tracing at that depth.
+- **Stage 2b functions to read** — the top-N function bodies to open and trace, selected by centrality
+  ∩ complexity from the Stage 1.5 graph (articulation points always included), falling back to most-complex
+  when no graph is available. `0` skips body-level correctness tracing at that depth.
 - **Stages 3–7 lenses** — which dossier passes to run. `one quick combined pass` collapses Stages 3–7
   into a single shallow sweep; otherwise run exactly the listed stage numbers.
 - **Adversarial re-review** (depth ≥ 8) — after Stage 7, re-read every surviving candidate as a hostile
@@ -240,10 +241,16 @@ category labels alone are not findings. Carry all findings forward into the doss
 genuinely absent from PROJECT TEST TARGETS), risky refactors lacking coverage, signal/surface
 mismatches. Each finding: path, size or gap, why it matters.
 
-**2b. Correctness** — open and read the bodies of the top-N most complex functions (rank by line
-count or branching), where **N is the Depth table's "Stage 2b functions to read"** for this run. For each, trace every non-trivial path: look for silent failures (error return
-ignored, wrong default returned, exit 0 on bad state), unchecked preconditions, and off-by-one or
-boundary errors. Findings must cite file:line, the specific path, and the defect.
+**2b. Correctness** — open and read the bodies of the top-N functions, where **N is the Depth table's
+"Stage 2b functions to read"** for this run. Select those N by **centrality ∩ complexity**: walk the
+Stage 1.5 `graph.json` `ranked` list (PageRank-ordered, so high-blast-radius code first) and take its
+top functions, **always including every `is_articulation` node regardless of depth** (a defect in a
+cut vertex breaks many modules), then break ties by complexity (line count or branching). If
+`graph.json` is absent or graph-aware routing was skipped this run, **fall back** to the original rule:
+the top-N most complex functions by line count or branching. For each selected function, trace every
+non-trivial path: look for silent failures (error return ignored, wrong default returned, exit 0 on
+bad state), unchecked preconditions, and off-by-one or boundary errors. Findings must cite file:line,
+the specific path, and the defect.
 
 **2c. Invariants** — enumerate data contracts that the code *assumes* but never enforces: value
 ranges, non-empty inputs, sorted order, clean-tree state, valid format strings, unique names. For
