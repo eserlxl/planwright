@@ -52,6 +52,14 @@ else
   ok "generated scripts shellcheck skipped (shellcheck not installed)"
 fi
 
+# --- Test 2b: make-plugin.sh rejects invalid plugin name ------------------
+if NO_GIT=1 "$ROOT/scripts/make-plugin.sh" "MyPlugin" "$TMP/invalid-name" >/dev/null 2>&1; then bad "make-plugin accepted invalid name"; else ok "make-plugin rejects invalid name (uppercase)"; fi
+
+# --- Test 2c: make-plugin.sh rejects pre-existing destination --------------
+GEN2="$TMP/gen2"
+NO_GIT=1 "$ROOT/scripts/make-plugin.sh" demo "$GEN2" >/dev/null
+if NO_GIT=1 "$ROOT/scripts/make-plugin.sh" demo "$GEN2" >/dev/null 2>&1; then bad "make-plugin accepted duplicate destination"; else ok "make-plugin rejects duplicate destination"; fi
+
 # --- Test 3: bump-version.sh refuses a dirty git tree ---------------------
 GREPO="$TMP/gitrepo"
 mkdir -p "$GREPO"
