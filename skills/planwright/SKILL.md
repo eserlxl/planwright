@@ -223,6 +223,9 @@ Treat every item as suspect until it passes all of these; otherwise replace it w
 better-verified item or drop it:
 
 - Evidence cites a real AUDIT FINDING or non-comment SIGNAL proving the gap (not "related code exists").
+- For `repair` items, Evidence must name a specific execution path or return value that is wrong —
+  "X is absent" is insufficient; cite the call site (file:line), the incorrect output, and the
+  expected output. For `improve` and `docs` items, structural absence Evidence remains acceptable.
 - No behavioral claim inferred from filenames/comments/type names alone.
 - No stale file/test-creation claims when the path/target already exists.
 - No header-only template impl moved into `.cpp` unless instantiations are explicitly preserved.
