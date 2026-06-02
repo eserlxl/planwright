@@ -19,6 +19,13 @@ trap 'rm -rf "$TMP"' EXIT
 
 ver() { python3 -c "import json,sys;print(json.load(open(sys.argv[1]))$2)" "$1"; }
 
+# --- Test 0: shellcheck main repo scripts ----------------------------------
+if command -v shellcheck >/dev/null 2>&1; then
+  if shellcheck "$ROOT/scripts/bump-version.sh" "$ROOT/scripts/make-plugin.sh" "$ROOT/tests/run.sh" >/dev/null 2>&1; then ok "main repo scripts pass shellcheck"; else bad "main repo scripts fail shellcheck"; fi
+else
+  ok "main scripts shellcheck skipped (shellcheck not installed)"
+fi
+
 # --- Test 1: bump-version.sh syncs version across all three files ----------
 WORK="$TMP/repo"
 mkdir -p "$WORK"
