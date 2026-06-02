@@ -64,6 +64,9 @@ GEN2="$TMP/gen2"
 NO_GIT=1 "$ROOT/scripts/make-plugin.sh" demo "$GEN2" >/dev/null
 if NO_GIT=1 "$ROOT/scripts/make-plugin.sh" demo "$GEN2" >/dev/null 2>&1; then bad "make-plugin accepted duplicate destination"; else ok "make-plugin rejects duplicate destination"; fi
 
+# --- Test 2d: bump-version.sh rejects unknown arguments --------------------
+if "$ROOT/scripts/bump-version.sh" patch --garbage >/dev/null 2>&1; then bad "bump-version accepted unknown argument --garbage"; else ok "bump-version rejects unknown argument (--garbage)"; fi
+
 # --- Test 3: bump-version.sh refuses a dirty git tree ---------------------
 GREPO="$TMP/gitrepo"
 mkdir -p "$GREPO"
