@@ -7,15 +7,24 @@ Helper scripts for developing `planwright` live in the `scripts/` directory.
 When modifying the plugin, the standard workflow is:
 
 1. Edit the core skill code (e.g., `skills/planwright/SKILL.md`).
-2. Run the bump script to patch the version and document your change:
+2. Commit your change. `bump-version.sh` refuses to run on a dirty tree (see
+   [`bump-version.sh`](#bump-versionsh) below), so the edit must be committed first.
+3. Run the bump script on the now-clean tree to patch the version and document the change:
    ```bash
-   scripts/bump-version.sh patch -m "Your commit message or change note"
+   scripts/bump-version.sh patch -m "Your change note"
    ```
-3. Commit the changes.
-4. Update the plugin locally to test:
+4. Commit the version bump.
+5. Update the plugin locally to test:
    ```bash
    /plugin marketplace update planwright
    ```
+
+If you deliberately want to bump alongside uncommitted edits (collapsing steps 1–4 into a
+single commit), pass `ALLOW_DIRTY=1` to skip the guard:
+
+```bash
+ALLOW_DIRTY=1 scripts/bump-version.sh patch -m "Your change note"
+```
 
 ## Helper Scripts
 
