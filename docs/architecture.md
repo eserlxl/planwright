@@ -56,3 +56,7 @@ When invoked via `/planwright execute`, the plugin enters the **Execute** path. 
    - On pass: Commits the change, marks the item complete, and moves it to `completed.md`.
    - On fail: Makes up to 2 repair attempts. If it still fails, the item's edits are reverted, a rejection reason is appended, and it moves to `rejected.md`.
 5. **Broad Final Verification**: After running through items, a final project-wide build/test ensures that nothing broke on a macro level.
+
+## The Cycle Path
+
+When invoked via `/planwright cycle N`, the plugin automates both phases by running sequential plan→execute rounds. It is ideal for unattended autonomous development. A negative `N` value (e.g., `-1`) runs the cycle continuously until the audit phase finds no further work.
