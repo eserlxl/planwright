@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.0] - 2026-06-02
+
+### Changed
+- Add cycle command: automated plan→execute loops with bounded (N) and unlimited (-N) modes
+
 ## [1.7.0] - 2026-06-02
 
 ### Changed
