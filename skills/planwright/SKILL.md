@@ -14,7 +14,7 @@ description: >
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.13.0"
+  version: "1.14.0"
 ---
 
 # planwright
@@ -125,9 +125,16 @@ Resolve the run's depth first, then apply this table for the rest of the Procedu
 How to read it:
 
 - **Reasoning effort** matches the user's `/effort` convention (low / medium / high / ultra). Run the
-  pipeline at that intensity. The skill cannot invoke `/effort` itself; if the mapped tier is above the
-  session's current setting and the run is large, note that the user may run `/effort <tier>` for best
-  results — but still apply the corresponding care yourself.
+  pipeline at that intensity. A skill cannot invoke `/effort` itself, but it must not leave the
+  depth→effort link to a silent footnote: **before Stage 0**, resolve depth→tier and compare it to the
+  session's current effort. If the mapped tier is **above** the current setting, present an interactive
+  prompt (the question/option mechanism) offering to raise it — e.g. *"Depth 9 maps to **high** effort;
+  the session is at medium. Raise it?"* with choices like *"Yes — I'll run `/effort high` now"*,
+  *"Proceed at current effort"*. The user acts on their choice (the prompt makes the switch one tap to
+  decide, then they type `/effort <tier>`); planwright **self-applies the mapped intensity regardless**
+  of the answer. Skip the prompt entirely when the mapped tier already matches or is below the current
+  setting, and — in `cycle` mode — fire it **once at cycle start**, not every round, so long runs are
+  not interrupted.
 - **Stage 2 audit sub-passes** — only the listed sub-passes run; the rest are skipped entirely at that
   depth. Low depth is deliberately structural-only; correctness/invariant/behavioral tracing is reserved
   for depth ≥ 5.

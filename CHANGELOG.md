@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.14.0] - 2026-06-02
+
+### Changed
+- Interactive effort prompt: depth now maps to a /effort tier and offers to raise it
+
 ## [1.13.0] - 2026-06-02
 
 ### Changed
