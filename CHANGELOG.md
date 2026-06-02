@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.17.0] - 2026-06-02
+
+### Changed
+- Canonical Stage 1.5 graph builder (scripts/build-graph.py); SKILL.md structural lint + graph-schema conformance tests
+
 ## [1.16.0] - 2026-06-02
 
 ### Changed
