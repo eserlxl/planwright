@@ -52,6 +52,8 @@ if command -v shellcheck >/dev/null 2>&1; then
 else
   ok "generated scripts shellcheck skipped (shellcheck not installed)"
 fi
+if [ -f "$GEN/scripts/bump-version.sh" ]; then ok "generated scripts/bump-version.sh exists"; else bad "generated scripts/bump-version.sh missing"; fi
+if bash -n "$GEN/scripts/bump-version.sh" 2>/dev/null; then ok "generated scripts/bump-version.sh parses as bash"; else bad "generated scripts/bump-version.sh has bash syntax error"; fi
 
 # --- Test 2b: make-plugin.sh rejects invalid plugin name ------------------
 if NO_GIT=1 "$ROOT/scripts/make-plugin.sh" "MyPlugin" "$TMP/invalid-name" >/dev/null 2>&1; then bad "make-plugin accepted invalid name"; else ok "make-plugin rejects invalid name (uppercase)"; fi
