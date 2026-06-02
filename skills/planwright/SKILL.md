@@ -35,8 +35,11 @@ When planning, do not edit application source. The output of the plan path is **
 
 Before doing anything else, inspect the argument the skill was invoked with:
 
-- If it is `help`, `--help`, `-h`, `?`, or empty-with-an-explicit-help-request, **print the Usage
-  reference below verbatim and STOP.** Do not scan, audit, plan, or write any file.
+- If it is `help`, `--help`, `-h`, `?`, or empty-with-an-explicit-help-request, **print a header line
+  `planwright v<version>` (read `<version>` from this file's frontmatter `metadata.version`), then the
+  Usage reference below verbatim, and STOP.** Do not scan, audit, plan, or write any file.
+- If the first token is `version`, `--version`, or `-V`, dispatch to the **Version** section at the end
+  of this file and follow that procedure instead of the planning Procedure.
 - If the first token is `execute`, dispatch to the **Execute** section near the end of this file and
   follow that procedure instead of the planning Procedure. Remaining tokens are execute options
   (`--interactive`, an item index `N`).
@@ -62,8 +65,9 @@ EXECUTE (edits source)
 /planwright execute N            Implement only pending item number N
 
 MAINTENANCE
+/planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version
-/planwright help                 Show this help and stop
+/planwright help                 Show this help (with version) and stop
 ```
 
 Plan options may be combined with an instruction, e.g.
@@ -356,3 +360,20 @@ This path does **not** plan or edit your project; it only refreshes planwright.
 5. **Confirm.** After the user reloads, the new version is active; suggest `/planwright help` to verify.
 
 Report: source type, old → new version, whether a local pull ran, and the handoff steps.
+
+# Version (show current and latest)
+
+Reached via `/planwright version` (or `--version`, `-V`). Read-only — it neither plans nor edits.
+
+## Procedure
+
+1. **Current** — the installed/running version: read `~/.claude/plugins/installed_plugins.json`
+   (`planwright@planwright`). If that is unavailable (e.g. running from `~/.claude/skills/` without the
+   plugin), fall back to this file's frontmatter `metadata.version`.
+2. **Latest** — read the `version` from the marketplace source's `.claude-plugin/plugin.json` (resolve
+   the source path from `~/.claude/plugins/known_marketplaces.json`). For a `github` source whose clone
+   is not local, report latest as "unknown (run /planwright upgrade to fetch)".
+3. **Report** one line: `planwright <current> (latest <latest>)`. If latest > current, add
+   "→ upgrade available: run /planwright upgrade"; if equal, add "→ up to date".
+
+STOP after reporting.

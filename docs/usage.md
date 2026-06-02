@@ -60,8 +60,14 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 ## Maintenance
 
 ```bash
+/planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version
 ```
+
+`version` is read-only: it reports the installed version (from
+`~/.claude/plugins/installed_plugins.json`) against the latest at the marketplace source, e.g.
+`planwright 1.7.0 (latest 1.7.0) → up to date`. `/planwright help` also prints the running version
+in its header.
 
 `upgrade` neither plans nor edits your project — it refreshes the planwright plugin. It locates the
 `planwright` marketplace source, fast-forwards it if it is a local git clone, reports the installed
