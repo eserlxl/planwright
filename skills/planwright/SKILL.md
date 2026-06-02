@@ -10,7 +10,7 @@ description: >
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
   "propose plan items", "execute the plan", "implement the plan", "cycle", "dogfood", or mentions
   .planwright/plan.md. Run `/planwright help` for usage and options.
-  Supports: execute [--interactive] [N], cycle <N>, propose <N>, max <N>, no-compact, dry-run, help.
+  Supports: execute [--interactive] [N], cycle <N>, update, propose <N>, max <N>, no-compact, dry-run, help.
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
