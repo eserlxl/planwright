@@ -176,6 +176,13 @@ mkdir -p "$MISRR"
 rm "$MISRR/.claude-plugin/plugin.json"
 if "$MISRR/scripts/bump-version.sh" patch >/dev/null 2>&1; then bad "bump-version did not exit on missing plugin.json"; else ok "bump-version exits non-zero when required file is missing"; fi
 
+# --- Test 7d: bump-version.sh exits non-zero on malformed current version --
+BADVER="$TMP/badver"
+mkdir -p "$BADVER"
+( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$BADVER" && tar -xf - )
+python3 -c "import json; d=json.load(open('$BADVER/.claude-plugin/plugin.json')); d['version']='1.0'; open('$BADVER/.claude-plugin/plugin.json','w').write(json.dumps(d,indent=2)+'\n')"
+if "$BADVER/scripts/bump-version.sh" patch >/dev/null 2>&1; then bad "bump-version accepted malformed current version (1.0)"; else ok "bump-version exits non-zero on malformed current version (1.0)"; fi
+
 # --- Test 8: bump-version.sh --dry-run does not modify files ---------------
 DRYR="$TMP/dryr"
 mkdir -p "$DRYR"
