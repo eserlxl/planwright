@@ -33,6 +33,16 @@ This script bumps the version globally across the plugin files. It updates:
 
 By default, it refuses to run if your git tree is dirty, ensuring that your version bumps are clean commits. If you deliberately want to bump versions alongside other changes, you can override this by passing `ALLOW_DIRTY=1` as an environment variable.
 
+Additional flags:
+
+```bash
+# Preview a bump without modifying any files
+scripts/bump-version.sh --dry-run patch
+
+# Show usage
+scripts/bump-version.sh --help
+```
+
 ### `make-plugin.sh`
 
 ```bash
@@ -50,3 +60,8 @@ Scaffolds a fresh, self-hosting Claude Code plugin. It creates:
 It also bundles `bump-version.sh` into the new plugin.
 
 It honors several environment variables if set: `AUTHOR_NAME`, `AUTHOR_EMAIL`, `PLUGIN_DESC`, `NO_GIT=1`.
+
+```bash
+# Show usage and available env vars
+scripts/make-plugin.sh --help
+```
