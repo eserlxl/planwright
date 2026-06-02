@@ -3,10 +3,15 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.15.0] - 2026-06-02
+
+### Changed
+- Depth now maps to a reasoning-**intensity** tier (low→ultra) that planwright self-applies for the run; removed the interactive effort prompt — a skill cannot change `/effort`, which stays the user's to set. Renamed "Reasoning effort" → "Reasoning intensity" across SKILL.md, docs, and README.
+
 ## [1.14.0] - 2026-06-02
 
 ### Changed
-- Depth maps to a reasoning-intensity tier (low→ultra) that planwright self-applies for the run; no interactive prompt and no change to the session /effort level (that stays the user's to set)
+- Interactive effort prompt: depth now maps to a /effort tier and offers to raise it
 
 ## [1.13.0] - 2026-06-02
 
