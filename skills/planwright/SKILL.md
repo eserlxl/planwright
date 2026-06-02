@@ -225,6 +225,12 @@ with the native Write tool, conforming field-for-field to `docs/graph-memory-sch
 6. **Rank** nodes by descending audit priority: primary `pagerank`, boosted when `is_articulation`,
    tiebreak `git_churn`. Emit the top `ranked_surface_limit` (~20) into the `ranked` list and surface
    only that list to context.
+   - **Degenerate-import-graph fallback** — when the import graph barely discriminates (PageRank spread
+     across nodes is below a small threshold, or there are too few import edges to rank — common in
+     docs/scripts repos where files rarely import each other), PageRank is noise. In that case rank by
+     **change-coupling** instead: a node's coupling degree/weight (sum of its `coupling_edges` weights)
+     becomes the primary signal, still boosted by `is_articulation` and tiebroken by `git_churn`. Record
+     in the surfaced summary which signal drove the ranking (`centrality` vs `coupling`).
 7. **Incremental invalidation (only when a prior `.planwright/graph.json` exists)** — compute the
    **dirty set** so unchanged code can be skipped downstream. A node is *dirty* when its freshly
    computed `sha256` differs from the value recorded in the prior graph. The dirty set is those
@@ -255,8 +261,10 @@ mismatches. Each finding: path, size or gap, why it matters.
 "Stage 2b functions to read"** for this run. Select those N by **centrality ∩ complexity**: walk the
 Stage 1.5 `graph.json` `ranked` list (PageRank-ordered, so high-blast-radius code first) and take its
 top functions, **always including every `is_articulation` node regardless of depth** (a defect in a
-cut vertex breaks many modules), then break ties by complexity (line count or branching). If
-`graph.json` is absent or graph-aware routing was skipped this run, **fall back** to the original rule:
+cut vertex breaks many modules), then break ties by complexity (line count or branching). When the
+graph used the **coupling fallback** (degenerate import graph, see Stage 1.5 step 6), `ranked` is
+already coupling-ordered — walk it the same way; centrality and coupling feed the same `ranked` list.
+If `graph.json` is absent or graph-aware routing was skipped this run, **fall back** to the original rule:
 the top-N most complex functions by line count or branching. For each selected function, trace every
 non-trivial path: look for silent failures (error return ignored, wrong default returned, exit 0 on
 bad state), unchecked preconditions, and off-by-one or boundary errors. Findings must cite file:line,
