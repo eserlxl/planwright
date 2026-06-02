@@ -83,6 +83,7 @@ if grep -q "Test Author" "$GEN_AUTH/LICENSE" 2>/dev/null; then ok "AUTHOR_NAME a
 
 # --- Test 2e: bump-version.sh rejects unknown arguments --------------------
 if "$ROOT/scripts/bump-version.sh" patch --garbage >/dev/null 2>&1; then bad "bump-version accepted unknown argument --garbage"; else ok "bump-version rejects unknown argument (--garbage)"; fi
+if "$ROOT/scripts/bump-version.sh" --help >/dev/null 2>/dev/null; then ok "bump-version --help exits 0"; else bad "bump-version --help exits non-zero"; fi
 
 # --- Test 2f: make-plugin.sh git init path creates an initial commit -------
 GEN_GIT="$TMP/gen_git"
