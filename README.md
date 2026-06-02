@@ -81,6 +81,13 @@ bash tests/run.sh
 # Bump the version in manifests + CHANGELOG (does NOT tag or release)
 scripts/bump-version.sh patch -m "what changed"
 
+# Preview a bump without modifying files
+scripts/bump-version.sh --dry-run patch
+
+# Show usage for the helper scripts
+scripts/bump-version.sh --help
+scripts/make-plugin.sh --help
+
 # Create a tagged release — only at milestones (every 25-50 commits or a
 # meaningful feature: new subcommand, major behaviour change, etc.)
 git tag vX.Y.Z <release-commit-sha>
