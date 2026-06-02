@@ -69,7 +69,7 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 
 # Maintenance
 /planwright version    # show current and latest available version
-/planwright upgrade    # update planwright itself to the latest version
+/planwright upgrade    # update planwright itself to the latest version (alias: update)
 ```
 
 ## License
