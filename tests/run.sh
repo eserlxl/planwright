@@ -460,6 +460,29 @@ assert set(d["nodes"]) == set(g["nodes"]), d            # every node re-audited
 PY
 then ok "build-graph.py forces whole-graph re-audit when build-config changes"; else bad "build-graph.py did not invalidate whole graph on build-config change"; fi
 
+# --- Test 11h: articulation_points flags a cut vertex (is_articulation True) -
+# articulation_points (iterative DFS lowlink) is the function Stage 2b "always
+# includes", but planwright's own import graph is disconnected so its True branch
+# never runs here. Chain a.md->b.md->c.md so the undirected import graph is the
+# path a-b-c with b.md the cut vertex, and assert only b.md is flagged.
+APREPO="$TMP/aprepo"
+mkdir -p "$APREPO"
+git -C "$APREPO" init -q
+agc() { git -C "$APREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf '# a\n[to b](b.md)\n' > "$APREPO/a.md"   # a.md imports b.md
+printf '# b\n[to c](c.md)\n' > "$APREPO/b.md"   # b.md imports c.md  => b is a cut vertex
+printf '# c\n' > "$APREPO/c.md"
+git -C "$APREPO" add -A; agc -m init
+ap_out="$TMP/ap_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$APREPO" > "$ap_out" 2>/dev/null
+if python3 - "$ap_out" <<'PY' 2>/dev/null
+import json, sys
+n = json.load(open(sys.argv[1]))["nodes"]
+assert n["b.md"]["is_articulation"] is True, "b.md should be a cut vertex"
+assert n["a.md"]["is_articulation"] is False and n["c.md"]["is_articulation"] is False, "leaves are not cut vertices"
+PY
+then ok "articulation_points flags the cut vertex (is_articulation True)"; else bad "articulation_points missed the cut vertex or over-flagged a leaf"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]
