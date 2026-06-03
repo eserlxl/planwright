@@ -192,7 +192,8 @@ mkdir -p "$DEST/tests" "$DEST/.github/workflows"
 
 cat > "$DEST/tests/run.sh" <<'EOF'
 #!/usr/bin/env bash
-# Smoke test for this plugin: the .claude-plugin manifests parse as JSON.
+# Smoke test for this plugin: manifests parse as JSON and bundled shell scripts
+# are syntactically valid (bash -n needs no shellcheck, so it runs everywhere).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 python3 - "$ROOT" <<'PY'
@@ -201,6 +202,11 @@ for f in glob.glob(sys.argv[1] + "/.claude-plugin/*.json"):
     json.load(open(f))
 print("ok - manifests parse")
 PY
+for s in "$ROOT"/scripts/*.sh "$ROOT"/tests/*.sh; do
+  [ -e "$s" ] || continue
+  bash -n "$s" || { echo "FAIL - $s has a bash syntax error"; exit 1; }
+done
+echo "ok - bundled scripts parse"
 EOF
 chmod +x "$DEST/tests/run.sh"
 
