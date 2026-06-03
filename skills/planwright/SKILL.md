@@ -448,8 +448,9 @@ names.
 
 Treat every item as suspect until it passes all of these; otherwise replace it with a safer,
 better-verified item or drop it. The *structural* subset of this gate (fields present, valid mode,
-real `Surfaces:`, absent `New Surfaces:`, no graph-memory in `Evidence`, `CMakeLists.txt`, non-empty
-`Verification:`) is mechanized by `scripts/lint-plan.py`, which Stage 11 runs on the written plan; the
+real `Surfaces:`, absent `New Surfaces:`, no graph-memory in `Evidence`, a `file:line` anchor in a
+`repair` item's `Evidence`, no `.planwright/` tool-owned path in `Surfaces:`, `CMakeLists.txt`,
+non-empty `Verification:`) is mechanized by `scripts/lint-plan.py`, which Stage 11 runs on the written plan; the
 checks below that need judgement (is the Evidence a *real* defect? does it cite a *true* signal?) stay
 yours:
 
@@ -497,7 +498,8 @@ header:
 `<scripts>` per **Procedure → Bundled scripts**) — the
 canonical, test-covered linter for the *machine-checkable subset* of the OUTPUT FORMAT and the Stage 10
 gate (every pending item has all eight fields, a valid `Mode`, `Surfaces:` that exist, `New Surfaces:`
-that do not, no path in both, no graph-memory citation in `Evidence`, a `.txt` on any `CMakeLists`, and
+that do not, no path in both, no `.planwright/` tool-owned path in either, no graph-memory citation in
+`Evidence`, a `file:line` anchor in a `repair` item's `Evidence`, a `.txt` on any `CMakeLists`, and
 a non-empty `Verification:`). It also enforces the ladder's **monotonic-drain** guard — no two pending
 items share a title — and prints non-failing **advisories** when a pending title matches a
 `completed.md`/`rejected.md` item, so you confirm it is a genuine regression or a resolved rejection

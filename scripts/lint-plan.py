@@ -12,8 +12,11 @@
 #   * Mode is one of the five valid modes;
 #   * Evidence never cites .planwright/graph.json or .planwright/digest.md
 #     (graph memory routes attention, it is never proof);
+#   * a `repair` item's Evidence carries a file:line anchor (`:N` / `line N`),
+#     not bare structural absence — improve/docs are exempt;
 #   * Surfaces are existing repo files; New Surfaces do not already exist;
-#     no path appears in both Surfaces and New Surfaces;
+#     no path appears in both Surfaces and New Surfaces; no Surface is under the
+#     tool-owned .planwright/ tree;
 #   * a CMakeLists surface is spelled with its .txt extension;
 #   * Verification is present and non-empty;
 #   * no two pending items share a title (the maturity ladder's monotonic-drain
@@ -101,6 +104,13 @@ def lint_item(item, root):
         if g in ev:
             v.append(f"Evidence cites graph memory '{g}' (routing only, never proof)")
             break
+    # Stage 10: a `repair` item's Evidence must cite the wrong call site as
+    # file:line — a bare "X is absent" is insufficient for a confirmed defect.
+    # Require a line anchor (`:N`, `line N`, or `lines N`); improve/docs may use
+    # structural-absence Evidence and are exempt.
+    if mode == "repair" and ev and not re.search(r"(?::\d+|\blines?\s+\d+)", ev, re.IGNORECASE):
+        v.append("repair Evidence lacks a file:line anchor "
+                 "(Stage 10: cite the wrong call site, not just structural absence)")
 
     surfaces = split_paths(f.get("Surfaces", ""))
     new_surfaces = split_paths(f.get("New Surfaces", ""))
@@ -119,6 +129,14 @@ def lint_item(item, root):
     overlap = sorted(set(surfaces) & set(new_surfaces))
     if overlap:
         v.append(f"path(s) in both Surfaces and New Surfaces: {', '.join(overlap)}")
+    # Plan items edit application source; planwright's own .planwright/ tree
+    # (plan, graph memory, digest, final point) is tool-owned routing/state and
+    # is never a Surface — editing it is the destructive tool-owned-file class
+    # Stage 10 bars, and it complements the graph-memory-in-Evidence rule above.
+    for p in surfaces + new_surfaces:
+        np = p.replace("\\", "/")
+        if np == ".planwright" or np.startswith(".planwright/"):
+            v.append(f"'{p}' is tool-owned planwright state (.planwright/), not an editable Surface")
     return v
 
 

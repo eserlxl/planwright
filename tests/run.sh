@@ -837,6 +837,48 @@ for needle in "missing required field 'Rationale:'" "empty field 'Verification:'
   printf '%s' "$bp_out" | grep -qF "$needle" || miss="$miss [$needle]"
 done
 if [ -z "$miss" ]; then ok "lint-plan.py reports every Stage 10 violation class"; else bad "lint-plan.py missed violations:$miss"; fi
+
+# --- Test 12b: repair Evidence needs a file:line anchor; .planwright/ is not a Surface
+# Two Stage 10 rules lint-plan.py mechanizes: a `repair` item must cite the wrong
+# call site as file:line (bare "X is absent" is insufficient for a confirmed defect),
+# and no plan item may declare a tool-owned .planwright/ path as a Surface.
+REPAIR_BAD="$TMP/repair_bad_plan.md"
+cat > "$REPAIR_BAD" <<'EOF'
+# planwright Plan — .
+
+- [ ] Repair without a line anchor
+      Mode: repair
+      Rationale: something is wrong.
+      Evidence: build-graph.py swallows the error and returns the wrong value.
+      Surfaces: scripts/build-graph.py, .planwright/graph.json
+      Development: fix the return.
+      Acceptance: correct value returned.
+      Verification: bash tests/run.sh
+EOF
+rb_rc=0
+rb_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$REPAIR_BAD" 2>&1)" || rb_rc=$?
+miss2=""
+for needle in "repair Evidence lacks a file:line anchor" "tool-owned planwright state"; do
+  printf '%s' "$rb_out" | grep -qF "$needle" || miss2="$miss2 [$needle]"
+done
+if [ "$rb_rc" -ne 0 ] && [ -z "$miss2" ]; then ok "lint-plan.py flags anchorless repair Evidence and a .planwright/ Surface"; else bad "lint-plan.py missed repair-anchor or tool-owned-Surface violation:$miss2"; fi
+
+# A repair item WITH a file:line anchor and clean Surfaces must pass (improve/docs
+# stay exempt from the anchor rule — see GOOD_PLAN above, mode improve, no anchor needed).
+REPAIR_OK="$TMP/repair_ok_plan.md"
+cat > "$REPAIR_OK" <<'EOF'
+# planwright Plan — .
+
+- [ ] Repair with a proper anchor
+      Mode: repair
+      Rationale: wrong value on the error path.
+      Evidence: scripts/build-graph.py:116 returns the keyword instead of skipping it.
+      Surfaces: scripts/build-graph.py
+      Development: filter the keyword at that line.
+      Acceptance: keyword no longer treated as a definition.
+      Verification: bash tests/run.sh
+EOF
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$REPAIR_OK" --quiet; then ok "lint-plan.py passes a repair item with a file:line anchor"; else bad "lint-plan.py false-failed a well-anchored repair item"; fi
 # A pending item with all eight fields and no path issues must pass; the same item
 # completed (- [x]) is skipped by default and only checked under --all.
 DONE_PLAN="$TMP/done_plan.md"
