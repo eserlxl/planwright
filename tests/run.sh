@@ -588,6 +588,32 @@ assert a == b, "build-graph.py output is not deterministic modulo built_at"
 PY
 then ok "build-graph.py is deterministic across runs (modulo built_at)"; else bad "build-graph.py output varies between runs on the same tree"; fi
 
+# --- Test 11m: articulation_points on a cycle + connected-component clustering -
+# Test 11h proved the positive (path) case; a CYCLE is the negative case that
+# exercises the back-edge low-update branch and must yield zero cut vertices (a
+# buggy lowlink over-flags here). Also assert a connected set shares one cluster.
+CYREPO="$TMP/cyrepo"
+mkdir -p "$CYREPO"
+git -C "$CYREPO" init -q
+cgc() { git -C "$CYREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf '# a\n[b](b.md)\n' > "$CYREPO/a.md"   # a->b->c->a forms a 3-cycle
+printf '# b\n[c](c.md)\n' > "$CYREPO/b.md"
+printf '# c\n[a](a.md)\n' > "$CYREPO/c.md"
+printf '# d\n' > "$CYREPO/d.md"               # isolated singleton
+git -C "$CYREPO" add -A; cgc -m init
+cy_out="$TMP/cy_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$CYREPO" > "$cy_out" 2>/dev/null
+if python3 - "$cy_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+n = g["nodes"]
+assert all(n[f]["is_articulation"] is False for f in ("a.md", "b.md", "c.md")), "a cycle has no cut vertex"
+cid = {m: c["id"] for c in g["clusters"] for m in c["members"]}
+assert cid["a.md"] == cid["b.md"] == cid["c.md"], "the connected cycle must share one cluster"
+assert cid["d.md"] != cid["a.md"], "the isolated file must be its own cluster"
+PY
+then ok "articulation_points yields no cut vertex on a cycle; component clusters together"; else bad "articulation over-flagged a cycle or clustering grouped wrong"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]
