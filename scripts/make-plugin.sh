@@ -181,6 +181,8 @@ cat > "$DEST/.gitignore" <<EOF
 .DS_Store
 *.swp
 *~
+__pycache__/
+*.pyc
 .claude/settings.local.json
 EOF
 

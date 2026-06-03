@@ -337,7 +337,7 @@ then ok "build-graph.py coupling fallback ranks the coupled pair first"; else ba
 # The `defines` field feeds Stage 2b's "walk ranked, take its top functions".
 # C/C++ is planwright's primary target language (constexpr/TEST_F/header rules),
 # so empty C/C++ defines would blind Stage 2b on exactly that language.
-if python3 - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
 bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)

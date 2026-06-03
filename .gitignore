@@ -3,6 +3,10 @@
 *.swp
 *~
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Local Claude state
 .claude/settings.local.json
 
