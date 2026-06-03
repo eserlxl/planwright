@@ -29,6 +29,22 @@ To keep large-codebase audits affordable, the plan path builds a **graph memory*
 
 > **Note**: Planning never edits your application source. Only `/planwright execute` and `/planwright cycle` do — and even then, Claude Code's normal permission prompts for edits and commits still apply.
 
+## How planwright differs from `/plan` and `/ultraplan`
+
+Claude Code already ships built-in planning: **`/plan`** enters *plan mode* — Claude proposes a plan, blocks edits until you approve, then executes in the same session — and **`/ultraplan`** refines a plan with a heavier, cloud-backed remote session. Both are general-purpose, model-judgment plans that live for the session. planwright is a different shape of tool: it produces a **grounded, verifiable, persistent plan artifact** for codebase work.
+
+| | `/plan` (built-in mode) | `/ultraplan` (built-in, cloud) | **planwright** |
+|---|---|---|---|
+| Nature | Session *mode* | Cloud plan *refinement* | Pipeline that emits a plan *file* |
+| Plan lives | Ephemeral (approval modal) | Remote session | Persistent `.planwright/plan.md` (+ completed/rejected/graph) |
+| Grounding | Model judgment | Model judgment (stronger) | Every item cites real `file:line` evidence; mechanically gated by `lint-plan.py` |
+| Output | Free-form prose | Free-form prose | Exact 8-field checkbox items, each with a runnable `Verification:` |
+| Execution | Exit mode → implement now | Same | Separate `execute` path: implements, **runs each item's verification, commits per item**, records pass/fail |
+| Iteration | One-shot | One-shot refine | `cycle N` climbs a maturity ladder to a recorded **final point** |
+| Runs | Local | Cloud (web auth) | Fully local — no external binary, no separate model call |
+
+**Rules of thumb:** reach for **`/plan`** to think through any task you'll execute right away; **`/ultraplan`** when you want cloud-grade refinement on a hard problem; **planwright** when you want a grounded, verifiable plan of *codebase* work — especially unattended multi-round progress (`cycle`) with per-item verification and commits. They compose, too: design with `/plan`, then let planwright drive the verified execution.
+
 ## Documentation
 
 For deep dives into how `planwright` operates, refer to the documentation:
