@@ -80,6 +80,7 @@ CYCLE (automated plan → execute loops)
 /planwright cycle <N> depth <M>  Run the cycle with planning depth M (1..10) every round
 /planwright cycle <N> explore    Opt-in: at the final point, escalate to a cold-frontier sweep
                                  instead of stopping (any non-zero N; see Explore escalation)
+/planwright cycle <N> depth <M> explore   Combine: every round (and the sweep) runs at depth M
 
 MAINTENANCE
 /planwright version              Show the current and latest available version
@@ -215,7 +216,11 @@ groundable work sits untouched in the periphery. `explore` closes that blind spo
   to the graph's **`ranked_cold`** list (the audit/coverage frontier: never-audited first, then
   uncovered, then least-central — see `docs/graph-memory-schema.md`). Stage 2b reads `ranked_cold`
   bodies; Stages 5–6 survey the cold clusters project-wide. Articulation points are still always
-  included.
+  included. **`explore` is orthogonal to `depth`** — the sweep is part of the planning round, so it runs
+  at the **cycle's depth**: `cycle N depth M explore` sweeps the frontier at intensity M (e.g. depth 10
+  reads the depth-N `ranked_cold` bodies *and* applies the adversarial re-review + second-opinion
+  cross-check to the cold clusters). Combine them freely; the only restriction is that `explore` is
+  cycle-only.
 - **Outcome.** If the sweep finds grounded above-bar work, write those items — the ladder is live again
   and the cycle continues normally (the next final point re-triggers a sweep). If the sweep is **also**
   dry, record a *stronger* **explored final point**: write `final.md` as usual but note it was
