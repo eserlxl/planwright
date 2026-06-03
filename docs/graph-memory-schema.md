@@ -44,7 +44,7 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
       "loc": 123,
       "branch_count": 9,                     // file-level branch tokens (cross-file complexity)
       "branch_at": { "funcA": 6, "funcB": 1 }, // branches per symbol by def-span (within-file Stage 2b rank)
-      "lang": "bash|markdown|python|c|js|...|unknown",
+      "lang": "bash|markdown|python|c|js|rust|go|...|unknown",
       "git_churn": 17,                       // commit count touching this file
       "defines": ["funcA", "funcB"],         // best-effort symbol defs (routing hint)
       "defines_at": { "funcA": 12, "funcB": 40 }, // symbol -> 1-based def line (Stage 2b jump hint)
@@ -82,9 +82,11 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   it only fails to route attention. Unresolved imports are dropped, not guessed.
 - **`defines`** are best-effort symbol names per language (bash/python functions; C/C++
   functions, methods, `class`/`struct`/`enum`, and `TEST`/`TEST_F`/`TEST_P`/`TYPED_TEST`
-  group names; JS functions, classes, and named arrow/function expressions). They feed
-  Stage 2b's "walk `ranked`, take its top functions" selection and the test-reorg lens;
-  like `imports`, they only route attention and are never cited as Evidence.
+  group names; JS functions, classes, and named arrow/function expressions; Rust `fn`,
+  `struct`/`enum`/`trait`/`union`, and `impl` targets; Go funcs/methods and
+  `struct`/`interface` types). They feed Stage 2b's "walk `ranked`, take its top functions"
+  selection and the test-reorg lens; like `imports`, they only route attention and are
+  never cited as Evidence.
 - **`is_test`** / **`covered_by_test`** route the coverage rung (Stage 2a "missing focused
   tests"). `is_test` flags a node as a test file by path convention (test dir, `_test`/`test_`/
   `.spec.`/`_unittest` stem, camelCase `FooTest`); it leans toward precision so a source file is
@@ -135,8 +137,11 @@ raw output never enters context.
    | python | `import X`, `from X import` |
    | js/ts | `import … from "X"`, `require("X")` |
    | c/c++ | `#include "X"` |
+   | rust | `mod X;`, `use a::b::c` |
    | markdown | relative `[..](X)` links |
-   Resolve targets to repo-relative paths; drop unresolved.
+   Resolve targets to repo-relative paths; drop unresolved. (Go is recognized for
+   `defines`/`branch_count` but contributes no import edges — its imports are absolute
+   module paths that need `go.mod` to map to repo files.)
 3. **Extract change-coupling** from `git log --name-only --format=%H -n <window>` in the
    sandbox: count file pairs per commit, keep pairs with `cooccur >= coupling_min_cooccurrence`.
 4. **Compute metrics** on the import graph: PageRank (centrality) and articulation points.
