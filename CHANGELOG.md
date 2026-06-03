@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.27.0] - 2026-06-03
+
+### Changed
+- Add the explore/invent escalation ladder (cold-frontier → expand → bounded net-new invent burst) with a fixed grounding floor + hard ceiling and a novelty dial; read README/roadmap as PROJECT DIRECTION for the generative rungs; add a toolchain-conditional warnings-clean gate to the broad final verification; add the /codinventor helper command.
+
 ## [1.26.2] - 2026-06-03
 
 ### Changed
