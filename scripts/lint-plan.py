@@ -126,8 +126,13 @@ def lint_item(item, root):
     # equally-unverifiable "TODO"/"manual"/"n/a" class before execute wastes a
     # cycle discovering the item cannot be verified.
     verif = f.get("Verification", "")
-    if verif and verif.strip().strip("`").strip().rstrip(".").lower() in PLACEHOLDER_VERIFICATION:
-        v.append(f"Verification '{verif}' is a placeholder, not a runnable command")
+    if verif:
+        norm = verif.strip().strip("`").strip().rstrip(".").lower()
+        # A value that normalizes to empty was all dots/backticks/whitespace
+        # (e.g. the "..." ellipsis placeholder, which rstrip(".") collapses to ""):
+        # never a runnable command, so it is a placeholder too.
+        if norm in PLACEHOLDER_VERIFICATION or norm == "":
+            v.append(f"Verification '{verif}' is a placeholder, not a runnable command")
 
     surfaces = split_paths(f.get("Surfaces", ""))
     new_surfaces = split_paths(f.get("New Surfaces", ""))

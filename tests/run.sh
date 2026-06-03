@@ -1199,6 +1199,27 @@ cat > "$PH_OK" <<'EOF'
 EOF
 if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PH_OK" --quiet; then ok "lint-plan.py allows a real command that contains a placeholder word"; else bad "lint-plan.py false-flagged a real Verification command"; fi
 
+# --- Test 12d: an all-dots "..." Verification is a placeholder, not a command ----
+# rstrip(".") collapses "..." to "", so a naive `norm in PLACEHOLDER_VERIFICATION`
+# test silently passed the documented "..." placeholder; an empty normalization must
+# also count as a placeholder.
+PH_DOTS="$TMP/placeholder_dots_plan.md"
+cat > "$PH_DOTS" <<'EOF'
+# planwright Plan — .
+
+- [ ] Item with an ellipsis verification
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: ...
+EOF
+pd_rc=0
+pd_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PH_DOTS" 2>&1)" || pd_rc=$?
+if [ "$pd_rc" -ne 0 ] && printf '%s' "$pd_out" | grep -qF "is a placeholder"; then ok "lint-plan.py rejects an all-dots '...' Verification placeholder"; else bad "lint-plan.py accepted an all-dots '...' Verification"; fi
+
 # Convergence guards: a repeated pending title and a Surfaces/New-Surfaces overlap
 # are always violations (hard fail). The lifecycle dir holds the advisory sources.
 LDIR="$TMP/lintdir"
