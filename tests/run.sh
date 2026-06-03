@@ -590,6 +590,33 @@ assert "src/util.rs" in n["src/main.rs"]["imports"], n["src/main.rs"]["imports"]
 PY
 then ok "build-graph.py routes Rust source (lang, defines, branch_count, mod/use edge)"; else bad "build-graph.py failed to route Rust source"; fi
 
+# --- Test 11d4: Go source support (lang, defines func/method/type, branch_count) -
+# A .go file must route as lang "go" with extracted funcs/methods/types and a
+# branch_count, so Stage 2b can walk Go functions instead of seeing opaque nodes.
+# (Go imports are absolute module paths, so import edges are intentionally absent.)
+GOREPO="$TMP/gorepo"
+mkdir -p "$GOREPO"
+git -C "$GOREPO" init -q
+gogc() { git -C "$GOREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf 'package main\n\ntype Server struct {\n\tport int\n}\n\nfunc (s *Server) Handle(n int) int {\n\tif n > 0 {\n\t\tfor i := 0; i < n; i++ {\n\t\t}\n\t}\n\treturn 0\n}\n\nfunc main() {\n\tswitch 1 {\n\tcase 1:\n\t}\n}\n' > "$GOREPO/main.go"
+git -C "$GOREPO" add -A; gogc -m init
+go_out="$TMP/go_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$GOREPO" > "$go_out" 2>/dev/null
+if python3 - "$go_out" "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, json, sys
+g = json.load(open(sys.argv[1])); n = g["nodes"]["main.go"]
+spec = importlib.util.spec_from_file_location("bg", sys.argv[2])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+assert bg.lang_of("x.go", b"") == "go", "extension .go must map to go"
+assert n["lang"] == "go", n
+# a method (Handle), a top-level func (main), and a struct type (Server)
+for want in ("Handle", "main", "Server"):
+    assert want in n["defines"], (want, n["defines"])
+# go control flow (if/for/switch/case) feeds branch_count for Stage 2b complexity
+assert n["branch_count"] > 0, n
+PY
+then ok "build-graph.py routes Go source (lang, defines func/method/type, branch_count)"; else bad "build-graph.py failed to route Go source"; fi
+
 # --- Test 11e: coupling fallback ranks by churn-normalized weight, not raw co --
 # Two pairs with equal raw cooccur (3): a/b also churn alone (churn 5, weight
 # 0.6), c/d only co-change (churn 3, weight 1.0). A raw-cooccur ranking would

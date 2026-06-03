@@ -48,6 +48,10 @@ EXT_LANG = {
     # rust — so a Rust repo gets centrality routing + Stage 2b function hints
     # instead of degrading to the coupling-only fallback (lang "unknown").
     "rs": "rust",
+    # go — defines/branch give Stage 2b per-function hints; Go imports are absolute
+    # module paths (need go.mod to map to repo files) so import edges are left out
+    # and Go nodes rank via change-coupling rather than import centrality.
+    "go": "go",
 }
 
 
@@ -84,6 +88,7 @@ BRANCH_KW = {
     "js": r"\b(?:if|for|while|case|catch)\b|&&|\|\||\?",
     "c": r"\b(?:if|for|while|case|catch)\b|&&|\|\||\?",
     "rust": r"\b(?:if|for|while|match|loop)\b|&&|\|\||\?",
+    "go": r"\b(?:if|for|switch|select|case)\b|&&|\|\|",
 }
 
 
@@ -135,6 +140,14 @@ def iter_defines(lang, text):
         # impl blocks — capture the implementing type (the ident before the `{`),
         # covering both `impl Foo {` and `impl Trait for Foo {`.
         for m in re.finditer(r"(?m)^\s*impl\b[^\n{]*?\b([A-Za-z_]\w*)\s*(?:<[^>\n]*>)?\s*\{", text):
+            yield m.group(1), m.start()
+    elif lang == "go":
+        # top-level funcs and methods: `func Name(` and `func (r Recv) Name(`.
+        for m in re.finditer(r"(?m)^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*[\(\[]", text):
+            yield m.group(1), m.start()
+        # nominal types: `type Name struct|interface` (grouped `type (...)` blocks
+        # are best-effort skipped — recall over precision, like the other arms).
+        for m in re.finditer(r"(?m)^\s*type\s+([A-Za-z_]\w*)\s+(?:struct|interface)\b", text):
             yield m.group(1), m.start()
 
 
