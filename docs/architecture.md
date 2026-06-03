@@ -49,6 +49,31 @@ builder. It leaves file-level centrality ranking (`ranked`, coupling fallback) u
 function granularity on top — the minimal-risk path. **Non-goals:** it is not an AST; only branching
 (not centrality, which functions don't carry in this import-graph model) is attributed per symbol.
 
+#### Design note — lang-aware Stage 2b ranking (deferred) <!-- 2026-06-03 -->
+
+**Problem.** `imports_of` ingests markdown `[..](..)` links as import edges, so doc files join the
+same import graph as code; `pagerank` and `sort_key` then rank every node by that combined centrality
+with no code/doc distinction. On a documentation-heavy repo, dense cross-links inflate doc PageRank,
+so the `ranked` surface can place prose files (which carry `branch_count == 0` and no `defines`) above
+the engine code. Stage 2b is meant to route correctness tracing to the highest-blast-radius **code**,
+yet its "top-N functions by `branch_at`" finds no functions in those top-ranked doc files — the
+`centrality ∩ complexity` intersection is intended but not expressed in the surfaced ordering.
+
+**Decision (for a later implementation item).** Keep `pagerank`, `sort_key`, and the general-purpose
+`ranked` list untouched (they correctly answer "what is structurally central?"), and add a *separate*
+code-aware view for Stage 2b's correctness routing: emit a `ranked_code` list = nodes with
+`branch_count > 0`, ordered by the same centrality/coupling signal. Stage 2b consumes `ranked_code`
+when present and falls back to `ranked` otherwise. This makes the existing `centrality ∩ complexity`
+rule concrete instead of implicit, mirrors the `branch_at` note's philosophy (layer on top, never
+perturb the file-level ranking), and reuses the already-computed `branch_count` field.
+
+**Why this over the alternatives.** Re-weighting markdown edges down inside `pagerank` would distort
+the structural model every other consumer reads; building a code-only subgraph duplicates the import
+graph. A derived, additive `ranked_code` view is deterministic, schema-additive, and minimal-risk.
+**Deferred implementation seam:** `build()` ranking block (`scripts/build-graph.py:530`–`534`,
+`sort_key`/`ranked`) plus a one-line schema addition in `docs/graph-memory-schema.md`; **not**
+implemented in this note.
+
 ### Stage 2: Audit
 Derives audit findings such as oversized modules, missing tests, risky refactors, and correctness gaps. Each finding must point to concrete file paths or implementation signals.
 
