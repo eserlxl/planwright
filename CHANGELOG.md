@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.21.1] - 2026-06-03
+
+### Fixed
+- SKILL.md invoked the bundled scripts (`build-graph.py`, `lint-plan.py`) as a bare `scripts/…` path, which only resolves when planwright is run on its own repo. For any installed user running `/planwright` inside another project, the current working directory has no planwright `scripts/` directory, so the canonical builder and the plan linter failed to launch. SKILL.md now resolves bundled scripts as an absolute path under the announced "Base directory for this skill" (`<skill-base>/../../scripts/`) and never uses a bare `scripts/…`. No script behavior changed; the test harness was already path-correct.
+
 ## [1.21.0] - 2026-06-03
 
 ### Added

@@ -14,7 +14,7 @@ description: >
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.21.0"
+  version: "1.21.1"
 ---
 
 # planwright
@@ -206,6 +206,18 @@ depth). Any planning round that writes ≥1 item deletes a stale `final.md`.
 Run these stages in order. Stages 0–2 are mechanical (use tools). Stages 3–10 are reasoning passes
 you perform yourself — treat each as a distinct lens and carry forward a cumulative dossier.
 
+**Bundled scripts — resolve their path first.** planwright's canonical scripts (`build-graph.py`,
+`lint-plan.py`) ship **inside the plugin**, not in the repo you are planning. Resolve them from the
+**"Base directory for this skill"** path the harness prints when this skill loads: that base ends in
+`skills/planwright`, and the scripts live two directories up under `scripts/` — i.e.
+`<skill-base>/../../scripts/`. Compute that **absolute** path once at the start of the run and write it
+as `<scripts>` wherever a script is invoked below (so `<scripts>/build-graph.py`,
+`<scripts>/lint-plan.py`). **Never invoke a bundled script as a bare `scripts/…`** — the current working
+directory is the *target* repo being planned (the user's project), which has no planwright `scripts/`
+directory, so a bare path fails for every user except when planning planwright's own repo. If the
+absolute script cannot be located or executed, fall back to the documented by-hand procedure for that
+stage (Stage 1.5 for the graph; do the Stage 10 structural checks by hand for the linter) — never block.
+
 ### Stage 0 — Lifecycle housekeeping (mechanical)
 
 If `no-compact` was passed, skip this entire stage (still read pending items in step 4).
@@ -260,8 +272,9 @@ whole build in the ctx sandbox (`ctx_batch_execute` / `ctx_execute`) so raw byte
 context — surface only the capped ranked node list. Write the result to `.planwright/graph.json`
 with the native Write tool, conforming field-for-field to `docs/graph-memory-schema.md` (`version: 1`).
 
-**Canonical builder.** Prefer the deterministic, test-covered `scripts/build-graph.py` over improvising
-the build: run `python3 scripts/build-graph.py --prior .planwright/graph.json` in the sandbox and write
+**Canonical builder.** Prefer the deterministic, test-covered `<scripts>/build-graph.py` (resolve
+`<scripts>` per **Procedure → Bundled scripts**) over improvising the build: run
+`python3 <scripts>/build-graph.py --prior .planwright/graph.json` in the sandbox and write
 its stdout to `.planwright/graph.json` with the native Write tool (`--prior` preserves each surviving
 node's `last_audited_sha` **and computes the incremental `dirty` block** — step 7 below — by diffing the
 prior graph). Its output is schema-conforming by construction and verified by the suite (`tests/run.sh`,
@@ -480,7 +493,8 @@ header:
 <!-- Session: <UTC ISO-8601 timestamp> -->
 ```
 
-**Mechanically lint the written plan.** Run `python3 scripts/lint-plan.py --root <target>` — the
+**Mechanically lint the written plan.** Run `python3 <scripts>/lint-plan.py --root <target>` (resolve
+`<scripts>` per **Procedure → Bundled scripts**) — the
 canonical, test-covered linter for the *machine-checkable subset* of the OUTPUT FORMAT and the Stage 10
 gate (every pending item has all eight fields, a valid `Mode`, `Surfaces:` that exist, `New Surfaces:`
 that do not, no path in both, no graph-memory citation in `Evidence`, a `.txt` on any `CMakeLists`, and
@@ -569,7 +583,8 @@ verification, and commits. Everything below replaces the planning Procedure.
 
 1. **Plan exists** — `.planwright/plan.md` has at least one pending `- [ ]` item. If none, report
    "No pending items to execute" and STOP.
-2. **Plan is structurally valid** — run `python3 scripts/lint-plan.py --root <target>`. If it reports
+2. **Plan is structurally valid** — run `python3 <scripts>/lint-plan.py --root <target>` (resolve
+   `<scripts>` per **Procedure → Bundled scripts**). If it reports
    violations, STOP and surface them: a missing `Verification:`, a non-existent `Surfaces:` path, or an
    invalid `Mode` makes an item unimplementable, so executing it would only churn the tree. Fix the
    plan (or re-plan) before executing. This is the same gate Stage 11 applies when the plan is written.
