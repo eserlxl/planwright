@@ -3,6 +3,20 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.20.0] - 2026-06-03
+
+### Added
+- `scripts/lint-plan.py`: a canonical, test-covered linter for the machine-checkable subset of the OUTPUT FORMAT + Stage 10 gate (all eight fields, valid mode, existing `Surfaces:`, absent `New Surfaces:`, no path in both, no graph-memory in `Evidence`, `CMakeLists.txt`, non-empty `Verification:`) plus the maturity-ladder convergence guard (no duplicate pending titles; advisory notes for re-proposed completed/rejected items). Stage 11 self-checks the written plan with it and the execute/cycle paths gate on it.
+- Function-granular Stage 2b routing: per-node `defines_at` (symbol → 1-based definition line, a jump hint) and `branch_at` (branches attributed to each symbol by its definition span), plus per-file `branch_count` for the cross-file complexity tiebreak.
+- Generated plugins now syntax-check their bundled shell scripts locally (`bash -n`) in `tests/run.sh`, not only in CI shellcheck.
+
+### Changed
+- Import resolution now works across all five languages so PageRank centrality routing is no longer blind: bash `source`-by-basename, python dotted/relative modules (`pkg.mod`, `from .mod import x`), js extension/`index` specifiers (`./util` → `util.js`/`util/index.js`), and C `#include` via `-I` include-root basename (with a unique-match guard).
+- SKILL.md Stage 2b, Stage 10, and Stage 11 document the new routing fields and the mechanical lint gate; `docs/architecture.md` and `docs/graph-memory-schema.md` updated to match.
+
+### Tested
+- Added coverage for articulation points (cut-vertex and cycle cases), whole-graph invalidation triggers, component clustering, builder determinism, shebang/anchor parsing, and every new resolver and plan-lint rule (89 → 114 assertions).
+
 ## [1.19.0] - 2026-06-03
 
 ### Changed
