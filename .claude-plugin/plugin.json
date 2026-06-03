@@ -1,6 +1,6 @@
 {
   "name": "planwright",
-  "version": "1.24.0",
+  "version": "1.24.1",
   "description": "Grounded codebase planning for Claude Code. Scans + audits a repository and produces a verification-ready checkbox plan in .planwright/plan.md using a multi-stage dossier -> draft -> finalize -> quality-gate pipeline, with Claude doing the reasoning directly.",
   "author": {
     "name": "Eser KUBALI",

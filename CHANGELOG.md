@@ -3,6 +3,12 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.1] - 2026-06-03
+
+### Changed
+- Renamed the marketplace from `planwright` to `eserlxl` (owner-scoped, the idiomatic convention — a marketplace is a container that can host multiple plugins). The plugin and skill keep the name `planwright`, so `/planwright` is unchanged; only the install id becomes `planwright@eserlxl`. README, docs, and the SKILL.md upgrade/version procedures updated to match.
+- **Breaking for existing installs:** the install id changed, so re-add the marketplace — `/plugin marketplace remove planwright`, re-add the source, then `/plugin install planwright@eserlxl`.
+
 ## [1.24.0] - 2026-06-03
 
 ### Added
