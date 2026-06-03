@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.2] - 2026-06-03
+
+### Changed
+- lint-plan.py: flag all-dots '...' Verification placeholder
+
 ## [1.26.1] - 2026-06-03
 
 ### Changed
