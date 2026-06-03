@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.18.1] - 2026-06-03
+
+### Changed
+- Coupling-fallback ranking uses churn-normalized weighted degree (per SKILL.md spec), so high-churn ledger files no longer dominate audit routing by raw volume
+
 ## [1.18.0] - 2026-06-03
 
 ### Changed
