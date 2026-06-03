@@ -840,6 +840,37 @@ assert cid["d.md"] != cid["a.md"], "the isolated file must be its own cluster"
 PY
 then ok "articulation_points yields no cut vertex on a cycle; component clusters together"; else bad "articulation over-flagged a cycle or clustering grouped wrong"; fi
 
+# --- Test 11m2: cluster_label single-dir + multi-dir tiebreak ---------------
+# cluster_label sets the routing label every digest cluster shows. A component
+# confined to one directory is labeled by that lone dir; a component spanning
+# >1 top-level dir is labeled by the MOST-COMMON top dir (the tiebreak that runs
+# in production on this repo's README+docs component). Neither path was asserted.
+CLREPO="$TMP/clrepo"
+mkdir -p "$CLREPO/docs" "$CLREPO/src"
+git -C "$CLREPO" init -q
+clgc() { git -C "$CLREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf '# readme\n[a](docs/a.md)\n[b](docs/b.md)\n' > "$CLREPO/README.md"  # root + 2 docs => multi-dir
+printf '# a\n' > "$CLREPO/docs/a.md"
+printf '# b\n' > "$CLREPO/docs/b.md"
+printf '# x\n[y](y.md)\n' > "$CLREPO/src/x.md"                              # single-dir component
+printf '# y\n' > "$CLREPO/src/y.md"
+git -C "$CLREPO" add -A; clgc -m init
+cl_out="$TMP/cl_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$CLREPO" > "$cl_out" 2>/dev/null
+if python3 - "$cl_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+lbl = {c["id"]: c["label"] for c in g["clusters"]}
+cid = {m: c["id"] for c in g["clusters"] for m in c["members"]}
+# multi-dir component (README at root + docs/a + docs/b) -> most-common top dir "docs"
+assert lbl[cid["README.md"]] == "docs", (lbl, cid)
+assert cid["README.md"] == cid["docs/a.md"] == cid["docs/b.md"], cid
+# single-dir component (src/x + src/y) -> its lone directory "src"
+assert lbl[cid["src/x.md"]] == "src", (lbl, cid)
+assert cid["src/x.md"] == cid["src/y.md"], cid
+PY
+then ok "cluster_label labels a single-dir component by its dir and a multi-dir one by the most-common top dir"; else bad "cluster_label mislabeled a single-dir or multi-dir component"; fi
+
 # --- Test 12: lint-plan.py enforces the Stage 10 structural gate -----------
 # The OUTPUT FORMAT + Stage 10 + Hard rules were enforced only by Claude reading
 # prose; lint-plan.py mechanizes their machine-checkable subset. A well-formed plan
