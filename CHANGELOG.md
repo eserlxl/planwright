@@ -3,6 +3,15 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.22.0] - 2026-06-03
+
+### Added
+- `scripts/lint-plan.py` now mechanizes two more Stage 10 rules that were previously prose-only: a `repair` item's `Evidence` must carry a `file:line` anchor (`:N` / `line N`) rather than bare structural absence (`improve`/`docs` stay exempt), and no plan item may declare a tool-owned `.planwright/` path (plan, graph memory, digest, final point) in `Surfaces:`/`New Surfaces:`. The anchor check only ever *requires* an anchor, so it can never false-fail a well-formed item. SKILL.md Stage 10/11 and the linter docstring document both.
+- `docs/architecture.md` design note "test→source coverage routing (deferred)": records the decision to add an additive, routing-only `covered_by_test` node flag (derived from the import/coupling edges the graph already computes) so the coverage rung's "missing focused tests" routing stops being judgement-only — recall-over-precision, absence is a candidate to investigate and never proof.
+
+### Tested
+- Added a regression guard that fails if SKILL.md invokes a bundled script via a bare `scripts/…` path (the v1.21.1 fix), plus a foreign-cwd run of both scripts; and coverage for the two new lint-plan gate rules (negative + positive cases). 116 → 120 assertions.
+
 ## [1.21.1] - 2026-06-03
 
 ### Fixed
