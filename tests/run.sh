@@ -737,6 +737,35 @@ assert d["whole_graph"] is True and "build-config" in d["reason"] and "CMakeList
 PY
 then ok "whole-graph invalidation when a build-config file is deleted"; else bad "deleted build-config did not force whole-graph re-audit"; fi
 
+# --- Test 11i2: whole-graph invalidation when HEAD diverges beyond the window -
+# The third whole-graph trigger (build-graph.py compute_dirty): re-audit everything
+# when HEAD has moved more than COUPLING_WINDOW_COMMITS commits past the prior
+# graph's sha. Drive it in-process with a lowered window so 2 commits cross it.
+DVREPO="$TMP/dvrepo"
+mkdir -p "$DVREPO"
+git -C "$DVREPO" init -q
+dvgc() { git -C "$DVREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf '# a\n' > "$DVREPO/a.md"
+printf '# b\n' > "$DVREPO/b.md"
+git -C "$DVREPO" add -A; dvgc -m init
+dv_prior="$TMP/dv_prior.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$DVREPO" > "$dv_prior" 2>/dev/null
+echo x >> "$DVREPO/a.md"; git -C "$DVREPO" add -A; dvgc -m c1   # 1 commit past prior
+echo y >> "$DVREPO/b.md"; git -C "$DVREPO" add -A; dvgc -m c2   # 2 commits past prior
+if python3 -B - "$ROOT/scripts/build-graph.py" "$DVREPO" "$dv_prior" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+bg.COUPLING_WINDOW_COMMITS = 1                    # 2 commits diverged > 1 => whole-graph
+g = bg.build(sys.argv[2], sys.argv[3])
+d = g["dirty"]
+assert d["whole_graph"] is True, d
+assert "diverged" in d["reason"], d["reason"]
+assert d["is_first_run"] is False, d
+assert set(d["nodes"]) == set(g["nodes"]), d      # every node re-audited
+PY
+then ok "whole-graph invalidation when HEAD diverges beyond the coupling window"; else bad "HEAD divergence beyond window did not force whole-graph re-audit"; fi
+
 # --- Test 11k: lang_of shebang sniffing + resolve markdown anchor stripping --
 # Two best-effort routing branches untested on planwright's own tree (all files
 # have extensions and links carry no #anchor): extensionless files take their lang
