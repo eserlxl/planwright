@@ -19,7 +19,7 @@ The `/planwright` command scans the codebase and generates plan items in `.planw
 ```bash
 /planwright                      Plan from audit (depth 6, propose 5, default settings)
 /planwright <instruction>        Break a specific request into plan items
-/planwright depth <N>            Set analysis depth 1..10 (intensity + audit thoroughness; default 6)
+/planwright depth <D>            Set analysis depth 1..10 (intensity + audit thoroughness; default 6)
 /planwright propose <N>          Override items proposed this run (1..max)
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
@@ -37,7 +37,7 @@ You can combine options and instructions. For example:
 | Option | Default | Effect |
 |--------|---------|--------|
 | `<instruction>` | none | A free-text request to break down into plan items. |
-| `depth <N>` | `6` | Analysis depth `1..10`. Scales reasoning intensity (low→ultra), Stage 2 audit sub-passes, function bodies read, Stages 3–7 lenses, and the default propose count. `1` = cosmetic pass, `10` = exhaustive audit. |
+| `depth <D>` | `6` | Analysis depth `1..10`. Scales reasoning intensity (low→ultra), Stage 2 audit sub-passes, function bodies read, Stages 3–7 lenses, and the default propose count. `1` = cosmetic pass, `10` = exhaustive audit. |
 | `propose <N>` | from depth (`5` at depth 6) | Number of items to propose this run (clamped to `1..max`). |
 | `max <N>` | `20` | Cap on pending, unchecked items in the active plan. |
 | `no-compact` | off | Skip the lifecycle housekeeping stage (no archiving or draining). |
@@ -52,7 +52,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 /planwright execute --interactive  Prompt per item: approve, show diff, verify, confirm commit
 /planwright execute N            Implement only pending item number N
 /planwright cycle N              Run N plan→execute rounds (1..100 for exact count, -N for unlimited)
-/planwright cycle N depth M      Run the cycle with planning depth M (1..10) on every round
+/planwright cycle N depth D      Run the cycle with planning depth D (1..10) on every round
 /planwright cycle N explore      At the final point, escalate to a cold-frontier sweep (any non-zero N)
 ```
 
@@ -61,7 +61,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 - **Auto Mode** (`/planwright execute`): Runs through all pending items in order, implements them, verifies them, and automatically commits the successful ones. Pauses only if there is a hard blocker or a failing final verification. Note: Claude Code's standard permission prompts for edits and commits still apply.
 - **Interactive Mode** (`--interactive`): Halts on every item to let you approve the implementation, show the diff, run the verification, and explicitly confirm the commit.
 - **Targeted Mode** (`N`): Executes only the `N`th pending item.
-- **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until it reaches a recorded final point (all rungs dry, recorded in `.planwright/final.md`). Append `depth M` to plan at depth `M` (1–10) on every round, e.g. `/planwright cycle 3 depth 8`.
+- **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until it reaches a recorded final point (all rungs dry, recorded in `.planwright/final.md`). Append `depth D` to plan at depth `D` (1–10) on every round, e.g. `/planwright cycle 3 depth 8`.
 - **Explore** (`cycle N explore`): Opt-in, cycle-only. By default a cycle stops as soon as it reaches the final point; with `explore`, reaching the final point instead **escalates** to one bounded sweep of the *cold frontier* — the code the default hot-core routing neglects (never-audited nodes and uncovered paths, via the graph's `ranked_cold` list). If the sweep finds grounded, above-bar work it does it and the cycle continues; if the frontier is also dry it records a stronger *explored* final point (hot core **and** cold frontier both dry) and stops. The grounding bar is never lowered — `explore` changes only *where* the survey looks. Valid with any non-zero N (including `-1`), since the sweep is self-terminating. `explore` is **orthogonal to `depth`** and combines with it: `/planwright cycle 10 depth 10 explore` runs every round — and the cold-frontier sweep itself — at depth 10, so the frontier is read at full intensity (adversarial re-review + second-opinion cross-check). The only restriction is that `explore` is cycle-only.
 
 ## Maintenance

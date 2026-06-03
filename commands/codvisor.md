@@ -1,6 +1,6 @@
 ---
 description: Shorthand for the planwright skill. Forwards its arguments to planwright; with no arguments it runs the flagship advisor sweep (cycle 10 depth 10 explore). Use it for grounded codebase planning, execute, and cycle/explore runs without typing the full skill name.
-argument-hint: "[planwright args] | <N> [M] | (empty = cycle 10 depth 10 explore)"
+argument-hint: "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 explore)"
 ---
 
 You are dispatching the **planwright** skill on behalf of the `/codvisor` helper command.
@@ -21,8 +21,8 @@ Resolve them in this order:
 2. **One or two integers** (whitespace-separated, nothing else): the advisor workflow with a
    custom cycle count `N`; **depth defaults to 10** (the explore flagship runs deep).
    - `N` (one integer, e.g. `15`): invoke planwright with `cycle <N> depth 10 explore`.
-   - `N M` (two integers, e.g. `5 8` → 5 cycles, depth 8): invoke planwright with
-     `cycle <N> depth <M> explore`. First number = cycles, second = depth.
+   - `N D` (two integers, e.g. `5 8` → 5 cycles, depth 8): invoke planwright with
+     `cycle <N> depth <D> explore`. First number = cycles, second = depth.
 
 3. **Anything else**: a verbatim passthrough — invoke planwright with `$ARGUMENTS` exactly as
    given, so `help`, `version`, `execute`, `cycle 3`, `depth 9`, `add OAuth login`, etc. all

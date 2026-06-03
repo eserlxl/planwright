@@ -10,8 +10,8 @@ description: >
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
   "propose plan items", "execute the plan", "implement the plan", "cycle", "dogfood", or mentions
   .planwright/plan.md. Run `/planwright help` for usage and options.
-  Supports: execute [--interactive] [N], cycle <N>, explore, update, version, upgrade, depth <N>, propose <N>, max <N>, no-compact, dry-run, help.
-argument-hint: "[instruction] | execute [N] | cycle <N> [depth <M>] [explore] | depth <N> | version | upgrade | help"
+  Supports: execute [--interactive] [N], cycle <N>, explore, update, version, upgrade, depth <D>, propose <N>, max <N>, no-compact, dry-run, help.
+argument-hint: "[instruction] | execute [N] | cycle <N> [depth <D>] [explore] | depth <D> | version | upgrade | help"
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
@@ -51,7 +51,7 @@ Before doing anything else, inspect the argument the skill was invoked with:
   (`--interactive`, an item index `N`).
 - If the first token is `cycle`, dispatch to the **Cycle** section near the end of this file and
   follow that procedure instead of the planning Procedure. The next token is the repeat count `N`; a
-  trailing `depth <N>` (and other plan options) applies to every planning round in the cycle.
+  trailing `depth <D>` (and other plan options) applies to every planning round in the cycle.
 - If the first token is `upgrade` or `update`, dispatch to the **Upgrade** section at the end of
   this file and follow that procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
@@ -63,7 +63,7 @@ Before doing anything else, inspect the argument the skill was invoked with:
 PLAN (read-only)
 /planwright                      Plan from audit (depth 6, propose 5, default settings)
 /planwright <instruction>        Break a specific request into plan items
-/planwright depth <N>            Set analysis depth 1..10 (intensity + audit thoroughness; default 6)
+/planwright depth <D>            Set analysis depth 1..10 (intensity + audit thoroughness; default 6)
 /planwright propose <N>          Override items proposed this run (1..max)
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
@@ -77,10 +77,10 @@ EXECUTE (edits source)
 CYCLE (automated plan → execute loops)
 /planwright cycle <N>            Plan then execute, repeated N times (1..100)
 /planwright cycle <-N>           Plan then execute until a recorded final point (unlimited, negative N)
-/planwright cycle <N> depth <M>  Run the cycle with planning depth M (1..10) every round
+/planwright cycle <N> depth <D>  Run the cycle with planning depth D (1..10) every round
 /planwright cycle <N> explore    Opt-in: at the final point, escalate to a cold-frontier sweep
                                  instead of stopping (any non-zero N; see Explore escalation)
-/planwright cycle <N> depth <M> explore   Combine: every round (and the sweep) runs at depth M
+/planwright cycle <N> depth <D> explore   Combine: every round (and the sweep) runs at depth D
 
 MAINTENANCE
 /planwright version              Show the current and latest available version
@@ -97,7 +97,7 @@ Plan options may be combined with an instruction, e.g.
 | Option | Default | Effect |
 |--------|---------|--------|
 | `<instruction>` | none | free-text request to decompose into items |
-| `depth <N>` | `6` | analysis depth `1..10` — scales reasoning intensity + audit thoroughness (see **Depth**) |
+| `depth <D>` | `6` | analysis depth `1..10` — scales reasoning intensity + audit thoroughness (see **Depth**) |
 | `propose <N>` | from depth (`5` at depth 6) | items to propose this run (clamped to `1..max`) |
 | `max <N>` | `20` | cap on pending unchecked items in the plan |
 | `no-compact` | off | skip Stage 0 housekeeping for this run |
@@ -109,7 +109,7 @@ Precedence: **inline option > built-in default.** There is no settings file; opt
 
 ### Depth
 
-`depth <N>` (1–10, default **6**) is a single dial that scales the whole planning pipeline: how hard
+`depth <D>` (1–10, default **6**) is a single dial that scales the whole planning pipeline: how hard
 you reason, how many audit sub-passes run, how many function bodies you read, how many dossier lenses
 you apply, and how many items you propose by default. Read it as the analysis-intensity knob —
 **1 = cosmetic pass** (typos, formatting, trivial one-line fixes), **10 = exhaustive whole-project
@@ -217,7 +217,7 @@ groundable work sits untouched in the periphery. `explore` closes that blind spo
   uncovered, then least-central — see `docs/graph-memory-schema.md`). Stage 2b reads `ranked_cold`
   bodies; Stages 5–6 survey the cold clusters project-wide. Articulation points are still always
   included. **`explore` is orthogonal to `depth`** — the sweep is part of the planning round, so it runs
-  at the **cycle's depth**: `cycle N depth M explore` sweeps the frontier at intensity M (e.g. depth 10
+  at the **cycle's depth**: `cycle N depth D explore` sweeps the frontier at intensity D (e.g. depth 10
   reads the depth-N `ranked_cold` bodies *and* applies the adversarial re-review + second-opinion
   cross-check to the cold clusters). Combine them freely; the only restriction is that `explore` is
   cycle-only.
@@ -730,7 +730,7 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
    (see **Explore escalation**), so it needs no extra N restriction. (Outside the cycle path — plain
    plan, `execute`, `version` — `explore` is ignored.)
 4. **Announce** — print the current branch (`git branch --show-current`), the cycle mode
-   (`N cycles` or `unlimited`), the planning depth (`depth <M>`, default 6), and whether `explore` is on
+   (`N cycles` or `unlimited`), the planning depth (`depth <D>`, default 6), and whether `explore` is on
    before starting any work.
 
 ## Per-cycle loop (repeat up to N times, or indefinitely when N < 0)
@@ -739,7 +739,7 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
 
 1. **Print header** — `=== Cycle i/N ===` (or `=== Cycle i/∞ ===` for unlimited) so progress is
    visible in long runs.
-2. **Plan** — run the full planning Procedure (Stages 0–11) at the cycle's depth (the `depth <N>`
+2. **Plan** — run the full planning Procedure (Stages 0–11) at the cycle's depth (the `depth <D>`
    passed to `cycle`, else default **6**) with otherwise-default settings: depth-derived `propose`,
    no instruction, no `no-compact`, no `dry-run`. The same depth applies to every round. Record the
    number of new items Stage 11 wrote.
