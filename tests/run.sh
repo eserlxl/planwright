@@ -614,6 +614,31 @@ assert imp("import os\nimport sys\n", "main.py") == [], "stdlib imports drop (no
 PY
 then ok "python dotted + relative imports resolve to repo files"; else bad "python import resolution broke (dotted, relative, or stdlib drop)"; fi
 
+# --- Test 11o: js extension/index + C include-root resolution ---------------
+# JS specifiers omit the extension and use directory index files; C reaches a
+# header through an -I include root, not a path relative to the source. Both
+# dropped under the generic resolver. Resolve them (C via unique-basename fallback).
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+js = {"src/app.js", "src/util.js", "src/lib/index.js", "src/api.ts"}
+ji = lambda src, frm: bg.imports_of("js", src, frm, js)
+assert ji('import x from "./util"\n', "src/app.js") == ["src/util.js"], "js extension omitted"
+assert ji('import {a} from "./lib"\n', "src/app.js") == ["src/lib/index.js"], "js directory index"
+assert ji('import y from "./api"\n', "src/app.js") == ["src/api.ts"], "js .ts extension"
+assert ji('import z from "./util.js"\n', "src/app.js") == ["src/util.js"], "js explicit extension still works"
+assert ji('import React from "react"\n', "src/app.js") == [], "bare specifier (node_modules) drops"
+c = {"src/main.c", "src/util.h", "include/common.h"}
+ci = lambda src, frm: bg.imports_of("c", src, frm, c)
+assert ci('#include "util.h"\n', "src/main.c") == ["src/util.h"], "C same-dir include"
+assert ci('#include "common.h"\n', "src/main.c") == ["include/common.h"], "C include via basename fallback"
+# ambiguous basename stays unresolved (avoid spurious edges)
+c2 = {"src/main.c", "a/dup.h", "b/dup.h"}
+assert bg.imports_of("c", '#include "dup.h"\n', "src/main.c", c2) == [], "ambiguous C basename drops"
+PY
+then ok "js extension/index and C include-root imports resolve"; else bad "js or C import resolution broke (extension, index, basename, or ambiguity)"; fi
+
 # --- Test 11j: build-graph.py is deterministic (same tree => same graph) -----
 # The builder's header calls it "deterministic" and incremental skipping trusts
 # that identical inputs yield identical sha256/ranking. built_at (date -u) is the

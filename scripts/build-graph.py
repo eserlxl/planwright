@@ -159,9 +159,11 @@ def branch_at_of(lang, text):
 def resolve(target, from_path, fileset, allow_basename=False):
     """Resolve a raw import target to a repo-relative path, or None.
 
-    With allow_basename (bash `source`), fall back to a *unique* basename match
-    when relative resolution misses: bash often sources a lib by bare name or via
-    an unresolved `$DIR/lib.sh`. The single-match guard avoids ambiguous edges."""
+    With allow_basename (bash `source`, C `#include`), fall back to a *unique*
+    basename match when relative resolution misses: bash sources a lib by bare name
+    or via an unresolved `$DIR/lib.sh`, and C reaches a header through an -I include
+    root rather than a path relative to the file. The single-match guard avoids
+    ambiguous edges."""
     if not target or target.startswith(("http://", "https://", "#", "mailto:")):
         return None
     target = target.split("#", 1)[0].split("?", 1)[0].strip()
@@ -205,6 +207,30 @@ def resolve_python_import(target, from_path, fileset):
     return None
 
 
+JS_EXTS = (".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs")
+
+
+def resolve_js_import(target, from_path, fileset):
+    """Resolve a js/ts import target to a repo file. JS specifiers routinely omit
+    the extension and use directory `index` files, so the generic resolver (exact
+    path only) drops the common case. Probe `<stem>.<ext>` then `<stem>/index.<ext>`.
+    Bare specifiers (`react`) are node_modules — not repo files — so they drop."""
+    if not target.startswith((".", "/")):
+        return None
+    base = os.path.dirname(from_path)
+    stem = os.path.normpath(os.path.join(base, target)) if not target.startswith("/") else target.lstrip("/")
+    stem = stem.replace("\\", "/")
+    if stem in fileset:
+        return stem
+    for ext in JS_EXTS:
+        if stem + ext in fileset:
+            return stem + ext
+    for ext in JS_EXTS:
+        if stem + "/index" + ext in fileset:
+            return stem + "/index" + ext
+    return None
+
+
 def imports_of(lang, text, from_path, fileset):
     raw = []
     if lang == "bash":
@@ -219,10 +245,14 @@ def imports_of(lang, text, from_path, fileset):
     elif lang == "markdown":
         raw += re.findall(r"\[[^\]]*\]\(([^)]+)\)", text)
     out = []
-    allow_basename = lang == "bash"
+    # bash sources and C includes both reach files by bare name (a sourced lib, an
+    # -I include root), so both fall back to a unique basename match.
+    allow_basename = lang in ("bash", "c")
     for t in raw:
         if lang == "python":
             r = resolve_python_import(t, from_path, fileset)
+        elif lang == "js":
+            r = resolve_js_import(t, from_path, fileset)
         else:
             r = resolve(t, from_path, fileset, allow_basename)
         if r and r != from_path and r not in out:
