@@ -3,6 +3,14 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.0] - 2026-06-03
+
+### Added
+- Import-cycle detection for the Stage 3 architecture lens. `build-graph.py` gains an `import_cycles` field — the strongly-connected components (size ≥ 2) of the *directed* import graph, i.e. circular-import groups (`a → b → a`, python circular imports, C `#include` cycles), computed with iterative Tarjan (no recursion-depth risk on large repos, mirroring `articulation_points`) and capped at `ranked_surface_limit`. The architecture lens now has a concrete "dependency direction" signal instead of eyeballing the edges; like `imports` it is routing-only, so the written item must still cite the real imports before proposing a break. Documented in `docs/graph-memory-schema.md` and SKILL.md Stage 3.
+
+### Tested
+- A behavioral test (a directed cycle is flagged, an acyclic importer is not) and the new field in the schema-conformance check. 122 → 123 assertions.
+
 ## [1.23.0] - 2026-06-03
 
 ### Added
