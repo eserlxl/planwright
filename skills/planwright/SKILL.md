@@ -427,7 +427,11 @@ names.
 ### Stage 10 — Strict quality gate (final)
 
 Treat every item as suspect until it passes all of these; otherwise replace it with a safer,
-better-verified item or drop it:
+better-verified item or drop it. The *structural* subset of this gate (fields present, valid mode,
+real `Surfaces:`, absent `New Surfaces:`, no graph-memory in `Evidence`, `CMakeLists.txt`, non-empty
+`Verification:`) is mechanized by `scripts/lint-plan.py`, which Stage 11 runs on the written plan; the
+checks below that need judgement (is the Evidence a *real* defect? does it cite a *true* signal?) stay
+yours:
 
 - Evidence cites a real AUDIT FINDING or non-comment SIGNAL proving the gap (not "related code exists").
 - Evidence must never cite `.planwright/graph.json` or `.planwright/digest.md`; the graph routes
@@ -469,7 +473,16 @@ header:
 <!-- Session: <UTC ISO-8601 timestamp> -->
 ```
 
-If `dry-run` was passed, stop here (no graph-memory state is persisted on a dry run). Otherwise,
+**Mechanically lint the written plan.** Run `python3 scripts/lint-plan.py --root <target>` — the
+canonical, test-covered linter for the *machine-checkable subset* of the OUTPUT FORMAT and the Stage 10
+gate (every pending item has all eight fields, a valid `Mode`, `Surfaces:` that exist, `New Surfaces:`
+that do not, no graph-memory citation in `Evidence`, a `.txt` on any `CMakeLists`, and a non-empty
+`Verification:`). The linter never replaces Stage 10's judgement passes — it catches the structural
+mistakes those passes are not meant to re-verify by hand. Fix every violation it reports in `plan.md`,
+then re-run it until it exits clean before reporting done. (On `dry-run`, run the linter against the
+would-be items the same way before printing them; write no file.)
+
+Then, unless `dry-run` was passed (no graph-memory state is persisted on a dry run),
 **persist the incremental-audit baseline** so the next run's Stage 1.5 dirty-set comparison has
 something to diff against:
 
@@ -546,10 +559,14 @@ verification, and commits. Everything below replaces the planning Procedure.
 
 1. **Plan exists** — `.planwright/plan.md` has at least one pending `- [ ]` item. If none, report
    "No pending items to execute" and STOP.
-2. **Clean working tree** — run `git status --porcelain`. If it reports anything, STOP and report the
+2. **Plan is structurally valid** — run `python3 scripts/lint-plan.py --root <target>`. If it reports
+   violations, STOP and surface them: a missing `Verification:`, a non-existent `Surfaces:` path, or an
+   invalid `Mode` makes an item unimplementable, so executing it would only churn the tree. Fix the
+   plan (or re-plan) before executing. This is the same gate Stage 11 applies when the plan is written.
+3. **Clean working tree** — run `git status --porcelain`. If it reports anything, STOP and report the
    dirty tree (do not entangle the user's uncommitted work with per-item commits). Exception: ignored
    paths such as `.planwright/` do not count.
-3. **Announce the branch** — print the current branch (`git branch --show-current`); per-item commits
+4. **Announce the branch** — print the current branch (`git branch --show-current`); per-item commits
    land here. There is no safety branch by design.
 
 ## Modes and scope

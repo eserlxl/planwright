@@ -26,15 +26,18 @@ else
   ok "main scripts shellcheck skipped (shellcheck not installed)"
 fi
 
-# --- Test 0b: build-graph.py passes static analysis ------------------------
-# The canonical Stage 1.5 builder is the only non-shell script; gate it too.
-# ast.parse checks syntax without writing __pycache__ into the real tree.
-if python3 -c "import ast,sys;ast.parse(open(sys.argv[1]).read())" "$ROOT/scripts/build-graph.py" 2>/dev/null; then ok "build-graph.py parses (no syntax error)"; else bad "build-graph.py has a syntax error"; fi
-if command -v pyflakes >/dev/null 2>&1; then
-  if pyflakes "$ROOT/scripts/build-graph.py" >/dev/null 2>&1; then ok "build-graph.py passes pyflakes"; else bad "build-graph.py fails pyflakes"; fi
-else
-  ok "build-graph.py pyflakes skipped (pyflakes not installed)"
-fi
+# --- Test 0b: the Python helper scripts pass static analysis ---------------
+# build-graph.py (Stage 1.5 graph) and lint-plan.py (Stage 10 plan gate) are the
+# only non-shell scripts; gate both. ast.parse checks syntax without writing
+# __pycache__ into the real tree.
+for py in build-graph.py lint-plan.py; do
+  if python3 -c "import ast,sys;ast.parse(open(sys.argv[1]).read())" "$ROOT/scripts/$py" 2>/dev/null; then ok "$py parses (no syntax error)"; else bad "$py has a syntax error"; fi
+  if command -v pyflakes >/dev/null 2>&1; then
+    if pyflakes "$ROOT/scripts/$py" >/dev/null 2>&1; then ok "$py passes pyflakes"; else bad "$py fails pyflakes"; fi
+  else
+    ok "$py pyflakes skipped (pyflakes not installed)"
+  fi
+done
 
 # --- Test 1: bump-version.sh syncs version across all three files ----------
 WORK="$TMP/repo"
@@ -618,6 +621,76 @@ assert cid["a.md"] == cid["b.md"] == cid["c.md"], "the connected cycle must shar
 assert cid["d.md"] != cid["a.md"], "the isolated file must be its own cluster"
 PY
 then ok "articulation_points yields no cut vertex on a cycle; component clusters together"; else bad "articulation over-flagged a cycle or clustering grouped wrong"; fi
+
+# --- Test 12: lint-plan.py enforces the Stage 10 structural gate -----------
+# The OUTPUT FORMAT + Stage 10 + Hard rules were enforced only by Claude reading
+# prose; lint-plan.py mechanizes their machine-checkable subset. A well-formed plan
+# (real Surfaces, absent New Surface) passes; a malformed one fails per-violation.
+GOOD_PLAN="$TMP/good_plan.md"
+cat > "$GOOD_PLAN" <<'EOF'
+# planwright Plan — .
+<!-- Session: x -->
+
+- [ ] A well-formed item
+      Mode: improve
+      Rationale: a real reason.
+      Evidence: scripts/build-graph.py:1 does X.
+      Surfaces: scripts/build-graph.py, tests/run.sh
+      New Surfaces: scripts/brand_new_helper.py
+      Development: edit build() at the node loop.
+      Acceptance: the suite stays green.
+      Verification: bash tests/run.sh
+EOF
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$GOOD_PLAN" --quiet; then ok "lint-plan.py passes a well-formed plan"; else bad "lint-plan.py rejected a well-formed plan"; fi
+
+# Real items wrap fields (Surfaces/Development/Evidence) across physical lines; a
+# linter that false-failed on that would be worse than none. Lock the join.
+WRAP_PLAN="$TMP/wrap_plan.md"
+cat > "$WRAP_PLAN" <<'EOF'
+# planwright Plan — .
+
+- [ ] Item with wrapped fields
+      Mode: develop
+      Rationale: a reason spanning
+      more than one physical line.
+      Evidence: scripts/build-graph.py:69 returns names;
+      docs/graph-memory-schema.md:47 documents it.
+      Surfaces: scripts/build-graph.py,
+      tests/run.sh
+      Development: add a helper near build-graph.py:69
+      and wire it into build().
+      Acceptance: suite green.
+      Verification: bash tests/run.sh
+EOF
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$WRAP_PLAN" --quiet; then ok "lint-plan.py joins wrapped multi-line fields (no false failure)"; else bad "lint-plan.py false-failed on wrapped fields"; fi
+
+BAD_PLAN="$TMP/bad_plan.md"
+cat > "$BAD_PLAN" <<'EOF'
+# planwright Plan — .
+
+- [ ] Malformed item
+      Mode: frobnicate
+      Evidence: see .planwright/graph.json ranked list
+      Surfaces: scripts/does_not_exist.py, src/CMakeLists
+      New Surfaces: tests/run.sh
+      Verification:
+EOF
+bp_rc=0
+bp_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$BAD_PLAN" 2>&1)" || bp_rc=$?
+if [ "$bp_rc" -ne 0 ]; then ok "lint-plan.py exits non-zero on a malformed plan"; else bad "lint-plan.py accepted a malformed plan"; fi
+miss=""
+for needle in "missing required field 'Rationale:'" "empty field 'Verification:'" "invalid Mode 'frobnicate'" "Evidence cites graph memory" "does not exist under root" "must be spelled CMakeLists.txt" "already exists"; do
+  printf '%s' "$bp_out" | grep -qF "$needle" || miss="$miss [$needle]"
+done
+if [ -z "$miss" ]; then ok "lint-plan.py reports every Stage 10 violation class"; else bad "lint-plan.py missed violations:$miss"; fi
+# A pending item with all eight fields and no path issues must pass; the same item
+# completed (- [x]) is skipped by default and only checked under --all.
+DONE_PLAN="$TMP/done_plan.md"
+sed 's/- \[ \]/- [x]/' "$BAD_PLAN" > "$DONE_PLAN"
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$DONE_PLAN" --quiet; then ok "lint-plan.py skips completed items by default"; else bad "lint-plan.py linted a completed item without --all"; fi
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$DONE_PLAN" --all --quiet; then bad "lint-plan.py --all ignored a completed item"; else ok "lint-plan.py --all also lints completed items"; fi
+# An absent plan file is not an error (nothing to lint).
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$TMP/nope.md" --quiet; then ok "lint-plan.py treats an absent plan as clean"; else bad "lint-plan.py errored on an absent plan file"; fi
 
 echo
 echo "passed: $PASS  failed: $FAIL"

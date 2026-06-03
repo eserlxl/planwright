@@ -47,10 +47,10 @@ Converts the refined dossier into draft checkbox items following the exact outpu
 Validates the draft against the real project context. It corrects vague titles, verifies test targets, and removes items that hallucinate symbols or assume files exist when they don't.
 
 ### Stage 10: Strict Quality Gate
-A final check that acts as a hard gate. Items must be proven by non-comment signals. It blocks unsafe extraction (e.g., `constexpr` into `.cpp`), destructive file operations, and missing test anchors. Items failing this gate are replaced or dropped.
+A final check that acts as a hard gate. Items must be proven by non-comment signals. It blocks unsafe extraction (e.g., `constexpr` into `.cpp`), destructive file operations, and missing test anchors. Items failing this gate are replaced or dropped. Its *structural* subset — required fields, valid mode, real `Surfaces:`, absent `New Surfaces:`, no graph-memory in `Evidence`, non-empty `Verification:` — is mechanized by the canonical, test-covered `scripts/lint-plan.py`, so those invariants are enforced deterministically rather than re-checked by hand (mirroring how `scripts/build-graph.py` canonicalizes Stage 1.5).
 
 ### Stage 11: Write
-Appends the surviving items into `.planwright/plan.md`. (If `--dry-run` is active, it only prints the plan to chat).
+Appends the surviving items into `.planwright/plan.md`, then runs `scripts/lint-plan.py` on the written plan and fixes any reported violation before finishing. (If `--dry-run` is active, it lints the would-be items the same way and only prints the plan to chat.) The execute and cycle paths re-run the same linter as a precondition, so a structurally invalid plan never reaches the mutating loop.
 
 ## The Execution Path
 
