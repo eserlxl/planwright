@@ -2,13 +2,15 @@
 
 **Grounded codebase planning for Claude Code.**
 
-Planwright is a planning-first Claude Code skill that analyzes software projects, generates implementation plans, and optionally executes approved development tasks.
+Planwright is a planning-first Claude Code skill for codebase work. It audits a project, writes grounded implementation items to `.planwright/plan.md`, and can optionally execute verified items one by one.
+
+"Grounded" means every planned change must point back to concrete repository evidence, such as `file:line` references.
 
 It operates using three distinct, partitioned paths:
 
-- **Plan** — scans and audits the codebase, then runs a multi-stage pipeline to emit concrete, verified plan items into `.planwright/plan.md`. Read-only: the plan path writes only the plan file, never your source.
+- **Plan** — scans and audits the codebase, then runs a multi-stage pipeline to emit concrete, verified plan items into `.planwright/plan.md`. A valid plan item must cite real file/line evidence and include a runnable verification command. Read-only: the plan path writes only the plan file, never your source.
 - **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and records the rest. This is the only path that edits source.
-- **Cycle** — runs N sequential plan→execute rounds unattended, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Pass a positive number for a fixed count, or a negative number to run until it reaches a recorded final point (all rungs dry).
+- **Cycle** — runs N sequential plan→execute rounds unattended, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Pass a positive number for a fixed count, or a negative number to continue until planwright records a final point. Negative cycle counts are bounded by the recorded final point; they stop when all maturity rungs are dry.
 
 ```mermaid
 flowchart LR
@@ -23,15 +25,19 @@ flowchart LR
     Cycle -->|nothing left| Done[Done]
 ```
 
-Claude runs every stage directly, so it costs no separate model calls and needs no external binary.
+Claude Code runs every stage through the skill, so planwright needs no external binary and makes no separate API/model calls beyond the active Claude Code session.
 
-To keep large-codebase audits affordable, the plan path builds a **graph memory** (`.planwright/graph.json`) — import and change-coupling edges, PageRank, and articulation points — that routes audit attention toward high-blast-radius code and lets repeat runs re-audit only the changed subgraph. A companion `.planwright/digest.md` carries routing-only summaries that are never cited as Evidence. Both live under the gitignored `.planwright/`. See [Graph memory](docs/graph-memory-schema.md) for the schema and stages.
+To keep large-codebase audits efficient, the plan path builds a **graph memory** (`.planwright/graph.json`) — import and change-coupling edges, PageRank, and articulation points — that routes audit attention toward code where changes can affect many other files and lets repeat runs re-audit only the changed subgraph. A companion `.planwright/digest.md` carries routing-only summaries that are never cited as Evidence. Both live under the gitignored `.planwright/`. See [Graph memory](docs/graph-memory-schema.md) for the schema and stages.
 
 > **Note**: Planning never edits your application source. Only `/planwright execute` and `/planwright cycle` do — and even then, Claude Code's normal permission prompts for edits and commits still apply.
 
 ## How planwright differs from `/plan` and `/ultraplan`
 
-Claude Code already ships built-in planning: **`/plan`** enters *plan mode* — Claude proposes a plan, blocks edits until you approve, then executes in the same session — and **`/ultraplan`** refines a plan with a heavier, cloud-backed remote session. Both are general-purpose, model-judgment plans that live for the session. planwright is a different shape of tool: it produces a **grounded, verifiable, persistent plan artifact** for codebase work.
+Claude Code already ships built-in planning: **`/plan`** enters *plan mode* — Claude proposes a plan, blocks edits until you approve, then executes in the same session.
+
+**`/ultraplan`** is currently a research-preview Claude Code feature, so its behavior may change. It refines a plan with a heavier, cloud-backed remote session.
+
+Both are general-purpose, session-scoped plans. planwright is a different shape of tool: it produces a **grounded, verifiable, persistent plan artifact** for codebase work.
 
 | | `/plan` (built-in mode) | `/ultraplan` (built-in, cloud) | **planwright** |
 |---|---|---|---|
@@ -41,9 +47,24 @@ Claude Code already ships built-in planning: **`/plan`** enters *plan mode* — 
 | Output | Free-form prose | Free-form prose | Exact 8-field checkbox items, each with a runnable `Verification:` |
 | Execution | Exit mode → implement now | Same | Separate `execute` path: implements, **runs each item's verification, commits per item**, records pass/fail |
 | Iteration | One-shot | One-shot refine | `cycle N` climbs a maturity ladder to a recorded **final point** |
-| Runs | Local | Cloud (web auth) | Fully local — no external binary, no separate model call |
+| Runs | Local | Cloud (web auth) | Runs inside Claude Code — no extra binary, daemon, server, or separate API/model integration |
 
 **Rules of thumb:** reach for **`/plan`** to think through any task you'll execute right away; **`/ultraplan`** when you want cloud-grade refinement on a hard problem; **planwright** when you want a grounded, verifiable plan of *codebase* work — especially unattended multi-round progress (`cycle`) with per-item verification and commits. They compose, too: design with `/plan`, then let planwright drive the verified execution.
+
+## Example Plan Item
+
+A plan item has this 8-field shape:
+
+```md
+- [ ] ID: PW-001
+  Title: Add missing validation for config loading
+  Evidence: `src/config.ts:42`
+  Risk: Low
+  Change: Validate required keys before use.
+  Verification: `npm test -- config`
+  Files: `src/config.ts`, `tests/config.test.ts`
+  Status: pending
+```
 
 ## Documentation
 
@@ -56,6 +77,8 @@ For deep dives into how `planwright` operates, refer to the documentation:
 - [Graph memory](docs/graph-memory-schema.md): The `.planwright/graph.json` / `digest.md` schema and how Stage 1.5 routes audit attention.
 
 ## Install
+
+Requires Claude Code. The plugin install path is recommended; manual skill copy is only for users not using the plugin system.
 
 ```bash
 /plugin marketplace add eserlxl/planwright
@@ -90,7 +113,7 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 # Run plan→execute in a loop
 /planwright cycle 3            # exactly 3 rounds
 /planwright cycle 3 depth 8    # 3 rounds, deep planning each round
-/planwright cycle -1           # unlimited rounds until a recorded final point (all rungs dry)
+/planwright cycle -1           # repeat until every maturity rung produces no actionable work
 
 # Maintenance
 /planwright version    # show current and latest available version
@@ -114,7 +137,7 @@ scripts/bump-version.sh --help
 scripts/make-plugin.sh --help
 
 # Create a tagged release — only at milestones (every 25-50 commits or a
-# meaningful feature: new subcommand, major behaviour change, etc.)
+# meaningful feature: new subcommand, major behavior change, etc.)
 git tag vX.Y.Z <release-commit-sha>
 git push origin vX.Y.Z
 ```
