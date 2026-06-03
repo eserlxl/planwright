@@ -77,8 +77,10 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
 - **`last_audited_sha`** stays `null` until a node is first deep-audited (then Stage 11 stamps it).
 - **`ranking_signal`** records which signal drove the `ranked` list: `centrality` (PageRank over the
   import graph) normally, or `coupling` when the import graph is degenerate (too few edges, or PageRank
-  barely discriminates — common in docs/scripts repos), in which case nodes rank by change-coupling
-  degree instead. Both are boosted by `is_articulation` and tiebroken by `git_churn`.
+  barely discriminates — common in docs/scripts repos), in which case nodes rank by **weighted
+  change-coupling degree** (sum of incident `coupling_edges` weights, churn-normalized so a
+  high-churn ledger file does not dominate by raw volume) instead. Both are boosted by
+  `is_articulation` and tiebroken by `git_churn`.
 
 ## Stage 1.5 build procedure (mechanical, in-sandbox)
 

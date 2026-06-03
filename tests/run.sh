@@ -369,6 +369,34 @@ for want in ("handle", "Server", "route", "helper"):
 PY
 then ok "defines_of extracts C/C++ + JS symbols (functions, classes, gtest groups)"; else bad "defines_of missing C/C++ or JS symbols, or leaking non-definitions"; fi
 
+# --- Test 11e: coupling fallback ranks by churn-normalized weight, not raw co --
+# Two pairs with equal raw cooccur (3): a/b also churn alone (churn 5, weight
+# 0.6), c/d only co-change (churn 3, weight 1.0). A raw-cooccur ranking would
+# tiebreak on churn and surface a/b; the spec'd weighted degree surfaces c/d.
+WREPO="$TMP/wcouprepo"
+mkdir -p "$WREPO"
+git -C "$WREPO" init -q
+wgc() { git -C "$WREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+for f in a b c d; do echo "# $f" > "$WREPO/$f.md"; done
+git -C "$WREPO" add -A; wgc -m init
+for i in 1 2; do echo "x$i" >> "$WREPO/a.md"; echo "x$i" >> "$WREPO/b.md"; git -C "$WREPO" add -A; wgc -m "ab$i"; done
+for i in 1 2; do echo "y$i" >> "$WREPO/c.md"; echo "y$i" >> "$WREPO/d.md"; git -C "$WREPO" add -A; wgc -m "cd$i"; done
+for i in 1 2; do echo "s$i" >> "$WREPO/a.md"; git -C "$WREPO" add -A; wgc -m "a$i"; done
+for i in 1 2; do echo "s$i" >> "$WREPO/b.md"; git -C "$WREPO" add -A; wgc -m "b$i"; done
+wcoup_out="$TMP/wcoup_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$WREPO" > "$wcoup_out" 2>/dev/null
+if python3 - "$wcoup_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+assert g["ranking_signal"] == "coupling", g["ranking_signal"]
+w = {tuple(sorted((e["a"], e["b"]))): e["weight"] for e in g["coupling_edges"]}
+# tightly-coupled pair must carry the heavier weight despite equal raw cooccur
+assert w[("c.md", "d.md")] > w[("a.md", "b.md")], w
+# and therefore rank first under the weighted-degree fallback
+assert set(g["ranked"][:2]) == {"c.md", "d.md"}, g["ranked"][:2]
+PY
+then ok "coupling fallback ranks by weighted degree (not raw cooccur)"; else bad "coupling fallback used raw cooccur instead of weight"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

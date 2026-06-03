@@ -293,13 +293,19 @@ def build(root, prior_path):
         nodes[f]["is_articulation"] = f in aps
 
     coupling_edges = []
-    coupling_deg = {f: 0 for f in files}
+    # Weighted coupling degree: sum of incident edge weights, where
+    # weight = cooccur / min(churn) normalizes away raw volume so a high-churn
+    # ledger file (CHANGELOG, manifests) does not dominate purely by appearing in
+    # many commits. SKILL.md Stage 1.5 step 6 specifies this "sum of coupling_edges
+    # weights" as the degenerate-fallback ranking signal.
+    coupling_deg = {f: 0.0 for f in files}
     for (a, b), co in sorted(pair_co.items()):
         if co >= COUPLING_MIN_COOCCURRENCE:
             denom = min(churn.get(a, 1), churn.get(b, 1)) or 1
-            coupling_edges.append({"a": a, "b": b, "cooccur": co, "weight": round(co / denom, 4)})
-            coupling_deg[a] += co
-            coupling_deg[b] += co
+            w = round(co / denom, 4)
+            coupling_edges.append({"a": a, "b": b, "cooccur": co, "weight": w})
+            coupling_deg[a] += w
+            coupling_deg[b] += w
 
     comps = connected_components(files, undirected)
     clusters = []
