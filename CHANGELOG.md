@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.0] - 2026-06-03
+
+### Changed
+- Add the `/codvisor` helper command: a thin slash-command alias that forwards its arguments to the planwright skill; with no arguments it runs the flagship advisor sweep (`cycle 10 depth 10 explore`) after printing a cost banner, accepts `N` (cycles; depth defaults to 10) or `N M` for `cycle N depth M explore`, and otherwise passes arguments through verbatim.
+
 ## [1.25.0] - 2026-06-03
 
 ### Changed

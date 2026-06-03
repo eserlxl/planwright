@@ -118,7 +118,8 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 
 # /codvisor — a short helper command that forwards to planwright
 /codvisor                  # flagship advisor run: cycle 10 depth 10 explore (prints the cost first)
-/codvisor 5 8              # cycle 5 depth 8 explore
+/codvisor 15               # cycle 15 depth 10 explore (one number = cycles; depth defaults to 10)
+/codvisor 5 8              # cycle 5 depth 8 explore (cycles, depth)
 /codvisor help             # passthrough: same as /planwright help (any planwright args work)
 
 # Maintenance
