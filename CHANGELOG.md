@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.17.2] - 2026-06-03
+
+### Changed
+- Test the build-graph coupling-fallback ranking branch; statically lint build-graph.py in tests + CI
+
 ## [1.17.1] - 2026-06-03
 
 ### Changed

@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Marketplace hosting the planwright planning skill for Claude Code.",
-    "version": "1.17.1"
+    "version": "1.17.2"
   },
   "plugins": [
     {
       "name": "planwright",
       "source": "./",
       "description": "Grounded codebase planning: scan + audit a repo and emit a verification-ready checkbox plan in .planwright/plan.md.",
-      "version": "1.17.1",
+      "version": "1.17.2",
       "license": "GPL-3.0-or-later",
       "keywords": [
         "planning",
