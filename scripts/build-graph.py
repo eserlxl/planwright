@@ -66,6 +66,25 @@ def loc_of(blob):
     return blob.count(b"\n") + (0 if blob.endswith(b"\n") else 1)
 
 
+# Per-language branch-token patterns for a best-effort complexity proxy. Stage 2b
+# tiebreaks function selection "by complexity (line count or branching)"; loc gives
+# the line count, branch_count gives the branching. Comment/string hits are tolerated
+# (consistent with the rest of this best-effort extractor).
+BRANCH_KW = {
+    "bash": r"\b(?:if|elif|for|while|case|until)\b|&&|\|\|",
+    "python": r"\b(?:if|elif|for|while|except)\b|\band\b|\bor\b",
+    "js": r"\b(?:if|for|while|case|catch)\b|&&|\|\||\?",
+    "c": r"\b(?:if|for|while|case|catch)\b|&&|\|\||\?",
+}
+
+
+def branch_count_of(lang, text):
+    """Best-effort count of branch points — the 'branching' half of Stage 2b's
+    complexity tiebreak. 0 for data/markup languages with no control flow."""
+    pat = BRANCH_KW.get(lang)
+    return len(re.findall(pat, text)) if pat else 0
+
+
 def iter_defines(lang, text):
     """Yield (symbol_name, start_offset) for every definition match, in source
     order. Shared by defines_of (names) and defines_at_of (name -> line)."""
@@ -379,6 +398,7 @@ def build(root, prior_path):
         nodes[f] = {
             "sha256": hashlib.sha256(blob).hexdigest(),
             "loc": loc_of(blob),
+            "branch_count": branch_count_of(lang, text),
             "lang": lang,
             "git_churn": churn.get(f, 0),
             "defines": defines_of(lang, text),

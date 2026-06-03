@@ -327,7 +327,8 @@ mismatches. Each finding: path, size or gap, why it matters.
 "Stage 2b functions to read"** for this run. Select those N by **centrality ∩ complexity**: walk the
 Stage 1.5 `graph.json` `ranked` list (PageRank-ordered, so high-blast-radius code first) and take its
 top functions, **always including every `is_articulation` node regardless of depth** (a defect in a
-cut vertex breaks many modules), then break ties by complexity (line count or branching). When the
+cut vertex breaks many modules), then break ties by complexity (each node's `loc` for line count and
+`branch_count` for branching). When the
 graph used the **coupling fallback** (degenerate import graph, see Stage 1.5 step 6), `ranked` is
 already coupling-ordered — walk it the same way; centrality and coupling feed the same `ranked` list.
 If `graph.json` is absent or graph-aware routing was skipped this run, **fall back** to the original rule:
