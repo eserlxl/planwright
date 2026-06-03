@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.19.0] - 2026-06-03
+
+### Changed
+- Compute the Stage 1.5 dirty set (changed nodes + 1-hop blast radius, whole-graph invalidation triggers) deterministically in build-graph.py via a new `dirty` block, instead of hand-deriving it each run.
+
 ## [1.18.1] - 2026-06-03
 
 ### Changed
