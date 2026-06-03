@@ -13,6 +13,11 @@ jobs:
       - name: Shellcheck scripts
         run: shellcheck scripts/*.sh tests/*.sh
 
+      - name: Lint Python builder
+        run: |
+          python3 -m pip install --quiet pyflakes
+          pyflakes scripts/build-graph.py
+
       - name: Validate plugin manifests
         run: python3 -c "import json,glob;[json.load(open(f)) for f in glob.glob('.claude-plugin/*.json')]"
 

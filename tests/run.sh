@@ -26,6 +26,16 @@ else
   ok "main scripts shellcheck skipped (shellcheck not installed)"
 fi
 
+# --- Test 0b: build-graph.py passes static analysis ------------------------
+# The canonical Stage 1.5 builder is the only non-shell script; gate it too.
+# ast.parse checks syntax without writing __pycache__ into the real tree.
+if python3 -c "import ast,sys;ast.parse(open(sys.argv[1]).read())" "$ROOT/scripts/build-graph.py" 2>/dev/null; then ok "build-graph.py parses (no syntax error)"; else bad "build-graph.py has a syntax error"; fi
+if command -v pyflakes >/dev/null 2>&1; then
+  if pyflakes "$ROOT/scripts/build-graph.py" >/dev/null 2>&1; then ok "build-graph.py passes pyflakes"; else bad "build-graph.py fails pyflakes"; fi
+else
+  ok "build-graph.py pyflakes skipped (pyflakes not installed)"
+fi
+
 # --- Test 1: bump-version.sh syncs version across all three files ----------
 WORK="$TMP/repo"
 mkdir -p "$WORK"
@@ -293,6 +303,35 @@ assert carried, "no carried-over nodes"
 assert all(new["nodes"][f]["last_audited_sha"] == sha for f in carried), "last_audited_sha not preserved"
 PY
 then ok "build-graph.py --prior preserves last_audited_sha across a rebuild"; else bad "build-graph.py --prior dropped last_audited_sha"; fi
+
+# --- Test 11c: build-graph.py coupling fallback ranks a degenerate graph ----
+# A repo whose files do not import each other (n_import_edges below threshold)
+# must fall back from PageRank to change-coupling ranking. This path never runs
+# on planwright's own tree (it ranks by centrality), so exercise it explicitly.
+COUPREPO="$TMP/couprepo"
+mkdir -p "$COUPREPO"
+git -C "$COUPREPO" init -q
+for f in alpha beta gamma delta; do echo "# $f" > "$COUPREPO/$f.md"; done
+git -C "$COUPREPO" add -A
+git -C "$COUPREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+# Co-commit alpha+beta three more times so their pair clears coupling_min_cooccurrence (3).
+for i in 1 2 3; do
+  echo "edit $i" >> "$COUPREPO/alpha.md"
+  echo "edit $i" >> "$COUPREPO/beta.md"
+  git -C "$COUPREPO" add -A
+  git -C "$COUPREPO" -c user.name=t -c user.email=t@e.com commit -qm "co $i"
+done
+coup_out="$TMP/coup_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$COUPREPO" > "$coup_out" 2>/dev/null
+if python3 - "$coup_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+assert g["ranking_signal"] == "coupling", g["ranking_signal"]
+edge = [e for e in g["coupling_edges"] if {e["a"], e["b"]} == {"alpha.md", "beta.md"}]
+assert edge and edge[0]["cooccur"] >= 3, "alpha/beta coupling edge missing"
+assert set(g["ranked"][:2]) == {"alpha.md", "beta.md"}, g["ranked"][:2]
+PY
+then ok "build-graph.py coupling fallback ranks the coupled pair first"; else bad "build-graph.py coupling fallback ranking wrong"; fi
 
 echo
 echo "passed: $PASS  failed: $FAIL"
