@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.17.1] - 2026-06-03
+
+### Changed
+- Fix stale stage count in plugin.json; cover build-graph --prior + ranking_signal in tests
+
 ## [1.17.0] - 2026-06-02
 
 ### Changed
