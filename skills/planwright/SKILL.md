@@ -15,7 +15,7 @@ argument-hint: "[instruction] | execute [N] | cycle <N> [depth <D>] [explore] | 
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.26.0"
+  version: "1.26.1"
 ---
 
 # planwright

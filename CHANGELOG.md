@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.26.1] - 2026-06-03
+
+### Changed
+- Pre-submission polish: clearer plugin-browser description and a tighter README first screen. No behavior change.
+
 ## [1.26.0] - 2026-06-03
 
 ### Changed
