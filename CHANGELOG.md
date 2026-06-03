@@ -3,6 +3,17 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.21.0] - 2026-06-03
+
+### Added
+- `ranked_code`: a new `graph.json` field — the `ranked` priority list restricted to nodes that carry code (`branch_count > 0`), in the same order. Stage 2b's function-selection walk now reads `ranked_code` (falling back to `ranked`), so doc/data nodes that link-centrality floats to the top of `ranked` no longer displace the engine code Stage 2b is meant to deep-read. Documented in `docs/architecture.md` (design note), `docs/graph-memory-schema.md`, and SKILL.md Stage 1.5/Stage 2b.
+
+### Changed
+- `EXT_LANG` now recognizes the common alternate extensions of languages planwright already supports: `.cc`/`.cxx`/`.c++`/`.hh`/`.hxx`/`.tpp` for C/C++ (the primary target) and `.jsx`/`.tsx`/`.mjs`/`.cjs` for JS/TS (already resolvable `JS_EXTS` import targets). Those source files previously routed as `lang="unknown"` and contributed no `defines`/`imports`/`branch_count`.
+
+### Tested
+- Added coverage for the new `ranked_code` field (schema conformance + a behavioral test that zero-branch docs are excluded while branchy code is kept) and for the alternate C/C++ and JS/TS extensions (114 → 116 assertions).
+
 ## [1.20.0] - 2026-06-03
 
 ### Added
