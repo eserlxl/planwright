@@ -289,6 +289,12 @@ for f, n in g["nodes"].items():
     # branch_at keys are a subset of the file's defined symbols
     assert set(n["branch_at"]) <= set(n["defines"]), f
 assert isinstance(g["ranked"], list) and all(x in g["nodes"] for x in g["ranked"])
+# ranked_code: a list of branch_count>0 nodes only, in the same priority order as ranked
+assert isinstance(g["ranked_code"], list)
+assert all(x in g["nodes"] and g["nodes"][x]["branch_count"] > 0 for x in g["ranked_code"]), g["ranked_code"]
+# code nodes keep their relative ranked order in ranked_code
+code_in_ranked = [x for x in g["ranked"] if g["nodes"][x]["branch_count"] > 0]
+assert g["ranked_code"][:len(code_in_ranked)] == code_in_ranked, (g["ranked_code"], code_in_ranked)
 for c in g["clusters"]:
     assert isinstance(c["id"], int) and isinstance(c["members"], list)
 for e in g["coupling_edges"]:
@@ -354,6 +360,30 @@ assert edge and edge[0]["cooccur"] >= 3, "alpha/beta coupling edge missing"
 assert set(g["ranked"][:2]) == {"alpha.md", "beta.md"}, g["ranked"][:2]
 PY
 then ok "build-graph.py coupling fallback ranks the coupled pair first"; else bad "build-graph.py coupling fallback ranking wrong"; fi
+
+# --- Test 11c2: ranked_code excludes zero-branch nodes Stage 2b cannot read ----
+# A doc/data node carries branch_count 0 and no functions; link-centrality can
+# float it to the top of `ranked`, but ranked_code must hold only code nodes so
+# Stage 2b's function walk is not led to a file with nothing to read.
+RCREPO="$TMP/rankedcoderepo"
+mkdir -p "$RCREPO"
+git -C "$RCREPO" init -q
+printf '#!/usr/bin/env bash\nf() { if true; then for x in a b; do echo hi; done; fi; }\n' > "$RCREPO/lib.sh"
+printf '# Doc\n[lib](lib.sh) and more text linking [lib](lib.sh).\n' > "$RCREPO/doc.md"
+git -C "$RCREPO" add -A
+git -C "$RCREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+rc_out="$TMP/rc_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$RCREPO" > "$rc_out" 2>/dev/null
+if python3 - "$rc_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+assert "lib.sh" in g["ranked_code"], g["ranked_code"]
+assert "doc.md" not in g["ranked_code"], g["ranked_code"]
+assert g["nodes"]["doc.md"]["branch_count"] == 0 and g["nodes"]["lib.sh"]["branch_count"] > 0
+# every ranked_code member is a branch>0 node
+assert all(g["nodes"][f]["branch_count"] > 0 for f in g["ranked_code"]), g["ranked_code"]
+PY
+then ok "ranked_code holds only code nodes, excluding zero-branch docs"; else bad "ranked_code leaked a zero-branch node or dropped a code node"; fi
 
 # --- Test 11d: defines_of routes C/C++ + JS symbols (Stage 2b function hints) -
 # The `defines` field feeds Stage 2b's "walk ranked, take its top functions".

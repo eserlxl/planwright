@@ -286,7 +286,9 @@ the script cannot run (no `python3`, etc.).
    label.
 6. **Rank** nodes by descending audit priority: primary `pagerank`, boosted when `is_articulation`,
    tiebreak `git_churn`. Emit the top `ranked_surface_limit` (~20) into the `ranked` list and surface
-   only that list to context.
+   only that list to context. Also emit `ranked_code` — the same priority order restricted to nodes
+   with `branch_count > 0` — so Stage 2b's function walk reads code, not the doc/data nodes that
+   link-centrality can float to the top of `ranked`.
    - **Degenerate-import-graph fallback** — when the import graph barely discriminates (PageRank spread
      across nodes is below a small threshold, or there are too few import edges to rank — common in
      docs/scripts repos where files rarely import each other), PageRank is noise. In that case rank by
@@ -325,7 +327,10 @@ mismatches. Each finding: path, size or gap, why it matters.
 
 **2b. Correctness** — open and read the bodies of the top-N functions, where **N is the Depth table's
 "Stage 2b functions to read"** for this run. Select those N by **centrality ∩ complexity**: walk the
-Stage 1.5 `graph.json` `ranked` list (PageRank-ordered, so high-blast-radius code first) and take its
+Stage 1.5 `graph.json` **`ranked_code` list when present** (it is `ranked` already restricted to
+nodes that carry code — `branch_count > 0` — so doc/data nodes that link-centrality floats to the top
+of `ranked` do not displace the engine code; fall back to `ranked` when `ranked_code` is absent or
+empty). It is PageRank-ordered, so high-blast-radius code first; take its
 top files, **always including every `is_articulation` node regardless of depth** (a defect in a
 cut vertex breaks many modules), breaking ties between *files* by their `loc` and `branch_count`. Then,
 **within** each selected file, rank the functions to read by `branch_at` (branches attributed to each

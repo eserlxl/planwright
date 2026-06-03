@@ -61,6 +61,7 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
     { "id": 0, "label": "skill-core", "members": ["skills/planwright/SKILL.md"] }
   ],
   "ranked": ["fileA", "fileB", "..."],       // nodes by descending audit priority
+  "ranked_code": ["fileA", "..."],           // `ranked` restricted to branch_count>0 nodes — Stage 2b uses this
   "dirty": {                                  // Phase 2 dirty set (computed vs --prior)
     "is_first_run": false,                    // true when no prior graph existed
     "whole_graph": false,                     // true => re-audit every node
@@ -81,6 +82,10 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   group names; JS functions, classes, and named arrow/function expressions). They feed
   Stage 2b's "walk `ranked`, take its top functions" selection and the test-reorg lens;
   like `imports`, they only route attention and are never cited as Evidence.
+- **`ranked_code`** is `ranked` filtered to nodes with `branch_count > 0`, in the same
+  priority order. Stage 2b's function-selection walk reads `ranked_code` when present
+  (falling back to `ranked`) so doc/data nodes that link-centrality floats to the top of
+  `ranked` do not displace the engine code Stage 2b is meant to deep-read. Routing only.
 - **`coupling_edges`** capture files that co-commit without importing each other — the
   hidden dependencies a reader cannot see. `weight = cooccur / min(churn_a, churn_b)`.
 - **`is_articulation`** marks cut vertices of the import graph: a defect there has wide

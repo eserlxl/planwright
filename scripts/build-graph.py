@@ -536,7 +536,14 @@ def build(root, prior_path):
         primary = coupling_deg[f] if degenerate else pr.get(f, 0.0)
         return (primary, 1 if nodes[f]["is_articulation"] else 0, churn.get(f, 0), )
 
-    ranked = sorted(files, key=sort_key, reverse=True)[:RANKED_SURFACE_LIMIT]
+    by_priority = sorted(files, key=sort_key, reverse=True)
+    ranked = by_priority[:RANKED_SURFACE_LIMIT]
+    # ranked_code: the same priority order restricted to nodes that actually carry
+    # code (branch_count > 0), so Stage 2b's function-selection walk is not led by
+    # zero-function doc/data nodes that link-centrality can float to the top of
+    # `ranked` (docs/architecture.md "lang-aware Stage 2b ranking" design note).
+    ranked_code = [f for f in by_priority
+                   if nodes[f]["branch_count"] > 0][:RANKED_SURFACE_LIMIT]
 
     dirty = compute_dirty(files, nodes, prior, prior_graph, head, undirected,
                           coupling_edges, clusters, root)
@@ -556,6 +563,7 @@ def build(root, prior_path):
         "coupling_edges": coupling_edges,
         "clusters": clusters,
         "ranked": ranked,
+        "ranked_code": ranked_code,
         "dirty": dirty,
     }
 
