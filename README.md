@@ -116,6 +116,11 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 /planwright cycle -1           # repeat until every maturity rung produces no actionable work
 /planwright cycle 10 depth 10 explore  # at the final point, also sweep the cold frontier
 
+# /codvisor — a short helper command that forwards to planwright
+/codvisor                  # flagship advisor run: cycle 10 depth 10 explore (prints the cost first)
+/codvisor 5 8              # cycle 5 depth 8 explore
+/codvisor help             # passthrough: same as /planwright help (any planwright args work)
+
 # Maintenance
 /planwright version    # show current and latest available version
 /planwright upgrade    # update planwright itself to the latest version (alias: update)

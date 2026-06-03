@@ -1263,6 +1263,27 @@ adv_rc=0
 adv_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$ADV/plan.md" 2>&1)" || adv_rc=$?
 if [ "$adv_rc" -eq 0 ] && printf '%s' "$adv_out" | grep -qF "matches a completed item"; then ok "lint-plan.py advisory note alone does not fail the gate"; else bad "lint-plan.py advisory wrongly failed the gate (or note missing)"; fi
 
+# --- Test 13: commands/codvisor.md is a well-formed planwright helper command ---
+# /codvisor is a thin alias that forwards to the planwright skill; guard its delegation
+# contract so an edit can't silently drop the planwright reference or the no-arg default.
+CMD="$ROOT/commands/codvisor.md"
+if [ -f "$CMD" ]; then ok "commands/codvisor.md exists"; else bad "commands/codvisor.md missing"; fi
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+assert m, "no YAML frontmatter"
+fm = m.group(1)
+assert re.search(r"(?m)^description:\s*\S", fm), "missing description"
+assert re.search(r"(?m)^argument-hint:\s*\S", fm), "missing argument-hint"
+body = t[m.end():]
+# the command must delegate to the planwright skill, not reimplement it
+assert "planwright:planwright" in body, "body does not invoke the planwright skill"
+# the no-arg flagship default must stay the advisor sweep
+assert "cycle 10 depth 10 explore" in body, "no-arg advisor default not preserved"
+PY
+then ok "commands/codvisor.md has valid frontmatter and forwards to planwright (advisor default intact)"; else bad "commands/codvisor.md malformed or lost its planwright delegation/advisor default"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]
