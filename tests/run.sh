@@ -256,6 +256,7 @@ import json, re, sys
 g = json.load(open(sys.argv[1]))
 assert g["version"] == 1
 assert re.fullmatch(r"[0-9a-f]{40}", g["graph_built_at_sha"])
+assert g["ranking_signal"] in ("centrality", "coupling")
 assert {"coupling_window_commits", "coupling_min_cooccurrence", "ranked_surface_limit"} <= set(g["params"])
 assert g["nodes"], "no nodes"
 need = {"sha256", "loc", "lang", "git_churn", "defines", "imports", "pagerank", "is_articulation", "last_audited_sha"}
@@ -268,6 +269,30 @@ for e in g["coupling_edges"]:
     assert {"a", "b", "cooccur", "weight"} <= set(e)
 PY
 then ok "build-graph.py output conforms to graph-memory schema"; else bad "build-graph.py output missing or non-conforming"; fi
+
+# --- Test 11b: build-graph.py --prior preserves last_audited_sha -----------
+# Stage 11's incremental-audit skipping depends on last_audited_sha surviving
+# rebuilds; without --prior preservation every run re-audits the whole tree.
+prior_file="$TMP/prior_graph.json"
+python3 - "$gj_file" "$prior_file" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+for n in g["nodes"].values():
+    n["last_audited_sha"] = g["graph_built_at_sha"]
+json.dump(g, open(sys.argv[2], "w"))
+PY
+new_graph="$TMP/new_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" --prior "$prior_file" > "$new_graph" 2>/dev/null
+if python3 - "$prior_file" "$new_graph" <<'PY' 2>/dev/null
+import json, sys
+prior = json.load(open(sys.argv[1]))
+new = json.load(open(sys.argv[2]))
+sha = prior["graph_built_at_sha"]
+carried = [f for f in new["nodes"] if f in prior["nodes"]]
+assert carried, "no carried-over nodes"
+assert all(new["nodes"][f]["last_audited_sha"] == sha for f in carried), "last_audited_sha not preserved"
+PY
+then ok "build-graph.py --prior preserves last_audited_sha across a rebuild"; else bad "build-graph.py --prior dropped last_audited_sha"; fi
 
 echo
 echo "passed: $PASS  failed: $FAIL"
