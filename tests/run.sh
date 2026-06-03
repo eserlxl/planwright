@@ -269,9 +269,11 @@ assert re.fullmatch(r"[0-9a-f]{40}", g["graph_built_at_sha"])
 assert g["ranking_signal"] in ("centrality", "coupling")
 assert {"coupling_window_commits", "coupling_min_cooccurrence", "ranked_surface_limit"} <= set(g["params"])
 assert g["nodes"], "no nodes"
-need = {"sha256", "loc", "lang", "git_churn", "defines", "imports", "pagerank", "is_articulation", "last_audited_sha"}
+need = {"sha256", "loc", "lang", "git_churn", "defines", "defines_at", "imports", "pagerank", "is_articulation", "last_audited_sha"}
 for f, n in g["nodes"].items():
     assert need <= set(n), f
+    assert isinstance(n["defines_at"], dict), f
+    assert all(isinstance(v, int) and v >= 1 for v in n["defines_at"].values()), f
 assert isinstance(g["ranked"], list) and all(x in g["nodes"] for x in g["ranked"])
 for c in g["clusters"]:
     assert isinstance(c["id"], int) and isinstance(c["members"], list)
