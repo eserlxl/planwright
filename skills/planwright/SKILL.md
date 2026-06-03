@@ -478,11 +478,14 @@ header:
 **Mechanically lint the written plan.** Run `python3 scripts/lint-plan.py --root <target>` — the
 canonical, test-covered linter for the *machine-checkable subset* of the OUTPUT FORMAT and the Stage 10
 gate (every pending item has all eight fields, a valid `Mode`, `Surfaces:` that exist, `New Surfaces:`
-that do not, no graph-memory citation in `Evidence`, a `.txt` on any `CMakeLists`, and a non-empty
-`Verification:`). The linter never replaces Stage 10's judgement passes — it catches the structural
-mistakes those passes are not meant to re-verify by hand. Fix every violation it reports in `plan.md`,
-then re-run it until it exits clean before reporting done. (On `dry-run`, run the linter against the
-would-be items the same way before printing them; write no file.)
+that do not, no path in both, no graph-memory citation in `Evidence`, a `.txt` on any `CMakeLists`, and
+a non-empty `Verification:`). It also enforces the ladder's **monotonic-drain** guard — no two pending
+items share a title — and prints non-failing **advisories** when a pending title matches a
+`completed.md`/`rejected.md` item, so you confirm it is a genuine regression or a resolved rejection
+(not an accidental re-proposal). The linter never replaces Stage 10's judgement passes — it catches the
+structural mistakes those passes are not meant to re-verify by hand. Fix every violation it reports in
+`plan.md` and resolve each advisory, then re-run it until it exits clean before reporting done. (On
+`dry-run`, run the linter against the would-be items the same way before printing them; write no file.)
 
 Then, unless `dry-run` was passed (no graph-memory state is persisted on a dry run),
 **persist the incremental-audit baseline** so the next run's Stage 1.5 dirty-set comparison has

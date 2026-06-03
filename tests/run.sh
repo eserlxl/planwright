@@ -725,6 +725,70 @@ if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$DONE_PLAN" --all
 # An absent plan file is not an error (nothing to lint).
 if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$TMP/nope.md" --quiet; then ok "lint-plan.py treats an absent plan as clean"; else bad "lint-plan.py errored on an absent plan file"; fi
 
+# Convergence guards: a repeated pending title and a Surfaces/New-Surfaces overlap
+# are always violations (hard fail). The lifecycle dir holds the advisory sources.
+LDIR="$TMP/lintdir"
+mkdir -p "$LDIR"
+printf '# completed\n\n- [x] A finished thing\n' > "$LDIR/completed.md"
+printf '# rejected\n\n- [x] A doomed thing\n      Rejection: nope\n' > "$LDIR/rejected.md"
+cat > "$LDIR/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] A finished thing
+      Mode: improve
+      Rationale: r.
+      Evidence: $ROOT/scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      New Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] A finished thing
+      Mode: improve
+      Rationale: r.
+      Evidence: build-graph exists.
+      Surfaces: scripts/build-graph.py
+      Development: edit build().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] A doomed thing
+      Mode: improve
+      Rationale: r.
+      Evidence: tests exist.
+      Surfaces: tests/run.sh
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+ld_rc=0
+ld_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$LDIR/plan.md" 2>&1)" || ld_rc=$?
+if [ "$ld_rc" -ne 0 ]; then ok "lint-plan.py fails on convergence violations"; else bad "lint-plan.py passed a plan with dup title + Surfaces overlap"; fi
+if printf '%s' "$ld_out" | grep -qF "duplicate pending title: 'A finished thing'"; then ok "lint-plan.py flags a duplicate pending title"; else bad "lint-plan.py missed a duplicate pending title"; fi
+if printf '%s' "$ld_out" | grep -qF "both Surfaces and New Surfaces"; then ok "lint-plan.py flags a Surfaces/New-Surfaces overlap"; else bad "lint-plan.py missed a Surfaces/New-Surfaces overlap"; fi
+if printf '%s' "$ld_out" | grep -qF "matches a completed item"; then ok "lint-plan.py notes a re-proposed completed item (advisory)"; else bad "lint-plan.py missed the completed-item advisory"; fi
+if printf '%s' "$ld_out" | grep -qF "matches a rejected item"; then ok "lint-plan.py notes a re-proposed rejected item (advisory)"; else bad "lint-plan.py missed the rejected-item advisory"; fi
+# Advisory matches alone (no structural violation) must NOT fail the gate.
+ADV="$TMP/advdir"
+mkdir -p "$ADV"
+printf '# completed\n\n- [x] Legit regression refix\n' > "$ADV/completed.md"
+cat > "$ADV/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [ ] Legit regression refix
+      Mode: repair
+      Rationale: a regression returned.
+      Evidence: scripts/build-graph.py:1 now returns the wrong value.
+      Surfaces: scripts/build-graph.py
+      Development: fix build().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+adv_rc=0
+adv_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$ADV/plan.md" 2>&1)" || adv_rc=$?
+if [ "$adv_rc" -eq 0 ] && printf '%s' "$adv_out" | grep -qF "matches a completed item"; then ok "lint-plan.py advisory note alone does not fail the gate"; else bad "lint-plan.py advisory wrongly failed the gate (or note missing)"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

@@ -13,8 +13,13 @@
 #   * Evidence never cites .planwright/graph.json or .planwright/digest.md
 #     (graph memory routes attention, it is never proof);
 #   * Surfaces are existing repo files; New Surfaces do not already exist;
+#     no path appears in both Surfaces and New Surfaces;
 #   * a CMakeLists surface is spelled with its .txt extension;
-#   * Verification is present and non-empty.
+#   * Verification is present and non-empty;
+#   * no two pending items share a title (the maturity ladder's monotonic-drain
+#     guard). As a non-failing advisory it also notes pending titles that match a
+#     completed.md / rejected.md item, for Claude to confirm a regression or a
+#     resolved rejection rather than blocking it.
 #
 # Semantic checks that need code understanding (is the Evidence a *real* defect?
 # does Development name a real call site?) stay Claude's job — this linter is
@@ -111,7 +116,18 @@ def lint_item(item, root):
             v.append(f"New Surface '{p}' must be spelled CMakeLists.txt")
         elif os.path.exists(os.path.join(root, p)):
             v.append(f"New Surface '{p}' already exists (move it to Surfaces:)")
+    overlap = sorted(set(surfaces) & set(new_surfaces))
+    if overlap:
+        v.append(f"path(s) in both Surfaces and New Surfaces: {', '.join(overlap)}")
     return v
+
+
+def past_titles(plan_path, fname):
+    """Titles of items in a sibling lifecycle file (completed.md / rejected.md)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), fname)
+    if not os.path.exists(path):
+        return set()
+    return {it["title"] for it in parse_items(open(path, encoding="utf-8").read()) if it["title"]}
 
 
 def main():
@@ -139,12 +155,42 @@ def main():
                 print(f"item {idx} (line {item['line']}): {item['title'] or '<untitled>'}")
                 for msg in violations:
                     print(f"  - {msg}")
+
+    # Cross-item: a title repeated among pending items is always a violation
+    # (you cannot have two identical pending items). Reported once per dup title.
+    seen, dups = set(), []
+    for it in items:
+        t = it["title"]
+        if t and t in seen and t not in dups:
+            dups.append(t)
+        seen.add(t)
+    for t in dups:
+        total += 1
+        if not args.quiet:
+            print(f"duplicate pending title: '{t}'")
+
+    # Advisory (does NOT fail the gate): re-proposing completed/rejected work is a
+    # Hard-rule concern but legitimate for a regression or a resolved rejection, so
+    # surface it for Claude to confirm rather than block it.
+    completed = past_titles(args.plan, "completed.md")
+    rejected = past_titles(args.plan, "rejected.md")
+    notes = 0
+    if not args.quiet:
+        for it in items:
+            if it["title"] in completed:
+                notes += 1
+                print(f"note: '{it['title']}' matches a completed item — confirm this is a regression")
+            if it["title"] in rejected:
+                notes += 1
+                print(f"note: '{it['title']}' matches a rejected item — confirm the rejection reason is resolved")
+
     if not args.quiet:
         n = len(items)
+        suffix = f" ({notes} advisory note(s))" if notes else ""
         if total == 0:
-            print(f"lint-plan: {n} item(s) OK")
+            print(f"lint-plan: {n} item(s) OK{suffix}")
         else:
-            print(f"lint-plan: {total} violation(s) across {n} item(s)")
+            print(f"lint-plan: {total} violation(s) across {n} item(s){suffix}")
     return 1 if total else 0
 
 
