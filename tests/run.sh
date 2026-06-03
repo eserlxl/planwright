@@ -871,6 +871,28 @@ assert cid["src/x.md"] == cid["src/y.md"], cid
 PY
 then ok "cluster_label labels a single-dir component by its dir and a multi-dir one by the most-common top dir"; else bad "cluster_label mislabeled a single-dir or multi-dir component"; fi
 
+# --- Test 11m3: pagerank conserves mass and redistributes dangling-node rank --
+# pagerank redistributes the rank of dangling (no-out-link) nodes across all
+# nodes every build (build-graph.py lines 299-301). Most real nodes dangle, so a
+# regression there would skew the central ranking signal silently. Pin both the
+# mass-conservation invariant (scores sum to ~1.0) and that targeted nodes outrank
+# an isolated dangling node.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+nodes = ["a", "b", "c", "d"]
+edges = {"a": ["b", "c"]}      # b, c, d all dangle; d is also isolated (no incoming)
+pr = bg.pagerank(nodes, edges)
+# the dangling-redistribution loop keeps total rank mass at 1.0
+assert abs(sum(pr.values()) - 1.0) < 1e-6, sum(pr.values())
+# nodes that receive an edge from a outrank the isolated node d
+assert pr["b"] > pr["d"] and pr["c"] > pr["d"], pr
+# an empty graph degrades gracefully to an empty ranking
+assert bg.pagerank([], {}) == {}, "empty pagerank must be {}"
+PY
+then ok "pagerank conserves mass (sum~1.0) and redistributes dangling-node rank"; else bad "pagerank lost mass or mis-redistributed dangling rank"; fi
+
 # --- Test 12: lint-plan.py enforces the Stage 10 structural gate -----------
 # The OUTPUT FORMAT + Stage 10 + Hard rules were enforced only by Claude reading
 # prose; lint-plan.py mechanizes their machine-checkable subset. A well-formed plan
