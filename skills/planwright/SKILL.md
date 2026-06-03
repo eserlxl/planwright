@@ -331,10 +331,11 @@ cut vertex breaks many modules), then break ties by complexity (line count or br
 graph used the **coupling fallback** (degenerate import graph, see Stage 1.5 step 6), `ranked` is
 already coupling-ordered — walk it the same way; centrality and coupling feed the same `ranked` list.
 If `graph.json` is absent or graph-aware routing was skipped this run, **fall back** to the original rule:
-the top-N most complex functions by line count or branching. For each selected function, trace every
-non-trivial path: look for silent failures (error return ignored, wrong default returned, exit 0 on
-bad state), unchecked preconditions, and off-by-one or boundary errors. Findings must cite file:line,
-the specific path, and the defect.
+the top-N most complex functions by line count or branching. Use each node's `defines_at` map
+(symbol → 1-based definition line) to jump straight to a selected function's body rather than
+re-scanning the file. For each selected function, trace every non-trivial path: look for silent
+failures (error return ignored, wrong default returned, exit 0 on bad state), unchecked preconditions,
+and off-by-one or boundary errors. Findings must cite file:line, the specific path, and the defect.
 
 **2c. Invariants** — enumerate data contracts that the code *assumes* but never enforces: value
 ranges, non-empty inputs, sorted order, clean-tree state, valid format strings, unique names. For
