@@ -372,6 +372,12 @@ js = (
 dj = bg.defines_of("js", js)
 for want in ("handle", "Server", "route", "helper"):
     assert want in dj, (want, dj)
+
+# defines_at maps each symbol to its 1-based definition line (Stage 2b jump hint)
+dat = bg.defines_at_of("c", cpp)
+assert dat["Widget"] == 2, dat       # "class Widget {" is line 2
+assert dat["compute"] == 3, dat      # method match anchors at its leading line
+assert dat["add"] == 9, dat          # "constexpr int add(...)" is line 9
 PY
 then ok "defines_of extracts C/C++ + JS symbols (functions, classes, gtest groups)"; else bad "defines_of missing C/C++ or JS symbols, or leaking non-definitions"; fi
 

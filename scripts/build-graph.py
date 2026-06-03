@@ -66,43 +66,57 @@ def loc_of(blob):
     return blob.count(b"\n") + (0 if blob.endswith(b"\n") else 1)
 
 
-def defines_of(lang, text):
-    out = []
+def iter_defines(lang, text):
+    """Yield (symbol_name, start_offset) for every definition match, in source
+    order. Shared by defines_of (names) and defines_at_of (name -> line)."""
     if lang == "bash":
         for m in re.finditer(r"(?m)^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)\s*\{?", text):
-            out.append(m.group(1))
+            yield m.group(1), m.start()
     elif lang == "python":
         for m in re.finditer(r"(?m)^\s*(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", text):
-            out.append(m.group(1))
+            yield m.group(1), m.start()
     elif lang == "js":
         for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s+([A-Za-z_$][\w$]*)", text):
-            out.append(m.group(1))
+            yield m.group(1), m.start()
         for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)", text):
-            out.append(m.group(1))
+            yield m.group(1), m.start()
         # arrow/function expressions bound to a name: `export const f = (x) => ...`
         for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>", text):
-            out.append(m.group(1))
+            yield m.group(1), m.start()
     elif lang == "c":
         # gtest group/fixture names — SKILL.md routing tracks TEST/TEST_F groups.
         for m in re.finditer(r"(?m)\b(?:TEST|TEST_F|TEST_P|TYPED_TEST)\s*\(\s*([A-Za-z_]\w*)", text):
-            out.append(m.group(1))
+            yield m.group(1), m.start()
         # class / struct / enum type names.
         for m in re.finditer(r"(?m)\b(?:class|struct|enum)\s+([A-Za-z_]\w*)", text):
-            out.append(m.group(1))
+            yield m.group(1), m.start()
         # function / method definitions: the `(...)` is followed by a `{` body, not
         # a `;` prototype; params hold no `;`/`{` so a match stays on one definition,
         # and control-flow keywords (which also read as `name (...) {`) are filtered.
         kw = {"if", "for", "while", "switch", "return", "else", "do", "catch", "sizeof"}
         for m in re.finditer(r"(?m)^\s*[A-Za-z_][\w\s:\*&<>,~]*?\b([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:const\s*)?(?:noexcept\s*)?\{", text):
             if m.group(1) not in kw:
-                out.append(m.group(1))
-    # de-dup, preserve order
+                yield m.group(1), m.start()
+
+
+def defines_of(lang, text):
+    # de-dup, preserve source order
     seen, uniq = set(), []
-    for d in out:
-        if d not in seen:
-            seen.add(d)
-            uniq.append(d)
+    for name, _ in iter_defines(lang, text):
+        if name not in seen:
+            seen.add(name)
+            uniq.append(name)
     return uniq
+
+
+def defines_at_of(lang, text):
+    """Map each defined symbol to the 1-based line of its first definition, so
+    Stage 2b can jump straight to a function body instead of re-scanning the file."""
+    at = {}
+    for name, pos in iter_defines(lang, text):
+        if name not in at:
+            at[name] = text.count("\n", 0, pos) + 1
+    return at
 
 
 def resolve(target, from_path, fileset):
@@ -359,6 +373,7 @@ def build(root, prior_path):
             "lang": lang,
             "git_churn": churn.get(f, 0),
             "defines": defines_of(lang, text),
+            "defines_at": defines_at_of(lang, text),
             "imports": imps,
             "pagerank": 0.0,
             "is_articulation": False,

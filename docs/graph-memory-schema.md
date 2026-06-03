@@ -45,6 +45,7 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
       "lang": "bash|markdown|python|c|js|...|unknown",
       "git_churn": 17,                       // commit count touching this file
       "defines": ["funcA", "funcB"],         // best-effort symbol defs (routing hint)
+      "defines_at": { "funcA": 12, "funcB": 40 }, // symbol -> 1-based def line (Stage 2b jump hint)
       "imports": ["<repo-relative-path>"],   // resolved structural edges, best-effort
       "pagerank": 0.0123,                    // centrality over the import graph
       "is_articulation": false,              // cut vertex => fragile chokepoint
