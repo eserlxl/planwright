@@ -692,6 +692,25 @@ def build(root, prior_path):
     ranked_code = [f for f in by_priority
                    if nodes[f]["branch_count"] > 0][:RANKED_SURFACE_LIMIT]
 
+    # ranked_cold: the audit/coverage FRONTIER — the inverse of ranked_code, surfaced
+    # for the opt-in `explore` escalation (SKILL.md "Explore escalation"). Where
+    # ranked_code leads with the hot, high-blast-radius core, ranked_cold leads with
+    # the code the default routing neglects: never-audited nodes first
+    # (last_audited_sha is None), then uncovered (covered_by_test False), then the
+    # least-central (ascending pagerank), tiebroken by least churn then path. It is
+    # fully deterministic (no RNG), so explore stays reproducible across runs.
+    def cold_key(f):
+        n = nodes[f]
+        return (
+            0 if n["last_audited_sha"] is None else 1,  # never-audited frontier first
+            0 if not n["covered_by_test"] else 1,       # then uncovered code
+            n["pagerank"],                              # then peripheral (low centrality)
+            churn.get(f, 0),                            # then least-churned
+            f,                                          # path -> total, stable order
+        )
+    ranked_cold = [f for f in sorted(files, key=cold_key)
+                   if nodes[f]["branch_count"] > 0][:RANKED_SURFACE_LIMIT]
+
     dirty = compute_dirty(files, nodes, prior, prior_graph, head, undirected,
                           coupling_edges, clusters, root)
 
@@ -711,6 +730,7 @@ def build(root, prior_path):
         "clusters": clusters,
         "ranked": ranked,
         "ranked_code": ranked_code,
+        "ranked_cold": ranked_cold,
         "import_cycles": cycles,
         "dirty": dirty,
     }

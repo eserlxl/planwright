@@ -64,6 +64,7 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   ],
   "ranked": ["fileA", "fileB", "..."],       // nodes by descending audit priority
   "ranked_code": ["fileA", "..."],           // `ranked` restricted to branch_count>0 nodes — Stage 2b uses this
+  "ranked_cold": ["fileZ", "..."],           // audit/coverage FRONTIER (inverse of ranked_code) — the `explore` escalation uses this
   "import_cycles": [["a", "b"]],             // strongly-connected import groups (circular deps) — Stage 3 signal
   "dirty": {                                  // Phase 2 dirty set (computed vs --prior)
     "is_first_run": false,                    // true when no prior graph existed
@@ -103,6 +104,12 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   priority order. Stage 2b's function-selection walk reads `ranked_code` when present
   (falling back to `ranked`) so doc/data nodes that link-centrality floats to the top of
   `ranked` do not displace the engine code Stage 2b is meant to deep-read. Routing only.
+- **`ranked_cold`** is the **audit/coverage frontier** — the inverse of `ranked_code`,
+  read only by the opt-in `explore` escalation (SKILL.md "Explore escalation"). It orders
+  the `branch_count > 0` code nodes the default hot-core routing neglects: never-audited
+  (`last_audited_sha` is `null`) first, then uncovered (`covered_by_test` false), then the
+  least-central (ascending `pagerank`), tiebroken by least churn then path. Deterministic
+  (no randomness), so `explore` stays reproducible. Routing only — never Evidence.
 - **`coupling_edges`** capture files that co-commit without importing each other — the
   hidden dependencies a reader cannot see. `weight = cooccur / min(churn_a, churn_b)`.
 - **`is_articulation`** marks cut vertices of the import graph: a defect there has wide

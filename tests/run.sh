@@ -334,6 +334,9 @@ assert all(x in g["nodes"] and g["nodes"][x]["branch_count"] > 0 for x in g["ran
 # code nodes keep their relative ranked order in ranked_code
 code_in_ranked = [x for x in g["ranked"] if g["nodes"][x]["branch_count"] > 0]
 assert g["ranked_code"][:len(code_in_ranked)] == code_in_ranked, (g["ranked_code"], code_in_ranked)
+# ranked_cold: the explore frontier — also branch_count>0 code nodes only
+assert isinstance(g["ranked_cold"], list)
+assert all(x in g["nodes"] and g["nodes"][x]["branch_count"] > 0 for x in g["ranked_cold"]), g["ranked_cold"]
 # import_cycles: a list of >=2-member groups of real nodes (directed SCCs)
 assert isinstance(g["import_cycles"], list)
 for cyc in g["import_cycles"]:
@@ -427,6 +430,36 @@ assert g["nodes"]["doc.md"]["branch_count"] == 0 and g["nodes"]["lib.sh"]["branc
 assert all(g["nodes"][f]["branch_count"] > 0 for f in g["ranked_code"]), g["ranked_code"]
 PY
 then ok "ranked_code holds only code nodes, excluding zero-branch docs"; else bad "ranked_code leaked a zero-branch node or dropped a code node"; fi
+
+# --- Test 11c2b: ranked_cold surfaces the explore frontier (uncovered first) ----
+# ranked_cold is the inverse of ranked_code for the opt-in `explore` escalation: it
+# leads with the code the default hot-core routing neglects. On a fresh build both
+# code nodes are never-audited (a tie on the primary key), so the covered_by_test
+# key decides — the uncovered orphan must rank ahead of the test-covered core.
+CLDREPO="$TMP/coldrepo"
+mkdir -p "$CLDREPO"
+git -C "$CLDREPO" init -q
+printf '#!/usr/bin/env bash\ncore() { if true; then echo hi; fi; }\n' > "$CLDREPO/core.sh"
+printf '#!/usr/bin/env bash\norphan() { if true; then echo bye; fi; }\n' > "$CLDREPO/orphan.sh"
+printf '#!/usr/bin/env bash\nsource core.sh\ncore_test() { core; }\n' > "$CLDREPO/core_test.sh"
+git -C "$CLDREPO" add -A
+git -C "$CLDREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+cld_out="$TMP/cold_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$CLDREPO" > "$cld_out" 2>/dev/null
+if python3 - "$cld_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+rc = g["ranked_cold"]
+# a test sources core.sh => core.sh is covered; orphan.sh is reached by nothing
+assert g["nodes"]["core.sh"]["covered_by_test"] is True, g["nodes"]["core.sh"]
+assert g["nodes"]["orphan.sh"]["covered_by_test"] is False, g["nodes"]["orphan.sh"]
+# both are branch>0 code nodes on the frontier list; the no-branch test file is not
+assert "orphan.sh" in rc and "core.sh" in rc, rc
+assert "core_test.sh" not in rc, rc
+# the uncovered orphan leads the covered core on the cold frontier (the inversion)
+assert rc.index("orphan.sh") < rc.index("core.sh"), rc
+PY
+then ok "ranked_cold leads the explore frontier with uncovered code (inverse of ranked_code)"; else bad "ranked_cold did not surface the uncovered frontier node first"; fi
 
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
