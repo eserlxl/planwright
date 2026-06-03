@@ -336,7 +336,11 @@ category labels alone are not findings. Carry all findings forward into the doss
 
 **2a. Structural** — inventory: oversized modules (>300 lines), missing focused tests (only when
 genuinely absent from PROJECT TEST TARGETS), risky refactors lacking coverage, signal/surface
-mismatches. Each finding: path, size or gap, why it matters.
+mismatches. Each finding: path, size or gap, why it matters. For "missing focused tests", let the
+graph's `covered_by_test` route attention: a non-test code node (`is_test` false, `branch_count > 0`)
+with `covered_by_test` false is a **candidate** to investigate — not a finding. Confirm by reading
+PROJECT TEST TARGETS and the code before proposing, since `covered_by_test` is a best-effort routing
+hint (recall-over-precision), never proof; the written item must still name the specific absent test.
 
 **2b. Correctness** — open and read the bodies of the top-N functions, where **N is the Depth table's
 "Stage 2b functions to read"** for this run. Select those N by **centrality ∩ complexity**: walk the

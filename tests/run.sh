@@ -316,9 +316,10 @@ assert re.fullmatch(r"[0-9a-f]{40}", g["graph_built_at_sha"])
 assert g["ranking_signal"] in ("centrality", "coupling")
 assert {"coupling_window_commits", "coupling_min_cooccurrence", "ranked_surface_limit"} <= set(g["params"])
 assert g["nodes"], "no nodes"
-need = {"sha256", "loc", "branch_count", "branch_at", "lang", "git_churn", "defines", "defines_at", "imports", "pagerank", "is_articulation", "last_audited_sha"}
+need = {"sha256", "loc", "branch_count", "branch_at", "lang", "git_churn", "defines", "defines_at", "imports", "is_test", "covered_by_test", "pagerank", "is_articulation", "last_audited_sha"}
 for f, n in g["nodes"].items():
     assert need <= set(n), f
+    assert isinstance(n["is_test"], bool) and isinstance(n["covered_by_test"], bool), f
     assert isinstance(n["defines_at"], dict), f
     assert all(isinstance(v, int) and v >= 1 for v in n["defines_at"].values()), f
     assert isinstance(n["branch_count"], int) and n["branch_count"] >= 0, f
@@ -422,6 +423,42 @@ assert g["nodes"]["doc.md"]["branch_count"] == 0 and g["nodes"]["lib.sh"]["branc
 assert all(g["nodes"][f]["branch_count"] > 0 for f in g["ranked_code"]), g["ranked_code"]
 PY
 then ok "ranked_code holds only code nodes, excluding zero-branch docs"; else bad "ranked_code leaked a zero-branch node or dropped a code node"; fi
+
+# --- Test 11c3: is_test classification + covered_by_test coverage routing -----
+# A test file that imports a source marks it covered_by_test; an unimported
+# non-test source stays false. Routing-only: a false is a candidate, not proof.
+COVREPO="$TMP/covrepo"
+mkdir -p "$COVREPO"
+git -C "$COVREPO" init -q
+printf 'def helper(x):\n    return x + 1\n' > "$COVREPO/lib.py"
+printf 'import lib\n\ndef test_helper():\n    assert lib.helper(1) == 2\n' > "$COVREPO/test_lib.py"
+printf 'def orphan():\n    return 0\n' > "$COVREPO/orphan.py"
+git -C "$COVREPO" add -A
+git -C "$COVREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+cov_out="$TMP/cov_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$COVREPO" > "$cov_out" 2>/dev/null
+if python3 - "$cov_out" <<'PY' 2>/dev/null
+import json, sys
+n = json.load(open(sys.argv[1]))["nodes"]
+assert n["test_lib.py"]["is_test"] is True, n["test_lib.py"]
+assert n["lib.py"]["is_test"] is False and n["orphan.py"]["is_test"] is False
+assert n["lib.py"]["covered_by_test"] is True, "a test imports lib.py -> covered"
+assert n["orphan.py"]["covered_by_test"] is False, "no test reaches orphan.py"
+PY
+then ok "is_test + covered_by_test route the coverage rung (import-reached source is covered)"; else bad "covered_by_test routing wrong (classification or reach)"; fi
+
+# is_test_node classifies conventional layouts/names without mislabeling sources.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+for p in ("tests/run.sh", "src/foo_test.cc", "test_foo.py", "a/b.spec.ts",
+          "x/widget_unittest.cc", "pkg/WidgetTest.java", "spec/thing.rb", "Test.java"):
+    assert bg.is_test_node(p), p
+for p in ("scripts/build-graph.py", "src/latest.js", "docs/attestation.md", "lib/contest.py"):
+    assert not bg.is_test_node(p), p
+PY
+then ok "is_test_node classifies test paths without mislabeling sources"; else bad "is_test_node misclassified a path"; fi
 
 # --- Test 11d: defines_of routes C/C++ + JS symbols (Stage 2b function hints) -
 # The `defines` field feeds Stage 2b's "walk ranked, take its top functions".

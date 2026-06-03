@@ -161,6 +161,28 @@ def branch_at_of(lang, text):
     return out
 
 
+_TEST_DIR_SEGMENTS = {"test", "tests", "spec", "specs", "__tests__"}
+
+
+def is_test_node(path):
+    """Classify a node as a test file by its conventional path/name. Deliberately
+    path-based and precision-leaning: mislabeling a *source* file as a test would
+    hide a real coverage gap, whereas a missed test only yields a candidate finding
+    to investigate (never a false "this file is tested"). Covers test dirs, the
+    `_test`/`test_`/`.test.`/`.spec.`/`_unittest` stems (so gtest `foo_test.cc` and
+    pytest `test_foo.py` are caught), and camelCase `FooTest`/`FooSpec`. See the
+    docs/architecture.md "test→source coverage routing" design note."""
+    p = path.replace("\\", "/").lower()
+    if any(seg in _TEST_DIR_SEGMENTS for seg in p.split("/")):
+        return True
+    name = os.path.basename(p)
+    if re.search(r"(?:^|[._-])(?:test|tests|spec|specs|unittest)(?:[._-]|$)", name):
+        return True
+    stem = os.path.basename(path)
+    stem = stem.rsplit(".", 1)[0] if "." in stem else stem
+    return bool(re.search(r"[a-z0-9](?:Test|Tests|Spec)$", stem))
+
+
 def resolve(target, from_path, fileset, allow_basename=False):
     """Resolve a raw import target to a repo-relative path, or None.
 
@@ -486,6 +508,8 @@ def build(root, prior_path):
             "defines": defines_of(lang, text),
             "defines_at": defines_at_of(lang, text),
             "imports": imps,
+            "is_test": is_test_node(f),
+            "covered_by_test": False,
             "pagerank": 0.0,
             "is_articulation": False,
             "last_audited_sha": prior.get(f, {}).get("last_audited_sha"),
@@ -518,6 +542,25 @@ def build(root, prior_path):
             coupling_edges.append({"a": a, "b": b, "cooccur": co, "weight": w})
             coupling_deg[a] += w
             coupling_deg[b] += w
+
+    # test->source coverage routing (additive, routing-only): a node is reached
+    # when some test-classified node imports it or co-changes with it (coupling
+    # edges are already filtered to cooccur >= COUPLING_MIN_COOCCURRENCE, i.e.
+    # "strong"). A `covered_by_test == False` on a non-test code node is a
+    # *candidate* missing-test finding for Stage 2a to investigate, never proof.
+    # See the docs/architecture.md "test->source coverage routing" design note.
+    test_nodes = {f for f in files if nodes[f]["is_test"]}
+    reached = set()
+    for t in test_nodes:
+        reached.update(s for s in import_edges.get(t, []) if s not in test_nodes)
+    for e in coupling_edges:
+        a, b = e["a"], e["b"]
+        if a in test_nodes and b not in test_nodes:
+            reached.add(b)
+        if b in test_nodes and a not in test_nodes:
+            reached.add(a)
+    for f in files:
+        nodes[f]["covered_by_test"] = f in reached
 
     comps = connected_components(files, undirected)
     clusters = []

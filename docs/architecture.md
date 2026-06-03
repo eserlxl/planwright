@@ -74,7 +74,7 @@ graph. A derived, additive `ranked_code` view is deterministic, schema-additive,
 `sort_key`/`ranked`) plus a one-line schema addition in `docs/graph-memory-schema.md`; **not**
 implemented in this note.
 
-#### Design note — test→source coverage routing (deferred) <!-- 2026-06-03 -->
+#### Design note — test→source coverage routing (implemented) <!-- 2026-06-03 -->
 
 **Problem.** The coverage rung (Stage 2a "missing focused tests") is routed almost entirely by Claude's
 judgement: it reads PROJECT TEST TARGETS and decides which source files lack a covering test. The graph
@@ -101,9 +101,11 @@ finding — the one failure mode a "don't miss things" planner can tolerate, and
 trap ("file X is tested") it must avoid. **Caveat the implementation must respect:** exec-based
 harnesses (planwright's own `tests/run.sh` *runs* the scripts rather than importing them) have no
 import edge, so coverage there must fall back to coupling, and absence must stay a hint, not a verdict.
-**Deferred implementation seam:** `build()` node loop + a classifier helper in
-`scripts/build-graph.py`, a `covered_by_test` line in `docs/graph-memory-schema.md`, and a Stage 2a
-note in SKILL.md; **not** implemented in this note.
+**Implementation:** `is_test_node()` classifier + `is_test`/`covered_by_test` node fields in
+`scripts/build-graph.py` (`build()` node loop and the post-coupling coverage pass), documented in
+`docs/graph-memory-schema.md` and consumed by SKILL.md Stage 2a. On planwright's own repo this
+correctly marks the scripts `covered_by_test` via `tests/run.sh`'s **coupling** edges (the exec
+harness imports nothing), exactly the caveat above.
 
 ### Stage 2: Audit
 Derives audit findings such as oversized modules, missing tests, risky refactors, and correctness gaps. Each finding must point to concrete file paths or implementation signals.

@@ -49,6 +49,8 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
       "defines": ["funcA", "funcB"],         // best-effort symbol defs (routing hint)
       "defines_at": { "funcA": 12, "funcB": 40 }, // symbol -> 1-based def line (Stage 2b jump hint)
       "imports": ["<repo-relative-path>"],   // resolved structural edges, best-effort
+      "is_test": false,                      // test file (by path convention) — coverage routing
+      "covered_by_test": true,               // a test node reaches this one (import/coupling); routing-only
       "pagerank": 0.0123,                    // centrality over the import graph
       "is_articulation": false,              // cut vertex => fragile chokepoint
       "last_audited_sha": null               // Phase 2: HEAD sha when last deep-audited
@@ -82,6 +84,14 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   group names; JS functions, classes, and named arrow/function expressions). They feed
   Stage 2b's "walk `ranked`, take its top functions" selection and the test-reorg lens;
   like `imports`, they only route attention and are never cited as Evidence.
+- **`is_test`** / **`covered_by_test`** route the coverage rung (Stage 2a "missing focused
+  tests"). `is_test` flags a node as a test file by path convention (test dir, `_test`/`test_`/
+  `.spec.`/`_unittest` stem, camelCase `FooTest`); it leans toward precision so a source file is
+  not mislabeled a test. `covered_by_test` is true when some `is_test` node reaches this one via an
+  `imports` edge **or** a (strong, already-filtered) `coupling_edges` link — the coupling path is
+  what links an exec-based harness (e.g. a runner that *runs* rather than imports its targets) to the
+  code it exercises. A `false` on a non-test code node is a **candidate** missing-test finding to
+  investigate, never proof; like `imports`/`defines` these fields only route attention.
 - **`ranked_code`** is `ranked` filtered to nodes with `branch_count > 0`, in the same
   priority order. Stage 2b's function-selection walk reads `ranked_code` when present
   (falling back to `ranked`) so doc/data nodes that link-centrality floats to the top of
