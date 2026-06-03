@@ -461,6 +461,43 @@ assert rc.index("orphan.sh") < rc.index("core.sh"), rc
 PY
 then ok "ranked_cold leads the explore frontier with uncovered code (inverse of ranked_code)"; else bad "ranked_cold did not surface the uncovered frontier node first"; fi
 
+# --- Test 11c2c: ranked_cold's never-audited primary key outranks the covered key
+# cold_key's FIRST element is `last_audited_sha is None` (never-audited first). Test
+# 11c2b ties on it (fresh repo => both null), so isolate it here: two uncovered code
+# files, one stamped audited via a prior graph and one never-audited. The never-audited
+# file must lead even though both are uncovered, so only the primary key can decide.
+NAREPO="$TMP/narepo"
+mkdir -p "$NAREPO"
+git -C "$NAREPO" init -q
+printf '#!/usr/bin/env bash\na() { if true; then echo a; fi; }\n' > "$NAREPO/a.sh"
+printf '#!/usr/bin/env bash\nb() { if true; then echo b; fi; }\n' > "$NAREPO/b.sh"
+git -C "$NAREPO" add -A
+git -C "$NAREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+na_prior="$TMP/na_prior.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$NAREPO" > "$na_prior" 2>/dev/null
+# mark a.sh as already audited; b.sh stays never-audited (last_audited_sha null)
+python3 - "$na_prior" <<'PY'
+import json, sys
+p = sys.argv[1]; g = json.load(open(p))
+g["nodes"]["a.sh"]["last_audited_sha"] = g["graph_built_at_sha"]
+json.dump(g, open(p, "w"))
+PY
+na_new="$TMP/na_new.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$NAREPO" --prior "$na_prior" > "$na_new" 2>/dev/null
+if python3 - "$na_new" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1])); n = g["nodes"]; rc = g["ranked_cold"]
+# the prior stamp survived for a.sh; b.sh remains never-audited
+assert n["a.sh"]["last_audited_sha"] is not None, n["a.sh"]
+assert n["b.sh"]["last_audited_sha"] is None, n["b.sh"]
+# both uncovered => the covered_by_test secondary key ties, so it cannot decide order
+assert n["a.sh"]["covered_by_test"] is False and n["b.sh"]["covered_by_test"] is False
+# never-audited b.sh must lead audited a.sh on the cold frontier (primary key decides)
+assert "a.sh" in rc and "b.sh" in rc, rc
+assert rc.index("b.sh") < rc.index("a.sh"), rc
+PY
+then ok "ranked_cold's never-audited primary key outranks an audited node (covered key tied)"; else bad "ranked_cold ignored the never-audited primary key"; fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.
