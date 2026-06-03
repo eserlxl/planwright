@@ -483,6 +483,45 @@ assert n["a.md"]["is_articulation"] is False and n["c.md"]["is_articulation"] is
 PY
 then ok "articulation_points flags the cut vertex (is_articulation True)"; else bad "articulation_points missed the cut vertex or over-flagged a leaf"; fi
 
+# --- Test 11i: remaining whole-graph invalidation triggers -----------------
+# compute_dirty forces whole_graph beyond the build-config-CHANGED path: when the
+# prior graph_built_at_sha is unreachable (commits_since -> None) and when a
+# build-config file present in the prior is DELETED. Both ship untested; cover them.
+WGX="$TMP/wgx"
+mkdir -p "$WGX"
+git -C "$WGX" init -q
+xgc() { git -C "$WGX" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf '# a\n' > "$WGX/a.md"
+printf 'cmake_minimum_required(VERSION 3.10)\n' > "$WGX/CMakeLists.txt"
+git -C "$WGX" add -A; xgc -m init
+wgx_prior="$TMP/wgx_prior.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$WGX" > "$wgx_prior" 2>/dev/null
+# (a) unreachable prior sha: rewrite graph_built_at_sha to a bogus 40-hex value.
+wgx_bogus="$TMP/wgx_bogus.json"
+python3 - "$wgx_prior" "$wgx_bogus" <<'PY'
+import json, sys
+g = json.load(open(sys.argv[1])); g["graph_built_at_sha"] = "0" * 40
+json.dump(g, open(sys.argv[2], "w"))
+PY
+wgx_unreach="$TMP/wgx_unreach.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$WGX" --prior "$wgx_bogus" > "$wgx_unreach" 2>/dev/null
+if python3 - "$wgx_unreach" <<'PY' 2>/dev/null
+import json, sys
+d = json.load(open(sys.argv[1]))["dirty"]
+assert d["whole_graph"] is True and "unreachable" in d["reason"], d
+PY
+then ok "whole-graph invalidation when prior graph_built_at_sha is unreachable"; else bad "unreachable prior sha did not force whole-graph re-audit"; fi
+# (b) deleted build-config: drop CMakeLists.txt, commit, rebuild against real prior.
+git -C "$WGX" rm -q CMakeLists.txt; xgc -m "drop cmake"
+wgx_del="$TMP/wgx_del.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$WGX" --prior "$wgx_prior" > "$wgx_del" 2>/dev/null
+if python3 - "$wgx_del" <<'PY' 2>/dev/null
+import json, sys
+d = json.load(open(sys.argv[1]))["dirty"]
+assert d["whole_graph"] is True and "build-config" in d["reason"] and "CMakeLists.txt" in d["reason"], d
+PY
+then ok "whole-graph invalidation when a build-config file is deleted"; else bad "deleted build-config did not force whole-graph re-audit"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]
