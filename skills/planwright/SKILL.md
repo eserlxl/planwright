@@ -14,7 +14,7 @@ description: >
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.22.0"
+  version: "1.23.0"
 ---
 
 # planwright

@@ -3,6 +3,14 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.23.0] - 2026-06-03
+
+### Added
+- Test→source coverage routing for the coverage rung. `build-graph.py` gains an `is_test_node()` path classifier (test dirs, `_test`/`test_`/`.spec.`/`_unittest` stems, camelCase `FooTest`) and two additive, routing-only node fields: `is_test`, and `covered_by_test` (true when a test-classified node reaches the node via an `imports` edge **or** a strong `coupling_edges` link — the coupling path links an exec-based harness that runs rather than imports its targets to the code it exercises). SKILL.md Stage 2a now treats `covered_by_test == false` on a non-test code node as a *candidate* "missing focused tests" finding to investigate — never proof; the written item must still name the specific absent test. Documented in `docs/graph-memory-schema.md` and the `docs/architecture.md` design note (now implemented).
+
+### Tested
+- Coverage for the classifier (conventional test layouts/names, without mislabeling sources) and the routing (an import-reached source is `covered_by_test`, an orphan source is not), plus the two new fields in the schema-conformance check. 120 → 122 assertions.
+
 ## [1.22.0] - 2026-06-03
 
 ### Added
