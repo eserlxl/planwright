@@ -536,6 +536,21 @@ assert d["whole_graph"] is True and "build-config" in d["reason"] and "CMakeList
 PY
 then ok "whole-graph invalidation when a build-config file is deleted"; else bad "deleted build-config did not force whole-graph re-audit"; fi
 
+# --- Test 11j: build-graph.py is deterministic (same tree => same graph) -----
+# The builder's header calls it "deterministic" and incremental skipping trusts
+# that identical inputs yield identical sha256/ranking. built_at (date -u) is the
+# only field allowed to vary; everything else must be byte-stable across runs.
+det1="$TMP/det1.json"; det2="$TMP/det2.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" > "$det1" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" > "$det2" 2>/dev/null
+if python3 - "$det1" "$det2" <<'PY' 2>/dev/null
+import json, sys
+a = json.load(open(sys.argv[1])); b = json.load(open(sys.argv[2]))
+a.pop("built_at", None); b.pop("built_at", None)
+assert a == b, "build-graph.py output is not deterministic modulo built_at"
+PY
+then ok "build-graph.py is deterministic across runs (modulo built_at)"; else bad "build-graph.py output varies between runs on the same tree"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]
