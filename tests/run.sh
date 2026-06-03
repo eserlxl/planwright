@@ -397,6 +397,34 @@ assert dat["add"] == 9, dat          # "constexpr int add(...)" is line 9
 PY
 then ok "defines_of extracts C/C++ + JS symbols (functions, classes, gtest groups)"; else bad "defines_of missing C/C++ or JS symbols, or leaking non-definitions"; fi
 
+# --- Test 11d2: EXT_LANG recognizes alternate C/C++ + JS/TS extensions --------
+# The extra c/c++ extensions (.cc/.cxx/.hh/...) are planwright's primary target,
+# and .jsx/.tsx/.mjs/.cjs already appear in JS_EXTS as resolvable import targets;
+# an unrecognized source extension routes as lang "unknown" and contributes no
+# defines/imports/branch_count, blinding Stage 2b on those files.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+for ext in ("cc", "cxx", "c++", "hh", "hxx", "tpp"):
+    assert bg.lang_of("x." + ext, b"int f(){}") == "c", ext
+for ext in ("jsx", "tsx", "mjs", "cjs"):
+    assert bg.lang_of("x." + ext, b"export const f = () => 1") == "js", ext
+# previously-recognized extensions are unchanged
+for ext, want in (("c", "c"), ("h", "c"), ("cpp", "c"), ("hpp", "c"),
+                  ("js", "js"), ("ts", "js"), ("py", "python"), ("sh", "bash")):
+    assert bg.lang_of("x." + ext, b"") == want, (ext, want)
+# every JS_EXTS target extension is now also a recognized source language
+for e in bg.JS_EXTS:
+    assert bg.lang_of("x" + e, b"") == "js", e
+# a .cc file yields extracted defines + branch_count; a .tsx file is js
+cc = "int compute(int n) {\n  if (n > 0) return n;\n  return 0;\n}\n"
+assert "compute" in bg.defines_of("c", cc), bg.defines_of("c", cc)
+assert bg.branch_count_of("c", cc) >= 1
+assert bg.lang_of("Widget.tsx", b"export const W = () => 1") == "js"
+PY
+then ok "EXT_LANG recognizes alternate C/C++ and JS/TS extensions"; else bad "EXT_LANG missing alternate extensions or changed a known one"; fi
+
 # --- Test 11e: coupling fallback ranks by churn-normalized weight, not raw co --
 # Two pairs with equal raw cooccur (3): a/b also churn alone (churn 5, weight
 # 0.6), c/d only co-change (churn 3, weight 1.0). A raw-cooccur ranking would

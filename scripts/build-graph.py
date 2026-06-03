@@ -38,8 +38,13 @@ BUILD_CONFIG_BASENAMES = {
 
 EXT_LANG = {
     "sh": "bash", "bash": "bash", "py": "python", "md": "markdown",
-    "json": "json", "yml": "yaml", "yaml": "yaml", "js": "js", "ts": "js",
+    "json": "json", "yml": "yaml", "yaml": "yaml",
+    # js/ts family — the extra extensions also appear in JS_EXTS as resolvable
+    # import targets, so they must be recognized as source languages too.
+    "js": "js", "ts": "js", "jsx": "js", "tsx": "js", "mjs": "js", "cjs": "js",
+    # c/c++ family (planwright's primary target) — common alternate extensions.
     "c": "c", "h": "c", "cpp": "c", "hpp": "c",
+    "cc": "c", "cxx": "c", "c++": "c", "hh": "c", "hxx": "c", "tpp": "c",
 }
 
 
