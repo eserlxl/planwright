@@ -371,6 +371,54 @@ def connected_components(nodes, undirected):
     return comps
 
 
+def import_cycles(nodes, edges, limit):
+    """Strongly-connected components of size >= 2 in the *directed* import graph —
+    i.e. circular-import groups (a->b->a, python circular imports, C include cycles).
+    A concrete signal for the Stage 3 architecture lens, which otherwise has to spot
+    "dependency direction" defects by eye. Iterative Tarjan (no recursion-depth risk
+    on large repos, mirroring articulation_points). Returns up to `limit` cycles,
+    each a sorted member list, the list itself sorted for determinism."""
+    nodeset = set(nodes)
+    adj = {f: [t for t in edges.get(f, []) if t in nodeset and t != f] for f in nodes}
+    index, low, on_stack, stack, idx, sccs = {}, {}, {}, [], [0], []
+    for root in nodes:
+        if root in index:
+            continue
+        work = [(root, 0)]
+        while work:
+            v, pi = work[-1]
+            if pi == 0:
+                index[v] = low[v] = idx[0]
+                idx[0] += 1
+                stack.append(v)
+                on_stack[v] = True
+            neighbors = adj[v]
+            if pi < len(neighbors):
+                work[-1] = (v, pi + 1)
+                w = neighbors[pi]
+                if w not in index:
+                    work.append((w, 0))
+                elif on_stack.get(w):
+                    low[v] = min(low[v], index[w])
+            else:
+                if low[v] == index[v]:
+                    comp = []
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = False
+                        comp.append(w)
+                        if w == v:
+                            break
+                    if len(comp) > 1:
+                        sccs.append(sorted(comp))
+                work.pop()
+                if work:
+                    p = work[-1][0]
+                    low[p] = min(low[p], low[v])
+    sccs.sort()
+    return sccs[:limit]
+
+
 def cluster_label(members):
     dirs = {os.path.dirname(m) or "(root)" for m in members}
     if len(dirs) == 1:
@@ -567,6 +615,8 @@ def build(root, prior_path):
     for i, members in enumerate(sorted(comps, key=lambda m: (-len(m), m[0]))):
         clusters.append({"id": i, "label": cluster_label(members), "members": members})
 
+    cycles = import_cycles(files, import_edges, RANKED_SURFACE_LIMIT)
+
     # ranking: pagerank-driven, but fall back to change-coupling when the import
     # graph is degenerate (too few edges, or pagerank barely discriminates).
     pr_values = [pr.get(f, 0.0) for f in files]
@@ -607,6 +657,7 @@ def build(root, prior_path):
         "clusters": clusters,
         "ranked": ranked,
         "ranked_code": ranked_code,
+        "import_cycles": cycles,
         "dirty": dirty,
     }
 

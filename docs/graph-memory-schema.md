@@ -64,6 +64,7 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   ],
   "ranked": ["fileA", "fileB", "..."],       // nodes by descending audit priority
   "ranked_code": ["fileA", "..."],           // `ranked` restricted to branch_count>0 nodes — Stage 2b uses this
+  "import_cycles": [["a", "b"]],             // strongly-connected import groups (circular deps) — Stage 3 signal
   "dirty": {                                  // Phase 2 dirty set (computed vs --prior)
     "is_first_run": false,                    // true when no prior graph existed
     "whole_graph": false,                     // true => re-audit every node
@@ -92,6 +93,10 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   what links an exec-based harness (e.g. a runner that *runs* rather than imports its targets) to the
   code it exercises. A `false` on a non-test code node is a **candidate** missing-test finding to
   investigate, never proof; like `imports`/`defines` these fields only route attention.
+- **`import_cycles`** are the strongly-connected components (size ≥ 2) of the *directed* import
+  graph — circular-import groups (`a → b → a`, python circular imports, C `#include` cycles). They
+  give the Stage 3 architecture lens a concrete "dependency direction" signal instead of eyeballing
+  the edges. Capped at `ranked_surface_limit`; routing only, like `imports`.
 - **`ranked_code`** is `ranked` filtered to nodes with `branch_count > 0`, in the same
   priority order. Stage 2b's function-selection walk reads `ranked_code` when present
   (falling back to `ranked`) so doc/data nodes that link-centrality floats to the top of

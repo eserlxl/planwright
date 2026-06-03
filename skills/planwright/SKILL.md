@@ -392,7 +392,9 @@ its mission/charter regardless of the dirty set, bounded by the convergence guar
 ladder & the final point**). This is the mechanism that keeps a clean tree climbing instead of idling.
 
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
-   direction, source/header/test clusters, language-specific header-only/template constraints.
+   direction, source/header/test clusters, language-specific header-only/template constraints. Use the
+   graph's `import_cycles` (strongly-connected import groups) as a concrete circular-dependency signal —
+   routing only; confirm by reading the imports before proposing a break (e.g. dependency inversion).
 4. **Quality & tests** — weak/missing focused tests, wrong verification targets, refactors needing
    coverage, exact test anchors. For any test split/consolidation candidate, enumerate **every**
    `TEST`/`TEST_F` group in the file and flag compile-time-sensitive tests (preprocessor-manipulating,

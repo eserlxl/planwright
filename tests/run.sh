@@ -334,6 +334,10 @@ assert all(x in g["nodes"] and g["nodes"][x]["branch_count"] > 0 for x in g["ran
 # code nodes keep their relative ranked order in ranked_code
 code_in_ranked = [x for x in g["ranked"] if g["nodes"][x]["branch_count"] > 0]
 assert g["ranked_code"][:len(code_in_ranked)] == code_in_ranked, (g["ranked_code"], code_in_ranked)
+# import_cycles: a list of >=2-member groups of real nodes (directed SCCs)
+assert isinstance(g["import_cycles"], list)
+for cyc in g["import_cycles"]:
+    assert isinstance(cyc, list) and len(cyc) >= 2 and all(x in g["nodes"] for x in cyc), cyc
 for c in g["clusters"]:
     assert isinstance(c["id"], int) and isinstance(c["members"], list)
 for e in g["coupling_edges"]:
@@ -459,6 +463,29 @@ for p in ("scripts/build-graph.py", "src/latest.js", "docs/attestation.md", "lib
     assert not bg.is_test_node(p), p
 PY
 then ok "is_test_node classifies test paths without mislabeling sources"; else bad "is_test_node misclassified a path"; fi
+
+# --- Test 11c4: import_cycles detects circular imports for the Stage 3 lens ----
+# A directed import cycle (a imports b, b imports a) is a strongly-connected
+# group the architecture lens should flag; an acyclic importer is not in any.
+CYCREPO="$TMP/cycrepo"
+mkdir -p "$CYCREPO"
+git -C "$CYCREPO" init -q
+printf 'import b\n' > "$CYCREPO/a.py"
+printf 'import a\n' > "$CYCREPO/b.py"
+printf 'import a\n' > "$CYCREPO/c.py"
+git -C "$CYCREPO" add -A
+git -C "$CYCREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+cyc_out="$TMP/cyc_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$CYCREPO" > "$cyc_out" 2>/dev/null
+if python3 - "$cyc_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+cycles = [set(c) for c in g["import_cycles"]]
+assert {"a.py", "b.py"} in cycles, g["import_cycles"]
+# c.py imports a but nothing imports c -> not in any cycle
+assert not any("c.py" in c for c in cycles), g["import_cycles"]
+PY
+then ok "import_cycles flags a circular import and excludes an acyclic importer"; else bad "import_cycles missed a cycle or over-flagged"; fi
 
 # --- Test 11d: defines_of routes C/C++ + JS symbols (Stage 2b function hints) -
 # The `defines` field feeds Stage 2b's "walk ranked, take its top functions".
