@@ -119,8 +119,12 @@ def defines_at_of(lang, text):
     return at
 
 
-def resolve(target, from_path, fileset):
-    """Resolve a raw import target to a repo-relative path, or None."""
+def resolve(target, from_path, fileset, allow_basename=False):
+    """Resolve a raw import target to a repo-relative path, or None.
+
+    With allow_basename (bash `source`), fall back to a *unique* basename match
+    when relative resolution misses: bash often sources a lib by bare name or via
+    an unresolved `$DIR/lib.sh`. The single-match guard avoids ambiguous edges."""
     if not target or target.startswith(("http://", "https://", "#", "mailto:")):
         return None
     target = target.split("#", 1)[0].split("?", 1)[0].strip()
@@ -131,7 +135,11 @@ def resolve(target, from_path, fileset):
     cand = cand.replace("\\", "/")
     if cand in fileset:
         return cand
-    # bash often sources without extension or via $ROOT; try basename match as a last resort
+    if allow_basename:
+        bn = os.path.basename(target)
+        matches = [f for f in fileset if os.path.basename(f) == bn] if bn else []
+        if len(matches) == 1:
+            return matches[0]
     return None
 
 
@@ -149,8 +157,9 @@ def imports_of(lang, text, from_path, fileset):
     elif lang == "markdown":
         raw += re.findall(r"\[[^\]]*\]\(([^)]+)\)", text)
     out = []
+    allow_basename = lang == "bash"
     for t in raw:
-        r = resolve(t, from_path, fileset)
+        r = resolve(t, from_path, fileset, allow_basename)
         if r and r != from_path and r not in out:
             out.append(r)
     return out

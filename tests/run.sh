@@ -553,6 +553,26 @@ assert bg.resolve("b.md?v=1", "a.md", fs) == "b.md", "query strip"
 PY
 then ok "lang_of shebang detection and resolve anchor/query stripping work"; else bad "shebang lang detection or link anchor stripping broke"; fi
 
+# --- Test 11l: bash source-by-basename resolution fallback (gated to bash) ---
+# resolve(..., allow_basename=True) maps a bare `source common.sh` to a unique
+# lib/common.sh; an ambiguous basename (two matches) stays unresolved, and the
+# fallback is bash-only (markdown link targets must not gain spurious edges).
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+fs = {"scripts/main.sh", "lib/common.sh"}
+# bash: bare-name source resolves to the unique basename match
+assert bg.imports_of("bash", "source common.sh\n", "scripts/main.sh", fs) == ["lib/common.sh"], "bash bare-name source"
+# ambiguity: two files share the basename => no resolution
+fs2 = {"scripts/main.sh", "a/common.sh", "b/common.sh"}
+assert bg.imports_of("bash", "source common.sh\n", "scripts/main.sh", fs2) == [], "ambiguous basename stays unresolved"
+# gating: markdown must NOT use the basename fallback
+assert bg.resolve("common.sh", "x.md", fs) is None, "non-bash gets no basename fallback"
+assert bg.resolve("common.sh", "x.sh", fs, allow_basename=True) == "lib/common.sh", "explicit allow_basename"
+PY
+then ok "bash source-by-basename fallback resolves uniquely and stays bash-gated"; else bad "bash basename fallback wrong (ambiguity, gating, or resolution)"; fi
+
 # --- Test 11j: build-graph.py is deterministic (same tree => same graph) -----
 # The builder's header calls it "deterministic" and incremental skipping trusts
 # that identical inputs yield identical sha256/ranking. built_at (date -u) is the
