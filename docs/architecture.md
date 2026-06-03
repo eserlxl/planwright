@@ -29,6 +29,26 @@ Builds a structural model of the repo (`.planwright/graph.json`) to **route audi
 - **PageRank** (centrality) and **articulation points** (fragile chokepoints) over the import graph.
 - A `ranked` node list later stages use to prioritize what to read. See `docs/graph-memory-schema.md` for the full schema. This stage always runs (lifecycle-level, like Stages 0 and 1) and falls back gracefully when `git`/`rg` are unavailable.
 
+#### Design note — function-granular routing (`branch_at`)
+
+Stage 2b selects *functions* to deep-read, but centrality (`pagerank`) and the original complexity
+proxy (`branch_count`) are **per file** — they rank files, not the functions inside them. To let Stage
+2b rank and jump to functions *within* a centrality-ranked file, each node also carries a `branch_at`
+map (symbol → branch count attributed to that symbol).
+
+**Decision:** attribute branch complexity to a symbol by its *definition span* — the region from the
+symbol's definition line (already known from `defines_at`) to the next symbol's definition line (or
+EOF) — rather than parsing real function bodies.
+
+**Why, and the alternative rejected:** a true per-language body parser (C/C++ brace matching, Python
+indentation blocks, bash `if/fi` nesting) is brittle, high-maintenance, and language-specific — the
+kind of silent mis-routing risk a "don't miss things" tool can least afford. The def-span heuristic is
+deterministic, reuses `iter_defines`, degrades gracefully (it over/under-counts at boundaries but never
+crashes or mis-attributes catastrophically), and matches the best-effort precision of the rest of the
+builder. It leaves file-level centrality ranking (`ranked`, coupling fallback) untouched and layers
+function granularity on top — the minimal-risk path. **Non-goals:** it is not an AST; only branching
+(not centrality, which functions don't carry in this import-graph model) is attributed per symbol.
+
 ### Stage 2: Audit
 Derives audit findings such as oversized modules, missing tests, risky refactors, and correctness gaps. Each finding must point to concrete file paths or implementation signals.
 
