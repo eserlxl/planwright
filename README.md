@@ -10,7 +10,7 @@ It operates using three distinct, partitioned paths:
 
 - **Plan** — scans and audits the codebase, then runs a multi-stage pipeline to emit concrete, verified plan items into `.planwright/plan.md`. A valid plan item must cite real file/line evidence and include a runnable verification command. Read-only: the plan path writes only the plan file, never your source.
 - **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and records the rest. This is the only path that edits source.
-- **Cycle** — runs N sequential plan→execute rounds unattended, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Pass a positive number for a fixed count, or a negative number to continue until planwright records a final point. Negative cycle counts are bounded by the recorded final point; they stop when all maturity rungs are dry.
+- **Cycle** — runs N sequential plan→execute rounds unattended, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Pass a positive number for a fixed count, or a negative number to continue until planwright records a final point. Negative cycle counts are bounded by the recorded final point; they stop when all maturity rungs are dry. Add the opt-in **`explore`** flag (`cycle N … explore`) to make a cycle, at the moment it would declare a final point, escalate to one bounded sweep of the *cold frontier* — code the default hot-core routing under-examines (never-audited nodes and uncovered paths) — instead of stopping. It surfaces any grounded, above-bar work there, or records a stronger *explored* final point when the frontier is also dry. The grounding bar is never lowered; `explore` only changes *where* the survey looks, and composes with `depth`.
 
 ```mermaid
 flowchart LR
@@ -114,6 +114,7 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 /planwright cycle 3            # exactly 3 rounds
 /planwright cycle 3 depth 8    # 3 rounds, deep planning each round
 /planwright cycle -1           # repeat until every maturity rung produces no actionable work
+/planwright cycle 10 depth 10 explore  # at the final point, also sweep the cold frontier
 
 # Maintenance
 /planwright version    # show current and latest available version
