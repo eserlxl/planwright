@@ -138,6 +138,24 @@ def defines_at_of(lang, text):
     return at
 
 
+def branch_at_of(lang, text):
+    """Attribute branching to each symbol by its DEFINITION SPAN — the region from
+    a symbol's definition to the next symbol's definition (or EOF). A best-effort,
+    parser-free proxy for per-function complexity that lets Stage 2b rank functions
+    *within* a centrality-ranked file (see docs/architecture.md design note). First
+    definition of a repeated name wins, mirroring defines_of/defines_at_of."""
+    pat = BRANCH_KW.get(lang)
+    if not pat:
+        return {}
+    defs = sorted(iter_defines(lang, text), key=lambda np: np[1])
+    out = {}
+    for i, (name, start) in enumerate(defs):
+        end = defs[i + 1][1] if i + 1 < len(defs) else len(text)
+        if name not in out:
+            out[name] = len(re.findall(pat, text[start:end]))
+    return out
+
+
 def resolve(target, from_path, fileset, allow_basename=False):
     """Resolve a raw import target to a repo-relative path, or None.
 
@@ -399,6 +417,7 @@ def build(root, prior_path):
             "sha256": hashlib.sha256(blob).hexdigest(),
             "loc": loc_of(blob),
             "branch_count": branch_count_of(lang, text),
+            "branch_at": branch_at_of(lang, text),
             "lang": lang,
             "git_churn": churn.get(f, 0),
             "defines": defines_of(lang, text),

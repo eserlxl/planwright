@@ -42,7 +42,8 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
     "<repo-relative-path>": {
       "sha256": "<hex of file bytes>",      // invalidation key (Phase 2)
       "loc": 123,
-      "branch_count": 9,                     // branch tokens (Stage 2b complexity tiebreak)
+      "branch_count": 9,                     // file-level branch tokens (cross-file complexity)
+      "branch_at": { "funcA": 6, "funcB": 1 }, // branches per symbol by def-span (within-file Stage 2b rank)
       "lang": "bash|markdown|python|c|js|...|unknown",
       "git_churn": 17,                       // commit count touching this file
       "defines": ["funcA", "funcB"],         // best-effort symbol defs (routing hint)

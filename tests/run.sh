@@ -278,12 +278,16 @@ assert re.fullmatch(r"[0-9a-f]{40}", g["graph_built_at_sha"])
 assert g["ranking_signal"] in ("centrality", "coupling")
 assert {"coupling_window_commits", "coupling_min_cooccurrence", "ranked_surface_limit"} <= set(g["params"])
 assert g["nodes"], "no nodes"
-need = {"sha256", "loc", "branch_count", "lang", "git_churn", "defines", "defines_at", "imports", "pagerank", "is_articulation", "last_audited_sha"}
+need = {"sha256", "loc", "branch_count", "branch_at", "lang", "git_churn", "defines", "defines_at", "imports", "pagerank", "is_articulation", "last_audited_sha"}
 for f, n in g["nodes"].items():
     assert need <= set(n), f
     assert isinstance(n["defines_at"], dict), f
     assert all(isinstance(v, int) and v >= 1 for v in n["defines_at"].values()), f
     assert isinstance(n["branch_count"], int) and n["branch_count"] >= 0, f
+    assert isinstance(n["branch_at"], dict), f
+    assert all(isinstance(v, int) and v >= 0 for v in n["branch_at"].values()), f
+    # branch_at keys are a subset of the file's defined symbols
+    assert set(n["branch_at"]) <= set(n["defines"]), f
 assert isinstance(g["ranked"], list) and all(x in g["nodes"] for x in g["ranked"])
 for c in g["clusters"]:
     assert isinstance(c["id"], int) and isinstance(c["members"], list)
@@ -558,6 +562,15 @@ assert bg.resolve("b.md?v=1", "a.md", fs) == "b.md", "query strip"
 assert bg.branch_count_of("python", "if x:\n    pass\nfor i in y:\n    while z and w:\n        pass\n") == 4, "py branches"
 assert bg.branch_count_of("bash", "if a; then b; fi\nfor i in 1; do :; done\n[ x ] && y || z\n") == 4, "bash branches"
 assert bg.branch_count_of("markdown", "# title\nif this were code\n") == 0, "markup has no branches"
+# branch_at attributes branching per symbol by def-span: a simple function gets 0,
+# a branchy one carries its own branches (function-granular Stage 2b routing)
+pyfns = ("def simple():\n    return 1\n"
+         "def branchy():\n    if a:\n        for x in y:\n            while z and w:\n                pass\n")
+assert bg.branch_at_of("python", pyfns) == {"simple": 0, "branchy": 4}, "py branch_at by span"
+shfns = ("setup() {\n  echo hi\n}\n"
+         "run() {\n  if a; then b; fi\n  for i in 1; do :; done\n  [ x ] && y || z\n}\n")
+assert bg.branch_at_of("bash", shfns) == {"setup": 0, "run": 4}, "bash branch_at by span"
+assert bg.branch_at_of("markdown", "# t\nif words\n") == {}, "markup has no symbols/branches"
 PY
 then ok "lang_of shebang detection and resolve anchor/query stripping work"; else bad "shebang lang detection or link anchor stripping broke"; fi
 

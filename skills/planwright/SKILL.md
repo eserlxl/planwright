@@ -326,15 +326,17 @@ mismatches. Each finding: path, size or gap, why it matters.
 **2b. Correctness** — open and read the bodies of the top-N functions, where **N is the Depth table's
 "Stage 2b functions to read"** for this run. Select those N by **centrality ∩ complexity**: walk the
 Stage 1.5 `graph.json` `ranked` list (PageRank-ordered, so high-blast-radius code first) and take its
-top functions, **always including every `is_articulation` node regardless of depth** (a defect in a
-cut vertex breaks many modules), then break ties by complexity (each node's `loc` for line count and
-`branch_count` for branching). When the
+top files, **always including every `is_articulation` node regardless of depth** (a defect in a
+cut vertex breaks many modules), breaking ties between *files* by their `loc` and `branch_count`. Then,
+**within** each selected file, rank the functions to read by `branch_at` (branches attributed to each
+symbol by its definition span) — most-branchy first — and use `defines_at` (symbol → 1-based line) to
+jump straight to each body rather than re-scanning. This is the function-granular half of
+**centrality ∩ complexity**: centrality picks the files, `branch_at` picks the functions inside them.
+When the
 graph used the **coupling fallback** (degenerate import graph, see Stage 1.5 step 6), `ranked` is
 already coupling-ordered — walk it the same way; centrality and coupling feed the same `ranked` list.
 If `graph.json` is absent or graph-aware routing was skipped this run, **fall back** to the original rule:
-the top-N most complex functions by line count or branching. Use each node's `defines_at` map
-(symbol → 1-based definition line) to jump straight to a selected function's body rather than
-re-scanning the file. For each selected function, trace every non-trivial path: look for silent
+the top-N most complex functions by line count or branching. For each selected function, trace every non-trivial path: look for silent
 failures (error return ignored, wrong default returned, exit 0 on bad state), unchecked preconditions,
 and off-by-one or boundary errors. Findings must cite file:line, the specific path, and the defect.
 
