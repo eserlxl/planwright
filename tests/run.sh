@@ -594,6 +594,26 @@ assert bg.resolve("common.sh", "x.sh", fs, allow_basename=True) == "lib/common.s
 PY
 then ok "bash source-by-basename fallback resolves uniquely and stays bash-gated"; else bad "bash basename fallback wrong (ambiguity, gating, or resolution)"; fi
 
+# --- Test 11n: python dotted/relative import resolution ---------------------
+# Dotted module names are not paths, so the generic resolver dropped EVERY python
+# import edge — leaving the import graph empty and PageRank routing blind on a
+# primary target language. Resolve pkg.mod -> pkg/mod.py, package edges, relatives.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+fs = {"main.py", "pkg/__init__.py", "pkg/mod.py", "pkg/sub/__init__.py", "pkg/sub/deep.py"}
+imp = lambda src, frm: bg.imports_of("python", src, frm, fs)
+assert imp("import pkg.mod\n", "main.py") == ["pkg/mod.py"], "absolute dotted module"
+assert imp("from pkg.mod import x\n", "main.py") == ["pkg/mod.py"], "from dotted module"
+assert imp("from pkg import mod\n", "main.py") == ["pkg/__init__.py"], "from-import resolves to package"
+assert imp("from .mod import x\n", "pkg/a.py") == ["pkg/mod.py"], "single-dot relative"
+assert imp("from .sub.deep import q\n", "pkg/a.py") == ["pkg/sub/deep.py"], "relative into subpackage"
+assert imp("from ..mod import x\n", "pkg/sub/inner.py") == ["pkg/mod.py"], "two-dot relative goes up a package"
+assert imp("import os\nimport sys\n", "main.py") == [], "stdlib imports drop (not in fileset)"
+PY
+then ok "python dotted + relative imports resolve to repo files"; else bad "python import resolution broke (dotted, relative, or stdlib drop)"; fi
+
 # --- Test 11j: build-graph.py is deterministic (same tree => same graph) -----
 # The builder's header calls it "deterministic" and incremental skipping trusts
 # that identical inputs yield identical sha256/ranking. built_at (date -u) is the

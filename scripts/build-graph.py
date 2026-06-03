@@ -180,6 +180,31 @@ def resolve(target, from_path, fileset, allow_basename=False):
     return None
 
 
+def resolve_python_import(target, from_path, fileset):
+    """Resolve a python import target (a dotted module, possibly relative) to a repo
+    file. Dotted names are not paths, so the generic resolver always misses them and
+    every python import edge is dropped. Absolute `pkg.mod` tries `pkg/mod.py` and
+    `pkg/mod/__init__.py` from the repo root; a leading-dot relative import resolves
+    against the importer's package, one level up per extra dot."""
+    dots = len(target) - len(target.lstrip("."))
+    parts = [p for p in target[dots:].split(".") if p]
+    if dots:
+        base = os.path.dirname(from_path).split("/") if os.path.dirname(from_path) else []
+        up = dots - 1
+        if up > len(base):
+            return None
+        segs = base[:len(base) - up] + parts
+    else:
+        segs = parts
+    if not segs:
+        return None
+    stem = "/".join(segs)
+    for cand in (stem + ".py", stem + "/__init__.py"):
+        if cand in fileset:
+            return cand
+    return None
+
+
 def imports_of(lang, text, from_path, fileset):
     raw = []
     if lang == "bash":
@@ -196,7 +221,10 @@ def imports_of(lang, text, from_path, fileset):
     out = []
     allow_basename = lang == "bash"
     for t in raw:
-        r = resolve(t, from_path, fileset, allow_basename)
+        if lang == "python":
+            r = resolve_python_import(t, from_path, fileset)
+        else:
+            r = resolve(t, from_path, fileset, allow_basename)
         if r and r != from_path and r not in out:
             out.append(r)
     return out
