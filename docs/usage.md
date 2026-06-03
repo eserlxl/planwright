@@ -53,7 +53,8 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 /planwright execute N            Implement only pending item number N
 /planwright cycle N              Run N plan→execute rounds (1..100 for exact count, -N for unlimited)
 /planwright cycle N depth D      Run the cycle with planning depth D (1..10) on every round
-/planwright cycle N explore      At the final point, escalate to a cold-frontier sweep (any non-zero N)
+/planwright cycle N explore      At the final point, escalate: cold-frontier sweep → expand (latent capability)
+/planwright cycle N invent       Like explore, plus permission to add net-new, seam-bound capability
 ```
 
 ### Execute Modes
@@ -62,7 +63,31 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 - **Interactive Mode** (`--interactive`): Halts on every item to let you approve the implementation, show the diff, run the verification, and explicitly confirm the commit.
 - **Targeted Mode** (`N`): Executes only the `N`th pending item.
 - **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until it reaches a recorded final point (all rungs dry, recorded in `.planwright/final.md`). Append `depth D` to plan at depth `D` (1–10) on every round, e.g. `/planwright cycle 3 depth 8`.
-- **Explore** (`cycle N explore`): Opt-in, cycle-only. By default a cycle stops as soon as it reaches the final point; with `explore`, reaching the final point instead **escalates** to one bounded sweep of the *cold frontier* — the code the default hot-core routing neglects (never-audited nodes and uncovered paths, via the graph's `ranked_cold` list). If the sweep finds grounded, above-bar work it does it and the cycle continues; if the frontier is also dry it records a stronger *explored* final point (hot core **and** cold frontier both dry) and stops. The grounding bar is never lowered — `explore` changes only *where* the survey looks. Valid with any non-zero N (including `-1`), since the sweep is self-terminating. `explore` is **orthogonal to `depth`** and combines with it: `/planwright cycle 10 depth 10 explore` runs every round — and the cold-frontier sweep itself — at depth 10, so the frontier is read at full intensity (adversarial re-review + second-opinion cross-check). The only restriction is that `explore` is cycle-only.
+- **Explore** (`cycle N explore`): Opt-in, cycle-only. By default a cycle stops as soon as it reaches the final point; with `explore`, reaching the final point instead **escalates through a ladder** rather than stopping, spending the remaining cycle budget (the `N` you asked for becomes an escalation budget): **① a cold-frontier sweep** of the code the default hot-core routing neglects (never-audited nodes and uncovered paths, via the graph's `ranked_cold` list), then **② the expand tier** — surveying the whole project for a *natural completion or generalization of what already exists* (capabilities implemented but not exposed, functionality the design implies but lacks, options that remove a hard-coded limit, helpers that consolidate repeated logic, and the tests that must precede such work). Each tier runs until dry before the next; if any tier finds grounded, above-bar work it does it and the cycle continues. When the hot core, cold frontier, **and** expand are all dry it records a stronger *deep* final point and stops. Two limits never move: the **grounding floor** (every item still cites a real seam and a runnable verification) and the **hard ceiling** (no new subsystems, unrelated domains, redesign, or speculation) — `explore` only *completes and generalizes* what exists, it never invents a new concept. Valid with any non-zero N (including `-1`); **orthogonal to `depth`** (every tier, including the cold-frontier sweep, runs at the cycle's depth — so `/planwright cycle 10 depth 10 explore` reads the frontier at full intensity).
+- **Invent** (`cycle N invent`): Opt-in, cycle-only; a **superset of `explore`** (if both are given, `invent` wins). It climbs the same ladder and then, once the expand tier is also dry, adds **③ a bounded invent burst** (at most 3 cycles, independent of `N`) under a raised *novelty dial*: it may now propose **genuinely net-new** capability — a concept not present today — **provided** each item still bolts to a real existing seam, serves the project's stated direction (PROJECT DIRECTION: mission/charter + README + roadmap), and stays under the same hard ceiling (still no new subsystems/domains/redesign). Typing `invent` *is* your permission to create; it relaxes only the "must already be latent" rule, never the floor or ceiling. When the cold frontier, expand, **and** an invent burst are all dry it records the deepest final point and stops.
+
+### Broad Final Verification (warnings gate)
+
+After the targeted items, both `execute` and `cycle` run a **broad final verification** — the project's
+full build + test suite (not just per-item focused tests), plus a **warnings-clean gate**: where the
+project's own build / lint / type-check emits warnings, any **new** warning this run introduced is
+must-fix (a one-line, narrowest-scope suppression with justification is the only escape hatch). It is a
+no-op for toolchains that emit no warnings, and it never blocks on a project's pre-existing warning
+baseline the run did not touch. A green per-item verify that breaks the overall build — or introduces a
+new warning — fails this gate.
+
+## Helper Commands
+
+Two thin shortcuts forward to the planwright skill; any planwright arguments pass through verbatim.
+
+```bash
+/codvisor                  Flagship advisor run: cycle 10 depth 10 explore (prints a cost banner first)
+/codvisor 15               cycle 15 depth 10 explore (one number = cycles; depth defaults to 10)
+/codvisor 5 8              cycle 5 depth 8 explore (cycles, depth)
+/codinventor               Flagship inventor run: cycle 10 depth 10 invent (reaches the net-new invent tier)
+/codinventor 15            cycle 15 depth 10 invent
+/codinventor 5 8           cycle 5 depth 8 invent (cycles, depth)
+```
 
 ## Maintenance
 

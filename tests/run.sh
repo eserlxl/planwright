@@ -1305,6 +1305,27 @@ assert "cycle 10 depth 10 explore" in body, "no-arg advisor default not preserve
 PY
 then ok "commands/codvisor.md has valid frontmatter and forwards to planwright (advisor default intact)"; else bad "commands/codvisor.md malformed or lost its planwright delegation/advisor default"; fi
 
+# --- Test 14: commands/codinventor.md is a well-formed planwright helper command ---
+# /codinventor is the invent twin of /codvisor; guard its delegation contract so an edit
+# can't silently drop the planwright reference or the no-arg invent default.
+CMD="$ROOT/commands/codinventor.md"
+if [ -f "$CMD" ]; then ok "commands/codinventor.md exists"; else bad "commands/codinventor.md missing"; fi
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+assert m, "no YAML frontmatter"
+fm = m.group(1)
+assert re.search(r"(?m)^description:\s*\S", fm), "missing description"
+assert re.search(r"(?m)^argument-hint:\s*\S", fm), "missing argument-hint"
+body = t[m.end():]
+# the command must delegate to the planwright skill, not reimplement it
+assert "planwright:planwright" in body, "body does not invoke the planwright skill"
+# the no-arg flagship default must stay the inventor sweep (invent flag)
+assert "cycle 10 depth 10 invent" in body, "no-arg inventor default not preserved"
+PY
+then ok "commands/codinventor.md has valid frontmatter and forwards to planwright (inventor default intact)"; else bad "commands/codinventor.md malformed or lost its planwright delegation/inventor default"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

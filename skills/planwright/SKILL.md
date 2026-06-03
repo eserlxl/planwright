@@ -10,8 +10,8 @@ description: >
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
   "propose plan items", "execute the plan", "implement the plan", "cycle", "dogfood", or mentions
   .planwright/plan.md. Run `/planwright help` for usage and options.
-  Supports: execute [--interactive] [N], cycle <N>, explore, update, version, upgrade, depth <D>, propose <N>, max <N>, no-compact, dry-run, help.
-argument-hint: "[instruction] | execute [N] | cycle <N> [depth <D>] [explore] | depth <D> | version | upgrade | help"
+  Supports: execute [--interactive] [N], cycle <N>, explore, invent, update, version, upgrade, depth <D>, propose <N>, max <N>, no-compact, dry-run, help.
+argument-hint: "[instruction] | execute [N] | cycle <N> [depth <D>] [explore|invent] | depth <D> | version | upgrade | help"
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
@@ -78,9 +78,12 @@ CYCLE (automated plan → execute loops)
 /planwright cycle <N>            Plan then execute, repeated N times (1..100)
 /planwright cycle <-N>           Plan then execute until a recorded final point (unlimited, negative N)
 /planwright cycle <N> depth <D>  Run the cycle with planning depth D (1..10) every round
-/planwright cycle <N> explore    Opt-in: at the final point, escalate to a cold-frontier sweep
-                                 instead of stopping (any non-zero N; see Explore escalation)
-/planwright cycle <N> depth <D> explore   Combine: every round (and the sweep) runs at depth D
+/planwright cycle <N> explore    Opt-in: at the final point, escalate instead of stopping —
+                                 cold-frontier sweep, then the expand tier (complete latent
+                                 capability), spending the remaining cycle budget (see Escalation ladder)
+/planwright cycle <N> invent     Superset of explore + permission to add net-new, seam-bound
+                                 capability (the invent tier, a bounded burst, after expand is dry)
+/planwright cycle <N> depth <D> explore   Combine: every round (and the escalation) runs at depth D
 
 MAINTENANCE
 /planwright version              Show the current and latest available version
@@ -102,7 +105,8 @@ Plan options may be combined with an instruction, e.g.
 | `max <N>` | `20` | cap on pending unchecked items in the plan |
 | `no-compact` | off | skip Stage 0 housekeeping for this run |
 | `dry-run` | off | run everything but print the plan, write nothing |
-| `explore` | off | **cycle only**: at the final point, escalate to a cold-frontier sweep instead of stopping (see **Explore escalation**) |
+| `explore` | off | **cycle only**: at the final point, escalate instead of stopping — cold-frontier sweep, then the **expand** tier (complete latent capability), spending the remaining cycle budget (see **Escalation ladder**) |
+| `invent` | off | **cycle only**: superset of `explore` — additionally permits net-new, seam-bound capability (the **invent** tier, a bounded ≤3-cycle burst) after the expand tier is dry (see **Escalation ladder**) |
 | `help` | — | print Usage and stop |
 
 Precedence: **inline option > built-in default.** There is no settings file; options are per-run only.
@@ -165,8 +169,9 @@ should be." planwright instead proposes along a four-rung **maturity ladder**, l
 1. **repair** — confirmed defects: wrong output, swallowed error, violated invariant (mode `repair`).
 2. **coverage** — behaviour-preserving quality: missing focused tests, weak verification, consistency,
    maintainability (mode `improve`/`reorganize`).
-3. **opportunity** — net-new value grounded in a real surface *and* the project's mission: features,
-   DX, ergonomics, robustness, observability, teaching docs (mode `develop`/`docs`).
+3. **opportunity** — net-new value grounded in a real surface *and* the project's stated direction
+   (PROJECT DIRECTION: mission/charter + README + roadmap, see Stage 1): features, DX, ergonomics,
+   robustness, observability, teaching docs (mode `develop`/`docs`).
 4. **vision** — roadmap-level, design-first initiatives: a stated design decision precedes
    implementation; larger multi-step bets (mode `develop`, often with a preceding design item).
 
@@ -176,7 +181,8 @@ keep forward motion. The decisive rule that prevents premature idling:
 - **Rungs 1–2 are change-gated** — the Stage 1.5 dirty set scopes them; they look only where code
   changed. An empty dirty set means rungs 1–2 are dry, *not* that there is no work.
 - **Rungs 3–4 are maturity-gated, not change-gated** — when rungs 1–2 are dry they run over the
-  **whole project** against its mission/charter, **even when the dirty set is empty**. This is what
+  **whole project** against PROJECT DIRECTION (mission/charter + README + roadmap, see Stage 1),
+  **even when the dirty set is empty**. This is what
   lets a clean, fully-audited tree keep producing valuable work instead of stopping.
 
 **Convergence guard (so creativity still terminates):**
@@ -197,43 +203,82 @@ empty-dirty-set idle. A later run re-opens the ladder only if the project change
 set), the mission/charter changed, or the user raises ambition (an explicit instruction, or higher
 depth). Any planning round that writes ≥1 item deletes a stale `final.md`.
 
-## Explore escalation
+## Escalation ladder
 
-`explore` (the opt-in `cycle … explore` flag) is **not** a different planning mode and it **never
-lowers the grounding bar** — every item it yields still clears Stage 10 and the rung's value bar, cites
-a real surface, and carries a runnable verification. It changes only *where* the survey looks, and only
-*at the moment the normal ladder would declare a final point.*
+`explore` and `invent` (the opt-in `cycle … explore` / `cycle … invent` flags) are **not** different
+planning modes and they **never lower the grounding bar** — every item they yield still clears Stage 10
+and a rung value bar, cites a real surface, and carries a runnable verification. They change only *how
+far the survey reaches* once the normal ladder would otherwise stop, bounded by two limits that never
+move, plus a **novelty dial** the flag sets:
 
-Default routing leads with the **hot core** (high-blast-radius `ranked_code`: PageRank + articulation ∩
-the dirty set). The blind spot is the **cold frontier** — code the audit has never reached and paths
-nothing exercises — so a survey that only ever looks at the hot core can declare "dry" while real,
-groundable work sits untouched in the periphery. `explore` closes that blind spot:
+- **Grounding floor (every tier, every flag)** — the Stage 10 gate: a real attachment surface
+  (`Surfaces:`; net-new files go in `New Surfaces:`, but `Development:` still names a real seam) and a
+  runnable `Verification:`.
+- **Hard ceiling (every tier, every flag)** — **no new subsystems, no unrelated domains, no architecture
+  redesign from scratch, no speculative niceties.** Truly identity-changing work is out of scope for the
+  loop no matter which flag is on.
+- **Novelty dial (set by the flag)** — between floor and ceiling, the flag chooses how *novel* a
+  proposal may be: `explore` permits **latent only** (complete/generalize what already exists, never a
+  new concept); `invent` additionally permits **net-new** capability — a concept not previously present —
+  *provided* it still bolts to a real existing seam and serves PROJECT DIRECTION. Typing `invent` **is**
+  the permission to create; it relaxes only the "must already be latent" rule, never the floor or ceiling.
 
-- **Trigger (final point only).** While the change-gated rungs still produce work, an `explore` cycle
-  behaves exactly like a normal cycle. Only when a planning round *would* declare the final point (all
-  four rungs dry under hot-core routing) does `explore` **escalate** instead of stopping.
-- **One bounded cold-frontier sweep.** The escalation re-runs Stages 2–10 once with routing overridden
-  to the graph's **`ranked_cold`** list (the audit/coverage frontier: never-audited first, then
-  uncovered, then least-central — see `docs/graph-memory-schema.md`). Stage 2b reads `ranked_cold`
-  bodies; Stages 5–6 survey the cold clusters project-wide. Articulation points are still always
-  included. **`explore` is orthogonal to `depth`** — the sweep is part of the planning round, so it runs
-  at the **cycle's depth**: `cycle N depth D explore` sweeps the frontier at intensity D (e.g. depth 10
-  reads the depth-N `ranked_cold` bodies *and* applies the adversarial re-review + second-opinion
-  cross-check to the cold clusters). Combine them freely; the only restriction is that `explore` is
-  cycle-only.
-- **Outcome.** If the sweep finds grounded above-bar work, write those items — the ladder is live again
-  and the cycle continues normally (the next final point re-triggers a sweep). If the sweep is **also**
-  dry, record a *stronger* **explored final point**: write `final.md` as usual but note it was
-  `confirmed via explore sweep over the audit/coverage-cold frontier`. This is a two-tier fixpoint
-  (hot-core dry **∧** cold-frontier dry), a more honest "stable" than the one-survey stop.
+The flag escalates through ordered tiers — each a slightly larger reach than the last — **only at the
+moment the normal ladder would declare a final point**, and only while the requested **cycle budget**
+remains. The `N` in `cycle N` doubles as that budget: a final point reached at cycle `i < N` means you
+authorised `N − i` more cycles, so the flag spends them climbing the ladder instead of stopping early.
+`explore` climbs tiers ①→②; `invent` is a **superset** that climbs ①→②→③ (so `invent` does everything
+`explore` does, and reaches the net-new tier only after the latent tier is itself dry — grounded
+completion always precedes invention). Both are **orthogonal to `depth`** — every tier runs at the
+cycle's depth.
 
-**Why this terminates (and is safe for any non-zero N, including unlimited `-1`).** The cold frontier is
-finite; each swept node is restamped (`last_audited_sha = HEAD`, Stage 11) so it leaves the frontier,
-and each candidate is either implemented (advancing state) or dropped/rejected (recorded, not
-re-proposed). The frontier therefore drains monotonically — the same convergence guard as the ladder —
-so the escalation is one bounded pass that always ends in a recorded final point. The value bar is
-**unchanged**: a cold, uncovered branch is not automatically worth a test, so `explore` surfaces
-*candidates*, it does not pad. `explore` is a no-op outside the cycle path.
+**Tier ① — cold-frontier sweep (in-round; costs no budget cycle).** Default routing leads with the
+**hot core** (high-blast-radius `ranked_code`: PageRank + articulation ∩ the dirty set); its blind spot
+is the **cold frontier** — code the audit never reached and paths nothing exercises. When the hot-core
+ladder is dry, re-run Stages 2–10 **once** with routing overridden to the graph's **`ranked_cold`** list
+(never-audited first, then uncovered, then least-central — see `docs/graph-memory-schema.md`): Stage 2b
+reads `ranked_cold` bodies, Stages 5–6 survey the cold clusters project-wide, articulation points always
+included. This is part of the planning round, so it costs no extra cycle. If it writes ≥1 item the ladder
+is live again; continue normally.
+
+**Tier ② — expand (latent-capability completion; spends budget cycles).** If the cold frontier is also
+dry and the cycle budget still allows, `explore` does **not** stop — it switches into the **expand**
+posture and keeps cycling (up to `N`), surveying lenses 5–6 project-wide for work that is a **natural
+completion or generalization of what already exists** (see Stage 5's expand lens): capabilities
+implemented internally but not exposed, functionality the current design plainly implies but lacks,
+overloads/parameters/modes that remove a hard-coded limit, a small helper that consolidates repeated
+logic, and the focused tests that must precede such extension. Each candidate still clears the floor and
+the ceiling — it attaches to a named existing surface and is never a new subsystem. Once active, the
+expand posture persists across subsequent cycles until it too goes dry.
+
+**Tier ③ — invent (net-new, seam-bound; `invent` flag only, bounded burst).** Reached only under
+`invent`, and only once the cold frontier **and** the expand tier are both dry. It lifts the "must
+already be latent" rule: lenses 5–6 may now propose a **genuinely new** capability, API, or mode — a
+concept not present today — provided each candidate (a) bolts to a **real existing seam** (named in
+`Surfaces:` / `Development:`; net-new files in `New Surfaces:`), (b) serves **PROJECT DIRECTION**, and
+(c) stays under the hard ceiling (not a new subsystem, unrelated domain, or redesign). To keep the
+riskiest tier from running away, `invent` runs as a **bounded burst** — at most a small fixed number of
+cycles (**3**), *independent of `N`* — so even `cycle -1 invent` invents only in a short burst before
+re-checking the fixpoint. If the burst writes ≥1 item, execute and continue; the natural limiter is
+structural — you can only invent where a real seam exists to carry it.
+
+**Deep final point.** The run stops at the deepest fixpoint its flag can reach, recorded in
+`.planwright/final.md` (marked with `deepest_tier:` and a one-line note), even if budget remains —
+nothing groundable is left:
+- under `explore`, when the hot core, cold frontier, **and** expand are all dry → `deepest_tier: expand`,
+  `confirmed deep — cold-frontier and expand tiers both dry`;
+- under `invent`, when those **and** an invent burst are all dry → `deepest_tier: invent`,
+  `confirmed deep — cold-frontier, expand, and invent tiers all dry`.
+This multi-tier fixpoint is a far more honest "stable" than a single hot-core survey.
+
+**Why this terminates (safe for any non-zero N, including unlimited `-1`).** Each tier is finite and
+drains monotonically — swept cold nodes are restamped (`last_audited_sha = HEAD`, Stage 11) and leave
+the frontier; expand and invent candidates are either implemented (advancing state) or dropped/rejected
+(recorded, not re-proposed), and the invent burst is hard-capped at 3 cycles per trigger. Tiers are
+tried in fixed order, so the escalation is a bounded sequence that always ends in a recorded final
+point. The grounding bar is **unchanged** throughout — the flag widens *reach*, never lowers proof; a
+cold, latent, or net-new-but-seamless surface is not automatically worth an item, so the escalation
+surfaces *candidates*, it does not pad. Both flags are a no-op outside the cycle path.
 
 ## Inputs
 
@@ -290,7 +335,17 @@ route through context-mode (`ctx_batch_execute`) so raw bytes stay out of contex
 - **PROJECT TEST TARGETS** — exact test target names (e.g. from `add_test`/`gtest_discover_tests`
   / `ctest -N`, or the project's test runner). Verification commands must use these verbatim.
 
-Also read any project mission/charter file if present and treat it as a constraint.
+Also read the project's **stated direction** — it is both a constraint on every item and the
+anchor the generative rungs (lenses 5–6) propose *toward*:
+
+- **PROJECT DIRECTION** — the mission/charter file if present (`MISSION.md`, `CHARTER.md`, …)
+  **plus the README and any roadmap/vision docs** (`README*`, `ROADMAP*`, `docs/roadmap*`,
+  `VISION*`). Treat mission/charter as the binding constraint; treat README and roadmap as the
+  stated user-facing goals and intended direction. Together they are the ground truth for *what
+  this project is trying to become* — the opportunity and vision rungs (Stages 5–6, the value
+  bar, and "mission-aligned" throughout this file) are measured against this whole set, not the
+  charter alone. If none exist, note that and let the generative rungs anchor on the observed
+  public surfaces alone.
 
 Then load the planning memory so this run learns from prior ones:
 
@@ -404,7 +459,7 @@ graph used the **coupling fallback** (degenerate import graph, see Stage 1.5 ste
 already coupling-ordered — walk it the same way; centrality and coupling feed the same `ranked` list.
 If `graph.json` is absent or graph-aware routing was skipped this run, **fall back** to the original rule:
 the top-N most complex functions by line count or branching. **During an `explore` cold-frontier sweep**
-(see **Explore escalation**), route Stage 2b by the graph's **`ranked_cold`** list instead of
+(see **Escalation ladder**), route Stage 2b by the graph's **`ranked_cold`** list instead of
 `ranked_code` — same walk, but it leads with the audit/coverage frontier (never-audited, then uncovered,
 then least-central) so the sweep reads exactly the code the hot-core pass skipped. For each selected function, trace every non-trivial path: look for silent
 failures (error return ignored, wrong default returned, exit 0 on bad state), unchecked preconditions,
@@ -436,7 +491,8 @@ radius.
 
 The **maturity-gated rungs** (opportunity, vision — lenses 5 and 6) are **not** change-gated: when the
 change-gated rungs are dry (e.g. an empty dirty set), run lenses 5–6 over the **whole project** against
-its mission/charter regardless of the dirty set, bounded by the convergence guard (see **Maturity
+PROJECT DIRECTION (mission/charter + README + roadmap) regardless of the dirty set, bounded by the
+convergence guard (see **Maturity
 ladder & the final point**). This is the mechanism that keeps a clean tree climbing instead of idling.
 
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
@@ -453,15 +509,37 @@ ladder & the final point**). This is the mechanism that keeps a clean tree climb
    Classify as `repair` only when a specific wrong output is confirmed; classify as `improve` when
    the behavior is unspecified and coverage is the gap. Do not conflate "untested" with "incorrect".
 5. **Behavior & features (opportunity + vision — generative)** — this is the creative lens; run it
-   project-wide whenever the change-gated rungs are dry, not only over the dirty set. Ask *"what would
-   make this project genuinely better for its users and maintainers?"* and propose net-new value:
-   runtime behavior, user workflows, automation, external integrations, data flow, recovery paths,
-   public APIs (mode `develop`), and teaching docs (mode `docs`). Two sub-tiers:
-   - **opportunity** — concrete enhancements tied to a real surface and the mission; each must name a
-     concrete user/maintainer payoff to clear the value bar.
+   project-wide whenever the change-gated rungs are dry, not only over the dirty set. Read it against
+   **PROJECT DIRECTION** (mission/charter + README + roadmap, see Stage 1): ask *"what would move this
+   project toward its stated direction, and make it genuinely better for its users and maintainers?"*
+   and propose net-new value: runtime behavior, user workflows, automation, external integrations,
+   data flow, recovery paths, public APIs (mode `develop`), and teaching docs (mode `docs`). A feature
+   the README or roadmap names but the code does not yet have is a first-class opportunity/vision
+   candidate (still grounded: it must attach to a real seam and carry a runnable verification). Two
+   sub-tiers:
+   - **opportunity** — concrete enhancements tied to a real surface and PROJECT DIRECTION; each must
+     name a concrete user/maintainer payoff to clear the value bar.
    - **vision** — roadmap-level, design-first bets; state the design decision explicitly and require a
      preceding design item (Stage 7 rule b). A vision item must name a concrete, mission-aligned
      outcome, not a vague nicety — speculative niceties fail the value bar and are dropped.
+
+   **Expand lens (active during an `explore` expand escalation — see Escalation ladder).** When the
+   round runs under the expand posture, sharpen this survey to *a natural completion or generalization
+   of what already exists*, auditing specifically for: (a) capabilities implemented internally but not
+   exposed; (b) functionality the current design plainly implies but lacks; (c) API usability gaps or
+   misuse risks an overload, parameter, or mode would close; (d) repeated logic a small justified helper
+   would consolidate; (e) missing focused tests that block safe extension; and (f) areas that must
+   remain unchanged (record them, with reasoning, so the loop respects them). Every expand candidate
+   still attaches to a named existing surface, stays under the hard ceiling (no new subsystem, domain,
+   or redesign), and carries a runnable verification.
+
+   **Invent lens (active during an `invent` invent burst — see Escalation ladder).** Same survey as the
+   expand lens, but the "must already be latent" restriction is lifted: a **genuinely new** capability,
+   API, or mode may be proposed if it bolts to a real existing seam, serves PROJECT DIRECTION, and stays
+   under the hard ceiling (no new subsystem, domain, or redesign). Net-new items take mode `develop`,
+   and when they rest on an unresolved design decision they carry a preceding design item (Stage 7
+   rule b). The grounding floor is unchanged — a net-new idea with no real seam to attach to is dropped.
+
    Stay grounded: every proposal still cites real surfaces and a runnable verification, and still
    passes Stage 10. Creativity widens *what* is proposed; it never lowers the grounding bar.
 6. **Operations & reliability** — config seams, sensitive-data handling, persistence, retry,
@@ -579,8 +657,12 @@ something to diff against:
    (the ladder is live again). If this round wrote **0 items because all four maturity rungs were dry**
    (not merely an empty dirty set — the maturity-gated rungs were surveyed project-wide and produced
    nothing above their value bar), write `.planwright/final.md` with one block: the HEAD sha, the date,
-   each rung (repair/coverage/opportunity/vision) marked dry, and a one-line reason per rung. This is
-   the recorded **final point**; it is routing/status only and is **never** valid Evidence.
+   each rung (repair/coverage/opportunity/vision) marked dry, and a one-line reason per rung. Under
+   `explore`/`invent`, also record `deepest_tier:` (`hot-core` | `cold-frontier` | `expand` | `invent`)
+   — the furthest tier surveyed before drying; `deepest_tier: expand` (under `explore`) or
+   `deepest_tier: invent` (under `invent`) denotes the stronger **deep final point** (every tier the
+   flag can reach is dry, see **Escalation ladder**). This is the recorded **final point**;
+   it is routing/status only and is **never** valid Evidence.
 
 Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested,
 rungs surveyed (lowest non-empty / final-point), and any capacity stop.
@@ -686,6 +768,14 @@ Run the project's full build + test (not just per-item focused tests). If it fai
 the per-item commits stand, but the batch is **not** clean — do not claim success. A green per-item
 verify that breaks the overall build is exactly what this step catches.
 
+**Warnings-clean gate (toolchain-conditional).** Where the project's own build / lint / type-check
+emits warnings, treat any **new** warning this run introduced as **must-fix** — the broad verify is not
+clean until it is resolved. If one genuinely cannot be fixed cleanly, suppress it at the **narrowest**
+scope and record a one-line justification (in the item's commit body or the run report). This is a
+**no-op** for toolchains that emit no warnings — never fabricate a warnings step a project does not
+have — and it is scoped to *new* warnings: do **not** block on a project's pre-existing warning
+baseline that this run did not touch.
+
 ## Stop conditions (auto mode)
 
 Keep going across items, sending failures to `rejected.md`. Pause/STOP only on a **hard blocker**:
@@ -725,13 +815,16 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
    and STOP.
 2. **Clean working tree** — run `git status --porcelain`. If it reports anything (excluding
    `.planwright/`), STOP and report the dirty paths. Do not mix uncommitted work with per-item commits.
-3. **Resolve `explore`** — `explore` is opt-in and **cycle-only**. It is valid with **any** non-zero N
-   (positive or unlimited `-1`): the escalation is one bounded, self-terminating cold-frontier sweep
-   (see **Explore escalation**), so it needs no extra N restriction. (Outside the cycle path — plain
-   plan, `execute`, `version` — `explore` is ignored.)
+3. **Resolve `explore` / `invent`** — both are opt-in and **cycle-only**; `invent` is a superset of
+   `explore` (if both are given, `invent` wins). Each is valid with **any** non-zero N (positive or
+   unlimited `-1`): the escalation is a bounded, self-terminating ladder (cold-frontier sweep → expand,
+   and under `invent` → a hard-capped invent burst; see **Escalation ladder**) that always ends in a
+   recorded final point, so it needs no extra N restriction. The cycle count `N` doubles as the
+   **escalation budget** — a final point reached before cycle N is spent climbing the ladder instead of
+   stopping early. (Outside the cycle path — plain plan, `execute`, `version` — both are ignored.)
 4. **Announce** — print the current branch (`git branch --show-current`), the cycle mode
-   (`N cycles` or `unlimited`), the planning depth (`depth <D>`, default 6), and whether `explore` is on
-   before starting any work.
+   (`N cycles` or `unlimited`), the planning depth (`depth <D>`, default 6), and which escalation flag is
+   on (`explore`, `invent`, or none) before starting any work.
 
 ## Per-cycle loop (repeat up to N times, or indefinitely when N < 0)
 
@@ -750,19 +843,33 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
    - **Without `explore`** (default): stop early **only when the planning round declared the final
      point** — i.e. it wrote `.planwright/final.md` because all four rungs were dry. Then print
      `Cycle i/N: final point reached — <one-line why>.` and STOP.
-   - **With `explore`**: when the round *would* declare the final point, **escalate** instead of
-     stopping — run one **cold-frontier sweep** (re-run Stages 2–10 routed by the graph's `ranked_cold`
-     list; see **Explore escalation**). If the sweep writes ≥1 item, delete the stale `final.md` and
-     proceed to Execute as normal (the ladder is live again). If the sweep is **also** dry, write the
-     **explored final point** (`final.md` noting `confirmed via explore sweep`), print
-     `Cycle i/N: explored final point reached — hot core and cold frontier both dry.` and STOP.
+   - **With `explore` or `invent`**: when the round *would* declare the final point, **escalate through
+     the ladder** instead of stopping (see **Escalation ladder**), spending the remaining cycle budget:
+     1. **Cold-frontier sweep** (in-round) — re-run Stages 2–10 routed by the graph's `ranked_cold`
+        list. If it writes ≥1 item, delete the stale `final.md` and proceed to Execute (ladder live).
+     2. **Expand** — if the cold frontier is also dry and the budget still allows (this is not the last
+        cycle), switch into the **expand** posture: survey lenses 5–6 project-wide for latent-capability
+        completion (Stage 5's expand lens). If it writes ≥1 item, delete the stale `final.md`, proceed
+        to Execute, and keep the expand posture for subsequent cycles (their generative survey stays in
+        the expand posture until expand itself goes dry).
+     3. **Invent** (`invent` only) — if the cold frontier **and** expand are both dry and the budget
+        still allows, run a **bounded invent burst** (≤3 cycles, independent of `N`): survey lenses 5–6
+        under the invent lens (net-new, seam-bound — Stage 5). If it writes ≥1 item, delete the stale
+        `final.md`, proceed to Execute, and continue (re-checking the fixpoint after the burst).
+     4. **Deep final point** — when every tier the flag can reach is dry (`explore`: cold frontier +
+        expand; `invent`: + the invent burst), write `final.md` (`deepest_tier: expand` or
+        `deepest_tier: invent` with the matching note), print
+        `Cycle i/N: deep final point reached — <tiers> all dry.` and STOP (even if cycles remain —
+        nothing groundable is left).
 
    If items are pending or were written, proceed to Execute as normal.
 4. **Execute** — run the full per-item execute loop over every pending item (same as
    `/planwright execute` auto mode). Collect per-cycle stats: items completed, items rejected.
 5. **Broad final verification** — run the project's full build + test suite (not just per-item
-   focused tests). If it fails, STOP and report; per-item commits from this cycle stand but the
-   batch is not clean — do not start the next cycle.
+   focused tests), including the **warnings-clean gate** (Execute → broad final verification: where the
+   toolchain emits warnings, any new warning this cycle introduced is must-fix). If it fails, STOP and
+   report; per-item commits from this cycle stand but the batch is not clean — do not start the next
+   cycle.
 6. **Cycle summary** — print: cycle number, items proposed / completed / rejected this cycle, broad
    verify result (`PASS` or `FAIL`).
 
@@ -773,8 +880,9 @@ Print a cumulative summary:
 - Total items implemented (with all commit short-SHAs)
 - Total items rejected (titles + one-line reasons)
 - Stop reason if stopped before N: `hard blocker`, `broad-verify failed`, `final point reached`
-  (all four maturity rungs dry — see `.planwright/final.md`), or — under `explore` — `explored final
-  point reached` (the hot core and the cold frontier are both dry)
+  (all four maturity rungs dry — see `.planwright/final.md`), or — under `explore`/`invent` — `deep
+  final point reached` (every tier the flag can reach is dry: cold frontier + expand, and under
+  `invent` the invent burst too)
 
 ## Stop conditions
 
@@ -784,9 +892,10 @@ Stop and do **not** start the next cycle on any of:
 - A **failing broad final verification** after execute.
 - **Final point**: the planning round declared all four maturity rungs dry and wrote
   `.planwright/final.md` (step 3 above). An empty dirty set / empty backlog alone is **not** a stop —
-  the maturity-gated rungs must have been surveyed and come up empty first. **Under `explore`**, the
-  hot-core final point is **not** a stop on its own — it first escalates to a cold-frontier sweep, and
-  the run stops only at the **explored final point** (hot core *and* cold frontier both dry).
+  the maturity-gated rungs must have been surveyed and come up empty first. **Under `explore`/`invent`**,
+  the hot-core final point is **not** a stop on its own — it escalates through the ladder (cold-frontier
+  sweep → expand, and under `invent` → a hard-capped invent burst), and the run stops only at the
+  **deep final point** (every tier the flag can reach is dry).
 
 Individual item rejections are **not** a stop condition — the cycle continues and the next planning
 round's audit will learn from the rejection reasons in `rejected.md`.
