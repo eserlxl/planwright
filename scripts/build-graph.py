@@ -63,8 +63,27 @@ def defines_of(lang, text):
         for m in re.finditer(r"(?m)^\s*(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", text):
             out.append(m.group(1))
     elif lang == "js":
-        for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)", text):
+        for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s+([A-Za-z_$][\w$]*)", text):
             out.append(m.group(1))
+        for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)", text):
+            out.append(m.group(1))
+        # arrow/function expressions bound to a name: `export const f = (x) => ...`
+        for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>", text):
+            out.append(m.group(1))
+    elif lang == "c":
+        # gtest group/fixture names — SKILL.md routing tracks TEST/TEST_F groups.
+        for m in re.finditer(r"(?m)\b(?:TEST|TEST_F|TEST_P|TYPED_TEST)\s*\(\s*([A-Za-z_]\w*)", text):
+            out.append(m.group(1))
+        # class / struct / enum type names.
+        for m in re.finditer(r"(?m)\b(?:class|struct|enum)\s+([A-Za-z_]\w*)", text):
+            out.append(m.group(1))
+        # function / method definitions: the `(...)` is followed by a `{` body, not
+        # a `;` prototype; params hold no `;`/`{` so a match stays on one definition,
+        # and control-flow keywords (which also read as `name (...) {`) are filtered.
+        kw = {"if", "for", "while", "switch", "return", "else", "do", "catch", "sizeof"}
+        for m in re.finditer(r"(?m)^\s*[A-Za-z_][\w\s:\*&<>,~]*?\b([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:const\s*)?(?:noexcept\s*)?\{", text):
+            if m.group(1) not in kw:
+                out.append(m.group(1))
     # de-dup, preserve order
     seen, uniq = set(), []
     for d in out:

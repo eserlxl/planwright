@@ -333,6 +333,42 @@ assert set(g["ranked"][:2]) == {"alpha.md", "beta.md"}, g["ranked"][:2]
 PY
 then ok "build-graph.py coupling fallback ranks the coupled pair first"; else bad "build-graph.py coupling fallback ranking wrong"; fi
 
+# --- Test 11d: defines_of routes C/C++ + JS symbols (Stage 2b function hints) -
+# The `defines` field feeds Stage 2b's "walk ranked, take its top functions".
+# C/C++ is planwright's primary target language (constexpr/TEST_F/header rules),
+# so empty C/C++ defines would blind Stage 2b on exactly that language.
+if python3 - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+
+cpp = (
+    '#include "foo.h"\n'
+    "class Widget {\n public:\n"
+    "  int compute(int n) {\n    if (n > 0) { return n + 1; }\n    return 0;\n  }\n};\n"
+    "constexpr int add(int a, int b) { return a + b; }\n"
+    "void Widget::reset() { state_ = 0; }\n"
+    "int prototype_only(int x);\n"
+    "TEST_F(WidgetTest, Computes) {\n  EXPECT_EQ(add(1, 2), 3);\n}\n"
+)
+d = bg.defines_of("c", cpp)
+for want in ("Widget", "compute", "add", "reset", "WidgetTest"):
+    assert want in d, (want, d)
+# calls, control-flow, and prototypes must not masquerade as definitions
+assert "EXPECT_EQ" not in d and "if" not in d and "prototype_only" not in d, d
+
+js = (
+    "export function handle(req) {}\n"
+    "class Server {}\n"
+    "export const route = (req, res) => {};\n"
+    "const helper = x => x + 1;\n"
+)
+dj = bg.defines_of("js", js)
+for want in ("handle", "Server", "route", "helper"):
+    assert want in dj, (want, dj)
+PY
+then ok "defines_of extracts C/C++ + JS symbols (functions, classes, gtest groups)"; else bad "defines_of missing C/C++ or JS symbols, or leaking non-definitions"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

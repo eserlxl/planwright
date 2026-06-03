@@ -65,6 +65,11 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
 
 - **`imports`** are *recall-over-precision* hints. A miss never causes a wrong finding —
   it only fails to route attention. Unresolved imports are dropped, not guessed.
+- **`defines`** are best-effort symbol names per language (bash/python functions; C/C++
+  functions, methods, `class`/`struct`/`enum`, and `TEST`/`TEST_F`/`TEST_P`/`TYPED_TEST`
+  group names; JS functions, classes, and named arrow/function expressions). They feed
+  Stage 2b's "walk `ranked`, take its top functions" selection and the test-reorg lens;
+  like `imports`, they only route attention and are never cited as Evidence.
 - **`coupling_edges`** capture files that co-commit without importing each other — the
   hidden dependencies a reader cannot see. `weight = cooccur / min(churn_a, churn_b)`.
 - **`is_articulation`** marks cut vertices of the import graph: a defect there has wide
