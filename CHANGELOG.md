@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.24.2] - 2026-06-03
+
+### Changed
+- Added an `argument-hint` to the `planwright` skill frontmatter (`[instruction] | execute [N] | cycle <N> [depth <M>] | depth <N> | version | upgrade | help`) so `/planwright` can surface its subcommands as Tab-completable hints, the way a slash command does. `argument-hint` is documented as a *command* field, but commands and skills load identically, so this should also render for the skill; if a given Claude Code build ignores it for skills the field is inert and harmless. Keeps a single canonical `/planwright` (no rename, no separate command, no name collision).
+
 ## [1.24.1] - 2026-06-03
 
 ### Changed
