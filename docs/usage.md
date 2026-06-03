@@ -53,6 +53,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 /planwright execute N            Implement only pending item number N
 /planwright cycle N              Run N plan→execute rounds (1..100 for exact count, -N for unlimited)
 /planwright cycle N depth M      Run the cycle with planning depth M (1..10) on every round
+/planwright cycle N explore      At the final point, escalate to a cold-frontier sweep (any non-zero N)
 ```
 
 ### Execute Modes
@@ -61,6 +62,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 - **Interactive Mode** (`--interactive`): Halts on every item to let you approve the implementation, show the diff, run the verification, and explicitly confirm the commit.
 - **Targeted Mode** (`N`): Executes only the `N`th pending item.
 - **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until it reaches a recorded final point (all rungs dry, recorded in `.planwright/final.md`). Append `depth M` to plan at depth `M` (1–10) on every round, e.g. `/planwright cycle 3 depth 8`.
+- **Explore** (`cycle N explore`): Opt-in, cycle-only. By default a cycle stops as soon as it reaches the final point; with `explore`, reaching the final point instead **escalates** to one bounded sweep of the *cold frontier* — the code the default hot-core routing neglects (never-audited nodes and uncovered paths, via the graph's `ranked_cold` list). If the sweep finds grounded, above-bar work it does it and the cycle continues; if the frontier is also dry it records a stronger *explored* final point (hot core **and** cold frontier both dry) and stops. The grounding bar is never lowered — `explore` changes only *where* the survey looks. Valid with any non-zero N (including `-1`), since the sweep is self-terminating.
 
 ## Maintenance
 
