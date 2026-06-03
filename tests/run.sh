@@ -557,6 +557,39 @@ assert bg.lang_of("Widget.tsx", b"export const W = () => 1") == "js"
 PY
 then ok "EXT_LANG recognizes alternate C/C++ and JS/TS extensions"; else bad "EXT_LANG missing alternate extensions or changed a known one"; fi
 
+# --- Test 11d3: Rust source support (lang, defines, branch_count, mod/use edge) -
+# A .rs file must route as lang "rust" with extracted defines + branch_count and a
+# resolved mod/use import edge, so a Rust repo gets centrality routing + Stage 2b
+# function hints instead of degrading to the coupling-only fallback ("unknown").
+RSREPO="$TMP/rsrepo"
+mkdir -p "$RSREPO/src"
+git -C "$RSREPO" init -q
+rsgc() { git -C "$RSREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf 'mod util;\nuse crate::util::helper;\n\nfn main() {\n    if true { helper(); }\n}\n' > "$RSREPO/src/main.rs"
+printf 'pub fn helper() -> i32 {\n    for _ in 0..3 {}\n    1\n}\npub struct Thing;\n' > "$RSREPO/src/util.rs"
+git -C "$RSREPO" add -A; rsgc -m init
+rs_out="$TMP/rs_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$RSREPO" > "$rs_out" 2>/dev/null
+if python3 - "$rs_out" "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, json, sys
+g = json.load(open(sys.argv[1]))
+n = g["nodes"]
+spec = importlib.util.spec_from_file_location("bg", sys.argv[2])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+assert bg.lang_of("x.rs", b"") == "rust", "extension .rs must map to rust"
+# both files route as rust (not the coupling-fallback "unknown")
+assert n["src/main.rs"]["lang"] == "rust" and n["src/util.rs"]["lang"] == "rust", n
+# defines: the entry fn, the helper fn, and the struct type
+assert "main" in n["src/main.rs"]["defines"], n["src/main.rs"]["defines"]
+for want in ("helper", "Thing"):
+    assert want in n["src/util.rs"]["defines"], (want, n["src/util.rs"]["defines"])
+# branch_count picks up rust control flow (if in main, for in util)
+assert n["src/main.rs"]["branch_count"] > 0 and n["src/util.rs"]["branch_count"] > 0, n
+# `mod util;` / `use crate::util::helper` resolve to the sibling module file
+assert "src/util.rs" in n["src/main.rs"]["imports"], n["src/main.rs"]["imports"]
+PY
+then ok "build-graph.py routes Rust source (lang, defines, branch_count, mod/use edge)"; else bad "build-graph.py failed to route Rust source"; fi
+
 # --- Test 11e: coupling fallback ranks by churn-normalized weight, not raw co --
 # Two pairs with equal raw cooccur (3): a/b also churn alone (churn 5, weight
 # 0.6), c/d only co-change (churn 3, weight 1.0). A raw-cooccur ranking would

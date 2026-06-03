@@ -45,6 +45,9 @@ EXT_LANG = {
     # c/c++ family (planwright's primary target) — common alternate extensions.
     "c": "c", "h": "c", "cpp": "c", "hpp": "c",
     "cc": "c", "cxx": "c", "c++": "c", "hh": "c", "hxx": "c", "tpp": "c",
+    # rust — so a Rust repo gets centrality routing + Stage 2b function hints
+    # instead of degrading to the coupling-only fallback (lang "unknown").
+    "rs": "rust",
 }
 
 
@@ -80,6 +83,7 @@ BRANCH_KW = {
     "python": r"\b(?:if|elif|for|while|except)\b|\band\b|\bor\b",
     "js": r"\b(?:if|for|while|case|catch)\b|&&|\|\||\?",
     "c": r"\b(?:if|for|while|case|catch)\b|&&|\|\||\?",
+    "rust": r"\b(?:if|for|while|match|loop)\b|&&|\|\||\?",
 }
 
 
@@ -121,6 +125,17 @@ def iter_defines(lang, text):
         for m in re.finditer(r"(?m)^\s*[A-Za-z_][\w\s:\*&<>,~]*?\b([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:const\s*)?(?:noexcept\s*)?\{", text):
             if m.group(1) not in kw:
                 yield m.group(1), m.start()
+    elif lang == "rust":
+        # functions (incl. methods inside impl blocks, which are indented).
+        for m in re.finditer(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?(?:const\s+)?fn\s+([A-Za-z_]\w*)", text):
+            yield m.group(1), m.start()
+        # nominal types: struct / enum / trait / union.
+        for m in re.finditer(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait|union)\s+([A-Za-z_]\w*)", text):
+            yield m.group(1), m.start()
+        # impl blocks — capture the implementing type (the ident before the `{`),
+        # covering both `impl Foo {` and `impl Trait for Foo {`.
+        for m in re.finditer(r"(?m)^\s*impl\b[^\n{]*?\b([A-Za-z_]\w*)\s*(?:<[^>\n]*>)?\s*\{", text):
+            yield m.group(1), m.start()
 
 
 def defines_of(lang, text):
@@ -258,6 +273,27 @@ def resolve_js_import(target, from_path, fileset):
     return None
 
 
+def resolve_rust_import(target, from_path, fileset):
+    """Resolve a Rust `mod name;` or `use path::...;` target to a repo file.
+    `mod foo;` is a sibling `foo.rs` or `foo/mod.rs`; a `use` path is probed
+    best-effort against progressively shorter `::`-prefixes (a trailing item name
+    is not a file, so drop it and retry the module path). Crate-root markers are
+    skipped. Recall over precision, like the other language resolvers."""
+    parts = [p for p in target.split("::")
+             if p and p not in ("crate", "self", "super", "std", "core", "alloc")]
+    base = os.path.dirname(from_path)
+    while parts:
+        rel = "/".join(parts)
+        for stem_base in (base, ""):
+            stem = os.path.normpath(os.path.join(stem_base, rel)) if stem_base else rel
+            stem = stem.replace("\\", "/")
+            for cand in (stem + ".rs", stem + "/mod.rs"):
+                if cand in fileset:
+                    return cand
+        parts = parts[:-1]  # drop the trailing item; retry as a shorter module path
+    return None
+
+
 def imports_of(lang, text, from_path, fileset):
     raw = []
     if lang == "bash":
@@ -269,6 +305,9 @@ def imports_of(lang, text, from_path, fileset):
         raw += re.findall(r"""require\(\s*['"]([^'"]+)['"]\s*\)""", text)
     elif lang == "c":
         raw += re.findall(r'(?m)^\s*#\s*include\s+"([^"]+)"', text)
+    elif lang == "rust":
+        raw += re.findall(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_]\w*)\s*;", text)
+        raw += re.findall(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([A-Za-z_][\w:]*)", text)
     elif lang == "markdown":
         raw += re.findall(r"\[[^\]]*\]\(([^)]+)\)", text)
     out = []
@@ -280,6 +319,8 @@ def imports_of(lang, text, from_path, fileset):
             r = resolve_python_import(t, from_path, fileset)
         elif lang == "js":
             r = resolve_js_import(t, from_path, fileset)
+        elif lang == "rust":
+            r = resolve_rust_import(t, from_path, fileset)
         else:
             r = resolve(t, from_path, fileset, allow_basename)
         if r and r != from_path and r not in out:
