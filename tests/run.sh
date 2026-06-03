@@ -536,6 +536,23 @@ assert d["whole_graph"] is True and "build-config" in d["reason"] and "CMakeList
 PY
 then ok "whole-graph invalidation when a build-config file is deleted"; else bad "deleted build-config did not force whole-graph re-audit"; fi
 
+# --- Test 11k: lang_of shebang sniffing + resolve markdown anchor stripping --
+# Two best-effort routing branches untested on planwright's own tree (all files
+# have extensions and links carry no #anchor): extensionless files take their lang
+# from a shebang, and link targets get their #anchor/?query stripped before resolve.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+assert bg.lang_of("hook", b"#!/usr/bin/env bash\n") == "bash", "shebang bash"
+assert bg.lang_of("gen", b"#!/usr/bin/env python3\nx=1\n") == "python", "shebang python"
+assert bg.lang_of("notes", b"plain text\n") == "unknown", "no ext, no shebang"
+fs = {"a.md", "b.md"}
+assert bg.resolve("b.md#section", "a.md", fs) == "b.md", "anchor strip"
+assert bg.resolve("b.md?v=1", "a.md", fs) == "b.md", "query strip"
+PY
+then ok "lang_of shebang detection and resolve anchor/query stripping work"; else bad "shebang lang detection or link anchor stripping broke"; fi
+
 # --- Test 11j: build-graph.py is deterministic (same tree => same graph) -----
 # The builder's header calls it "deterministic" and incremental skipping trusts
 # that identical inputs yield identical sha256/ranking. built_at (date -u) is the
