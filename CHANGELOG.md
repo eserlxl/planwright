@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.18.0] - 2026-06-03
+
+### Changed
+- build-graph.py extracts C/C++ functions/classes/gtest groups + richer JS symbols, sharpening Stage 2b audit routing on its primary target language
+
 ## [1.17.2] - 2026-06-03
 
 ### Changed
