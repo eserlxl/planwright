@@ -78,6 +78,8 @@ CYCLE (automated plan → execute loops)
 /planwright cycle <N>            Plan then execute, repeated N times (1..100)
 /planwright cycle <-N>           Plan then execute until a recorded final point (unlimited, negative N)
 /planwright cycle <N> depth <M>  Run the cycle with planning depth M (1..10) every round
+/planwright cycle <N> explore    Opt-in: at the final point, escalate to a cold-frontier sweep
+                                 instead of stopping (any non-zero N; see Explore escalation)
 
 MAINTENANCE
 /planwright version              Show the current and latest available version
@@ -99,6 +101,7 @@ Plan options may be combined with an instruction, e.g.
 | `max <N>` | `20` | cap on pending unchecked items in the plan |
 | `no-compact` | off | skip Stage 0 housekeeping for this run |
 | `dry-run` | off | run everything but print the plan, write nothing |
+| `explore` | off | **cycle only**: at the final point, escalate to a cold-frontier sweep instead of stopping (see **Explore escalation**) |
 | `help` | — | print Usage and stop |
 
 Precedence: **inline option > built-in default.** There is no settings file; options are per-run only.
@@ -192,6 +195,40 @@ each is dry — and reports "final point reached". This is a *justified* termina
 empty-dirty-set idle. A later run re-opens the ladder only if the project changed (non-empty dirty
 set), the mission/charter changed, or the user raises ambition (an explicit instruction, or higher
 depth). Any planning round that writes ≥1 item deletes a stale `final.md`.
+
+## Explore escalation
+
+`explore` (the opt-in `cycle … explore` flag) is **not** a different planning mode and it **never
+lowers the grounding bar** — every item it yields still clears Stage 10 and the rung's value bar, cites
+a real surface, and carries a runnable verification. It changes only *where* the survey looks, and only
+*at the moment the normal ladder would declare a final point.*
+
+Default routing leads with the **hot core** (high-blast-radius `ranked_code`: PageRank + articulation ∩
+the dirty set). The blind spot is the **cold frontier** — code the audit has never reached and paths
+nothing exercises — so a survey that only ever looks at the hot core can declare "dry" while real,
+groundable work sits untouched in the periphery. `explore` closes that blind spot:
+
+- **Trigger (final point only).** While the change-gated rungs still produce work, an `explore` cycle
+  behaves exactly like a normal cycle. Only when a planning round *would* declare the final point (all
+  four rungs dry under hot-core routing) does `explore` **escalate** instead of stopping.
+- **One bounded cold-frontier sweep.** The escalation re-runs Stages 2–10 once with routing overridden
+  to the graph's **`ranked_cold`** list (the audit/coverage frontier: never-audited first, then
+  uncovered, then least-central — see `docs/graph-memory-schema.md`). Stage 2b reads `ranked_cold`
+  bodies; Stages 5–6 survey the cold clusters project-wide. Articulation points are still always
+  included.
+- **Outcome.** If the sweep finds grounded above-bar work, write those items — the ladder is live again
+  and the cycle continues normally (the next final point re-triggers a sweep). If the sweep is **also**
+  dry, record a *stronger* **explored final point**: write `final.md` as usual but note it was
+  `confirmed via explore sweep over the audit/coverage-cold frontier`. This is a two-tier fixpoint
+  (hot-core dry **∧** cold-frontier dry), a more honest "stable" than the one-survey stop.
+
+**Why this terminates (and is safe for any non-zero N, including unlimited `-1`).** The cold frontier is
+finite; each swept node is restamped (`last_audited_sha = HEAD`, Stage 11) so it leaves the frontier,
+and each candidate is either implemented (advancing state) or dropped/rejected (recorded, not
+re-proposed). The frontier therefore drains monotonically — the same convergence guard as the ladder —
+so the escalation is one bounded pass that always ends in a recorded final point. The value bar is
+**unchanged**: a cold, uncovered branch is not automatically worth a test, so `explore` surfaces
+*candidates*, it does not pad. `explore` is a no-op outside the cycle path.
 
 ## Inputs
 
@@ -361,7 +398,10 @@ When the
 graph used the **coupling fallback** (degenerate import graph, see Stage 1.5 step 6), `ranked` is
 already coupling-ordered — walk it the same way; centrality and coupling feed the same `ranked` list.
 If `graph.json` is absent or graph-aware routing was skipped this run, **fall back** to the original rule:
-the top-N most complex functions by line count or branching. For each selected function, trace every non-trivial path: look for silent
+the top-N most complex functions by line count or branching. **During an `explore` cold-frontier sweep**
+(see **Explore escalation**), route Stage 2b by the graph's **`ranked_cold`** list instead of
+`ranked_code` — same walk, but it leads with the audit/coverage frontier (never-audited, then uncovered,
+then least-central) so the sweep reads exactly the code the hot-core pass skipped. For each selected function, trace every non-trivial path: look for silent
 failures (error return ignored, wrong default returned, exit 0 on bad state), unchecked preconditions,
 and off-by-one or boundary errors. Findings must cite file:line, the specific path, and the defect.
 
@@ -680,8 +720,13 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
    and STOP.
 2. **Clean working tree** — run `git status --porcelain`. If it reports anything (excluding
    `.planwright/`), STOP and report the dirty paths. Do not mix uncommitted work with per-item commits.
-3. **Announce** — print the current branch (`git branch --show-current`), the cycle mode
-   (`N cycles` or `unlimited`), and the planning depth (`depth <M>`, default 6) before starting any work.
+3. **Resolve `explore`** — `explore` is opt-in and **cycle-only**. It is valid with **any** non-zero N
+   (positive or unlimited `-1`): the escalation is one bounded, self-terminating cold-frontier sweep
+   (see **Explore escalation**), so it needs no extra N restriction. (Outside the cycle path — plain
+   plan, `execute`, `version` — `explore` is ignored.)
+4. **Announce** — print the current branch (`git branch --show-current`), the cycle mode
+   (`N cycles` or `unlimited`), the planning depth (`depth <M>`, default 6), and whether `explore` is on
+   before starting any work.
 
 ## Per-cycle loop (repeat up to N times, or indefinitely when N < 0)
 
@@ -696,10 +741,18 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
 3. **Check for work** — Stage 11 writing **0 new items** with **0 pending items** is **not** by itself
    a stop: it only means the change-gated rungs are dry. The planning round must have climbed the
    **maturity ladder** (surveyed the opportunity and vision rungs project-wide; see **Maturity ladder &
-   the final point**) before idling. Stop early **only when the planning round declared the final
-   point** — i.e. it wrote `.planwright/final.md` because all four rungs were dry. Then print
-   `Cycle i/N: final point reached — <one-line why>.` and STOP. If items are pending or were written,
-   proceed to Execute as normal.
+   the final point**) before idling.
+   - **Without `explore`** (default): stop early **only when the planning round declared the final
+     point** — i.e. it wrote `.planwright/final.md` because all four rungs were dry. Then print
+     `Cycle i/N: final point reached — <one-line why>.` and STOP.
+   - **With `explore`**: when the round *would* declare the final point, **escalate** instead of
+     stopping — run one **cold-frontier sweep** (re-run Stages 2–10 routed by the graph's `ranked_cold`
+     list; see **Explore escalation**). If the sweep writes ≥1 item, delete the stale `final.md` and
+     proceed to Execute as normal (the ladder is live again). If the sweep is **also** dry, write the
+     **explored final point** (`final.md` noting `confirmed via explore sweep`), print
+     `Cycle i/N: explored final point reached — hot core and cold frontier both dry.` and STOP.
+
+   If items are pending or were written, proceed to Execute as normal.
 4. **Execute** — run the full per-item execute loop over every pending item (same as
    `/planwright execute` auto mode). Collect per-cycle stats: items completed, items rejected.
 5. **Broad final verification** — run the project's full build + test suite (not just per-item
@@ -714,8 +767,9 @@ Print a cumulative summary:
 - Total cycles completed (out of N requested, or `∞` for unlimited mode)
 - Total items implemented (with all commit short-SHAs)
 - Total items rejected (titles + one-line reasons)
-- Stop reason if stopped before N: `hard blocker`, `broad-verify failed`, or `final point reached`
-  (all four maturity rungs dry — see `.planwright/final.md`)
+- Stop reason if stopped before N: `hard blocker`, `broad-verify failed`, `final point reached`
+  (all four maturity rungs dry — see `.planwright/final.md`), or — under `explore` — `explored final
+  point reached` (the hot core and the cold frontier are both dry)
 
 ## Stop conditions
 
@@ -725,7 +779,9 @@ Stop and do **not** start the next cycle on any of:
 - A **failing broad final verification** after execute.
 - **Final point**: the planning round declared all four maturity rungs dry and wrote
   `.planwright/final.md` (step 3 above). An empty dirty set / empty backlog alone is **not** a stop —
-  the maturity-gated rungs must have been surveyed and come up empty first.
+  the maturity-gated rungs must have been surveyed and come up empty first. **Under `explore`**, the
+  hot-core final point is **not** a stop on its own — it first escalates to a cold-frontier sweep, and
+  the run stops only at the **explored final point** (hot core *and* cold frontier both dry).
 
 Individual item rejections are **not** a stop condition — the cycle continues and the next planning
 round's audit will learn from the rejection reasons in `rejected.md`.
