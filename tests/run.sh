@@ -267,6 +267,44 @@ sys.exit(1 if missing else 0)
 PY
 then ok "SKILL.md structural lint passes (stages, sections, item fields present)"; else bad "SKILL.md structural lint failed (missing stage/section/field)"; fi
 
+# --- Test 10b: bundled scripts are invoked via the skill base dir, not cwd ---
+# Regression guard for v1.21.1: SKILL.md must not invoke a bundled script as a
+# bare `python3 scripts/<name>.py` command — for an installed user the cwd is
+# the target repo, which has no planwright scripts/ dir, so a bare path fails.
+# The required form is the base-dir-relative `<scripts>/<name>.py`. (The prose
+# file-name mention of `scripts/lint-plan.py` is not a command and must not trip
+# this — the pattern below matches only `python3[ ]scripts/...` invocations.)
+if grep -nE 'python3[[:space:]]+scripts/(build-graph|lint-plan)\.py' "$ROOT/skills/planwright/SKILL.md" >/dev/null 2>&1; then
+  bad "SKILL.md invokes a bundled script via a bare scripts/ path (use <scripts>/ from the skill base dir)"
+else
+  ok "SKILL.md invokes bundled scripts via the skill base dir, not a bare scripts/ path"
+fi
+
+# (b) the bundled scripts themselves are cwd-independent: invoked by absolute
+# path with --root from a foreign cwd (NOT the repo root), they still succeed.
+# lint-plan checks Surfaces existence against --root, so README.md resolves to
+# the repo even though cwd is elsewhere — proving the path handling is correct.
+FOREIGN="$TMP/foreign_cwd"
+mkdir -p "$FOREIGN"
+cat > "$FOREIGN/mini_plan.md" <<'PLAN'
+# planwright Plan — .
+- [ ] Foreign-cwd probe item
+      Mode: docs
+      Rationale: exercise lint-plan from a non-repo cwd.
+      Evidence: README.md exists in the repo root.
+      Surfaces: README.md
+      Development: no-op probe of the README.md surface.
+      Acceptance: lint passes; nothing changes.
+      Verification: true
+PLAN
+if ( cd "$FOREIGN" \
+     && python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" >/dev/null 2>&1 \
+     && python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$FOREIGN/mini_plan.md" --quiet ); then
+  ok "bundled scripts run from a foreign cwd via absolute path + --root"
+else
+  bad "bundled scripts failed when invoked from a cwd other than the repo root"
+fi
+
 # --- Test 11: scripts/build-graph.py builds a schema-conforming graph -------
 gj_file="$TMP/build_graph_out.json"
 python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" > "$gj_file" 2>/dev/null
