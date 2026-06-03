@@ -10,12 +10,12 @@ description: >
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
   "propose plan items", "execute the plan", "implement the plan", "cycle", "dogfood", or mentions
   .planwright/plan.md. Run `/planwright help` for usage and options.
-  Supports: execute [--interactive] [N], cycle <N>, update, version, upgrade, depth <N>, propose <N>, max <N>, no-compact, dry-run, help.
-argument-hint: "[instruction] | execute [N] | cycle <N> [depth <M>] | depth <N> | version | upgrade | help"
+  Supports: execute [--interactive] [N], cycle <N>, explore, update, version, upgrade, depth <N>, propose <N>, max <N>, no-compact, dry-run, help.
+argument-hint: "[instruction] | execute [N] | cycle <N> [depth <M>] [explore] | depth <N> | version | upgrade | help"
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.24.2"
+  version: "1.25.0"
 ---
 
 # planwright

@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.25.0] - 2026-06-03
+
+### Changed
+- Add opt-in `explore` flag: at the final point, a cycle escalates to a bounded cold-frontier sweep (via the new `ranked_cold` graph signal) instead of stopping, recording a stronger 'explored' final point when the frontier is also dry; composes with `depth`. Recognize Rust and Go source (lang/defines/branch, Rust mod/use imports). Reject placeholder Verification values in lint-plan.py.
+
 ## [1.24.2] - 2026-06-03
 
 ### Changed
