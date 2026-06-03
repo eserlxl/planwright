@@ -1094,6 +1094,41 @@ if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$DONE_PLAN" --all
 # An absent plan file is not an error (nothing to lint).
 if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$TMP/nope.md" --quiet; then ok "lint-plan.py treats an absent plan as clean"; else bad "lint-plan.py errored on an absent plan file"; fi
 
+# --- Test 12c: lint-plan.py rejects a placeholder Verification value ---------
+# Verification must be a runnable command; a bare "TODO"/"manual"/"n/a" passes the
+# non-empty check but is unverifiable, so lint-plan flags it before execute wastes a
+# cycle. A real command that merely contains such a word must NOT be flagged.
+PH_PLAN="$TMP/placeholder_plan.md"
+cat > "$PH_PLAN" <<'EOF'
+# planwright Plan — .
+
+- [ ] Item with a placeholder verification
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: TODO
+EOF
+ph_rc=0
+ph_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PH_PLAN" 2>&1)" || ph_rc=$?
+if [ "$ph_rc" -ne 0 ] && printf '%s' "$ph_out" | grep -qF "is a placeholder"; then ok "lint-plan.py rejects a placeholder Verification (TODO)"; else bad "lint-plan.py accepted a placeholder Verification"; fi
+PH_OK="$TMP/placeholder_ok_plan.md"
+cat > "$PH_OK" <<'EOF'
+# planwright Plan — .
+
+- [ ] Item with a real verification that mentions manual
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: manual smoke test then bash tests/run.sh
+EOF
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PH_OK" --quiet; then ok "lint-plan.py allows a real command that contains a placeholder word"; else bad "lint-plan.py false-flagged a real Verification command"; fi
+
 # Convergence guards: a repeated pending title and a Surfaces/New-Surfaces overlap
 # are always violations (hard fail). The lifecycle dir holds the advisory sources.
 LDIR="$TMP/lintdir"

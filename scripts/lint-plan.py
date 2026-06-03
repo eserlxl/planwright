@@ -18,7 +18,8 @@
 #     no path appears in both Surfaces and New Surfaces; no Surface is under the
 #     tool-owned .planwright/ tree;
 #   * a CMakeLists surface is spelled with its .txt extension;
-#   * Verification is present and non-empty;
+#   * Verification is present, non-empty, and not a bare placeholder
+#     (TODO / tbd / manual / n-a / ... — never a runnable command);
 #   * no two pending items share a title (the maturity ladder's monotonic-drain
 #     guard). As a non-failing advisory it also notes pending titles that match a
 #     completed.md / rejected.md item, for Claude to confirm a regression or a
@@ -44,6 +45,14 @@ KNOWN_FIELDS = set(REQUIRED_FIELDS) | {"New Surfaces", "Status", "Rejection"}
 # Graph-memory artifacts Stage 10 bars from Evidence (routing only, never proof).
 GRAPH_MEMORY = (".planwright/graph.json", ".planwright/digest.md",
                 "graph.json", "digest.md")
+# Bare Verification values that are never a runnable command. Matched as the WHOLE
+# normalized value (lowercased, de-ticked, trailing period dropped) so a real command
+# that merely contains one of these words ("manual smoke test then bash tests/run.sh")
+# is never flagged — the mission requires an exact verification command per item.
+PLACEHOLDER_VERIFICATION = {
+    "todo", "tbd", "n/a", "na", "none", "manual", "manually",
+    "pending", "fixme", "xxx", "?", "...", "tba",
+}
 
 
 def parse_items(text):
@@ -111,6 +120,14 @@ def lint_item(item, root):
     if mode == "repair" and ev and not re.search(r"(?::\d+|\blines?\s+\d+)", ev, re.IGNORECASE):
         v.append("repair Evidence lacks a file:line anchor "
                  "(Stage 10: cite the wrong call site, not just structural absence)")
+
+    # Verification must be a runnable command, not a bare placeholder. The
+    # REQUIRED_FIELDS loop already rejects an empty value; this rejects the
+    # equally-unverifiable "TODO"/"manual"/"n/a" class before execute wastes a
+    # cycle discovering the item cannot be verified.
+    verif = f.get("Verification", "")
+    if verif and verif.strip().strip("`").strip().rstrip(".").lower() in PLACEHOLDER_VERIFICATION:
+        v.append(f"Verification '{verif}' is a placeholder, not a runnable command")
 
     surfaces = split_paths(f.get("Surfaces", ""))
     new_surfaces = split_paths(f.get("New Surfaces", ""))
