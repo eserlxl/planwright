@@ -13,6 +13,7 @@
 #
 # --prior, when given, preserves each surviving node's last_audited_sha.
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -497,6 +498,44 @@ def commits_since(prior_sha, head, root):
     return int(out) if out.isdigit() else None
 
 
+def blast_adjacency(files, undirected, coupling_edges):
+    """Combined 1-hop adjacency map: undirected import edges plus change-coupling
+    edges. Shared by the dirty-set blast radius (compute_dirty) and component
+    scoping (Context = Focus + its 1-hop neighbours), so both walk identical edges."""
+    adj = {f: set(undirected.get(f, [])) for f in files}
+    for e in coupling_edges:
+        a, b = e["a"], e["b"]
+        if a in adj and b in adj:
+            adj[a].add(b)
+            adj[b].add(a)
+    return adj
+
+
+def one_hop_closure(seed, adj, files):
+    """The seed set plus its 1-hop neighbours along adj, restricted to files and
+    returned sorted. The blast-radius primitive behind both the dirty set and
+    Context scoping."""
+    out = set(seed)
+    for f in seed:
+        out.update(adj.get(f, ()))
+    return sorted(out & set(files))
+
+
+def resolve_scope(spec, files):
+    """Resolve a --scope pathspec to a Focus set of repo-relative files: a file is
+    in Focus when it equals the spec, lives under it (directory prefix), or matches
+    it as a glob (docs/scope-design.md, `path <X>`). Best-effort and precision-leaning
+    like the rest of the builder; an empty result is a real no-match the SKILL.md
+    Stage 1 layer turns into a user-facing error."""
+    spec = spec.replace("\\", "/").strip().rstrip("/")
+    if not spec:
+        return []
+    pref = spec + "/"
+    focus = {f for f in files
+             if f == spec or f.startswith(pref) or fnmatch.fnmatch(f, spec)}
+    return sorted(focus)
+
+
 def compute_dirty(files, nodes, prior, prior_graph, head, undirected, coupling_edges, clusters, root):
     """Deterministic Stage 1.5 step 7 dirty set. Returns the `dirty` block:
     which nodes changed since the prior graph, their 1-hop blast radius along
@@ -536,17 +575,9 @@ def compute_dirty(files, nodes, prior, prior_graph, head, undirected, coupling_e
     if whole_graph:
         dirty_nodes = all_files
     else:
-        # 1-hop blast radius along import + coupling adjacency.
-        adj = {f: set(undirected.get(f, [])) for f in files}
-        for e in coupling_edges:
-            a, b = e["a"], e["b"]
-            if a in adj and b in adj:
-                adj[a].add(b)
-                adj[b].add(a)
-        ds = set(changed)
-        for f in changed:
-            ds.update(adj.get(f, ()))
-        dirty_nodes = sorted(ds & set(files))
+        # 1-hop blast radius along import + coupling adjacency (shared with scoping).
+        adj = blast_adjacency(files, undirected, coupling_edges)
+        dirty_nodes = one_hop_closure(changed, adj, files)
 
     touched = sorted({c["id"] for c in clusters if set(c["members"]) & set(dirty_nodes)})
     return {
@@ -555,7 +586,7 @@ def compute_dirty(files, nodes, prior, prior_graph, head, undirected, coupling_e
     }
 
 
-def build(root, prior_path):
+def build(root, prior_path, scope=None):
     head = sh(["git", "rev-parse", "HEAD"], root).strip()
     files = [f for f in sh(["git", "ls-files"], root).split("\n") if f]
     fileset = set(files)
@@ -714,7 +745,7 @@ def build(root, prior_path):
     dirty = compute_dirty(files, nodes, prior, prior_graph, head, undirected,
                           coupling_edges, clusters, root)
 
-    return {
+    graph = {
         "version": 1,
         "graph_built_at_sha": head,
         "built_at": sh(["date", "-u", "+%Y-%m-%dT%H:%M:%SZ"], root).strip(),
@@ -735,15 +766,30 @@ def build(root, prior_path):
         "dirty": dirty,
     }
 
+    # Component scoping (docs/scope-design.md) — emitted ONLY under --scope, so a
+    # default whole-repo build stays byte-for-byte identical to before. Focus = the
+    # scoped files; Context = Focus + its 1-hop import+coupling blast radius (the same
+    # walk compute_dirty uses), so a scoped run keeps root cause and impact visible
+    # instead of walling them off.
+    if scope is not None:
+        focus = resolve_scope(scope, files)
+        adj = blast_adjacency(files, undirected, coupling_edges)
+        graph["focus"] = focus
+        graph["context"] = one_hop_closure(focus, adj, files)
+
+    return graph
+
 
 def main():
     ap = argparse.ArgumentParser(description="Build planwright Stage 1.5 graph.json (prints to stdout).")
     ap.add_argument("--root", default=".", help="repo root (default: cwd)")
     ap.add_argument("--prior", default=None, help="prior graph.json to preserve last_audited_sha from")
+    ap.add_argument("--scope", default=None,
+                    help="restrict to a path/dir/glob; emits focus + context (Focus + 1-hop blast radius) node lists")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:
-        graph = build(root, args.prior)
+        graph = build(root, args.prior, args.scope)
     except subprocess.CalledProcessError as e:
         sys.stderr.write(f"build-graph: git command failed ({e})\n")
         return 2

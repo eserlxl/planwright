@@ -498,6 +498,54 @@ assert rc.index("b.sh") < rc.index("a.sh"), rc
 PY
 then ok "ranked_cold's never-audited primary key outranks an audited node (covered key tied)"; else bad "ranked_cold ignored the never-audited primary key"; fi
 
+# --- Test 11c2d: --scope emits focus + context (Focus + 1-hop blast radius) ----
+# Component scoping (docs/scope-design.md): --scope picks a Focus set; Context is
+# Focus + its 1-hop import/coupling blast radius, so an upstream dependency of a
+# scoped file is pulled into Context (root cause stays visible) without entering
+# Focus (where items land). Fixture: api -> auth -> crypto; scope to src/.
+SCREPO="$TMP/scoperepo"
+mkdir -p "$SCREPO/src" "$SCREPO/lib"
+git -C "$SCREPO" init -q
+printf '#!/usr/bin/env bash\nsource ../lib/crypto.sh\nauth() { if true; then echo a; fi; }\n' > "$SCREPO/src/auth.sh"
+printf '#!/usr/bin/env bash\nsource auth.sh\napi() { if true; then echo p; fi; }\n' > "$SCREPO/src/api.sh"
+printf '#!/usr/bin/env bash\ncrypto() { if true; then echo c; fi; }\n' > "$SCREPO/lib/crypto.sh"
+git -C "$SCREPO" add -A
+git -C "$SCREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+sc_out="$TMP/scope_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SCREPO" --scope src/ > "$sc_out" 2>/dev/null
+if python3 - "$sc_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+focus, context = g["focus"], g["context"]
+# Focus = exactly the scoped subtree
+assert focus == ["src/api.sh", "src/auth.sh"], focus
+# Context = Focus + 1-hop blast radius => pulls in the upstream lib/crypto.sh
+assert "lib/crypto.sh" in context, context
+# the upstream dep is Context-only, never Focus (items don't land there)
+assert "lib/crypto.sh" not in focus, focus
+# Focus is always a subset of Context
+assert set(focus) <= set(context), (focus, context)
+PY
+then ok "--scope emits Focus + Context (Context pulls in the 1-hop upstream dep)"; else bad "--scope focus/context blast radius wrong"; fi
+
+# --- Test 11c2e: --scope invariants (no-match empty; keys absent without --scope)
+# A no-match pathspec yields an empty Focus (SKILL.md Stage 1 turns that into the
+# user-facing error); and a default whole-repo build omits both keys entirely, so
+# scoping never perturbs an unscoped graph.
+sc_none="$TMP/scope_none.json"; sc_un="$TMP/scope_un.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SCREPO" --scope does/not/exist > "$sc_none" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$SCREPO" > "$sc_un" 2>/dev/null
+if python3 - "$sc_none" "$sc_un" <<'PY' 2>/dev/null
+import json, sys
+none = json.load(open(sys.argv[1]))
+un = json.load(open(sys.argv[2]))
+# no-match => empty Focus and Context (a real no-match, not a whole-repo fallback)
+assert none["focus"] == [] and none["context"] == [], (none["focus"], none["context"])
+# without --scope the keys are absent entirely (byte-for-byte unchanged contract)
+assert "focus" not in un and "context" not in un, list(un.keys())
+PY
+then ok "--scope no-match is empty Focus; unscoped build omits focus/context"; else bad "--scope invariants violated"; fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.

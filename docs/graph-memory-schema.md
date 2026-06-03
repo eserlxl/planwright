@@ -73,7 +73,9 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
     "changed": ["fileX"],                     // nodes whose sha256 != prior sha256
     "nodes": ["fileX", "fileY"],              // dirty set: changed + 1-hop blast radius
     "clusters": [0, 2]                        // cluster ids the dirty set touches
-  }
+  },
+  "focus":   ["src/auth/a.py"],              // OPT (--scope only): the scoped files — where plan items land
+  "context": ["src/auth/a.py", "src/crypto/b.py"]  // OPT (--scope only): Focus + 1-hop blast radius — what the audit reads
 }
 ```
 
@@ -123,6 +125,12 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   sha is unreachable. With no `--prior`, `is_first_run` is `true` and the whole tree is dirty. Stages
   3–7 consume this block directly instead of re-deriving the dirty set by hand; it routes attention
   and is **never** cited as Evidence.
+- **`focus`** / **`context`** are emitted **only** under `--scope <path|dir|glob>` (component scoping,
+  docs/scope-design.md) — a default whole-repo build omits both keys and is byte-for-byte unchanged.
+  `focus` is the scoped files (where plan items are proposed and land); `context` is `focus` plus its
+  **1-hop blast radius** along the same import + coupling edges the dirty set uses (what the audit reads
+  for grounding, root cause, and impact). Like every other graph field they route attention only and are
+  never cited as Evidence.
 - **`ranking_signal`** records which signal drove the `ranked` list: `centrality` (PageRank over the
   import graph) normally, or `coupling` when the import graph is degenerate (too few edges, or PageRank
   barely discriminates — common in docs/scripts repos), in which case nodes rank by **weighted
