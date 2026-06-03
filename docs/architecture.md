@@ -74,6 +74,37 @@ graph. A derived, additive `ranked_code` view is deterministic, schema-additive,
 `sort_key`/`ranked`) plus a one-line schema addition in `docs/graph-memory-schema.md`; **not**
 implemented in this note.
 
+#### Design note — test→source coverage routing (deferred) <!-- 2026-06-03 -->
+
+**Problem.** The coverage rung (Stage 2a "missing focused tests") is routed almost entirely by Claude's
+judgement: it reads PROJECT TEST TARGETS and decides which source files lack a covering test. The graph
+carries no signal for *which source node a test reaches*, even though the information is already in it —
+a gtest file `#include`s the header under test, a JS spec `import`s its module, so those edges exist in
+the import graph; co-changing test/source pairs show up as `coupling_edges`. Nothing surfaces "this
+code node has no test reaching it" as a routing hint, so the lowest rung that *should* drain
+mechanically still leans on per-run judgement.
+
+**Decision (for a later implementation item).** Classify each node as *test* vs *non-test* by a path
+heuristic (`tests?/` dir, `_test`/`.test`/`.spec`/`Test` stem, gtest `TEST*` groups already in
+`defines`), then emit an additive, **routing-only** per-node `covered_by_test: bool` = "some
+test-classified node reaches this code node via an import **or** a strong coupling edge". The Stage 2a
+coverage lens reads a `false` value as a *candidate* "missing focused tests" finding to investigate —
+**never** as proof: Stage 10 still requires the written item to name the specific absent test, exactly
+as today. Keep `ranked`/`ranked_code`/`pagerank` untouched; this is one more best-effort field beside
+`imports`/`defines`.
+
+**Why this over the alternatives.** Reuse the edges the graph already computes rather than parse
+coverage reports (tool-specific, out of scope per MISSION non-goals) or shell out to a coverage runner
+(planning is read-only). Making it explicitly recall-over-precision and routing-only matches the
+`imports` contract: a wrong classification only fails to route, it can never manufacture a false
+finding — the one failure mode a "don't miss things" planner can tolerate, and the false-confidence
+trap ("file X is tested") it must avoid. **Caveat the implementation must respect:** exec-based
+harnesses (planwright's own `tests/run.sh` *runs* the scripts rather than importing them) have no
+import edge, so coverage there must fall back to coupling, and absence must stay a hint, not a verdict.
+**Deferred implementation seam:** `build()` node loop + a classifier helper in
+`scripts/build-graph.py`, a `covered_by_test` line in `docs/graph-memory-schema.md`, and a Stage 2a
+note in SKILL.md; **not** implemented in this note.
+
 ### Stage 2: Audit
 Derives audit findings such as oversized modules, missing tests, risky refactors, and correctness gaps. Each finding must point to concrete file paths or implementation signals.
 
