@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.27.1] - 2026-06-03
+
+### Changed
+- README: describe explore's full cold-frontier → expand escalation (the intro bullet still described the pre-v1.27.0 single-sweep model).
+
 ## [1.27.0] - 2026-06-03
 
 ### Changed
