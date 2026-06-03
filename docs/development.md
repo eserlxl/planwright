@@ -16,7 +16,7 @@ When modifying the plugin, the standard workflow is:
 4. Commit the version bump.
 5. Update the plugin locally to test:
    ```bash
-   /plugin marketplace update planwright
+   /plugin marketplace update eserlxl
    ```
 
 If you deliberately want to bump alongside uncommitted edits (collapsing steps 1–4 into a

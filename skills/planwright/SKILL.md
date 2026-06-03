@@ -735,8 +735,8 @@ This path does **not** plan or edit your project; it only refreshes planwright.
 ## Procedure
 
 1. **Locate the marketplace source.** Read `~/.claude/plugins/known_marketplaces.json` and find the
-   `planwright` entry. Note its `source` (a `github` repo, or a local `directory`/`git` path) and the
-   installed version from `~/.claude/plugins/installed_plugins.json` (`planwright@planwright`).
+   `eserlxl` entry. Note its `source` (a `github` repo, or a local `directory`/`git` path) and the
+   installed version from `~/.claude/plugins/installed_plugins.json` (`planwright@eserlxl`).
 2. **Refresh the source when it is a local git clone.** If the source is a `directory`/`git` path that
    is a git repo, run `git -C <path> pull --ff-only` to fetch the latest. If that tree is dirty or the
    pull is not fast-forward, STOP and report — do not force it. For a `github` source, skip this step
@@ -745,8 +745,8 @@ This path does **not** plan or edit your project; it only refreshes planwright.
    `.claude-plugin/plugin.json`. If they already match, say "already up to date" and skip step 4.
 4. **Hand off the two interactive steps.** The skill cannot run `/plugin` or `/reload-plugins` itself
    (they are user UI commands). Tell the user to run, in order:
-   - `/plugin marketplace update planwright`
-   - `/plugin install planwright@planwright` (only if the version did not advance after the update)
+   - `/plugin marketplace update eserlxl`
+   - `/plugin install planwright@eserlxl` (only if the version did not advance after the update)
    - `/reload-plugins`
 5. **Confirm.** After the user reloads, the new version is active; suggest `/planwright help` to verify.
 
@@ -759,7 +759,7 @@ Reached via `/planwright version` (or `--version`, `-V`). Read-only — it neith
 ## Procedure
 
 1. **Current** — the installed/running version: read `~/.claude/plugins/installed_plugins.json`
-   (`planwright@planwright`). If that is unavailable (e.g. running from `~/.claude/skills/` without the
+   (`planwright@eserlxl`). If that is unavailable (e.g. running from `~/.claude/skills/` without the
    plugin), fall back to this file's frontmatter `metadata.version`.
 2. **Latest** — read the `version` from the marketplace source's `.claude-plugin/plugin.json` (resolve
    the source path from `~/.claude/plugins/known_marketplaces.json`). For a `github` source whose clone

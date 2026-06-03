@@ -75,15 +75,15 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 in its header.
 
 `upgrade` (or `update`) neither plans nor edits your project — it refreshes the planwright plugin. It locates the
-`planwright` marketplace source, fast-forwards it if it is a local git clone, reports the installed
+`eserlxl` marketplace source, fast-forwards it if it is a local git clone, reports the installed
 version versus the latest, then hands you the interactive steps it cannot run itself:
 
 ```bash
-/plugin marketplace update planwright
+/plugin marketplace update eserlxl
 /reload-plugins
 ```
 
-(Run `/plugin install planwright@planwright` between those two only if the version did not advance.)
+(Run `/plugin install planwright@eserlxl` between those two only if the version did not advance.)
 
 ## Graph Memory (audit routing)
 

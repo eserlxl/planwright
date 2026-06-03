@@ -43,14 +43,14 @@ For deep dives into how `planwright` operates, refer to the documentation:
 
 ```bash
 /plugin marketplace add eserlxl/planwright
-/plugin install planwright@planwright
+/plugin install planwright@eserlxl
 ```
 
 Or add a local clone as a marketplace:
 
 ```bash
 /plugin marketplace add <PLANWRIGHT_FOLDER>
-/plugin install planwright@planwright
+/plugin install planwright@eserlxl
 ```
 
 To use it without the plugin system, copy `skills/planwright/` into `~/.claude/skills/`.
