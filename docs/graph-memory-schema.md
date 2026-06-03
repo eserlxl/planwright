@@ -57,7 +57,15 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   "clusters": [
     { "id": 0, "label": "skill-core", "members": ["skills/planwright/SKILL.md"] }
   ],
-  "ranked": ["fileA", "fileB", "..."]        // nodes by descending audit priority
+  "ranked": ["fileA", "fileB", "..."],       // nodes by descending audit priority
+  "dirty": {                                  // Phase 2 dirty set (computed vs --prior)
+    "is_first_run": false,                    // true when no prior graph existed
+    "whole_graph": false,                     // true => re-audit every node
+    "reason": "incremental",                  // "first-run" | "incremental" | "build-config changed: <f>" | "HEAD diverged …"
+    "changed": ["fileX"],                     // nodes whose sha256 != prior sha256
+    "nodes": ["fileX", "fileY"],              // dirty set: changed + 1-hop blast radius
+    "clusters": [0, 2]                        // cluster ids the dirty set touches
+  }
 }
 ```
 
@@ -75,6 +83,14 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
 - **`is_articulation`** marks cut vertices of the import graph: a defect there has wide
   blast radius, so Stage 2b auto-promotes them regardless of depth.
 - **`last_audited_sha`** stays `null` until a node is first deep-audited (then Stage 11 stamps it).
+- **`dirty`** is the deterministic Phase 2 dirty set, computed by the builder when `--prior` is
+  given (the prior `graph.json`). `changed` = nodes whose `sha256` differs from the prior; `nodes` =
+  `changed` plus their 1-hop blast radius along import + coupling edges; `clusters` = the cluster ids
+  that set touches. `whole_graph` is set (and `nodes` = every node) when a build-config/lockfile file
+  changed, HEAD diverged from the prior `graph_built_at_sha` beyond `coupling_window_commits`, or that
+  sha is unreachable. With no `--prior`, `is_first_run` is `true` and the whole tree is dirty. Stages
+  3–7 consume this block directly instead of re-deriving the dirty set by hand; it routes attention
+  and is **never** cited as Evidence.
 - **`ranking_signal`** records which signal drove the `ranked` list: `centrality` (PageRank over the
   import graph) normally, or `coupling` when the import graph is degenerate (too few edges, or PageRank
   barely discriminates — common in docs/scripts repos), in which case nodes rank by **weighted
@@ -103,17 +119,21 @@ raw output never enters context.
 4. **Compute metrics** on the import graph: PageRank (centrality) and articulation points.
 5. **Cluster** via connected components / community detection; assign a short label.
 6. **Rank** nodes: primary by `pagerank`, boosted if `is_articulation`, tiebreak `git_churn`.
-7. **Write** `graph.json` (native Write — sandbox FS is discarded). **Surface** only the
+7. **Compute the dirty set** (when a `--prior` graph is given): emit the `dirty` block — changed
+   nodes, their 1-hop blast radius, touched clusters, and any whole-graph trigger. The builder owns
+   this so it is deterministic and test-covered rather than hand-computed each run.
+8. **Write** `graph.json` (native Write — sandbox FS is discarded). **Surface** only the
    top `ranked_surface_limit` nodes as a compact list into context.
 
 ## Phase 2 — incremental invalidation
 
-The full Phase 2 loop is wired into the pipeline: Stage 1.5 step 7 computes the dirty
-set, Stages 3–7 restrict scope to it, and Stage 11 restamps `last_audited_sha` and
-refreshes `digest.md`.
+The full Phase 2 loop is wired into the pipeline: `build-graph.py` step 7 computes the dirty
+set into `graph.json`'s `dirty` block, Stages 3–7 restrict scope to it, and Stage 11 restamps
+`last_audited_sha` and refreshes `digest.md`.
 
 - **Dirty set** = nodes whose current `sha256` ≠ recorded `sha256`, **plus their 1-hop
-  blast radius** along import + coupling edges. *(Stage 1.5 step 7)*
+  blast radius** along import + coupling edges — emitted as the `dirty` block by the builder.
+  *(build-graph.py step 7)*
 - Stages 3–7 spin up lenses only for clusters intersecting the dirty set; unchanged
   clusters carry forward their prior dossier findings. *(Stages 3–7 "Incremental scope")*
 - **First run / unavailable graph** = no baseline ⇒ every node is dirty, full tree audited.

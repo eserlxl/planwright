@@ -24,6 +24,18 @@ COUPLING_WINDOW_COMMITS = 200
 COUPLING_MIN_COOCCURRENCE = 3
 RANKED_SURFACE_LIMIT = 20
 
+# Basenames whose change forces a whole-graph re-audit: build/lockfile edits can
+# alter how every other file compiles, links, or resolves, so a localized dirty
+# set would under-audit. Matched case-insensitively (SKILL.md Stage 1.5 step 7,
+# "Whole-graph invalidation").
+BUILD_CONFIG_BASENAMES = {
+    "cmakelists.txt", "makefile", "package.json", "package-lock.json",
+    "yarn.lock", "pnpm-lock.yaml", "cargo.toml", "cargo.lock", "go.mod",
+    "go.sum", "pyproject.toml", "poetry.lock", "pipfile", "pipfile.lock",
+    "requirements.txt", "gemfile", "gemfile.lock", "composer.json",
+    "composer.lock", "build.gradle", "pom.xml", "meson.build",
+}
+
 EXT_LANG = {
     "sh": "bash", "bash": "bash", "py": "python", "md": "markdown",
     "json": "json", "yml": "yaml", "yaml": "yaml", "js": "js", "ts": "js",
@@ -226,17 +238,91 @@ def cluster_label(members):
     return max(sorted(tops), key=lambda k: tops[k])
 
 
+def commits_since(prior_sha, head, root):
+    """Number of commits on HEAD not reachable from prior_sha, or None if it
+    cannot be computed (rewritten history, unknown sha)."""
+    if not prior_sha or prior_sha == head:
+        return 0
+    try:
+        out = sh(["git", "rev-list", "--count", f"{prior_sha}..HEAD"], root).strip()
+    except subprocess.CalledProcessError:
+        return None
+    return int(out) if out.isdigit() else None
+
+
+def compute_dirty(files, nodes, prior, prior_graph, head, undirected, coupling_edges, clusters, root):
+    """Deterministic Stage 1.5 step 7 dirty set. Returns the `dirty` block:
+    which nodes changed since the prior graph, their 1-hop blast radius along
+    import + coupling edges, the clusters they touch, and whether a whole-graph
+    re-audit is forced. Leaving this to hand-computation each run is the most
+    error-prone part of incremental skipping, so the canonical builder owns it."""
+    all_files = sorted(files)
+    all_clusters = sorted(c["id"] for c in clusters)
+
+    # First run: no baseline to diff against — every node is dirty.
+    if not prior:
+        return {
+            "is_first_run": True, "whole_graph": True, "reason": "first-run",
+            "changed": [], "nodes": all_files, "clusters": all_clusters,
+        }
+
+    changed = sorted(
+        f for f in files if prior.get(f, {}).get("sha256") != nodes[f]["sha256"]
+    )
+    # A build-config edit (or deletion) can change how everything builds.
+    def is_build_config(p):
+        return os.path.basename(p).lower() in BUILD_CONFIG_BASENAMES
+    config_hits = [f for f in changed if is_build_config(f)]
+    config_hits += [f for f in (set(prior) - set(files)) if is_build_config(f)]
+
+    diverged = commits_since(prior_graph.get("graph_built_at_sha"), head, root)
+
+    whole_graph, reason = False, "incremental"
+    if config_hits:
+        whole_graph, reason = True, f"build-config changed: {sorted(config_hits)[0]}"
+    elif diverged is not None and diverged > COUPLING_WINDOW_COMMITS:
+        whole_graph = True
+        reason = f"HEAD diverged {diverged} commits (> {COUPLING_WINDOW_COMMITS})"
+    elif diverged is None:
+        whole_graph, reason = True, "prior graph_built_at_sha unreachable"
+
+    if whole_graph:
+        dirty_nodes = all_files
+    else:
+        # 1-hop blast radius along import + coupling adjacency.
+        adj = {f: set(undirected.get(f, [])) for f in files}
+        for e in coupling_edges:
+            a, b = e["a"], e["b"]
+            if a in adj and b in adj:
+                adj[a].add(b)
+                adj[b].add(a)
+        ds = set(changed)
+        for f in changed:
+            ds.update(adj.get(f, ()))
+        dirty_nodes = sorted(ds & set(files))
+
+    touched = sorted({c["id"] for c in clusters if set(c["members"]) & set(dirty_nodes)})
+    return {
+        "is_first_run": False, "whole_graph": whole_graph, "reason": reason,
+        "changed": changed, "nodes": dirty_nodes, "clusters": touched,
+    }
+
+
 def build(root, prior_path):
     head = sh(["git", "rev-parse", "HEAD"], root).strip()
     files = [f for f in sh(["git", "ls-files"], root).split("\n") if f]
     fileset = set(files)
 
-    prior = {}
+    prior_graph = {}
     if prior_path and os.path.exists(prior_path):
         try:
-            prior = json.load(open(prior_path)).get("nodes", {})
+            loaded = json.load(open(prior_path))
+            prior_graph = loaded if isinstance(loaded, dict) else {}
         except (ValueError, OSError):
-            prior = {}
+            prior_graph = {}
+    prior = prior_graph.get("nodes", {})
+    if not isinstance(prior, dict):
+        prior = {}
 
     # churn + change-coupling
     log = sh(["git", "log", "--name-only", "--format=%H", "-n", str(COUPLING_WINDOW_COMMITS)], root)
@@ -326,6 +412,9 @@ def build(root, prior_path):
 
     ranked = sorted(files, key=sort_key, reverse=True)[:RANKED_SURFACE_LIMIT]
 
+    dirty = compute_dirty(files, nodes, prior, prior_graph, head, undirected,
+                          coupling_edges, clusters, root)
+
     return {
         "version": 1,
         "graph_built_at_sha": head,
@@ -341,6 +430,7 @@ def build(root, prior_path):
         "coupling_edges": coupling_edges,
         "clusters": clusters,
         "ranked": ranked,
+        "dirty": dirty,
     }
 
 

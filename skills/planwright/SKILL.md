@@ -263,10 +263,13 @@ with the native Write tool, conforming field-for-field to `docs/graph-memory-sch
 **Canonical builder.** Prefer the deterministic, test-covered `scripts/build-graph.py` over improvising
 the build: run `python3 scripts/build-graph.py --prior .planwright/graph.json` in the sandbox and write
 its stdout to `.planwright/graph.json` with the native Write tool (`--prior` preserves each surviving
-node's `last_audited_sha`). Its output is schema-conforming by construction and verified by the suite
-(`tests/run.sh`, "build-graph.py output conforms to graph-memory schema"). The numbered steps below are
-the **specification** the script implements — follow them by hand only as a fallback when the script
-cannot run (no `python3`, etc.).
+node's `last_audited_sha` **and computes the incremental `dirty` block** — step 7 below — by diffing the
+prior graph). Its output is schema-conforming by construction and verified by the suite (`tests/run.sh`,
+"build-graph.py output conforms to graph-memory schema"). When the script ran, **read the dirty set from
+the emitted `graph.json` `dirty` block** (`is_first_run`, `whole_graph`, `reason`, `changed`, `nodes`,
+`clusters`) rather than recomputing it; Stages 3–7 gate on `dirty.nodes` / `dirty.clusters`. The numbered
+steps below are the **specification** the script implements — follow them by hand only as a fallback when
+the script cannot run (no `python3`, etc.).
 
 1. **Enumerate** tracked files via `git ls-files`. For each node record `sha256`, `loc`, and `lang`
    (by extension/shebang).
@@ -291,7 +294,8 @@ cannot run (no `python3`, etc.).
      becomes the primary signal, still boosted by `is_articulation` and tiebroken by `git_churn`. Record
      in the surfaced summary which signal drove the ranking (`centrality` vs `coupling`).
 7. **Incremental invalidation (only when a prior `.planwright/graph.json` exists)** — compute the
-   **dirty set** so unchanged code can be skipped downstream. A node is *dirty* when its freshly
+   **dirty set** so unchanged code can be skipped downstream. The canonical builder emits this as the
+   `dirty` block when run with `--prior`; consume it directly. A node is *dirty* when its freshly
    computed `sha256` differs from the value recorded in the prior graph. The dirty set is those
    changed nodes **plus their 1-hop blast radius** along import + coupling edges. Map the dirty set to
    the clusters it touches and carry both forward — Stages 3–7 gate on it. Preserve each surviving
@@ -299,6 +303,9 @@ cannot run (no `python3`, etc.).
    - **Whole-graph invalidation** — treat **every** node as dirty (re-audit everything) when any of:
      a lockfile or build-config file changed, the planwright `version` advanced, or HEAD has diverged
      from the prior graph's `graph_built_at_sha` beyond a sane threshold (e.g. the coupling window).
+     The canonical builder already sets `dirty.whole_graph` for the build-config and HEAD-divergence
+     triggers; only treat the **version-advanced** case as an extra hand check (OR it in) when planning
+     planwright's own repo and its `version` changed since the prior graph.
    - **First run** — when no prior graph exists, there is no baseline: every node is dirty and the
      full tree is audited. `last_audited_sha` is `null` until Stage 11 records it.
 

@@ -277,6 +277,12 @@ for c in g["clusters"]:
     assert isinstance(c["id"], int) and isinstance(c["members"], list)
 for e in g["coupling_edges"]:
     assert {"a", "b", "cooccur", "weight"} <= set(e)
+d = g["dirty"]
+assert {"is_first_run", "whole_graph", "reason", "changed", "nodes", "clusters"} <= set(d), d
+# no prior was passed, so this is a first run: every node is dirty, all clusters touched
+assert d["is_first_run"] is True and d["whole_graph"] is True and d["reason"] == "first-run", d
+assert set(d["nodes"]) == set(g["nodes"]) and d["changed"] == [], d
+assert set(d["clusters"]) == {c["id"] for c in g["clusters"]}, d
 PY
 then ok "build-graph.py output conforms to graph-memory schema"; else bad "build-graph.py output missing or non-conforming"; fi
 
@@ -396,6 +402,63 @@ assert w[("c.md", "d.md")] > w[("a.md", "b.md")], w
 assert set(g["ranked"][:2]) == {"c.md", "d.md"}, g["ranked"][:2]
 PY
 then ok "coupling fallback ranks by weighted degree (not raw cooccur)"; else bad "coupling fallback used raw cooccur instead of weight"; fi
+
+# --- Test 11f: build-graph.py incremental dirty set = changed + 1-hop blast --
+# Stage 1.5 step 7: a node is dirty when its sha256 changed, PLUS its 1-hop blast
+# radius along import/coupling edges. A changed leaf must drag in its importer but
+# leave unrelated files clean — this is what lets Stages 3-7 skip unchanged work.
+DREPO="$TMP/dirtyrepo"
+mkdir -p "$DREPO"
+git -C "$DREPO" init -q
+dgc() { git -C "$DREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf '# a\n[to b](b.md)\n' > "$DREPO/a.md"   # a.md imports b.md (markdown link)
+printf '# b\n' > "$DREPO/b.md"
+printf '# c\n' > "$DREPO/c.md"                  # c.md unrelated
+printf '# d\n' > "$DREPO/d.md"                  # d.md unrelated
+git -C "$DREPO" add -A; dgc -m init
+dprior="$TMP/dirty_prior.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$DREPO" > "$dprior" 2>/dev/null
+printf '# b\nmore\n' > "$DREPO/b.md"            # change only b.md
+git -C "$DREPO" add -A; dgc -m "edit b"
+dnew="$TMP/dirty_new.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$DREPO" --prior "$dprior" > "$dnew" 2>/dev/null
+if python3 - "$dnew" <<'PY' 2>/dev/null
+import json, sys
+d = json.load(open(sys.argv[1]))["dirty"]
+assert d["is_first_run"] is False and d["whole_graph"] is False, d
+assert d["changed"] == ["b.md"], d                      # only b.md's bytes changed
+assert set(d["nodes"]) == {"a.md", "b.md"}, d           # b.md + its importer a.md
+assert "c.md" not in d["nodes"] and "d.md" not in d["nodes"], d  # unrelated stay clean
+PY
+then ok "build-graph.py incremental dirty set is changed node + 1-hop blast radius"; else bad "build-graph.py incremental dirty set wrong (blast radius or scoping)"; fi
+
+# --- Test 11g: build-graph.py whole-graph invalidation on build-config change -
+# A changed lockfile/build-config can alter how everything builds, so a localized
+# dirty set would under-audit. SKILL.md Stage 1.5 step 7 forces a whole-graph
+# re-audit in that case — verify CMakeLists.txt edits flip whole_graph on.
+WGREPO="$TMP/wholegraphrepo"
+mkdir -p "$WGREPO"
+git -C "$WGREPO" init -q
+wggc() { git -C "$WGREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf 'cmake_minimum_required(VERSION 3.10)\n' > "$WGREPO/CMakeLists.txt"
+printf '# a\n' > "$WGREPO/a.md"
+printf '# b\n' > "$WGREPO/b.md"
+git -C "$WGREPO" add -A; wggc -m init
+wgprior="$TMP/wg_prior.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$WGREPO" > "$wgprior" 2>/dev/null
+printf 'cmake_minimum_required(VERSION 3.20)\n' > "$WGREPO/CMakeLists.txt"  # bump config only
+git -C "$WGREPO" add -A; wggc -m "bump cmake"
+wgnew="$TMP/wg_new.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$WGREPO" --prior "$wgprior" > "$wgnew" 2>/dev/null
+if python3 - "$wgnew" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+d = g["dirty"]
+assert d["is_first_run"] is False and d["whole_graph"] is True, d
+assert "build-config" in d["reason"] and "CMakeLists.txt" in d["reason"], d
+assert set(d["nodes"]) == set(g["nodes"]), d            # every node re-audited
+PY
+then ok "build-graph.py forces whole-graph re-audit when build-config changes"; else bad "build-graph.py did not invalidate whole graph on build-config change"; fi
 
 echo
 echo "passed: $PASS  failed: $FAIL"
