@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.29.0] - 2026-06-04
+
+### Changed
+- Add seeded invent framing: opt-in `cycle N invent seed S` focuses the invent generative survey through one recorded vantage (power-user/integration/onboarding/reliability/automation), so repeated invent runs explore new angles instead of re-deriving the same ideas. Scopes which net-new ideas are surveyed, never the grounding bar; unseeded invent is unchanged. Recorded as invent_seed/invent_framing in final.md.
+
 ## [1.28.2] - 2026-06-04
 
 ### Changed
