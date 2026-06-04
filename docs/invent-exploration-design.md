@@ -10,9 +10,10 @@ truncation** (hundreds–thousands of files), and even then its honest value is 
 single-run creativity. **Lever 2 (rotating generative framings) is now the chosen direction**: its builder
 substrate — `build-graph.py --seed` also emitting `explore_framing` (a seeded vantage key from a fixed
 catalog), with tests — is shipped. Two-framing A/Bs (Open question 5, below) settle it: on **rls-core**
-(small) a **conditional pass** (framing-specific proposals appear, but `pool ≤ propose_count` makes the
-value cross-run, not single-run); on **lxl** (large, 9-domain, ~510 C++ files) a **clean pass** with
-nearly disjoint proposed sets. The unifying axis is the *feasibility of comprehensive invent generation*
+(small) a **near-no-op** (framings change the *surveyed* set, but a real unseeded `codinventor` dogfood
+confirmed the candidates are sub-bar under that repo's "small, dependency-light" mission ceiling — a
+framing cannot lower the bar); on **lxl** (large, 9-domain, ~510 C++ files) a **clean pass** with nearly
+disjoint, genuinely groundable proposed sets. The unifying axis is the *feasibility of comprehensive invent generation*
 (truncation — the same axis lever 1 turned on): where comprehensive generation is infeasible (large
 multi-domain repos), the framing is the generative prior that makes the survey tractable and **determines
 the output**, single-run and cross-run. So lever 2's value **scales with repo idea-space size** and is
@@ -224,6 +225,21 @@ reasoning path. Lever 2's prior is favorable (it changes pool membership), but "
    The cores are clearly framing-specific (the FFI shim does **not** arise under `onboarding`; the
    quickFit facade does **not** arise under `integration`), so the literal pass condition is met: ≥1
    grounded, above-bar item unique to each set.
+
+   **CORRECTION (2026-06-04, from a real unseeded `codinventor` dogfood on rls-core).** A live
+   `cycle 10 depth 10 invent` run (comprehensive path) re-swept rls-core and declared a **deep final
+   point with 0 items**, judging every net-new candidate — explicitly including FFI-shim / stream-loader /
+   format-versioned-serialization classes — **blocked by `MISSION.yaml`'s "small, dependency-light"
+   mandate** (and the escalation hard ceiling). That is a *stricter* read of the same mission than my A/B
+   applied, and it is the correct one: the framing-specific items above were surfaced as *candidates* but
+   most do **not clear rls-core's mission ceiling**, so they are sub-bar there. Honest reclassification:
+   on rls-core the framing changed the **surveyed** set but **not the bar-clearing** set (≈ empty either
+   way) — so rls-core is better read as a *near-no-op* (matching the unseeded run), not a pass. Key lesson:
+   **a framing changes which ideas are surveyed; it cannot lower the value bar or the mission ceiling**,
+   so it never manufactures groundable work where the mission forbids it. This *strengthens* the unifying
+   conclusion below (lever 2's value tracks genuine idea-space, and a small tightly-bounded repo has
+   little regardless of framing); the robust pass is **lxl**, where the groundable multi-domain work is
+   real.
 
    **The honest crux (why this is a *conditional* pass, not a clean win).** rls-core's total groundable
    net-new pool is ≈6–8 items and `propose_count` is 8. By the **exact lever-1 argument**, a
