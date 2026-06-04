@@ -229,7 +229,7 @@ reasoning path. Lever 2's prior is favorable (it changes pool membership), but "
    **CORRECTION (2026-06-04, from a real unseeded `codinventor` dogfood on rls-core).** A live
    `cycle 10 depth 10 invent` run (comprehensive path) re-swept rls-core and declared a **deep final
    point with 0 items**, judging every net-new candidate — explicitly including FFI-shim / stream-loader /
-   format-versioned-serialization classes — **blocked by `MISSION.yaml`'s "small, dependency-light"
+   format-versioned-serialization classes — **blocked by `MISSION.md`'s "small, dependency-light"
    mandate** (and the escalation hard ceiling). That is a *stricter* read of the same mission than my A/B
    applied, and it is the correct one: the framing-specific items above were surfaced as *candidates* but
    most do **not clear rls-core's mission ceiling**, so they are sub-bar there. Honest reclassification:

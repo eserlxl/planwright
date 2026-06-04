@@ -358,7 +358,7 @@ PY
 then ok "SKILL.md documents invent-must-generate with grounding-floor + structural-ceiling guards, scoped to invent"; else bad "invent-must-generate rule or its guards/scope missing from SKILL.md"; fi
 
 # --- Test 10f: dwell-gated MISSION amendment + its safety invariants ----------
-# invent may rarely edit MISSION.yaml, but only via the dwell gate (mission_pressure
+# invent may rarely edit MISSION.md, but only via the dwell gate (mission_pressure
 # reaches 3), as its own committed item, taking effect the NEXT cycle (no same-run
 # self-justification), never relaxing the structural ceiling, and never touching
 # protected paths. The run must announce it up front. Guards the whole contract.
@@ -369,7 +369,7 @@ skill = open(sys.argv[1]).read()
 banner = open(sys.argv[2]).read()
 need = []
 if "mission_pressure" not in skill: need.append("counter:mission_pressure")
-if "MISSION.yaml" not in skill: need.append("target:MISSION.yaml")
+if "MISSION.md" not in skill: need.append("target:MISSION.md")
 # the dwell threshold must be stated as 3 (consecutive)
 if "reaches **3**" not in skill and "reach **3**" not in skill and "3 consecutive" not in skill and "3** (three" not in skill:
     need.append("dwell:3")
@@ -382,7 +382,7 @@ for p in [".planwright/", ".git/", "LICENSE"]:
     if p not in skill: need.append("denylist:" + p)
 # launch-time awareness in both the cycle announce and the codinventor banner
 if "on notice" not in skill: need.append("announce:on-notice")
-if "MISSION.yaml" not in banner: need.append("banner:MISSION.yaml")
+if "MISSION.md" not in banner: need.append("banner:MISSION.md")
 sys.exit(1 if need else 0)
 PY
 if [ "$mission_ok" = 1 ]; then ok "SKILL.md documents dwell-gated MISSION amendment (pressure=3, next-cycle gap, ceiling-hold, denylist, announced)"; else bad "MISSION-amendment rule, dwell gate, denylist, or awareness notice missing/incomplete"; fi

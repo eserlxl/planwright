@@ -17,7 +17,7 @@ earlier `innovate-escalation-design.md`.
 >   budget `N` (so `cycle -1 invent` keeps inventing), stopping early only at plan capacity or the rare
 >   genuine no-seam empty. The Tier ③ cap ("a few cycles") survives as a per-trigger burst rate limit.
 > - **Dwell-gated MISSION amendment** (v1.31.0): after **3 consecutive** mission-bound bursts
->   (`mission_pressure` in `final.md`), invent may make one small, committed edit to `MISSION.yaml`
+>   (`mission_pressure` in `final.md`), invent may make one small, committed edit to `MISSION.md`
 >   (applied as a `docs`-mode item, consumed only on the *next* cycle), so the charter grows with the
 >   project. Seeded **framings** (v1.29.0, `seed <S>`) focus the burst so successive runs diverge.
 > The `explore` tiers (① cold-frontier, ② expand) and the deep-final-point semantics below are

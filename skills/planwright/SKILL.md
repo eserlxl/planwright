@@ -637,17 +637,17 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
 
    **Mission amendment (rare, dwell-gated; explicit-`invent`-only).** As a project grows, the charter may
    genuinely fall behind it — so when invent is *repeatedly* forced to stretch the mission, it may make a
-   **rare, small** edit to `MISSION.yaml`, never a casual one. Mechanism — a **dwell gate** so it cannot
+   **rare, small** edit to `MISSION.md`, never a casual one. Mechanism — a **dwell gate** so it cannot
    touch the mission on a whim:
    - Track `mission_pressure` in `.planwright/final.md` (default 0). After an invent burst whose only
      above-floor output was **mission-stretching** items (every in-mission net-new candidate was dry),
      **increment** it; after any burst that lands a genuinely in-mission net-new item, **reset to 0**.
    - Only when `mission_pressure` reaches **3** (three *consecutive* mission-bound bursts) does invent earn
      **one** mission edit. When it triggers, that cycle proposes a **single** item and nothing else: a
-     mission-amendment item — `Mode: docs`, `Surfaces: MISSION.yaml`, Rationale citing the sustained
+     mission-amendment item — `Mode: docs`, `Surfaces: MISSION.md`, Rationale citing the sustained
      pressure and the concrete features it unlocks, Development naming the one constraint relaxed or clause
      added (keep it **minimal** — one constraint/clause), Verification a content check
-     (`grep -q "<new clause>" MISSION.yaml`). Then **reset `mission_pressure` to 0**.
+     (`grep -q "<new clause>" MISSION.md`). Then **reset `mission_pressure` to 0**.
    - The amendment executes and commits as its **own** change; the **next** cycle re-reads PROJECT
      DIRECTION (Stage 1) under the amended mission and only *then* proposes the unlocked features. This
      one-beat gap means invent never invents against a mission it loosened **in the same run** (no
@@ -885,7 +885,7 @@ preamble, headings, code, or commentary in the plan file.
   **structural hard ceiling** still hold absolutely, and plan capacity still stops it; the relaxation is
   the value bar / mission conservatism, and it applies to **no other mode** (see Stage 5's invent lens).
 - **Editable surfaces.** An item's `Surfaces`/`New Surfaces` may name source, tests, docs, configs, and —
-  under `invent`'s dwell-gated mission amendment (Stage 5) — `MISSION.yaml`. They may **never** name a
+  under `invent`'s dwell-gated mission amendment (Stage 5) — `MISSION.md`. They may **never** name a
   protected path: `.git/`, `.planwright/` internals (planwright's own memory — items edit it via Stage 11,
   never as a surface), `LICENSE`, or any secret/credential file (`.env`, `*.pem`, key/credential stores).
   Editing those is harmful or corrupts planwright itself, regardless of mode or operator awareness.
@@ -1015,7 +1015,7 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
    (`N cycles` or `unlimited`), the planning depth (`depth <D>`, default 6), and which escalation flag is
    on (`explore`, `invent`, or none) before starting any work; if a seed is active, also print
    `seed <S> (framing: <key>)`. **Under `invent`, also warn up front** that invent may make rare, small,
-   committed edits to repo files **including `MISSION.yaml`** (dwell-gated — see Stage 5's mission
+   committed edits to repo files **including `MISSION.md`** (dwell-gated — see Stage 5's mission
    amendment), so whoever runs `invent` is on notice that the charter itself can change.
 
 ## Per-cycle loop (repeat up to N times, or indefinitely when N < 0)

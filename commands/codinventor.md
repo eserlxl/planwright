@@ -27,8 +27,8 @@ Resolve them in this order:
 
 1. **`<rest>` empty**: the flagship "inventor" run. First print exactly one
    cost-banner line so the heavy run is never silent (it also doubles as the `invent` awareness notice —
-   invent may make rare, small, committed edits to repo files, including `MISSION.yaml`):
-   `codinventor: max-intensity inventor run — up to 10 plan→execute rounds at depth 10 with the invent escalation ladder (cold-frontier → expand → net-new invent burst). Note: invent may make rare, small committed edits to repo files, including MISSION.yaml.`
+   invent may make rare, small, committed edits to repo files, including `MISSION.md`):
+   `codinventor: max-intensity inventor run — up to 10 plan→execute rounds at depth 10 with the invent escalation ladder (cold-frontier → expand → net-new invent burst). Note: invent may make rare, small committed edits to repo files, including MISSION.md.`
    Then invoke planwright with: `cycle 10 depth 10 invent <scope>` (e.g. `cycle 10 depth 10 invent`
    with no scope, or `cycle 10 depth 10 invent lib parser` when a scope was peeled).
 
