@@ -75,7 +75,9 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
     "clusters": [0, 2]                        // cluster ids the dirty set touches
   },
   "focus":   ["src/auth/a.py"],              // OPT (--scope only): the scoped files — where plan items land
-  "context": ["src/auth/a.py", "src/crypto/b.py"]  // OPT (--scope only): Focus + 1-hop blast radius — what the audit reads
+  "context": ["src/auth/a.py", "src/crypto/b.py"],  // OPT (--scope only): Focus + 1-hop blast radius — what the audit reads
+  "explore_seed": 1337,                      // OPT (--seed only): the recorded seed — reproduce the run from it
+  "ranked_explore": ["lib/q.py", "src/p.py"]   // OPT (--seed only): branch>0 code nodes in seeded sha256 order
 }
 ```
 
@@ -131,6 +133,13 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   **1-hop blast radius** along the same import + coupling edges the dirty set uses (what the audit reads
   for grounding, root cause, and impact). Like every other graph field they route attention only and are
   never cited as Evidence.
+- **`explore_seed`** / **`ranked_explore`** are emitted **only** under `--seed <N>` (invent exploration,
+  docs/invent-exploration-design.md, lever 1) — a default build omits both and is byte-for-byte unchanged.
+  `ranked_explore` is the `branch_count > 0` code nodes ordered by `sha256("<seed>:<path>")`: deterministic
+  per seed and stable across Python versions (no random-module stream dependence), so the **same** seed
+  reproduces the order while a **different** seed reorders the same members. The invent generative survey
+  walks it so repeated runs explore different regions of the design space, each replayable from its
+  recorded `explore_seed`. Routing only — never Evidence.
 - **`ranking_signal`** records which signal drove the `ranked` list: `centrality` (PageRank over the
   import graph) normally, or `coupling` when the import graph is degenerate (too few edges, or PageRank
   barely discriminates — common in docs/scripts repos), in which case nodes rank by **weighted

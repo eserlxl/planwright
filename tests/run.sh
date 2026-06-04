@@ -571,6 +571,40 @@ assert "focus" not in un and "context" not in un, list(un.keys())
 PY
 then ok "--scope no-match is empty Focus; unscoped build omits focus/context"; else bad "--scope invariants violated"; fi
 
+# --- Test 11c2f: --seed emits a reproducible-yet-varied ranked_explore ----------
+# Invent exploration (docs/invent-exploration-design.md, lever 1): a seeded ordering
+# of the branch>0 code nodes. The same seed reproduces the order (replayable); a
+# different seed reorders the SAME members (exploration); without --seed both keys
+# are absent (a default build is byte-for-byte unchanged).
+SDREPO="$TMP/seedrepo"
+mkdir -p "$SDREPO"
+git -C "$SDREPO" init -q
+for nm in alpha bravo charlie delta echo_; do
+  printf '#!/usr/bin/env bash\n%s() { if true; then echo %s; fi; }\n' "$nm" "$nm" > "$SDREPO/$nm.sh"
+done
+git -C "$SDREPO" add -A
+git -C "$SDREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+sd_a="$TMP/seed_a.json"; sd_b="$TMP/seed_b.json"; sd_c="$TMP/seed_c.json"; sd_none="$TMP/seed_none.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --seed 1337 > "$sd_a" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --seed 1337 > "$sd_b" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --seed 42 > "$sd_c" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" > "$sd_none" 2>/dev/null
+if python3 - "$sd_a" "$sd_b" "$sd_c" "$sd_none" <<'PY' 2>/dev/null
+import json, sys
+a, b, c, none = (json.load(open(p)) for p in sys.argv[1:5])
+# the seed is recorded, and ranked_explore holds exactly the branch>0 code nodes
+assert a["explore_seed"] == 1337, a.get("explore_seed")
+assert all(a["nodes"][f]["branch_count"] > 0 for f in a["ranked_explore"]), a["ranked_explore"]
+assert sorted(a["ranked_explore"]) == sorted(f for f in a["nodes"] if a["nodes"][f]["branch_count"] > 0)
+# same seed => identical order (reproducible); different seed => reordered, same members
+assert a["ranked_explore"] == b["ranked_explore"], "same seed not reproducible"
+assert a["ranked_explore"] != c["ranked_explore"], "different seed did not reorder"
+assert sorted(a["ranked_explore"]) == sorted(c["ranked_explore"]), "seed changed membership, not just order"
+# absent without --seed (byte-for-byte-unchanged contract)
+assert "explore_seed" not in none and "ranked_explore" not in none, list(none.keys())
+PY
+then ok "--seed emits a reproducible ranked_explore that a different seed reorders (same members)"; else bad "--seed ordering not reproducible/varied or leaked without --seed"; fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.

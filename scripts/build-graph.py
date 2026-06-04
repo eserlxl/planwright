@@ -586,7 +586,7 @@ def compute_dirty(files, nodes, prior, prior_graph, head, undirected, coupling_e
     }
 
 
-def build(root, prior_path, scope=None):
+def build(root, prior_path, scope=None, seed=None):
     head = sh(["git", "rev-parse", "HEAD"], root).strip()
     files = [f for f in sh(["git", "ls-files"], root).split("\n") if f]
     fileset = set(files)
@@ -777,6 +777,21 @@ def build(root, prior_path, scope=None):
         graph["focus"] = focus
         graph["context"] = one_hop_closure(focus, adj, files)
 
+    # Seeded exploration ordering (docs/invent-exploration-design.md, lever 1) —
+    # emitted ONLY under --seed, so a default build stays byte-for-byte identical.
+    # A seeded permutation of the branch_count>0 code nodes, ordered by the digest
+    # of "<seed>:<path>": deterministic per seed and stable across Python versions
+    # (no random-module stream dependence), and reordered by a different seed. The
+    # invent generative survey walks it so repeated runs explore different regions
+    # while each stays reproducible from its recorded seed. Routing only, like every
+    # ranked list — never Evidence.
+    if seed is not None:
+        graph["explore_seed"] = seed
+        graph["ranked_explore"] = sorted(
+            (f for f in files if nodes[f]["branch_count"] > 0),
+            key=lambda f: hashlib.sha256(f"{seed}:{f}".encode()).hexdigest(),
+        )
+
     return graph
 
 
@@ -786,10 +801,12 @@ def main():
     ap.add_argument("--prior", default=None, help="prior graph.json to preserve last_audited_sha from")
     ap.add_argument("--scope", default=None,
                     help="restrict to a path/dir/glob; emits focus + context (Focus + 1-hop blast radius) node lists")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="emit a seeded ranked_explore ordering for invent exploration; recorded as explore_seed")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:
-        graph = build(root, args.prior, args.scope)
+        graph = build(root, args.prior, args.scope, args.seed)
     except subprocess.CalledProcessError as e:
         sys.stderr.write(f"build-graph: git command failed ({e})\n")
         return 2
