@@ -69,6 +69,12 @@ PLAN (read-only)
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
 /planwright dry-run              Do all stages but print the plan instead of writing the file
 
+SCOPE (aim a run at one component; composes with plan / execute / cycle)
+/planwright path <X>             Restrict to a subtree/glob: plan items land in that Focus,
+                                 analysis still reads its 1-hop blast radius (Context)
+/planwright lib <X>              Same, but resolve a logical component name (cluster /
+                                 build target / package / dir) to the Focus set
+
 EXECUTE (edits source)
 /planwright execute              Auto: implement every pending item, commit each that passes
 /planwright execute --interactive  Prompt per item: approve, show diff, verify, confirm commit
@@ -105,6 +111,8 @@ Plan options may be combined with an instruction, e.g.
 | `max <N>` | `20` | cap on pending unchecked items in the plan |
 | `no-compact` | off | skip Stage 0 housekeeping for this run |
 | `dry-run` | off | run everything but print the plan, write nothing |
+| `path <X>` | whole repo | **scope**: aim the run at a subtree/glob — items land in that **Focus**; analysis still reads its 1-hop blast radius (**Context**). Composable, depth-orthogonal (see **Scope**) |
+| `lib <X>` | whole repo | **scope**: like `path`, but resolve a logical component name (cluster / build target / package / dir) to the Focus set (see **Scope**) |
 | `explore` | off | **cycle only**: at the final point, escalate instead of stopping — cold-frontier sweep, then the **expand** tier (complete latent capability), spending the remaining cycle budget (see **Escalation ladder**) |
 | `invent` | off | **cycle only**: superset of `explore` — additionally permits net-new, seam-bound capability (the **invent** tier, a bounded ≤3-cycle burst) after the expand tier is dry (see **Escalation ladder**) |
 | `help` | — | print Usage and stop |
@@ -184,6 +192,10 @@ keep forward motion. The decisive rule that prevents premature idling:
   **whole project** against PROJECT DIRECTION (mission/charter + README + roadmap, see Stage 1),
   **even when the dirty set is empty**. This is what
   lets a clean, fully-audited tree keep producing valuable work instead of stopping.
+- **Under a Scope** (`path <X>` / `lib <X>`, see **Inputs**) the gating is unchanged but the *reach*
+  narrows: rungs 1–2 scope to `dirty ∩ Focus`, and rungs 3–4 survey **Focus-wide** (the scoped
+  component) instead of project-wide — so a scoped run matures just that component toward its stated
+  role. Items still land only in Focus (Stage 10), while analysis may read the wider Context.
 
 **Convergence guard (so creativity still terminates):**
 
@@ -288,6 +300,11 @@ surfaces *candidates*, it does not pad. Both flags are a no-op outside the cycle
   depth 6 → `5`) or the explicit `propose <N>` when given — and never let the active plan's *pending*
   items exceed `20`. `propose_count = min(<resolved propose>, 20 − pending_unchecked_items)`. If
   `propose_count == 0`, stop and report "Plan is at capacity"; do not invent filler items.
+- **Scope** (optional, from `path <X>` / `lib <X>`): aim the run at one component instead of the whole
+  target. Resolved in Stage 1 into two node sets (see `docs/scope-design.md`): the **Focus** set (the
+  scoped files — where plan items are proposed and land) and the **Context** set (Focus + its 1-hop
+  import/coupling blast radius — what analysis *reads* so root cause and impact stay visible). Absent =
+  whole repo (today's behaviour). Composable with every path and **orthogonal to `depth`**.
 
 ## Procedure
 
@@ -347,6 +364,19 @@ anchor the generative rungs (lenses 5–6) propose *toward*:
   charter alone. If none exist, note that and let the generative rungs anchor on the observed
   public surfaces alone.
 
+If a **Scope** was given (`path <X>` / `lib <X>`), resolve it here, before the rungs use it:
+
+- **SCOPE → FOCUS / CONTEXT** — run `<scripts>/build-graph.py --scope <X>` (Stage 1.5 builds the graph
+  anyway; pass `--scope` so it also emits the `focus` and `context` node lists). For `lib <X>`, resolve
+  the logical name to a path set first — in order: an exact graph **cluster label**, then a **build
+  target** (CMake `add_library`, a Cargo crate / workspace member, an npm workspace, a Python package
+  `<X>/__init__.py`, a Go package dir), then a **directory named `<X>`** — and pass the resolved path(s)
+  as `--scope`. **Focus** (the emitted `focus`) is where items may be proposed; **Context** (the emitted
+  `context` = Focus + 1-hop blast radius) is what later stages may *read*. **A no-match is a hard error:**
+  if `focus` is empty, report `scope '<X>' matched no files` and STOP — never silently fall back to a
+  whole-repo run. When a component-level charter/README exists inside Focus, prefer it as the generative
+  rungs' PROJECT DIRECTION anchor (still under the whole-repo mission as the binding constraint).
+
 Then load the planning memory so this run learns from prior ones:
 
 - **PREVIOUSLY REJECTED** — read `.planwright/rejected.md` (titles + `Rejection:` reasons). Carry
@@ -357,10 +387,14 @@ Then load the planning memory so this run learns from prior ones:
   (unless the audit shows a regression).
 - **FINAL POINT** — read `.planwright/final.md` if present. Once Stage 1.5 has computed the dirty set,
   if `final.md`'s recorded sha equals the current HEAD **and** the dirty set is empty **and** no new
-  instruction or higher depth was given this run, the project is unchanged since the ladder was last
-  exhausted: report `already at final point (<sha>)` and treat all four maturity rungs as dry (the run
-  writes 0 items, and Stage 11 leaves the existing `final.md` in place). Otherwise treat `final.md` as
-  stale and proceed normally — Stage 11 step 3 deletes it once ≥1 item is written.
+  instruction or higher depth was given this run **and** the run's scope matches the recorded one (the
+  `scope:`/`scope_focus_sha:` fields equal this run's — a *whole-repo* run only short-circuits on a
+  *whole-repo* final point, and a `path <X>` run only on the matching scoped one), the project is
+  unchanged since the ladder was last exhausted *for that scope*: report `already at final point
+  (<sha>)` and treat all four maturity rungs as dry (the run writes 0 items, and Stage 11 leaves the
+  existing `final.md` in place). Otherwise treat `final.md` as stale and proceed normally — Stage 11
+  step 3 deletes it once ≥1 item is written. (A scoped final point never suppresses a differently-scoped
+  or whole-repo run.)
 
 ### Stage 1.5 — Build code graph (mechanical)
 
@@ -461,7 +495,10 @@ If `graph.json` is absent or graph-aware routing was skipped this run, **fall ba
 the top-N most complex functions by line count or branching. **During an `explore` cold-frontier sweep**
 (see **Escalation ladder**), route Stage 2b by the graph's **`ranked_cold`** list instead of
 `ranked_code` — same walk, but it leads with the audit/coverage frontier (never-audited, then uncovered,
-then least-central) so the sweep reads exactly the code the hot-core pass skipped. For each selected function, trace every non-trivial path: look for silent
+then least-central) so the sweep reads exactly the code the hot-core pass skipped. **Under a Scope**
+(`path`/`lib`, see **Inputs**), walk the same ranked list but **restricted to the Context node set** —
+the function bodies read are the in-scope ones plus their 1-hop blast radius (articulation points inside
+Context still always included), so root cause upstream of Focus stays readable. For each selected function, trace every non-trivial path: look for silent
 failures (error return ignored, wrong default returned, exit 0 on bad state), unchecked preconditions,
 and off-by-one or boundary errors. Findings must cite file:line, the specific path, and the defect.
 
@@ -494,6 +531,12 @@ change-gated rungs are dry (e.g. an empty dirty set), run lenses 5–6 over the 
 PROJECT DIRECTION (mission/charter + README + roadmap) regardless of the dirty set, bounded by the
 convergence guard (see **Maturity
 ladder & the final point**). This is the mechanism that keeps a clean tree climbing instead of idling.
+
+**Scope restriction** — when a **Scope** is active (`path`/`lib`, see **Inputs**), all lenses read over
+the **Context** set but may only propose items whose surfaces fall in **Focus**: change-gated lenses
+restrict to `dirty ∩ Focus`, and the maturity-gated lenses 5–6 survey **Focus-wide** (the scoped
+component) rather than project-wide. Reading the wider Context keeps grounding and root cause intact;
+Stage 10 enforces that what lands stays in Focus (with the upstream-repair exception).
 
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
    direction, source/header/test clusters, language-specific header-only/template constraints. Use the
@@ -603,6 +646,12 @@ yours:
 - No destructive workspace/VCS/cleanup item that could discard unrelated user work (tool-owned/
   checkpointed files or explicit opt-in only).
 - `Surfaces:` holds only existing paths; new files go under `New Surfaces:`.
+- **Surfaces-in-Focus (only when a Scope is active):** every item's `Surfaces`/`New Surfaces` must lie
+  in the **Focus** set — an item proposing work outside the scoped component is dropped. **One escape
+  hatch:** a `repair` item may name a **Context** (upstream-of-Focus) surface *iff* its Evidence proves
+  the in-Focus symptom traces to that site (cite the in-Focus call path and the upstream defect). This
+  keeps a scoped run from patching a symptom in Focus when the real cause is one hop upstream. (No-op
+  when no scope is active — the whole repo is Focus.)
 - Mode correct: `develop` = new runtime/security behavior, `improve` = behavior-preserving quality,
   `repair` = confirmed defect only.
 - Development tells the engineer *where and how*; Acceptance describes observable + preserved behavior;
@@ -663,6 +712,10 @@ something to diff against:
    `deepest_tier: invent` (under `invent`) denotes the stronger **deep final point** (every tier the
    flag can reach is dry, see **Escalation ladder**). This is the recorded **final point**;
    it is routing/status only and is **never** valid Evidence.
+   **Under a Scope**, also record `scope:` (`path:<X>` / `lib:<X>`) and `scope_focus_sha:` (a hash of
+   the sorted Focus path list) so the Stage 1 short-circuit only fires for a matching scope; a whole-repo
+   run records no `scope:` line (or `scope: (whole-repo)`). A scoped final point asserts dryness **only**
+   for that component — it never suppresses a differently-scoped or whole-repo run.
 
 Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested,
 rungs surveyed (lowest non-empty / final-point), and any capacity stop.
@@ -738,6 +791,9 @@ verification, and commits. Everything below replaces the planning Procedure.
 - **`--interactive`** — for each item: show it, wait for approval, implement, show the diff, run
   verification, and confirm before committing. Skipped items stay pending.
 - **`execute N`** — act on pending item number `N` only (1-based over pending items).
+- **`execute` with a Scope** (`path <X>` / `lib <X>`) — act only on pending items whose `Surfaces` fall
+  in the resolved Focus, leaving out-of-scope items pending. Useful to implement just one component's
+  items from a whole-repo plan.
 
 In both modes, Claude Code's normal tool permission prompts for edits and commits still apply — auto
 only suppresses planwright's *own* item-by-item questions, never the permission system.
@@ -834,8 +890,10 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
    visible in long runs.
 2. **Plan** — run the full planning Procedure (Stages 0–11) at the cycle's depth (the `depth <D>`
    passed to `cycle`, else default **6**) with otherwise-default settings: depth-derived `propose`,
-   no instruction, no `no-compact`, no `dry-run`. The same depth applies to every round. Record the
-   number of new items Stage 11 wrote.
+   no instruction, no `no-compact`, no `dry-run`. The same depth applies to every round. A **Scope**
+   (`path <X>` / `lib <X>`) passed to `cycle` likewise applies to every round, and the ladder climbs
+   **within Focus** — a scoped cycle matures just that component and stops at its scoped final point.
+   Record the number of new items Stage 11 wrote.
 3. **Check for work** — Stage 11 writing **0 new items** with **0 pending items** is **not** by itself
    a stop: it only means the change-gated rungs are dry. The planning round must have climbed the
    **maturity ladder** (surveyed the opportunity and vision rungs project-wide; see **Maturity ladder &

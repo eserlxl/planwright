@@ -1,8 +1,14 @@
 # planwright component scoping — `path` / `lib` (design draft)
 
-Status: **PROPOSED** — design only. Nothing below is implemented yet. It specifies an opt-in way to
-aim a planwright run at one *component* of the target repo (a subtree or a logical library) instead of
-the whole codebase, without weakening grounding, root-cause analysis, or blast-radius awareness.
+Status: **IMPLEMENTED (core).** The `build-graph.py --scope` Focus/Context computation and the SKILL.md
+procedure wiring (Usage/Options/Inputs, Stage 1 scope resolution with a loud no-match, Focus-wide
+maturity rungs, Context-routed reads, the Stage 10 Surfaces-in-Focus gate with the upstream-repair
+escape, and the scope-tagged `final.md`) are wired in, with a build-graph fixture test and a SKILL.md↔
+builder contract test in `tests/run.sh`. Still **PROPOSED**: the optional `lint-plan.py --scope`
+mechanization of the Surfaces-in-Focus check (Open question — stays Claude's Stage 10 judgement for now).
+This specifies an opt-in way to aim a planwright run at one *component* of the target repo (a subtree or
+a logical library) instead of the whole codebase, without weakening grounding, root-cause analysis, or
+blast-radius awareness.
 
 planwright is **language-agnostic** — nothing here is C++- or any-stack-specific. `lib` resolution
 leans on whatever build/module system the repo already uses (CMake, Cargo, npm, Python packages, Go),

@@ -280,6 +280,31 @@ else
   ok "SKILL.md invokes bundled scripts via the skill base dir, not a bare scripts/ path"
 fi
 
+# --- Test 10c: SKILL.md wires path/lib scoping to the focus/context graph keys ---
+# Contract between the SKILL.md procedure and build-graph.py: the scope feature must
+# be documented (path + lib options) AND ride on the --scope flag / focus+context
+# node sets the builder actually emits — so the prose can't describe a feature the
+# script doesn't back (the drift class this guards).
+scope_ok=1
+python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null || scope_ok=0
+import re, sys
+t = open(sys.argv[1]).read()
+need = []
+if not re.search(r'(?m)^/planwright path <X>', t): need.append("usage:path")
+if not re.search(r'(?m)^/planwright lib <X>', t): need.append("usage:lib")
+if "`path <X>`" not in t: need.append("option:path")
+if "`lib <X>`" not in t: need.append("option:lib")
+if "--scope" not in t: need.append("ref:--scope")
+if "Surfaces-in-Focus" not in t: need.append("gate:Surfaces-in-Focus")
+if "scope_focus_sha" not in t: need.append("final:scope_focus_sha")
+sys.exit(1 if need else 0)
+PY
+# the builder must actually back the documented flag + emitted keys
+grep -q 'add_argument("--scope"' "$ROOT/scripts/build-graph.py" || scope_ok=0
+grep -q '"focus"' "$ROOT/scripts/build-graph.py" || scope_ok=0
+grep -q '"context"' "$ROOT/scripts/build-graph.py" || scope_ok=0
+if [ "$scope_ok" = 1 ]; then ok "SKILL.md documents path/lib scoping and build-graph.py backs --scope/focus/context"; else bad "scope wiring incomplete: SKILL.md docs or build-graph.py --scope/keys missing"; fi
+
 # (b) the bundled scripts themselves are cwd-independent: invoked by absolute
 # path with --root from a foreign cwd (NOT the repo root), they still succeed.
 # lint-plan checks Surfaces existence against --root, so README.md resolves to
