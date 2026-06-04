@@ -24,6 +24,8 @@ The `/planwright` command scans the codebase and generates plan items in `.planw
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
 /planwright dry-run              Do all stages but print the plan instead of writing the file
+/planwright path <X>             Scope the run to a subtree/glob (composes with execute/cycle)
+/planwright lib <X>              Scope to a logical component (cluster / build target / package / dir)
 /planwright help                 Show the help and stop
 ```
 
@@ -42,6 +44,8 @@ You can combine options and instructions. For example:
 | `max <N>` | `20` | Cap on pending, unchecked items in the active plan. |
 | `no-compact` | off | Skip the lifecycle housekeeping stage (no archiving or draining). |
 | `dry-run` | off | Run the whole pipeline but only print the items, writing nothing. |
+| `path <X>` | whole repo | Scope the run to a subtree/glob: items land in that **Focus**; analysis still reads its 1-hop blast radius (**Context**). Composes with execute/cycle; orthogonal to `depth`. See **Component Scope** below. |
+| `lib <X>` | whole repo | Like `path`, but resolve a logical component name (graph cluster / build target / package / directory) to the Focus set. |
 
 ## Execute Commands (Edits Source)
 
@@ -65,6 +69,31 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 - **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until it reaches a recorded final point (all rungs dry, recorded in `.planwright/final.md`). Append `depth D` to plan at depth `D` (1–10) on every round, e.g. `/planwright cycle 3 depth 8`.
 - **Explore** (`cycle N explore`): Opt-in, cycle-only. By default a cycle stops as soon as it reaches the final point; with `explore`, reaching the final point instead **escalates through a ladder** rather than stopping, spending the remaining cycle budget (the `N` you asked for becomes an escalation budget): **① a cold-frontier sweep** of the code the default hot-core routing neglects (never-audited nodes and uncovered paths, via the graph's `ranked_cold` list), then **② the expand tier** — surveying the whole project for a *natural completion or generalization of what already exists* (capabilities implemented but not exposed, functionality the design implies but lacks, options that remove a hard-coded limit, helpers that consolidate repeated logic, and the tests that must precede such work). Each tier runs until dry before the next; if any tier finds grounded, above-bar work it does it and the cycle continues. When the hot core, cold frontier, **and** expand are all dry it records a stronger *deep* final point and stops. Two limits never move: the **grounding floor** (every item still cites a real seam and a runnable verification) and the **hard ceiling** (no new subsystems, unrelated domains, redesign, or speculation) — `explore` only *completes and generalizes* what exists, it never invents a new concept. Valid with any non-zero N (including `-1`); **orthogonal to `depth`** (every tier, including the cold-frontier sweep, runs at the cycle's depth — so `/planwright cycle 10 depth 10 explore` reads the frontier at full intensity).
 - **Invent** (`cycle N invent`): Opt-in, cycle-only; a **superset of `explore`** (if both are given, `invent` wins). It climbs the same ladder and then, once the expand tier is also dry, adds **③ a bounded invent burst** (at most 3 cycles, independent of `N`) under a raised *novelty dial*: it may now propose **genuinely net-new** capability — a concept not present today — **provided** each item still bolts to a real existing seam, serves the project's stated direction (PROJECT DIRECTION: mission/charter + README + roadmap), and stays under the same hard ceiling (still no new subsystems/domains/redesign). Typing `invent` *is* your permission to create; it relaxes only the "must already be latent" rule, never the floor or ceiling. When the cold frontier, expand, **and** an invent burst are all dry it records the deepest final point and stops.
+
+### Component Scope (`path` / `lib`)
+
+Both are opt-in **options** (not subcommands), so they compose with any path — plan, `execute`, or
+`cycle` — and are **orthogonal to `depth`**: `/planwright path src/auth/ cycle 5 depth 8`,
+`/planwright lib parser execute`.
+
+- **`path <X>`** scopes to a literal subtree or glob (`path src/auth/`, `path 'src/**/parser*'`).
+- **`lib <X>`** resolves a *logical* component name to the same kind of file set, best-effort and in
+  order: an exact graph **cluster label**, then a **build target** (CMake `add_library`, a Cargo
+  crate/workspace member, an npm workspace, a Python package, a Go package), then a **directory** named
+  `<X>`.
+
+A scope resolves into two sets (see [Scope design](scope-design.md)):
+
+- **Focus** — the scoped files. Plan items are *proposed and land* only here (Stage 10 enforces it).
+- **Context** — Focus **plus its 1-hop import/coupling blast radius**. This is what analysis *reads*, so
+  an upstream root cause and downstream impact stay visible instead of being walled off. One exception
+  lets a `repair` item touch a Context (upstream) file when its evidence proves the in-Focus symptom
+  traces there.
+
+Under a scope the maturity ladder is unchanged but its reach narrows: change-gated rungs scope to
+`dirty ∩ Focus`, and the opportunity/vision rungs survey **Focus-wide** — so a scoped `cycle` matures
+just that component and records a **scoped** final point that never suppresses a later whole-repo run. A
+pathspec that matches nothing is a hard error (never a silent whole-repo fallback).
 
 ### Broad Final Verification (warnings gate)
 

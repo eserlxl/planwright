@@ -13,6 +13,7 @@ It operates using three distinct, partitioned paths:
 - **Plan** — scans and audits the codebase, then runs a multi-stage pipeline to emit concrete, verified plan items into `.planwright/plan.md`. A valid plan item must cite real file/line evidence and include a runnable verification command. Read-only: the plan path writes only the plan file, never your source.
 - **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and records the rest. This is the only path that edits source.
 - **Cycle** — runs N plan→execute rounds unattended, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work, and stopping at a recorded *final point* when every rung is dry (pass `-N` to run until then). The opt-in **`explore`** flag turns that final point into an escalation instead of a stop: it sweeps the *cold frontier* — code the default routing under-examines — and then climbs into the **expand** tier (completing and generalizing latent capability), spending the rest of the requested cycle budget before recording a deeper final point, all without ever lowering the grounding bar. **`invent`** is the superset that adds a bounded net-new, seam-bound burst once expand is dry. (See [Usage](docs/usage.md) for the full `cycle`/`explore`/`invent` reference.)
+- **Scope** *(modifier for any path above)* — add **`path <X>`** or **`lib <X>`** to aim a run at one component (a subtree or a logical library) instead of the whole repo. Plan items land in that **Focus**, while analysis still reads its 1-hop blast radius (**Context**) so root cause and impact stay visible — a scoped run matures just that component without walling off its dependencies. (See [Scope design](docs/scope-design.md).)
 
 ```mermaid
 flowchart LR
@@ -77,6 +78,7 @@ For deep dives into how `planwright` operates, refer to the documentation:
 - [Architecture](docs/architecture.md): Explanation of the 11-stage planning pipeline and execute loop.
 - [Development](docs/development.md): How to develop this plugin and use the provided helper scripts.
 - [Graph memory](docs/graph-memory-schema.md): The `.planwright/graph.json` / `digest.md` schema and how Stage 1.5 routes audit attention.
+- [Scope design](docs/scope-design.md): The `path`/`lib` component-scoping model — Focus vs. Context and how a scoped run stays grounded.
 
 ## Install
 
@@ -118,6 +120,10 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 /planwright cycle -1           # repeat until every maturity rung produces no actionable work
 /planwright cycle 10 depth 10 explore  # at the final point, escalate: cold-frontier sweep → expand (complete latent capability)
 /planwright cycle 10 depth 10 invent   # …and, with permission, a net-new seam-bound invent burst after expand is dry
+
+# Aim a run at one component instead of the whole repo (composes with execute/cycle)
+/planwright path src/auth/      # plan only the auth subtree (Focus); still reads its 1-hop deps (Context)
+/planwright lib parser cycle 5  # mature just the 'parser' component (cluster/build-target/dir) over 5 cycles
 
 # /codvisor — a short helper command that forwards to planwright
 /codvisor                  # flagship advisor run: cycle 10 depth 10 explore (prints the cost first)
