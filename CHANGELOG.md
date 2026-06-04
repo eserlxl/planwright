@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.31.1] - 2026-06-04
+
+### Changed
+- Repair: mission-amendment feature now targets MISSION.md (the file Stage 1 reads and make-plugin generates), not the non-existent MISSION.yaml; renamed across SKILL.md, codinventor, README, docs, and the Test 10f assertions.
+
 ## [1.31.0] - 2026-06-04
 
 ### Changed
