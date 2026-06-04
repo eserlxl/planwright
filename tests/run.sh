@@ -335,6 +335,28 @@ grep -q 'add_argument("--seed"' "$ROOT/scripts/build-graph.py" || seed_ok=0
 grep -q 'graph\["explore_framing"\]' "$ROOT/scripts/build-graph.py" || seed_ok=0
 if [ "$seed_ok" = 1 ]; then ok "SKILL.md wires seeded invent framing and matches build-graph.py EXPLORE_FRAMINGS catalog"; else bad "seed/framing wiring incomplete: SKILL.md docs, --seed/explore_framing, or catalog drift"; fi
 
+# --- Test 10e: SKILL.md documents the invent-must-generate rule + its guards ---
+# Explicit invent must propose >=1 net-new item (the value bar / mission conservatism
+# are relaxed), but the two hard gates that keep plans executable must remain, and the
+# relaxation must be scoped to invent (explore/default still never pad). This guards the
+# rule and its invariants against silent drift.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1]).read()
+need = []
+# the rule itself must be present and named
+if "must-generate" not in t and "must generate" not in t: need.append("rule:must-generate")
+if not re.search(r"invent tier .{0,40}must .{0,40}propose", t) and "must propose at least one net-new" not in t and "must emit ≥1 net-new" not in t and "must** propose ≥1" not in t:
+    need.append("rule:must-propose-one")
+# the two never-relaxed gates must be reaffirmed near the rule
+if "grounding floor" not in t: need.append("gate:grounding-floor")
+if "structural hard ceiling" not in t: need.append("gate:structural-ceiling")
+# the relaxation must be scoped to explicit invent (not explore/default)
+if "explicit `invent`" not in t: need.append("scope:explicit-invent")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md documents invent-must-generate with grounding-floor + structural-ceiling guards, scoped to invent"; else bad "invent-must-generate rule or its guards/scope missing from SKILL.md"; fi
+
 # (b) the bundled scripts themselves are cwd-independent: invoked by absolute
 # path with --root from a foreign cwd (NOT the repo root), they still succeed.
 # lint-plan checks Surfaces existence against --root, so README.md resolves to

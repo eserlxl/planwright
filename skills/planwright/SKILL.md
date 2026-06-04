@@ -275,27 +275,41 @@ concept not present today — provided each candidate (a) bolts to a **real exis
 `Surfaces:` / `Development:`; net-new files in `New Surfaces:`), (b) serves **PROJECT DIRECTION**, and
 (c) stays under the hard ceiling (not a new subsystem, unrelated domain, or redesign). To keep the
 riskiest tier from running away, `invent` runs as a **bounded burst** — at most a small fixed number of
-cycles (**3**), *independent of `N`* — so even `cycle -1 invent` invents only in a short burst before
-re-checking the fixpoint. If the burst writes ≥1 item, execute and continue; the natural limiter is
-structural — you can only invent where a real seam exists to carry it.
+cycles (**3**) per trigger, *independent of `N`* — before re-checking the fixpoint. If the burst writes
+≥1 item, execute and continue; the natural limiter is structural — you can only invent where a real seam
+exists to carry it. **`invent` must generate:** typing `invent` is permission to create, so the tier
+**must emit ≥1 net-new item** whenever any candidate clears the floor + structural ceiling — it may emit
+a below-value-bar or mission-stretching item (flagged in Rationale), and does **not** declare itself dry
+merely because the project is deliberately minimal. The two hard gates (grounding floor, structural
+ceiling) and plan capacity are never relaxed; the value bar / mission conservatism are (explicit-`invent`
+only — see Stage 5's invent lens and Hard rules).
 
 **Deep final point.** The run stops at the deepest fixpoint its flag can reach, recorded in
 `.planwright/final.md` (marked with `deepest_tier:` and a one-line note), even if budget remains —
 nothing groundable is left:
 - under `explore`, when the hot core, cold frontier, **and** expand are all dry → `deepest_tier: expand`,
   `confirmed deep — cold-frontier and expand tiers both dry`;
-- under `invent`, when those **and** an invent burst are all dry → `deepest_tier: invent`,
-  `confirmed deep — cold-frontier, expand, and invent tiers all dry`.
+- under `invent`, **only** in the rare genuine empty — no net-new candidate clears even the grounding
+  floor + structural hard ceiling (no seam left to extend) → `deepest_tier: invent`,
+  `confirmed deep — no groundable net-new seam remains`. Because `invent` **must generate** otherwise
+  (above), an `invent` run normally does **not** reach this fixpoint; it runs to its cycle budget `N`
+  (so `cycle -1 invent` keeps inventing), stopping early only at plan capacity.
 This multi-tier fixpoint is a far more honest "stable" than a single hot-core survey.
 
-**Why this terminates (safe for any non-zero N, including unlimited `-1`).** Each tier is finite and
-drains monotonically — swept cold nodes are restamped (`last_audited_sha = HEAD`, Stage 11) and leave
-the frontier; expand and invent candidates are either implemented (advancing state) or dropped/rejected
-(recorded, not re-proposed), and the invent burst is hard-capped at 3 cycles per trigger. Tiers are
-tried in fixed order, so the escalation is a bounded sequence that always ends in a recorded final
-point. The grounding bar is **unchanged** throughout — the flag widens *reach*, never lowers proof; a
-cold, latent, or net-new-but-seamless surface is not automatically worth an item, so the escalation
-surfaces *candidates*, it does not pad. Both flags are a no-op outside the cycle path.
+**Termination.** Under **`explore`** the ladder is safe for any non-zero N (including `-1`): each tier is
+finite and drains monotonically — swept cold nodes are restamped (`last_audited_sha = HEAD`, Stage 11)
+and leave the frontier; expand candidates are implemented (advancing state) or dropped/rejected (recorded,
+not re-proposed) — so the escalation is a bounded sequence that always ends in a recorded final point.
+Under **`invent`** termination is deliberately different: the **invent-must-generate** rule means the
+tier keeps producing groundable net-new work as long as any seam remains to extend, so an `invent` run
+does **not** self-terminate at a fixpoint — it runs to its cycle budget `N` and `cycle -1 invent` runs
+until you stop it (or plan capacity / a true no-seam empty halts it). Bounding still holds where it
+matters: the invent burst is hard-capped at 3 cycles per trigger, and the two hard gates (grounding
+floor, structural hard ceiling) plus the 20-item pending cap never move. The relaxation is scoped and
+explicit: under `explore`/default the flag widens *reach* and **never pads** (a cold, latent, or
+net-new-but-seamless surface is not automatically worth an item — it surfaces *candidates*); under
+`invent` the value bar / mission conservatism are relaxed so the tier always lands a (possibly
+flagged-as-stretch) net-new item. Both flags are a no-op outside the cycle path.
 
 ## Inputs
 
@@ -602,6 +616,25 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
    and when they rest on an unresolved design decision they carry a preceding design item (Stage 7
    rule b). The grounding floor is unchanged — a net-new idea with no real seam to attach to is dropped.
 
+   **`invent` must generate (explicit-`invent`-only rule).** Typing `invent` is explicit permission to
+   create, so the invent tier **must propose at least one net-new item** rather than declare itself dry —
+   it does **not** get to return nothing because the work would only *extend* a deliberately minimal
+   project. Two gates still hold absolutely (they keep the plan executable, not merely tidy): the
+   **grounding floor** (a real existing seam, exact Surfaces, and a runnable Verification) and the
+   **structural hard ceiling** (no new subsystem, domain, or redesign — it must be one implementable
+   change). What is **relaxed under explicit `invent`** is the *value bar* and *mission conservatism*:
+   rank every net-new candidate that clears those two gates and emit the **highest-value** one even if it
+   sits below the normal value bar or stretches a mission preference (e.g. a "small / minimal /
+   dependency-light" mandate). When the emitted item is below the normal bar or stretches the mission,
+   **say so in its Rationale** (e.g. "invent-tier: emitted under invent-must-generate; stretches MISSION
+   'small', or below the usual value bar") so the plan stays honest about why it is there. Consequences,
+   by design: the invent tier therefore (almost) never records an *invent-dry* deep final point — there is
+   always a next groundable feature — so `cycle -1 invent` runs to its budget rather than self-terminating;
+   the only genuine empty is when **no** candidate clears the grounding floor + structural ceiling (no seam
+   left to extend at all), and that must be reported with its reason. This rule is **subject to plan
+   capacity** (the 20-item pending cap / `propose_count == 0` still stops with "Plan is at capacity") and
+   applies **only** to an explicit `invent`; `explore` and the default never pad (see Hard rules).
+
    **Seeded framing (active only when Stage 1.5 emitted `explore_framing` — an `invent` run with a
    `seed`).** Without a seed, the invent survey is **comprehensive** (survey every module against PROJECT
    DIRECTION) and deterministic — unchanged behavior. With a seed, *focus* the generative survey through
@@ -702,7 +735,10 @@ yours:
 - **Value bar (maturity rungs):** an `opportunity` item must name a concrete user/maintainer payoff; a
   `vision` item must name a concrete, mission-aligned outcome. A proposal that amounts to a vague
   nicety ("could be cleaner", "might be nice") fails the bar — drop it. Better to declare the final
-  point honestly than to pad the plan with sub-bar items.
+  point honestly than to pad the plan with sub-bar items. **(Exception: under an explicit `invent`, the
+  invent tier must still emit its best grounded, structurally-valid net-new candidate even if below this
+  bar — flagged in Rationale — rather than declare invent-dry; the grounding floor and structural hard
+  ceiling are never relaxed. See Stage 5's invent lens and Hard rules.)**
 
 ### Stage 11 — Write the plan
 
@@ -753,10 +789,12 @@ something to diff against:
    nothing above their value bar), write `.planwright/final.md` with one block: the HEAD sha, the date,
    each rung (repair/coverage/opportunity/vision) marked dry, and a one-line reason per rung. Under
    `explore`/`invent`, also record `deepest_tier:` (`hot-core` | `cold-frontier` | `expand` | `invent`)
-   — the furthest tier surveyed before drying; `deepest_tier: expand` (under `explore`) or
-   `deepest_tier: invent` (under `invent`) denotes the stronger **deep final point** (every tier the
-   flag can reach is dry, see **Escalation ladder**). This is the recorded **final point**;
-   it is routing/status only and is **never** valid Evidence.
+   — the furthest tier surveyed before drying; `deepest_tier: expand` (under `explore`) denotes the
+   stronger **deep final point** (cold frontier + expand both dry). `deepest_tier: invent` is written
+   **only** in the rare genuine empty where no net-new candidate clears the grounding floor + structural
+   hard ceiling (no seam left to extend) — because `invent` **must generate** otherwise (see **Escalation
+   ladder**), so an ordinary `invent` run writes **no** `final.md` and instead runs to its cycle budget.
+   This is the recorded **final point**; it is routing/status only and is **never** valid Evidence.
    **Under a Scope**, also record `scope:` (`path:<X>` / `lib:<X>`) and `scope_focus_sha:` (a hash of
    the sorted Focus path list) so the Stage 1 short-circuit only fires for a matching scope; a whole-repo
    run records no `scope:` line (or `scope: (whole-repo)`). A scoped final point asserts dryness **only**
@@ -813,6 +851,11 @@ preamble, headings, code, or commentary in the plan file.
   opportunity and vision rungs project-wide. Declare the final point (write `.planwright/final.md`)
   only when all four rungs are genuinely dry — never pad the plan with sub-value-bar filler to avoid
   stopping, and never stop merely because the dirty set is empty.
+  **Exception — explicit `invent`:** under an explicit `invent` the invent tier **must** propose ≥1
+  net-new item rather than declare itself dry (it may emit a below-value-bar or mission-stretching item,
+  flagged in its Rationale), because typing `invent` is permission to create. The **grounding floor** and
+  **structural hard ceiling** still hold absolutely, and plan capacity still stops it; the relaxation is
+  the value bar / mission conservatism, and it applies to **no other mode** (see Stage 5's invent lens).
 - Output **only** the plan file. No code, no edit bundles.
 
 # Execute (implement the plan)
@@ -924,10 +967,13 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
    `.planwright/`), STOP and report the dirty paths. Do not mix uncommitted work with per-item commits.
 3. **Resolve `explore` / `invent`** — both are opt-in and **cycle-only**; `invent` is a superset of
    `explore` (if both are given, `invent` wins). Each is valid with **any** non-zero N (positive or
-   unlimited `-1`): the escalation is a bounded, self-terminating ladder (cold-frontier sweep → expand,
-   and under `invent` → a hard-capped invent burst; see **Escalation ladder**) that always ends in a
-   recorded final point, so it needs no extra N restriction. The cycle count `N` doubles as the
-   **escalation budget** — a final point reached before cycle N is spent climbing the ladder instead of
+   unlimited `-1`). Under `explore` the escalation is a bounded, self-terminating ladder (cold-frontier
+   sweep → expand) that always ends in a recorded final point. Under `invent` the **must-generate** rule
+   means the tier keeps landing groundable net-new work, so the run does **not** self-terminate — it runs
+   to its cycle budget `N` (and `cycle -1 invent` runs until you stop it or it hits plan capacity / a true
+   no-seam empty); the invent burst is still hard-capped at 3 cycles per trigger (see **Escalation
+   ladder**). The cycle count `N` doubles as the **escalation budget** — a final point reached before
+   cycle N is spent climbing the ladder instead of
    stopping early. (Outside the cycle path — plain plan, `execute`, `version` — both are ignored.)
    **Resolve `seed <S>`** here too: valid **only with `invent`** (ignore it, with a one-line note, under
    `explore` or no flag). When present, Stage 1.5 passes `--seed <S>` and the invent tier surveys through
@@ -967,15 +1013,20 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
         the expand posture until expand itself goes dry).
      3. **Invent** (`invent` only) — if the cold frontier **and** expand are both dry and the budget
         still allows, run a **bounded invent burst** (≤3 cycles, independent of `N`): survey lenses 5–6
-        under the invent lens (net-new, seam-bound — Stage 5). When a `seed` is active, that survey is
-        *focused through the seeded framing* (Stage 5's seeded-framing rule) and the burst is seed-scoped;
-        without a seed it is comprehensive. If it writes ≥1 item, delete the stale `final.md`, proceed to
-        Execute, and continue (re-checking the fixpoint after the burst).
-     4. **Deep final point** — when every tier the flag can reach is dry (`explore`: cold frontier +
-        expand; `invent`: + the invent burst), write `final.md` (`deepest_tier: expand` or
-        `deepest_tier: invent` with the matching note), print
-        `Cycle i/N: deep final point reached — <tiers> all dry.` and STOP (even if cycles remain —
-        nothing groundable is left).
+        under the invent lens (net-new, seam-bound — Stage 5). Per Stage 5's **invent-must-generate**
+        rule the burst **emits ≥1 item** whenever any candidate clears the grounding floor + structural
+        hard ceiling (it may be below the value bar / mission-stretching, flagged) — so the invent tier
+        effectively does not go *invent-dry* while a seam remains to extend. When a `seed` is active, that
+        survey is *focused through the seeded framing* (Stage 5's seeded-framing rule) and the burst is
+        seed-scoped; without a seed it is comprehensive. Delete the stale `final.md`, proceed to Execute,
+        and continue (re-checking the fixpoint after the burst).
+     4. **Deep final point** — for `explore`, when the cold frontier **and** expand are both dry, write
+        `final.md` (`deepest_tier: expand`). Under **`invent`** a deep final point is reached **only** in
+        the rare genuine empty — *no* net-new candidate clears even the grounding floor + structural hard
+        ceiling (no seam left to extend); then write `final.md` (`deepest_tier: invent`, with the reason
+        for the empty). Print `Cycle i/N: deep final point reached — <tiers> all dry.` and STOP (even if
+        cycles remain). Otherwise the invent burst keeps producing groundable work and the cycle runs to
+        its budget `N` (so `cycle -1 invent` does not self-terminate — that is the point of `invent`).
 
    If items are pending or were written, proceed to Execute as normal.
 4. **Execute** — run the full per-item execute loop over every pending item (same as
@@ -995,9 +1046,9 @@ Print a cumulative summary:
 - Total items implemented (with all commit short-SHAs)
 - Total items rejected (titles + one-line reasons)
 - Stop reason if stopped before N: `hard blocker`, `broad-verify failed`, `final point reached`
-  (all four maturity rungs dry — see `.planwright/final.md`), or — under `explore`/`invent` — `deep
-  final point reached` (every tier the flag can reach is dry: cold frontier + expand, and under
-  `invent` the invent burst too)
+  (all four maturity rungs dry — see `.planwright/final.md`), or — under `explore` — `deep final point
+  reached` (cold frontier + expand both dry). Under `invent`, `must-generate` means there is normally no
+  deep final point — the run reaches N (or `plan at capacity`, or the rare `no groundable seam remains`)
 
 ## Stop conditions
 
@@ -1009,8 +1060,11 @@ Stop and do **not** start the next cycle on any of:
   `.planwright/final.md` (step 3 above). An empty dirty set / empty backlog alone is **not** a stop —
   the maturity-gated rungs must have been surveyed and come up empty first. **Under `explore`/`invent`**,
   the hot-core final point is **not** a stop on its own — it escalates through the ladder (cold-frontier
-  sweep → expand, and under `invent` → a hard-capped invent burst), and the run stops only at the
-  **deep final point** (every tier the flag can reach is dry).
+  sweep → expand, and under `invent` → a hard-capped invent burst). Under `explore` the run stops at the
+  **deep final point** (cold frontier + expand dry). Under `invent` the **must-generate** rule keeps the
+  invent tier producing groundable net-new work, so the run does **not** stop at a fixpoint — it runs to
+  N, stopping early only at plan capacity or the rare genuine empty (no net-new candidate clears the
+  grounding floor + structural hard ceiling).
 
 Individual item rejections are **not** a stop condition — the cycle continues and the next planning
 round's audit will learn from the rejection reasons in `rejected.md`.
