@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.31.2] - 2026-06-04
+
+### Changed
+- Fix: a fresh `invent` run no longer short-circuits on a recorded final point (Stage 1 escalation-reach rule). A deepest_tier: invent marker is now informational only, so re-invoking /codinventor at the same HEAD re-surveys and lands the next groundable net-new item instead of freezing; explore likewise re-surveys over a plain/hot-core point.
+
 ## [1.31.1] - 2026-06-04
 
 ### Changed
