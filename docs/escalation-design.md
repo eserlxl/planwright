@@ -145,7 +145,11 @@ fixpoint: <one-line why every reachable tier was dry>
 
 Report string, e.g.: `Cycle i/N: deep final point — expand exhausted, budget spent; no seam-bound
 invention remains.` A later round re-opens the ladder on the existing triggers (tree changed, PROJECT
-DIRECTION changed, higher depth) or a higher novelty opt-in (`explore` → `invent`).
+DIRECTION changed, higher depth) or a deeper escalation flag than the recorded point. Per the **Stage 1
+escalation-reach rule**, a fresh `invent` invocation **never** short-circuits — a recorded
+`deepest_tier: invent` is informational only, and re-invoking `invent` re-asserts the must-generate
+mandate and re-surveys the net-new tier (so repeated `/codinventor` runs keep landing work instead of
+freezing at the first invent-dry point); `explore` likewise re-surveys over a plain/`hot-core` point.
 
 ## `SKILL.md` changes required (when approved)
 

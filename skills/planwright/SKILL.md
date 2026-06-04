@@ -217,8 +217,10 @@ keep forward motion. The decisive rule that prevents premature idling:
 that, it writes `.planwright/final.md` — one block recording the HEAD sha, the rungs surveyed, and why
 each is dry — and reports "final point reached". This is a *justified* terminal state, distinct from an
 empty-dirty-set idle. A later run re-opens the ladder only if the project changed (non-empty dirty
-set), the mission/charter changed, or the user raises ambition (an explicit instruction, or higher
-depth). Any planning round that writes ≥1 item deletes a stale `final.md`.
+set), the mission/charter changed, or the user raises ambition — an explicit instruction, higher
+depth, or a **deeper escalation flag than the recorded point** (re-invoking `explore` over a plain
+point, or `invent` over anything, always re-surveys; see Stage 1's **escalation-reach rule**). Any
+planning round that writes ≥1 item deletes a stale `final.md`.
 
 ## Escalation ladder
 
@@ -414,12 +416,29 @@ Then load the planning memory so this run learns from prior ones:
   if `final.md`'s recorded sha equals the current HEAD **and** the dirty set is empty **and** no new
   instruction or higher depth was given this run **and** the run's scope matches the recorded one (the
   `scope:`/`scope_focus_sha:` fields equal this run's — a *whole-repo* run only short-circuits on a
-  *whole-repo* final point, and a `path <X>` run only on the matching scoped one), the project is
+  *whole-repo* final point, and a `path <X>` run only on the matching scoped one) **and** this run's
+  **escalation reach** is not deeper than the recorded point, the project is
   unchanged since the ladder was last exhausted *for that scope*: report `already at final point
   (<sha>)` and treat all four maturity rungs as dry (the run writes 0 items, and Stage 11 leaves the
   existing `final.md` in place). Otherwise treat `final.md` as stale and proceed normally — Stage 11
   step 3 deletes it once ≥1 item is written. (A scoped final point never suppresses a differently-scoped
   or whole-repo run.)
+  - **Escalation-reach rule (so a more ambitious re-invocation is never frozen).** Reach is ordered
+    *default < `explore` < `invent`*. The short-circuit fires only when the recorded `deepest_tier` is
+    **at least as deep as this run can reach**:
+    - a **default**/plain run honors any recorded final point (it cannot reach deeper);
+    - an **`explore`** run honors only a `deepest_tier: expand` (or `invent`) point — a plain or
+      `deepest_tier: hot-core` point is **stale** to it, because `explore` still reaches the
+      cold-frontier and expand tiers that point never surveyed, so it proceeds and re-surveys;
+    - an explicit **`invent`** run **never** short-circuits. The invent tier **must generate** (see
+      **Escalation ladder**), so a recorded `deepest_tier: invent` is **informational only** — it
+      records *why one prior burst came up empty*, but a fresh `invent` invocation re-asserts the
+      must-generate mandate and **re-surveys** the net-new tier. This is what lets repeated
+      `/codinventor` (or `cycle … invent`) runs keep landing net-new work instead of freezing at the
+      first recorded invent-dry point. (Re-surveying a *genuine* empty simply re-writes the same
+      `deepest_tier: invent` and the cycle's own deep-final-point stop ends that run — see **Cycle**
+      step 3 — so the bound still holds; what changes is only that the marker no longer blocks the
+      *next* invocation.)
 
 ### Stage 1.5 — Build code graph (mechanical)
 

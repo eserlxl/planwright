@@ -387,6 +387,30 @@ sys.exit(1 if need else 0)
 PY
 if [ "$mission_ok" = 1 ]; then ok "SKILL.md documents dwell-gated MISSION amendment (pressure=3, next-cycle gap, ceiling-hold, denylist, announced)"; else bad "MISSION-amendment rule, dwell gate, denylist, or awareness notice missing/incomplete"; fi
 
+# --- Test 10g: Stage 1 escalation-reach rule (a deeper re-invocation is not frozen) -
+# The "already at final point" short-circuit must NOT freeze a more ambitious re-run:
+# a fresh `invent` run never short-circuits (must-generate -> a deepest_tier: invent
+# marker is informational only and re-invoking invent re-surveys), and `explore`
+# re-surveys over a plain/hot-core point. Guards the fix against silent regression.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1]).read()
+need = []
+# the rule must be present and named
+if "escalation-reach" not in t and "escalation reach" not in t: need.append("rule:escalation-reach")
+# an explicit invent run never short-circuits
+if not re.search(r"invent`?\*?\*? run \*?\*?never\*?\*? short-circuit", t) and "**never** short-circuit" not in t:
+    need.append("invent:never-short-circuit")
+# a deepest_tier: invent marker is informational only (does not block the next run)
+if "informational only" not in t: need.append("marker:informational-only")
+# re-invoking invent re-surveys / re-asserts the must-generate mandate
+if "re-surveys" not in t and "re-survey" not in t: need.append("invent:re-survey")
+# explore is stale over a plain / hot-core point (reach ordering)
+if "hot-core" not in t and "hot core" not in t: need.append("explore:plain-stale")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md documents the Stage 1 escalation-reach rule (invent never short-circuits; explore re-surveys a plain point)"; else bad "escalation-reach rule missing from SKILL.md (invent could freeze at a recorded invent-dry point)"; fi
+
 # (b) the bundled scripts themselves are cwd-independent: invoked by absolute
 # path with --root from a foreign cwd (NOT the repo root), they still succeed.
 # lint-plan checks Surfaces existence against --root, so README.md resolves to
