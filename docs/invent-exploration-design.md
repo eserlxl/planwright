@@ -1,10 +1,14 @@
 # planwright invent exploration — seeded, recorded stochasticity (design draft)
 
-Status: **PROPOSED** — design only. Nothing below is implemented. It addresses a real observation —
-repeated `invent` runs tend to re-derive the **same** candidate features — without the collateral damage
-of the first instinct (randomizing the graph). The fix injects *seeded, recorded* stochasticity at the
-**ideation/selection layer** (where creativity lives) and keeps the graph the accurate, deterministic
-**map** the other three rungs depend on.
+Status: **PARTIALLY IMPLEMENTED.** Lever 1's builder substrate — `build-graph.py --seed` emitting
+`explore_seed` + `ranked_explore`, with tests — is shipped. The SKILL.md invent-lens wiring is **still
+PROPOSED and now gated**: a two-seed comparison (Open question 1, below) showed reordering is a **no-op
+unless the survey is truncation-bound** (above-bar candidate pool > `propose_count`), so the lens must
+consume `ranked_explore` only in that case. Levers 2–4 remain design-only. It addresses a real
+observation — repeated `invent` runs tend to re-derive the **same** candidate features — without the
+collateral damage of the first instinct (randomizing the graph). The fix injects *seeded, recorded*
+stochasticity at the **ideation/selection layer** (where creativity lives) and keeps the graph the
+accurate, deterministic **map** the other three rungs depend on.
 
 planwright is **language-agnostic**; nothing here is stack-specific.
 
@@ -95,10 +99,20 @@ Record the seed (and chosen framing) so the run is replayable: `invent_seed: <N>
 
 ## Open questions (decide before building)
 
-1. **Does reordering the survey actually change the proposals?** This is a hypothesis. Validate by running
-   `invent` twice with different seeds on a real, idea-rich repo and confirming the proposed sets genuinely
-   differ *and* both stay above the value bar — before wiring it deep. Building on the hunch is the exact
-   unverified-feature trap the mission warns against.
+1. **Does reordering the survey actually change the proposals?** **ANSWERED (conditionally) — 2026-06-04.**
+   A two-seed comparison on planwright's own repo (seeds 7 vs 99, different lead surfaces) found the
+   proposed invent set **identical** (100% overlap). Reason — a counting argument, not a hunch: the
+   generative lenses survey **project-wide**, so every surface is seen regardless of order; order can only
+   change proposals when the survey is **truncated** before finishing. Here the above-bar candidate pool
+   (≈3, generously ≤7) is **smaller than `propose_count` (8)**, so nothing is gated out and both orders
+   yield the full pool. **Conclusion: seeded ordering changes proposals iff the above-bar pool exceeds a
+   run's survey/propose capacity (large, idea-rich repos); on a small repo it is a provable no-op.**
+   Implication for the wiring (lever 1 → SKILL.md): **gate the invent lens on `ranked_explore` to the
+   truncation case** — only walk the seeded order when the candidate pool would otherwise overflow
+   `propose_count`; for small repos, stay deterministic (the seed buys nothing). Validate again on a
+   genuinely large repo before trusting the truncated-slice behaviour. (Original hypothesis text, kept for
+   provenance: run `invent` twice with different seeds on a real, idea-rich repo and confirm the proposed
+   sets genuinely differ *and* both stay above the value bar before wiring deep.)
 2. **Default seed in `invent`.** Stay fully deterministic unless `seed <N>` is given, or auto-derive a
    recorded seed (e.g. from HEAD+date) so unattended `cycle -1 invent` naturally explores? Recommend:
    deterministic by default; opt-in seed first; revisit auto-seed after lever 1 is validated.
@@ -111,8 +125,10 @@ Record the seed (and chosen framing) so the run is replayable: `invent_seed: <N>
 
 ## Recommendation
 
-Ship **lever 1 (seeded `ranked_explore` in the builder)** first — it is the one mechanizable, testable
-piece (deterministic per seed, varies across seeds, absent by default), exactly parallel to how
-`--scope`'s `focus`/`context` landed before its SKILL.md wiring. Validate Open question 1 on a real repo
-before wiring the invent lens deep, then add levers 2–4 (all reasoning-layer prose) if the variation
-proves real and above-bar. Keep the graph the accurate, deterministic map throughout.
+Lever 1's builder substrate is shipped (`--seed` → `explore_seed` + `ranked_explore`, tested). The
+two-seed validation (Open question 1) then **narrowed the wiring**: reordering only changes proposals when
+the survey is truncation-bound, so **do not wire the invent lens to `ranked_explore` unconditionally** —
+gate it on `above-bar pool > propose_count`, and stay deterministic on small repos (like planwright's own,
+where it is a proven no-op). Re-validate on a genuinely large repo before trusting the truncated-slice
+behaviour, then add levers 2–4 (all reasoning-layer prose) if the variation proves real and above-bar.
+Keep the graph the accurate, deterministic map throughout.
