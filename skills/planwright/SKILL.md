@@ -10,8 +10,8 @@ description: >
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
   "propose plan items", "execute the plan", "implement the plan", "cycle", "dogfood", or mentions
   .planwright/plan.md. Run `/planwright help` for usage and options.
-  Supports: execute [--interactive] [N], cycle <N>, explore, invent, update, version, upgrade, depth <D>, propose <N>, max <N>, no-compact, dry-run, help.
-argument-hint: "[instruction] | execute [N] | cycle <N> [depth <D>] [explore|invent] | depth <D> | version | upgrade | help"
+  Supports: execute [--interactive] [N], cycle <N>, explore, invent, seed <S>, update, version, upgrade, depth <D>, propose <N>, max <N>, no-compact, dry-run, help.
+argument-hint: "[instruction] | execute [N] | cycle <N> [depth <D>] [explore|invent [seed <S>]] | depth <D> | version | upgrade | help"
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
@@ -89,6 +89,10 @@ CYCLE (automated plan → execute loops)
                                  capability), spending the remaining cycle budget (see Escalation ladder)
 /planwright cycle <N> invent     Superset of explore + permission to add net-new, seam-bound
                                  capability (the invent tier, a bounded burst, after expand is dry)
+/planwright cycle <N> invent seed <S>   Opt-in: focus the invent tier through one seeded generative
+                                 framing (a recorded vantage). Scopes which net-new ideas a run
+                                 surveys; successive seeds explore different regions (see Escalation
+                                 ladder). No-op without invent. Default invent stays comprehensive
 /planwright cycle <N> depth <D> explore   Combine: every round (and the escalation) runs at depth D
 
 MAINTENANCE
@@ -115,6 +119,7 @@ Plan options may be combined with an instruction, e.g.
 | `lib <X>` | whole repo | **scope**: like `path`, but resolve a logical component name (cluster / build target / package / dir) to the Focus set (see **Scope**) |
 | `explore` | off | **cycle only**: at the final point, escalate instead of stopping — cold-frontier sweep, then the **expand** tier (complete latent capability), spending the remaining cycle budget (see **Escalation ladder**) |
 | `invent` | off | **cycle only**: superset of `explore` — additionally permits net-new, seam-bound capability (the **invent** tier, a bounded ≤3-cycle burst) after the expand tier is dry (see **Escalation ladder**) |
+| `seed <S>` | none (deterministic) | **`invent` only**: focus the invent generative survey through one seeded **framing** (a recorded vantage from a fixed catalog). *Scopes* which net-new ideas a single run surveys — comprehensiveness is recovered across the seed sequence (cross-run), so successive seeds explore different regions instead of re-deriving the same ideas. No effect without `invent`; an unseeded `invent` stays comprehensive and deterministic. Integer. Recorded in `final.md` as `invent_seed`/`invent_framing` (see **Escalation ladder**, Stage 5) |
 | `help` | — | print Usage and stop |
 
 Precedence: **inline option > built-in default.** There is no settings file; options are per-run only.
@@ -305,6 +310,12 @@ surfaces *candidates*, it does not pad. Both flags are a no-op outside the cycle
   scoped files — where plan items are proposed and land) and the **Context** set (Focus + its 1-hop
   import/coupling blast radius — what analysis *reads* so root cause and impact stay visible). Absent =
   whole repo (today's behaviour). Composable with every path and **orthogonal to `depth`**.
+- **Seed** (optional, from `seed <S>`, **`invent` only**): an integer that focuses the invent tier
+  through one recorded **framing** (a vantage from a fixed catalog; see Stage 5's invent lens). Passed to
+  the Stage 1.5 builder as `--seed <S>`, which emits `explore_framing`. A single seeded run is an
+  intentionally *focused* invent survey; comprehensiveness is recovered across the seed sequence. Absent,
+  or without `invent`, = today's comprehensive, deterministic invent. Recorded in `final.md` as
+  `invent_seed` / `invent_framing`. Orthogonal to `depth` and `scope`.
 
 ## Procedure
 
@@ -415,6 +426,14 @@ the emitted `graph.json` `dirty` block** (`is_first_run`, `whole_graph`, `reason
 `clusters`) rather than recomputing it; Stages 3–7 gate on `dirty.nodes` / `dirty.clusters`. The numbered
 steps below are the **specification** the script implements — follow them by hand only as a fallback when
 the script cannot run (no `python3`, etc.).
+
+**Seeded invent framing** — when this run is an `invent` run **and** a `seed <S>` was given (Inputs),
+also append `--seed <S>`: the builder then emits `explore_seed`, `ranked_explore`, and `explore_framing`
+(a vantage key from a fixed catalog). Consume **only `explore_framing`** — it focuses Stage 5's invent
+survey (see the invent lens). Deliberately **ignore `ranked_explore`**: validation found surface
+*ordering* inert (the invent survey is value-ranked, not order-ranked), so it stays routing-only and
+unconsumed. All three fields are absent without `--seed`, so a default/unseeded build is byte-for-byte
+unchanged and behaves exactly as before. These are routing/record only — never Evidence (Stage 10).
 
 1. **Enumerate** tracked files via `git ls-files`. For each node record `sha256`, `loc`, and `lang`
    (by extension/shebang).
@@ -583,6 +602,28 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
    and when they rest on an unresolved design decision they carry a preceding design item (Stage 7
    rule b). The grounding floor is unchanged — a net-new idea with no real seam to attach to is dropped.
 
+   **Seeded framing (active only when Stage 1.5 emitted `explore_framing` — an `invent` run with a
+   `seed`).** Without a seed, the invent survey is **comprehensive** (survey every module against PROJECT
+   DIRECTION) and deterministic — unchanged behavior. With a seed, *focus* the generative survey through
+   the one recorded vantage below: survey for net-new capability **from that angle**, letting it dominate
+   what this run proposes. This **scopes generation** (which ideas are surveyed), not mere re-ranking — a
+   single seeded run is intentionally a *focused* survey, and comprehensiveness is recovered **across the
+   seed sequence** (successive seeds pick different framings and explore different regions, so repeated
+   `invent` runs stop re-deriving the same few ideas — the convergence this addresses is a cross-run
+   problem). Map `explore_framing` → vantage question:
+   - `power-user` — "what would an expert/power user want that the current design makes hard?"
+   - `integration` — "what external integration or interoperability is missing?"
+   - `onboarding` — "what would make first-run / onboarding trivial for a new user?"
+   - `reliability` — "what failure mode or recovery path is unhandled?"
+   - `automation` — "what manual workflow could be automated end-to-end?"
+
+   The framing's leverage **scales with the repo's idea space**: on a large, multi-domain repo (where a
+   single run cannot survey the whole net-new space anyway) it materially changes what is proposed; on a
+   small repo it mostly shifts coverage across runs. It never lowers the bar or lifts the hard ceiling —
+   every framing still demands a real seam, a concrete payoff, and a runnable verification, and a framing
+   that surfaces nothing above the value bar declares the tier dry exactly as an unfocused survey would
+   (a focused survey is not a license to invent filler).
+
    Stay grounded: every proposal still cites real surfaces and a runnable verification, and still
    passes Stage 10. Creativity widens *what* is proposed; it never lowers the grounding bar.
 6. **Operations & reliability** — config seams, sensitive-data handling, persistence, retry,
@@ -720,6 +761,11 @@ something to diff against:
    the sorted Focus path list) so the Stage 1 short-circuit only fires for a matching scope; a whole-repo
    run records no `scope:` line (or `scope: (whole-repo)`). A scoped final point asserts dryness **only**
    for that component — it never suppresses a differently-scoped or whole-repo run.
+   **Under a seeded `invent` run** (a `seed` was given, Inputs), also record `invent_seed: <S>` and
+   `invent_framing: <key>` so the run is replayable. A `deepest_tier: invent` declared under a seed is
+   **seed-scoped**: it asserts only that *this framing's* survey came up dry — a different seed/framing
+   may still find groundable invention, so it never suppresses a differently-seeded or unseeded invent
+   run. An unseeded invent run records neither field (its dryness is comprehensive).
 
 Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested,
 rungs surveyed (lowest non-empty / final-point), and any capacity stop.
@@ -883,9 +929,13 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
    recorded final point, so it needs no extra N restriction. The cycle count `N` doubles as the
    **escalation budget** — a final point reached before cycle N is spent climbing the ladder instead of
    stopping early. (Outside the cycle path — plain plan, `execute`, `version` — both are ignored.)
+   **Resolve `seed <S>`** here too: valid **only with `invent`** (ignore it, with a one-line note, under
+   `explore` or no flag). When present, Stage 1.5 passes `--seed <S>` and the invent tier surveys through
+   the seeded framing (Stage 5); when absent, invent stays comprehensive and deterministic.
 4. **Announce** — print the current branch (`git branch --show-current`), the cycle mode
    (`N cycles` or `unlimited`), the planning depth (`depth <D>`, default 6), and which escalation flag is
-   on (`explore`, `invent`, or none) before starting any work.
+   on (`explore`, `invent`, or none) before starting any work; if a seed is active, also print
+   `seed <S> (framing: <key>)`.
 
 ## Per-cycle loop (repeat up to N times, or indefinitely when N < 0)
 
@@ -917,8 +967,10 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
         the expand posture until expand itself goes dry).
      3. **Invent** (`invent` only) — if the cold frontier **and** expand are both dry and the budget
         still allows, run a **bounded invent burst** (≤3 cycles, independent of `N`): survey lenses 5–6
-        under the invent lens (net-new, seam-bound — Stage 5). If it writes ≥1 item, delete the stale
-        `final.md`, proceed to Execute, and continue (re-checking the fixpoint after the burst).
+        under the invent lens (net-new, seam-bound — Stage 5). When a `seed` is active, that survey is
+        *focused through the seeded framing* (Stage 5's seeded-framing rule) and the burst is seed-scoped;
+        without a seed it is comprehensive. If it writes ≥1 item, delete the stale `final.md`, proceed to
+        Execute, and continue (re-checking the fixpoint after the burst).
      4. **Deep final point** — when every tier the flag can reach is dry (`explore`: cold frontier +
         expand; `invent`: + the invent burst), write `final.md` (`deepest_tier: expand` or
         `deepest_tier: invent` with the matching note), print

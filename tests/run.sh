@@ -305,6 +305,36 @@ grep -q '"focus"' "$ROOT/scripts/build-graph.py" || scope_ok=0
 grep -q '"context"' "$ROOT/scripts/build-graph.py" || scope_ok=0
 if [ "$scope_ok" = 1 ]; then ok "SKILL.md documents path/lib scoping and build-graph.py backs --scope/focus/context"; else bad "scope wiring incomplete: SKILL.md docs or build-graph.py --scope/keys missing"; fi
 
+# --- Test 10d: SKILL.md wires the seeded invent framing to the builder catalog ---
+# Contract between SKILL.md and build-graph.py for lever 2 (seeded framing): the prose
+# must document the seed option, ride on --seed/explore_framing, record invent_framing,
+# AND every framing key in the builder's EXPLORE_FRAMINGS catalog must appear in SKILL.md
+# (no drift between the catalog the script emits and the vantage map the lens reasons under).
+seed_ok=1
+python3 - "$ROOT/skills/planwright/SKILL.md" "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null || seed_ok=0
+import re, sys
+skill = open(sys.argv[1]).read()
+builder = open(sys.argv[2]).read()
+need = []
+if not re.search(r'(?m)^\| `seed <S>`', skill): need.append("option:seed")
+if "--seed" not in skill: need.append("ref:--seed")
+if "explore_framing" not in skill: need.append("consume:explore_framing")
+if "invent_framing" not in skill: need.append("final:invent_framing")
+# the catalog the builder emits must match the vantage map in the prose
+m = re.search(r"EXPLORE_FRAMINGS\s*=\s*\[(.*?)\]", builder, re.S)
+if not m: need.append("builder:EXPLORE_FRAMINGS")
+else:
+    keys = re.findall(r'"([a-z-]+)"', m.group(1))
+    assert len(keys) >= 3, keys
+    for k in keys:
+        if k not in skill: need.append("map:" + k)
+sys.exit(1 if need else 0)
+PY
+# the builder must actually back the documented flag + emitted key
+grep -q 'add_argument("--seed"' "$ROOT/scripts/build-graph.py" || seed_ok=0
+grep -q 'graph\["explore_framing"\]' "$ROOT/scripts/build-graph.py" || seed_ok=0
+if [ "$seed_ok" = 1 ]; then ok "SKILL.md wires seeded invent framing and matches build-graph.py EXPLORE_FRAMINGS catalog"; else bad "seed/framing wiring incomplete: SKILL.md docs, --seed/explore_framing, or catalog drift"; fi
+
 # (b) the bundled scripts themselves are cwd-independent: invoked by absolute
 # path with --root from a foreign cwd (NOT the repo root), they still succeed.
 # lint-plan checks Surfaces existence against --root, so README.md resolves to
@@ -571,11 +601,12 @@ assert "focus" not in un and "context" not in un, list(un.keys())
 PY
 then ok "--scope no-match is empty Focus; unscoped build omits focus/context"; else bad "--scope invariants violated"; fi
 
-# --- Test 11c2f: --seed emits a reproducible-yet-varied ranked_explore ----------
-# Invent exploration (docs/invent-exploration-design.md, lever 1): a seeded ordering
-# of the branch>0 code nodes. The same seed reproduces the order (replayable); a
-# different seed reorders the SAME members (exploration); without --seed both keys
-# are absent (a default build is byte-for-byte unchanged).
+# --- Test 11c2f: --seed emits a reproducible-yet-varied ranked_explore + framing -
+# Invent exploration (docs/invent-exploration-design.md): lever 1 is a seeded ordering
+# of the branch>0 code nodes; lever 2 is a seeded explore_framing (a vantage key from
+# the fixed catalog). The same seed reproduces both (replayable); a different seed
+# reorders the SAME members and picks a (here different) framing; without --seed all
+# three keys are absent (a default build is byte-for-byte unchanged).
 SDREPO="$TMP/seedrepo"
 mkdir -p "$SDREPO"
 git -C "$SDREPO" init -q
@@ -600,10 +631,16 @@ assert sorted(a["ranked_explore"]) == sorted(f for f in a["nodes"] if a["nodes"]
 assert a["ranked_explore"] == b["ranked_explore"], "same seed not reproducible"
 assert a["ranked_explore"] != c["ranked_explore"], "different seed did not reorder"
 assert sorted(a["ranked_explore"]) == sorted(c["ranked_explore"]), "seed changed membership, not just order"
+# lever 2: explore_framing is a catalog key, deterministic per seed, varies across seeds
+CATALOG = {"power-user", "integration", "onboarding", "reliability", "automation"}
+assert a["explore_framing"] in CATALOG, a.get("explore_framing")
+assert a["explore_framing"] == b["explore_framing"], "same seed not reproducible (framing)"
+assert a["explore_framing"] != c["explore_framing"], "different seed did not change framing"
 # absent without --seed (byte-for-byte-unchanged contract)
 assert "explore_seed" not in none and "ranked_explore" not in none, list(none.keys())
+assert "explore_framing" not in none, list(none.keys())
 PY
-then ok "--seed emits a reproducible ranked_explore that a different seed reorders (same members)"; else bad "--seed ordering not reproducible/varied or leaked without --seed"; fi
+then ok "--seed emits a reproducible ranked_explore + framing that a different seed varies (same members)"; else bad "--seed ordering/framing not reproducible/varied or leaked without --seed"; fi
 
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported

@@ -25,6 +25,21 @@ COUPLING_WINDOW_COMMITS = 200
 COUPLING_MIN_COOCCURRENCE = 3
 RANKED_SURFACE_LIMIT = 20
 
+# Rotating generative framings (docs/invent-exploration-design.md, lever 2) — a
+# fixed catalog of vantage *keys* the invent generative lens can reason under. The
+# builder only makes the seeded *selection* (deterministic + tested); SKILL.md owns
+# the semantics (key -> vantage question). Ordered + append-only so a given seed keeps
+# selecting the same key across versions. Unlike lever 1's ordering (which the survey's
+# exhaustiveness makes inert), a framing is a prior over *which candidates get generated
+# at all*, so it changes pool membership, not just order.
+EXPLORE_FRAMINGS = [
+    "power-user",   # what would an expert/power user want that the design makes hard?
+    "integration",  # what external integration or interoperability is missing?
+    "onboarding",   # what would make first-run / onboarding trivial for a new user?
+    "reliability",  # what failure mode or recovery path is unhandled?
+    "automation",   # what manual workflow could be automated end-to-end?
+]
+
 # Basenames whose change forces a whole-graph re-audit: build/lockfile edits can
 # alter how every other file compiles, links, or resolves, so a localized dirty
 # set would under-audit. Matched case-insensitively (SKILL.md Stage 1.5 step 7,
@@ -791,6 +806,13 @@ def build(root, prior_path, scope=None, seed=None):
             (f for f in files if nodes[f]["branch_count"] > 0),
             key=lambda f: hashlib.sha256(f"{seed}:{f}".encode()).hexdigest(),
         )
+        # Rotating generative framing (lever 2): a seeded pick from the fixed catalog,
+        # deterministic per seed and stable across Python versions (digest, not RNG).
+        # Routing only — never Evidence. SKILL.md maps the key to a vantage question.
+        graph["explore_framing"] = EXPLORE_FRAMINGS[
+            int(hashlib.sha256(f"{seed}:framing".encode()).hexdigest(), 16)
+            % len(EXPLORE_FRAMINGS)
+        ]
 
     return graph
 
@@ -802,7 +824,7 @@ def main():
     ap.add_argument("--scope", default=None,
                     help="restrict to a path/dir/glob; emits focus + context (Focus + 1-hop blast radius) node lists")
     ap.add_argument("--seed", type=int, default=None,
-                    help="emit a seeded ranked_explore ordering for invent exploration; recorded as explore_seed")
+                    help="emit a seeded ranked_explore ordering + explore_framing for invent exploration; recorded as explore_seed")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:

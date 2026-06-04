@@ -120,6 +120,7 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 /planwright cycle -1           # repeat until every maturity rung produces no actionable work
 /planwright cycle 10 depth 10 explore  # at the final point, escalate: cold-frontier sweep → expand (complete latent capability)
 /planwright cycle 10 depth 10 invent   # …and, with permission, a net-new seam-bound invent burst after expand is dry
+/planwright cycle 10 invent seed 7     # focus the invent burst through one seeded framing; new seeds explore new angles
 
 # Aim a run at one component instead of the whole repo (composes with execute/cycle)
 /planwright path src/auth/      # plan only the auth subtree (Focus); still reads its 1-hop deps (Context)

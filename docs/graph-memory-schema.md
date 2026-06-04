@@ -77,7 +77,8 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   "focus":   ["src/auth/a.py"],              // OPT (--scope only): the scoped files — where plan items land
   "context": ["src/auth/a.py", "src/crypto/b.py"],  // OPT (--scope only): Focus + 1-hop blast radius — what the audit reads
   "explore_seed": 1337,                      // OPT (--seed only): the recorded seed — reproduce the run from it
-  "ranked_explore": ["lib/q.py", "src/p.py"]   // OPT (--seed only): branch>0 code nodes in seeded sha256 order
+  "ranked_explore": ["lib/q.py", "src/p.py"],  // OPT (--seed only): branch>0 code nodes in seeded sha256 order
+  "explore_framing": "integration"             // OPT (--seed only): seeded vantage key for the invent lens (lever 2)
 }
 ```
 
@@ -140,6 +141,13 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
   reproduces the order while a **different** seed reorders the same members. The invent generative survey
   walks it so repeated runs explore different regions of the design space, each replayable from its
   recorded `explore_seed`. Routing only — never Evidence.
+- **`explore_framing`** is emitted **only** under `--seed <N>` (lever 2) — a seeded pick of a vantage
+  *key* from the fixed catalog (`power-user`, `integration`, `onboarding`, `reliability`, `automation`),
+  chosen by `sha256("<seed>:framing") % len(catalog)`: deterministic per seed, stable across Python
+  versions, and varies across seeds. The builder makes only the *selection*; SKILL.md owns the key →
+  vantage-question semantics. Unlike `ranked_explore` (an ordering the exhaustive survey makes inert),
+  a framing is a prior over *which candidates the invent lens generates at all*, so it changes pool
+  membership. Routing only — never Evidence; the chosen key is recorded as `invent_framing` in `final.md`.
 - **`ranking_signal`** records which signal drove the `ranked` list: `centrality` (PageRank over the
   import graph) normally, or `coupling` when the import graph is degenerate (too few edges, or PageRank
   barely discriminates — common in docs/scripts repos), in which case nodes rank by **weighted
