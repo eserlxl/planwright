@@ -7,6 +7,22 @@ Still **PROPOSED** — design only: the semantic-freeze taper and the warnings-c
 described below, plus the optional standalone `expand` posture (Open question 1). This supersedes the
 earlier `innovate-escalation-design.md`.
 
+> **Addendum (2026-06-04) — invent semantics have since evolved (see `docs/invent-exploration-design.md`
+> and the changelog).** The Tier ③ description below ("records the deep final point / then stops") is the
+> *original* invent behavior and is **superseded for `invent`** by two later changes:
+> - **`invent` must generate** (v1.30.0): typing `invent` is permission to create, so the tier **must
+>   propose ≥1 net-new item** rather than declare itself dry — it relaxes the value bar / mission
+>   conservatism (below-bar/stretch items flagged), but never the grounding floor or structural hard
+>   ceiling. Consequence: an `invent` run normally does **not** reach a deep final point; it runs to its
+>   budget `N` (so `cycle -1 invent` keeps inventing), stopping early only at plan capacity or the rare
+>   genuine no-seam empty. The Tier ③ cap ("a few cycles") survives as a per-trigger burst rate limit.
+> - **Dwell-gated MISSION amendment** (v1.31.0): after **3 consecutive** mission-bound bursts
+>   (`mission_pressure` in `final.md`), invent may make one small, committed edit to `MISSION.yaml`
+>   (applied as a `docs`-mode item, consumed only on the *next* cycle), so the charter grows with the
+>   project. Seeded **framings** (v1.29.0, `seed <S>`) focus the burst so successive runs diverge.
+> The `explore` tiers (① cold-frontier, ② expand) and the deep-final-point semantics below are
+> **unchanged** — only `invent`'s stopping behavior moved.
+
 planwright is **language-agnostic** — it plans any repo (COBOL to Rust to a docs tree). Nothing in
 this design is C++-specific. Where this doc was seeded by a concrete C++ feature-expansion prompt, the
 project-specific parts of that prompt (a C++23/26 reviewer role, snake_case/PascalCase naming rules,
