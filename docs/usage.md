@@ -121,6 +121,12 @@ Two thin shortcuts forward to the planwright skill; any planwright arguments pas
 /codinventor 5 8           cycle 5 depth 8 invent (cycles, depth)
 ```
 
+After any `invent` run finishes, planwright closes its report with a one-line suggestion to run
+`/codvisor` (the flagship `cycle 10 depth 10 explore` sweep) to harden the net-new code — the invent
+tier's final burst never gets a later planning round's deep repair/coverage audit, and `/codvisor`
+provides it. It is a **suggestion only**: planwright never auto-runs it, so you keep the beat to
+inspect or revert flagged invent-tier items before hardening them.
+
 ## Maintenance
 
 ```bash

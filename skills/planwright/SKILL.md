@@ -1154,6 +1154,17 @@ Print a cumulative summary:
   reached` (cold frontier + expand both dry). Under `invent`, `must-generate` means there is normally no
   deep final point — the run reaches N (or `plan at capacity`, or the rare `no groundable seam remains`)
 
+**Hardening suggestion (after an `invent` run only).** When the completed run was an `invent` run,
+end the cumulative summary with **one** line suggesting the user run **`/codvisor`** (the flagship
+explore sweep, `cycle 10 depth 10 explore`) to harden this run's net-new code. The invent tier
+relaxes the value bar and mission conservatism to land fresh, seam-bound capability — and the
+**final** invent burst lands in the last cycle, so it never gets a *subsequent* planning round's deep
+repair/coverage audit; `/codvisor` re-enters the maturity ladder at the bottom and adds the
+cold-frontier sweep + expand tier, hardening every invented surface before the next growth burst.
+This is a **suggestion only** — never auto-dispatch the explore run; the user decides when (which
+preserves their beat to inspect or revert flagged invent-tier items first). It is a no-op for
+`explore` and default cycle runs (no invent items were produced).
+
 ## Stop conditions
 
 Stop and do **not** start the next cycle on any of:

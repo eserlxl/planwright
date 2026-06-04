@@ -470,6 +470,31 @@ sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md documents the invent earned-empty per-seam gate (valid floor/ceiling/trivial; value-bar/mission/unjustified-trivial are invalid; records invent_seams_examined)"; else bad "per-seam earned-empty gate missing/incomplete in SKILL.md (an empty could be asserted, not shown)"; fi
 
+# --- Test 10j: invent run ends by SUGGESTING /codvisor to harden the net-new code -----
+# After any invent run, planwright's cumulative summary closes with one line suggesting
+# the user run /codvisor (the explore sweep) to harden the final invent burst. It is a
+# suggestion only (never auto-dispatched) and scoped to invent runs (no-op otherwise).
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1]).read()
+# the rule must live in the Cycle "After all cycles" report section
+after = t.split("## After all cycles", 1)
+assert len(after) == 2, "no 'After all cycles' section"
+sec = after[1].split("## Stop conditions", 1)[0]
+need = []
+if "Hardening suggestion" not in sec: need.append("rule:hardening-suggestion")
+if "/codvisor" not in sec: need.append("target:/codvisor")
+# scoped to invent runs only
+if "invent` run only" not in sec and "after an `invent` run" not in sec:
+    need.append("scope:invent-only")
+# suggestion only — never auto-run
+if "suggestion only" not in sec: need.append("rule:suggestion-only")
+if "never auto-dispatch" not in sec and "never auto-run" not in sec:
+    need.append("rule:no-auto-dispatch")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md: an invent run ends by suggesting /codvisor to harden the net-new code (suggestion only, never auto-dispatched)"; else bad "invent->/codvisor hardening suggestion missing/incomplete in SKILL.md (After all cycles section)"; fi
+
 # (b) the bundled scripts themselves are cwd-independent: invoked by absolute
 # path with --root from a foreign cwd (NOT the repo root), they still succeed.
 # lint-plan checks Surfaces existence against --root, so README.md resolves to
