@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.28.0] - 2026-06-04
+
+### Changed
+- Add component scoping (`path <X>` / `lib <X>`): aim a plan/execute/cycle run at one subtree or logical library instead of the whole repo. build-graph.py --scope emits the focus/context node sets (Focus = where items land, Context = Focus + 1-hop blast radius), and the SKILL.md pipeline wires it in — Stage 1 scope resolution with a hard no-match error, Focus-wide maturity rungs, Context-routed reads, a Stage 10 Surfaces-in-Focus gate with an upstream root-cause escape, and a scope-tagged final.md that never suppresses a whole-repo run.
+
 ## [1.27.1] - 2026-06-03
 
 ### Changed
