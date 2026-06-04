@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.33.0] - 2026-06-04
+
+### Changed
+- invent runs now suggest /codvisor to harden the net-new code (suggestion only, never auto-run)
+
 ## [1.32.0] - 2026-06-04
 
 ### Changed
