@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.30.0] - 2026-06-04
+
+### Changed
+- invent now "must generate": an explicit `invent` run always proposes >=1 net-new item rather than declaring itself dry when the only remaining work would extend a deliberately minimal project. The grounding floor (real seam + runnable verification) and structural hard ceiling (no new subsystem/domain/redesign) are never relaxed; the value bar and mission conservatism are, with below-bar/mission-stretching items flagged in their Rationale. Scoped to explicit invent only (explore/default still declare an honest final point). Consequence: the invent tier no longer self-terminates, so `cycle -1 invent` runs to its budget N (stopping early only at plan capacity or a true no-seam empty).
+
 ## [1.29.0] - 2026-06-04
 
 ### Changed
