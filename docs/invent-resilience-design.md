@@ -1,11 +1,12 @@
 # planwright invent resilience — earned empties, not lazy ones (design draft)
 
-Status: **PROPOSED (next round).** Specs two in-mission features that make the invent tier's
-"nothing to invent" outcome *rare and earned* rather than a wall: **(#1) framing auto-rotation on an
-empty survey** and **(#2) a per-seam justification gate before `deepest_tier: invent` may be written**.
-Neither is implemented yet. Both are reasoning-layer + `final.md`-schema changes only — no
-`build-graph.py` change is required (they reuse the existing `EXPLORE_FRAMINGS` catalog and the
-SKILL.md key→vantage map from lever 2; see [invent-exploration-design.md](invent-exploration-design.md)).
+Status: **IMPLEMENTED (SKILL.md Stage 5 + Stage 11; Tests 10h/10i).** Two in-mission features make the
+invent tier's "nothing to invent" outcome *rare and earned* rather than a wall: **(#1) framing
+auto-rotation on an empty survey** and **(#2) a per-seam justification gate before `deepest_tier: invent`
+may be written**. Both are reasoning-layer + `final.md`-schema changes only — no `build-graph.py` change
+was required (they reuse the existing `EXPLORE_FRAMINGS` catalog and the SKILL.md key→vantage map from
+lever 2; see [invent-exploration-design.md](invent-exploration-design.md)). The sections below are the
+spec they were built to; contract tests 10h (#1) and 10i (#2) guard them against drift.
 
 ## Motivation
 

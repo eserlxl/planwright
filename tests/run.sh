@@ -411,6 +411,65 @@ sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md documents the Stage 1 escalation-reach rule (invent never short-circuits; explore re-surveys a plain point)"; else bad "escalation-reach rule missing from SKILL.md (invent could freeze at a recorded invent-dry point)"; fi
 
+# --- Test 10h: invent framing auto-rotation on an empty survey (earned by breadth) --
+# Before an invent survey may be declared dry it must re-run under EVERY framing in the
+# fixed catalog and find all empty (empty-triggered, deterministic catalog order,
+# bounded, within-round). The vantages tried are recorded as invent_framings_tried.
+# AND the rotation must walk the same catalog build-graph.py emits (no order drift).
+if python3 - "$ROOT/skills/planwright/SKILL.md" "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1]).read()
+builder = open(sys.argv[2]).read()
+need = []
+if "auto-rotat" not in t: need.append("rule:auto-rotation")
+# empty-triggered only
+if "empty-only" not in t and "empty-triggered" not in t and "on an empty survey" not in t:
+    need.append("trigger:empty-only")
+# must exhaust every framing before concluding dry
+if "every** framing" not in t and "every framing" not in t and "all framings are exhausted" not in t:
+    need.append("exhaust:all-framings")
+# bounded + deterministic catalog order
+if "catalog order" not in t: need.append("order:catalog")
+if "bounded" not in t: need.append("bound:bounded")
+# records the audit field
+if "invent_framings_tried" not in t: need.append("field:invent_framings_tried")
+# the rotation order names the same catalog keys build-graph.py emits (no drift)
+m = re.search(r"EXPLORE_FRAMINGS\s*=\s*\[(.*?)\]", builder, re.S)
+keys = re.findall(r'"([a-z-]+)"', m.group(1)) if m else []
+assert len(keys) >= 3, keys
+for k in keys:
+    if k not in t: need.append("rotorder:" + k)
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md documents invent framing auto-rotation (empty-only, exhausts the catalog, records invent_framings_tried)"; else bad "framing auto-rotation rule missing/incomplete in SKILL.md (an empty could be declared from one vantage)"; fi
+
+# --- Test 10i: invent earned-empty per-seam justification gate (earned by rigor) -----
+# A deepest_tier: invent may be written only after a per-seam audit: each candidate
+# seam gets a VALID reason (floor / ceiling / justified-trivial). Value-bar, mission,
+# and unjustified-"trivial" are INVALID empty-reasons -> must-generate emits instead.
+# The audit is recorded as invent_seams_examined.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1]).read()
+need = []
+if "per-seam" not in t: need.append("rule:per-seam")
+# the empty must be shown, not asserted / earned by rigor
+if "shown, not\nasserted" not in t and "shown, not asserted" not in t and "earned by rigor" not in t:
+    need.append("rule:shown-not-asserted")
+# valid reasons reaffirmed
+for tok in ["(ceiling)", "(floor)", "trivial"]:
+    if tok not in t: need.append("valid:" + tok)
+# invalid reasons named (value bar / mission / unjustified trivial -> emit, not empty)
+if "below the value bar" not in t: need.append("invalid:value-bar")
+if "stretches the mission" not in t: need.append("invalid:mission")
+if 'unjustified "trivial"' not in t and "unjustified \"trivial\"" not in t and "unjustified" not in t:
+    need.append("invalid:unjustified-trivial")
+# the audit field
+if "invent_seams_examined" not in t: need.append("field:invent_seams_examined")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md documents the invent earned-empty per-seam gate (valid floor/ceiling/trivial; value-bar/mission/unjustified-trivial are invalid; records invent_seams_examined)"; else bad "per-seam earned-empty gate missing/incomplete in SKILL.md (an empty could be asserted, not shown)"; fi
+
 # (b) the bundled scripts themselves are cwd-independent: invoked by absolute
 # path with --root from a foreign cwd (NOT the repo root), they still succeed.
 # lint-plan checks Surfaces existence against --root, so README.md resolves to

@@ -292,7 +292,9 @@ nothing groundable is left:
 - under `explore`, when the hot core, cold frontier, **and** expand are all dry → `deepest_tier: expand`,
   `confirmed deep — cold-frontier and expand tiers both dry`;
 - under `invent`, **only** in the rare genuine empty — no net-new candidate clears even the grounding
-  floor + structural hard ceiling (no seam left to extend) → `deepest_tier: invent`,
+  floor + structural hard ceiling (no seam left to extend), **and** that empty is *earned by breadth*
+  (Framing auto-rotation exhausted every vantage) **and** *earned by rigor* (the per-seam gate justified
+  every seam) — see Stage 5 → `deepest_tier: invent`,
   `confirmed deep — no groundable net-new seam remains`. Because `invent` **must generate** otherwise
   (above), an `invent` run normally does **not** reach this fixpoint; it runs to its cycle budget `N`
   (so `cycle -1 invent` keeps inventing), stopping early only at plan capacity.
@@ -650,9 +652,29 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
    by design: the invent tier therefore (almost) never records an *invent-dry* deep final point — there is
    always a next groundable feature — so `cycle -1 invent` runs to its budget rather than self-terminating;
    the only genuine empty is when **no** candidate clears the grounding floor + structural ceiling (no seam
-   left to extend at all), and that must be reported with its reason. This rule is **subject to plan
+   left to extend at all), and that empty must be **earned by breadth** (Framing auto-rotation — every
+   vantage tried) **and earned by rigor** (the per-seam gate below — every seam audited) before it is
+   reported with its reason. This rule is **subject to plan
    capacity** (the 20-item pending cap / `propose_count == 0` still stops with "Plan is at capacity") and
    applies **only** to an explicit `invent`; `explore` and the default never pad (see Hard rules).
+
+   **Earned empty — per-seam justification gate (an empty must be *earned by rigor*).** A `deepest_tier:
+   invent` may be written **only** after enumerating **each candidate seam considered** — the real public
+   surfaces/APIs (in PROJECT IMPLEMENTATION SIGNALS) a net-new capability could bolt to — and recording,
+   per seam, *why* no extension of it clears the two never-relaxed gates. The empty must be **shown, not
+   asserted**. The **only** valid per-seam reasons are: **(ceiling)** every coherent extension is a new
+   subsystem / unrelated domain / from-scratch redesign; **(floor)** no extension can carry a runnable
+   verification or it attaches to no real surface; or **(genuinely trivial)** the only extension is
+   trivial *with a concrete justification* (e.g. "a one-line alias adding no new logic"). **Invalid**
+   reasons — each one means **`invent` must generate** *emits* that seam's best candidate (flagged in
+   Rationale), **not** an empty — are: "below the value bar", "stretches the mission" (e.g. a
+   "small / dependency-light" preference), and bare or **unjustified "trivial"** (a numerical
+   approximation, a new overload with conversion logic, a new mode, or a newly-exposed capability is
+   **not** trivial — this is exactly the misjudgement that wrongly declared a dry tier in the past). If
+   **any** seam's recorded reason is invalid, the empty is **rejected** and that seam's best grounded
+   candidate is emitted instead. Record the audit as `invent_seams_examined` (Stage 11). This mechanizes
+   `must-generate` as a checklist: you cannot reach an empty without writing a floor/ceiling/justified-
+   trivial reason for every seam.
 
    **Mission amendment (rare, dwell-gated; explicit-`invent`-only).** As a project grows, the charter may
    genuinely fall behind it — so when invent is *repeatedly* forced to stretch the mission, it may make a
@@ -680,7 +702,8 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
 
    **Seeded framing (active only when Stage 1.5 emitted `explore_framing` — an `invent` run with a
    `seed`).** Without a seed, the invent survey is **comprehensive** (survey every module against PROJECT
-   DIRECTION) and deterministic — unchanged behavior. With a seed, *focus* the generative survey through
+   DIRECTION) and deterministic — unchanged **on a hit**; on an *empty* survey it auto-rotates the
+   framings before it may conclude dry (see **Framing auto-rotation** below). With a seed, *focus* the generative survey through
    the one recorded vantage below: survey for net-new capability **from that angle**, letting it dominate
    what this run proposes. This **scopes generation** (which ideas are surveyed), not mere re-ranking — a
    single seeded run is intentionally a *focused* survey, and comprehensiveness is recovered **across the
@@ -699,6 +722,21 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
    every framing still demands a real seam, a concrete payoff, and a runnable verification, and a framing
    that surfaces nothing above the value bar declares the tier dry exactly as an unfocused survey would
    (a focused survey is not a license to invent filler).
+
+   **Framing auto-rotation (empty-only; an empty must be *earned by breadth*).** A single survey —
+   comprehensive (unseeded) or seeded — that comes up empty does **not** conclude the invent tier dry on
+   that one vantage. Before any invent survey may be declared dry it must have been re-run under **every**
+   framing in the fixed catalog and **all** of them come up empty. On an empty survey, advance to the
+   **next framing in catalog order** (`power-user → integration → onboarding → reliability → automation`,
+   wrapping; skip already-tried — start from the seed's framing when seeded, else from the comprehensive
+   pass) and re-survey *from that vantage*; stop the moment a framing yields a groundable candidate (emit
+   it per **`invent` must generate**) **or** all framings are exhausted. This is **bounded** (≤6 surveys:
+   the comprehensive pass + 5 framings), **deterministic** (catalog order, no RNG, no seed required),
+   **empty-triggered only** (a non-empty pass never rotates and costs nothing extra), and **within this
+   round** (it does not spend invent-burst cycles). Record the vantages tried as `invent_framings_tried`
+   (Stage 11). A non-empty first pass behaves exactly as before; an unseeded empty now means *all five
+   vantages plus the comprehensive pass came up empty*, which is strictly stronger evidence than one
+   pass.
 
    Stay grounded: every proposal still cites real surfaces and a runnable verification, and still
    passes Stage 10. Creativity widens *what* is proposed; it never lowers the grounding bar.
@@ -835,8 +873,10 @@ something to diff against:
    — the furthest tier surveyed before drying; `deepest_tier: expand` (under `explore`) denotes the
    stronger **deep final point** (cold frontier + expand both dry). `deepest_tier: invent` is written
    **only** in the rare genuine empty where no net-new candidate clears the grounding floor + structural
-   hard ceiling (no seam left to extend) — because `invent` **must generate** otherwise (see **Escalation
-   ladder**), so an ordinary `invent` run writes **no** `final.md` and instead runs to its cycle budget.
+   hard ceiling (no seam left to extend) — and **only** once that empty is *earned by breadth* (Framing
+   auto-rotation exhausted all vantages) **and** *earned by rigor* (the per-seam gate justified every
+   seam) — see Stage 5. Because `invent` **must generate** otherwise (see **Escalation
+   ladder**), an ordinary `invent` run writes **no** `final.md` and instead runs to its cycle budget.
    This is the recorded **final point**; it is routing/status only and is **never** valid Evidence.
    **Under a Scope**, also record `scope:` (`path:<X>` / `lib:<X>`) and `scope_focus_sha:` (a hash of
    the sorted Focus path list) so the Stage 1 short-circuit only fires for a matching scope; a whole-repo
@@ -851,6 +891,12 @@ something to diff against:
    mission-bound invent bursts that drives the dwell-gated mission amendment (Stage 5). Increment it when a
    burst's only above-floor output was mission-stretching; reset to 0 when a burst lands an in-mission
    net-new item or when a mission amendment is committed. It is status/routing only — never Evidence.
+   **When a `deepest_tier: invent` is recorded, also persist the two earned-empty audits** (Stage 5):
+   `invent_framings_tried:` (the ordered vantage list the rotation exhausted, e.g.
+   `[comprehensive, power-user, integration, onboarding, reliability, automation]`) and
+   `invent_seams_examined:` (one `<seam> — <ceiling|floor|trivial:reason>` line per candidate seam, each
+   a *valid* floor/ceiling/justified-trivial reason). Both are status/record only — **never** Evidence —
+   and exist so a future run (or reviewer) can see the empty was earned, not asserted.
 
 Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested,
 rungs surveyed (lowest non-empty / final-point), and any capacity stop.
@@ -1029,7 +1075,8 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
    stopping early. (Outside the cycle path — plain plan, `execute`, `version` — both are ignored.)
    **Resolve `seed <S>`** here too: valid **only with `invent`** (ignore it, with a one-line note, under
    `explore` or no flag). When present, Stage 1.5 passes `--seed <S>` and the invent tier surveys through
-   the seeded framing (Stage 5); when absent, invent stays comprehensive and deterministic.
+   the seeded framing (Stage 5); when absent, invent stays comprehensive and deterministic (and, on an
+   empty survey, auto-rotates the framings before it may conclude dry — Stage 5).
 4. **Announce** — print the current branch (`git branch --show-current`), the cycle mode
    (`N cycles` or `unlimited`), the planning depth (`depth <D>`, default 6), and which escalation flag is
    on (`explore`, `invent`, or none) before starting any work; if a seed is active, also print
@@ -1072,13 +1119,16 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
         hard ceiling (it may be below the value bar / mission-stretching, flagged) — so the invent tier
         effectively does not go *invent-dry* while a seam remains to extend. When a `seed` is active, that
         survey is *focused through the seeded framing* (Stage 5's seeded-framing rule) and the burst is
-        seed-scoped; without a seed it is comprehensive. Delete the stale `final.md`, proceed to Execute,
+        seed-scoped; without a seed it is comprehensive — and on an empty survey the burst **auto-rotates
+        the framings** (Stage 5) before it may conclude dry. Delete the stale `final.md`, proceed to Execute,
         and continue (re-checking the fixpoint after the burst).
      4. **Deep final point** — for `explore`, when the cold frontier **and** expand are both dry, write
         `final.md` (`deepest_tier: expand`). Under **`invent`** a deep final point is reached **only** in
         the rare genuine empty — *no* net-new candidate clears even the grounding floor + structural hard
-        ceiling (no seam left to extend); then write `final.md` (`deepest_tier: invent`, with the reason
-        for the empty). Print `Cycle i/N: deep final point reached — <tiers> all dry.` and STOP (even if
+        ceiling (no seam left to extend) — **and only once that empty is earned by breadth (Framing
+        auto-rotation exhausted every vantage) and earned by rigor (the per-seam gate justified every
+        seam)**, Stage 5; then write `final.md` (`deepest_tier: invent`, with the reason
+        for the empty, plus `invent_framings_tried` + `invent_seams_examined`). Print `Cycle i/N: deep final point reached — <tiers> all dry.` and STOP (even if
         cycles remain). Otherwise the invent burst keeps producing groundable work and the cycle runs to
         its budget `N` (so `cycle -1 invent` does not self-terminate — that is the point of `invent`).
 

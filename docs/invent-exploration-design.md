@@ -101,7 +101,10 @@ Both are **routing only** — never Evidence (Stage 10 bars graph memory), like 
 ## `final.md` / run-record additions
 
 Record the seed (and chosen framing) so the run is replayable: `invent_seed: <N>` and, if lever 2 ships,
-`invent_framing: <name>`. A later run reproduces the exploration by re-passing the same seed.
+`invent_framing: <name>`. A later run reproduces the exploration by re-passing the same seed. (The
+invent-resilience follow-on adds two more on a `deepest_tier: invent`: `invent_framings_tried` and
+`invent_seams_examined` — the earned-empty audits; see
+[invent-resilience-design.md](invent-resilience-design.md).)
 
 ## `SKILL.md` changes — IMPLEMENTED (lever 2, seeded framing)
 
