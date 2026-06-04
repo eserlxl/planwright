@@ -2,9 +2,12 @@
 
 Status: **PARTIALLY IMPLEMENTED.** Lever 1's builder substrate — `build-graph.py --seed` emitting
 `explore_seed` + `ranked_explore`, with tests — is shipped. The SKILL.md invent-lens wiring is **still
-PROPOSED and now gated**: a two-seed comparison (Open question 1, below) showed reordering is a **no-op
-unless the survey is truncation-bound** (above-bar candidate pool > `propose_count`), so the lens must
-consume `ranked_explore` only in that case. Levers 2–4 remain design-only. It addresses a real
+PROPOSED and, on the evidence, not worth wiring for normal repos**: two-seed comparisons (Open question 1,
+below) on a small repo *and* on a larger one (rls-core, where `pool > propose_count`) both found the
+proposal set **unchanged** — reordering is inert whenever the candidate survey can complete and selection
+is value-ranked, which holds far beyond typical repo sizes. The seed bites only under genuine **survey
+truncation** (hundreds–thousands of files), and even then its honest value is cross-run *coverage*, not
+single-run creativity. Levers 2–4 remain design-only. It addresses a real
 observation — repeated `invent` runs tend to re-derive the **same** candidate features — without the
 collateral damage of the first instinct (randomizing the graph). The fix injects *seeded, recorded*
 stochasticity at the **ideation/selection layer** (where creativity lives) and keeps the graph the
@@ -105,14 +108,30 @@ Record the seed (and chosen framing) so the run is replayable: `invent_seed: <N>
    generative lenses survey **project-wide**, so every surface is seen regardless of order; order can only
    change proposals when the survey is **truncated** before finishing. Here the above-bar candidate pool
    (≈3, generously ≤7) is **smaller than `propose_count` (8)**, so nothing is gated out and both orders
-   yield the full pool. **Conclusion: seeded ordering changes proposals iff the above-bar pool exceeds a
-   run's survey/propose capacity (large, idea-rich repos); on a small repo it is a provable no-op.**
-   Implication for the wiring (lever 1 → SKILL.md): **gate the invent lens on `ranked_explore` to the
-   truncation case** — only walk the seeded order when the candidate pool would otherwise overflow
-   `propose_count`; for small repos, stay deterministic (the seed buys nothing). Validate again on a
-   genuinely large repo before trusting the truncated-slice behaviour. (Original hypothesis text, kept for
-   provenance: run `invent` twice with different seeds on a real, idea-rich repo and confirm the proposed
-   sets genuinely differ *and* both stay above the value bar before wiring deep.)
+   yield the full pool.
+
+   **Second comparison — rls-core (C++23 RLS library, 18 code nodes), 2026-06-04.** A larger repo whose
+   two seeds produced *genuinely divergent* orderings (top-half overlap only 5/9) **and** an above-bar
+   invent pool of ~10 (so `pool > propose_count = 8`). This isolates the variable — and the seed was
+   **still inert**: 18 files is **fully surveyable** by an exhaustive depth-10 run (lenses 5–6 are
+   project-wide and reach every surface regardless of order, so the whole pool is *generated* either way),
+   and Stage 8 selects the **highest-value** items — **value-ranked, not survey-order-ranked**. Reordering
+   which surface is seen first does not change which candidates are most valuable.
+
+   **Corrected conclusion: `pool > propose_count` is necessary but NOT sufficient.** The seed changes
+   proposals only when the **candidate survey cannot complete** — repos large enough (hundreds–thousands of
+   files) that even an exhaustive run can't generate the full pool, forcing the seed to pick the slice.
+   rls-core overflows the *propose* cap but not the *survey*, so it stays a no-op.
+
+   **Deeper consequence (this partly deflates lever 1):** under value-ranked selection, even in the
+   truncation regime the principled fix is *raise survey/propose capacity*, not *randomize the slice*. The
+   seed's only honest remaining value is **cross-run coverage** (successive runs cover different slices over
+   time), **not single-run creativity**. Wiring implication: **do not wire the invent lens to
+   `ranked_explore` for normal repos** — it is provably inert until the survey itself truncates; if pursued,
+   frame it as a *multi-run coverage* feature on very large repos, gated on detected survey truncation, and
+   re-validate there. (Original hypothesis, kept for provenance: run `invent` twice with different seeds on
+   a real, idea-rich repo and confirm the proposed sets genuinely differ and both stay above the value bar
+   before wiring deep.)
 2. **Default seed in `invent`.** Stay fully deterministic unless `seed <N>` is given, or auto-derive a
    recorded seed (e.g. from HEAD+date) so unattended `cycle -1 invent` naturally explores? Recommend:
    deterministic by default; opt-in seed first; revisit auto-seed after lever 1 is validated.
@@ -125,10 +144,13 @@ Record the seed (and chosen framing) so the run is replayable: `invent_seed: <N>
 
 ## Recommendation
 
-Lever 1's builder substrate is shipped (`--seed` → `explore_seed` + `ranked_explore`, tested). The
-two-seed validation (Open question 1) then **narrowed the wiring**: reordering only changes proposals when
-the survey is truncation-bound, so **do not wire the invent lens to `ranked_explore` unconditionally** —
-gate it on `above-bar pool > propose_count`, and stay deterministic on small repos (like planwright's own,
-where it is a proven no-op). Re-validate on a genuinely large repo before trusting the truncated-slice
-behaviour, then add levers 2–4 (all reasoning-layer prose) if the variation proves real and above-bar.
-Keep the graph the accurate, deterministic map throughout.
+Lever 1's builder substrate is shipped and tested (`--seed` → `explore_seed` + `ranked_explore`), and it
+was worth building if only to *test* the hypothesis cheaply. But the two validations (small repo + the
+larger rls-core, `pool > propose_count`) both came back **no-op**, and isolated the real condition: the
+seed changes proposals only under genuine **survey truncation**, and even then value-ranked selection means
+the principled fix is *more capacity*, not a random slice. **Recommendation: do not wire the invent lens to
+`ranked_explore` for normal repos** — leave the substrate in place as routing-only, and revisit *only* if a
+real need appears for **cross-run coverage on very large, survey-truncated repos** (re-validate there
+first). Levers 2–4 (rotating framings, theme anti-repetition memory, wider pool/temperature) act at the
+generation layer rather than the ordering layer and are the more promising direction if invent-convergence
+turns out to be a real problem in practice. Keep the graph the accurate, deterministic map throughout.
