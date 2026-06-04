@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.32.0] - 2026-06-04
+
+### Changed
+- Invent resilience: an invent 'empty' is now earned, not asserted. (#1) Framing auto-rotation — an empty invent survey re-runs under every framing in the catalog (deterministic, bounded, empty-triggered) before it may conclude dry, recorded as invent_framings_tried. (#2) Per-seam justification gate — a deepest_tier: invent is written only after a per-seam audit justifies every candidate seam against floor/ceiling; value-bar/mission/unjustified-trivial are invalid empty-reasons (must-generate emits instead), recorded as invent_seams_examined.
+
 ## [1.31.2] - 2026-06-04
 
 ### Changed
