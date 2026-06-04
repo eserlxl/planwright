@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.28.2] - 2026-06-04
+
+### Changed
+- codvisor/codinventor now fold a `path <X>` / `lib <X>` scope into every resolution form: the scope is peeled from $ARGUMENTS first and appended after the resolved subcommand, so a scoped flagship run (e.g. /codvisor path src/auth/ -> cycle 10 depth 10 explore path src/auth/) is reachable and cycle/execute always stays the first token planwright dispatches on.
+
 ## [1.28.1] - 2026-06-04
 
 ### Changed
