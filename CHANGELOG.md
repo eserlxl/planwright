@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.28.1] - 2026-06-04
+
+### Changed
+- lint-plan.py --scope now mechanizes the Stage 10 Surfaces-in-Focus gate for scoped runs: it reads the builder's focus/context sets and fails an out-of-Focus existing Surface (a repair Surface one hop upstream in Context is a non-failing advisory; New Surfaces stay Claude's judgement). No-op without --scope or on a whole-repo graph; wired into the Stage 11 and Execute linter invocations.
+
 ## [1.28.0] - 2026-06-04
 
 ### Changed
