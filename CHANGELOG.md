@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.31.0] - 2026-06-04
+
+### Changed
+- invent may now make rare, dwell-gated edits to MISSION.yaml: after 3 consecutive invent bursts that could only stretch the mission (mission_pressure in final.md), invent earns one small, committed mission amendment, applied as its own docs-mode item and consumed only on the NEXT cycle (no same-run self-justification). It can relax a preference like 'small, dependency-light' but never the structural hard ceiling (no new subsystem/domain/redesign), and never touches protected paths (.git/, .planwright/ internals, LICENSE, secrets). Always-on under explicit invent with an up-front awareness notice; explore/default never edit the mission.
+
 ## [1.30.0] - 2026-06-04
 
 ### Changed
