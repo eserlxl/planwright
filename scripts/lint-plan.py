@@ -32,8 +32,15 @@
 # It only reads the plan + the working tree; it prints findings and exits non-zero
 # when any pending item violates a rule (0 when the plan is clean or empty).
 #
-#   python3 scripts/lint-plan.py [--root DIR] [--plan PATH] [--all] [--quiet]
+#   python3 scripts/lint-plan.py [--root DIR] [--plan PATH] [--all] [--quiet] [--scope GRAPH]
+#
+# With --scope GRAPH (a graph.json built with build-graph.py --scope), it also
+# enforces the Stage 10 Surfaces-in-Focus gate for a scoped run: a pending item's
+# existing Surfaces must lie in the graph's `focus` set; a `repair` Surface one hop
+# upstream (in `context`) is a non-failing advisory; any other out-of-Focus Surface
+# fails. No-op when the graph's focus is empty (a whole-repo build).
 import argparse
+import json
 import os
 import re
 import sys
@@ -162,6 +169,47 @@ def lint_item(item, root):
     return v
 
 
+def load_focus(scope_path):
+    """Load the builder's (focus, context) node sets from a graph.json emitted with
+    --scope (docs/scope-design.md). Returns (focus_set, context_set); focus is empty
+    when the graph is whole-repo (no/empty `focus` key) or unreadable — callers treat
+    an empty focus as 'no scope active', so the gate stays a no-op by default."""
+    try:
+        g = json.load(open(scope_path, encoding="utf-8"))
+    except (ValueError, OSError):
+        return set(), set()
+    return set(g.get("focus") or []), set(g.get("context") or [])
+
+
+def scope_check(item, focus, context):
+    """Stage 10 Surfaces-in-Focus gate for a scoped run. Returns (violations,
+    advisories). Only the item's existing `Surfaces` are checked — `New Surfaces`
+    name not-yet-created files that are not graph nodes, so they cannot be matched
+    against a file-list focus without risking a false failure (this linter stays
+    precise over clever), and stay Claude's Stage 10 judgement. A Surface in Focus
+    passes; a `repair` Surface in Context (1-hop upstream of Focus) is a non-failing
+    advisory (the proven-impact escape stays Claude's call); any other out-of-Focus
+    Surface is a violation."""
+    f = item["fields"]
+    mode = f.get("Mode", "")
+    viols, advs = [], []
+    for p in split_paths(f.get("Surfaces", "")):
+        if p in focus:
+            continue
+        if p in context:
+            if mode == "repair":
+                advs.append(f"repair Surface '{p}' is upstream of Focus (Context) — "
+                            "confirm Evidence proves the in-Focus impact")
+            else:
+                viols.append(f"Surface '{p}' is in Context but not Focus, and the item is "
+                             "not 'repair' (only a repair with proven in-Focus impact may "
+                             "reach upstream of the scoped component)")
+        else:
+            viols.append(f"Surface '{p}' is outside the scoped component "
+                         "(not in Focus or its 1-hop Context)")
+    return viols, advs
+
+
 def past_titles(plan_path, fname):
     """Titles of items in a sibling lifecycle file (completed.md / rejected.md)."""
     path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), fname)
@@ -176,8 +224,16 @@ def main():
     ap.add_argument("--plan", default=".planwright/plan.md", help="plan file to lint")
     ap.add_argument("--all", action="store_true", help="lint completed (- [x]) items too, not just pending")
     ap.add_argument("--quiet", action="store_true", help="print nothing; only set the exit code")
+    ap.add_argument("--scope", default=None,
+                    help="a graph.json (built with --scope) whose focus/context node sets gate "
+                         "Surfaces-in-Focus for a scoped run; no-op when its focus is empty")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
+
+    focus, context = (set(), set())
+    if args.scope:
+        focus, context = load_focus(args.scope)
+    scope_active = bool(focus)  # an empty focus (whole-repo graph) means no scope to enforce
 
     if not os.path.exists(args.plan):
         if not args.quiet:
@@ -186,15 +242,23 @@ def main():
     text = open(args.plan, encoding="utf-8").read()
     items = [it for it in parse_items(text) if args.all or not it["checked"]]
 
-    total = 0
+    total, scope_notes = 0, 0
     for idx, item in enumerate(items, 1):
         violations = lint_item(item, root)
+        advisories = []
+        if scope_active:
+            sv, advisories = scope_check(item, focus, context)
+            violations += sv
         if violations:
             total += len(violations)
             if not args.quiet:
                 print(f"item {idx} (line {item['line']}): {item['title'] or '<untitled>'}")
                 for msg in violations:
                     print(f"  - {msg}")
+        for msg in advisories:
+            scope_notes += 1
+            if not args.quiet:
+                print(f"note: item {idx} '{item['title'] or '<untitled>'}': {msg}")
 
     # Cross-item: a title repeated among pending items is always a violation
     # (you cannot have two identical pending items). Reported once per dup title.
@@ -226,7 +290,8 @@ def main():
 
     if not args.quiet:
         n = len(items)
-        suffix = f" ({notes} advisory note(s))" if notes else ""
+        note_total = notes + scope_notes
+        suffix = f" ({note_total} advisory note(s))" if note_total else ""
         if total == 0:
             print(f"lint-plan: {n} item(s) OK{suffix}")
         else:

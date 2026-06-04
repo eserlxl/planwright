@@ -1335,6 +1335,77 @@ ld_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$LDIR/plan
 if [ "$ld_rc" -ne 0 ]; then ok "lint-plan.py fails on convergence violations"; else bad "lint-plan.py passed a plan with dup title + Surfaces overlap"; fi
 if printf '%s' "$ld_out" | grep -qF "duplicate pending title: 'A finished thing'"; then ok "lint-plan.py flags a duplicate pending title"; else bad "lint-plan.py missed a duplicate pending title"; fi
 if printf '%s' "$ld_out" | grep -qF "both Surfaces and New Surfaces"; then ok "lint-plan.py flags a Surfaces/New-Surfaces overlap"; else bad "lint-plan.py missed a Surfaces/New-Surfaces overlap"; fi
+
+# --- Test 12e: lint-plan.py --scope mechanizes the Stage 10 Surfaces-in-Focus gate
+# Reads the builder's focus/context sets: a Surface in Focus passes; an out-of-Focus
+# existing Surface fails (a non-repair in Context, or anything outside Context); a
+# repair Surface one hop upstream (Context) is a non-failing advisory. No-op without
+# --scope or when the graph's focus is empty (a whole-repo build).
+SCG="$TMP/scope_focus.json"
+printf '{"focus": ["scripts/lint-plan.py"], "context": ["scripts/lint-plan.py", "scripts/build-graph.py"]}\n' > "$SCG"
+SCG_WHOLE="$TMP/scope_whole.json"
+printf '{"focus": [], "context": []}\n' > "$SCG_WHOLE"
+
+# Plan A: an in-Focus item + an upstream repair (Context) => exit 0 with an advisory
+SCP_OK="$TMP/scope_ok_plan.md"
+cat > "$SCP_OK" <<'EOF'
+# planwright Plan — .
+
+- [ ] An in-focus item
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] An upstream root-cause repair
+      Mode: repair
+      Rationale: r.
+      Evidence: scripts/lint-plan.py:1 mis-handles a value build-graph returns at scripts/build-graph.py:1.
+      Surfaces: scripts/build-graph.py
+      Development: fix the caller.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+sco_rc=0
+sco_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_OK" --scope "$SCG" 2>&1)" || sco_rc=$?
+if [ "$sco_rc" -eq 0 ] && printf '%s' "$sco_out" | grep -qF "upstream of Focus (Context)"; then ok "lint-plan.py --scope passes in-Focus + advises an upstream repair (non-failing)"; else bad "lint-plan.py --scope mishandled in-Focus/upstream-repair (rc=$sco_rc)"; fi
+
+# Plan B: a non-repair Context Surface + an out-of-scope Surface => two violations
+SCP_BAD="$TMP/scope_bad_plan.md"
+cat > "$SCP_BAD" <<'EOF'
+# planwright Plan — .
+
+- [ ] A non-repair touching Context
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/build-graph.py exists.
+      Surfaces: scripts/build-graph.py
+      Development: edit build().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] An out-of-scope item
+      Mode: improve
+      Rationale: r.
+      Evidence: tests/run.sh exists.
+      Surfaces: tests/run.sh
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+scb_rc=0
+scb_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --scope "$SCG" 2>&1)" || scb_rc=$?
+scb_miss=""
+printf '%s' "$scb_out" | grep -qF "in Context but not Focus" || scb_miss="$scb_miss context-nonrepair"
+printf '%s' "$scb_out" | grep -qF "outside the scoped component" || scb_miss="$scb_miss outside-scope"
+if [ "$scb_rc" -ne 0 ] && [ -z "$scb_miss" ]; then ok "lint-plan.py --scope fails a non-repair Context Surface and an out-of-scope Surface"; else bad "lint-plan.py --scope missed scope violations:$scb_miss (rc=$scb_rc)"; fi
+
+# No-op guarantees: same plan passes without --scope, and with a whole-repo (empty-focus) graph
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --quiet; then ok "lint-plan.py without --scope ignores Focus (default lint unchanged)"; else bad "lint-plan.py false-failed the scope plan without --scope"; fi
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --scope "$SCG_WHOLE" --quiet; then ok "lint-plan.py --scope is a no-op on a whole-repo (empty-focus) graph"; else bad "lint-plan.py --scope wrongly enforced on an empty-focus graph"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a completed item"; then ok "lint-plan.py notes a re-proposed completed item (advisory)"; else bad "lint-plan.py missed the completed-item advisory"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a rejected item"; then ok "lint-plan.py notes a re-proposed rejected item (advisory)"; else bad "lint-plan.py missed the rejected-item advisory"; fi
 # Advisory matches alone (no structural violation) must NOT fail the gate.

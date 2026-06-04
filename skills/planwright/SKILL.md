@@ -685,9 +685,13 @@ a non-empty `Verification:`). It also enforces the ladder's **monotonic-drain** 
 items share a title — and prints non-failing **advisories** when a pending title matches a
 `completed.md`/`rejected.md` item, so you confirm it is a genuine regression or a resolved rejection
 (not an accidental re-proposal). The linter never replaces Stage 10's judgement passes — it catches the
-structural mistakes those passes are not meant to re-verify by hand. Fix every violation it reports in
-`plan.md` and resolve each advisory, then re-run it until it exits clean before reporting done. (On
-`dry-run`, run the linter against the would-be items the same way before printing them; write no file.)
+structural mistakes those passes are not meant to re-verify by hand. **When a Scope is active, append
+`--scope .planwright/graph.json`** so the linter also mechanizes the Stage 10 **Surfaces-in-Focus** gate
+(an existing Surface outside Focus fails; a `repair` Surface one hop upstream in Context is a non-failing
+advisory you confirm; `New Surfaces` stay your judgement) — it is a no-op on a whole-repo graph. Fix every
+violation it reports in `plan.md` and resolve each advisory, then re-run it until it exits clean before
+reporting done. (On `dry-run`, run the linter against the would-be items the same way before printing
+them; write no file.)
 
 Then, unless `dry-run` was passed (no graph-memory state is persisted on a dry run),
 **persist the incremental-audit baseline** so the next run's Stage 1.5 dirty-set comparison has
@@ -775,7 +779,8 @@ verification, and commits. Everything below replaces the planning Procedure.
 1. **Plan exists** — `.planwright/plan.md` has at least one pending `- [ ]` item. If none, report
    "No pending items to execute" and STOP.
 2. **Plan is structurally valid** — run `python3 <scripts>/lint-plan.py --root <target>` (resolve
-   `<scripts>` per **Procedure → Bundled scripts**). If it reports
+   `<scripts>` per **Procedure → Bundled scripts**; append `--scope .planwright/graph.json` when a Scope
+   is active, to also gate Surfaces-in-Focus). If it reports
    violations, STOP and surface them: a missing `Verification:`, a non-existent `Surfaces:` path, or an
    invalid `Mode` makes an item unimplementable, so executing it would only churn the tree. Fix the
    plan (or re-plan) before executing. This is the same gate Stage 11 applies when the plan is written.

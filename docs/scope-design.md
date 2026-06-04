@@ -4,8 +4,10 @@ Status: **IMPLEMENTED (core).** The `build-graph.py --scope` Focus/Context compu
 procedure wiring (Usage/Options/Inputs, Stage 1 scope resolution with a loud no-match, Focus-wide
 maturity rungs, Context-routed reads, the Stage 10 Surfaces-in-Focus gate with the upstream-repair
 escape, and the scope-tagged `final.md`) are wired in, with a build-graph fixture test and a SKILL.md↔
-builder contract test in `tests/run.sh`. Still **PROPOSED**: the optional `lint-plan.py --scope`
-mechanization of the Surfaces-in-Focus check (Open question — stays Claude's Stage 10 judgement for now).
+builder contract test in `tests/run.sh`. The `lint-plan.py --scope` mechanization of the
+Surfaces-in-Focus check is now **IMPLEMENTED** too — it reads the builder's `focus`/`context` sets and
+fails an out-of-Focus existing Surface (a `repair` Surface one hop upstream is a non-failing advisory;
+`New Surfaces` stay Claude's judgement, since a not-yet-created file is not a graph node).
 This specifies an opt-in way to aim a planwright run at one *component* of the target repo (a subtree or
 a logical library) instead of the whole codebase, without weakening grounding, root-cause analysis, or
 blast-radius awareness.
@@ -114,8 +116,11 @@ scope_focus_sha: <hash of the sorted Focus path list>   # so a later run knows t
    upstream `repair` with proven in-Focus impact; a scoped `final.md` does **not** short-circuit a
    whole-repo run.
 
-`lint-plan.py` is unaffected at first (the Surfaces-in-Focus check stays Claude's Stage 10 judgement);
-a later `lint-plan.py --scope <focus-list>` could mechanize it once the resolution rules settle.
+`lint-plan.py --scope <graph.json>` mechanizes the Surfaces-in-Focus check: it reads the builder's
+`focus`/`context` sets and fails any pending item whose existing `Surfaces` fall outside Focus — a
+`repair` Surface one hop upstream (in Context) is a non-failing advisory to confirm, and `New Surfaces`
+stay Claude's judgement (a not-yet-created file is not a graph node). It is a no-op when the graph's
+`focus` is empty (a whole-repo build), so the default lint is unchanged.
 
 ## Open questions (decide before building)
 
