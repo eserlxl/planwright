@@ -13,20 +13,30 @@ Raw arguments: `$ARGUMENTS`
 
 Resolve them in this order:
 
-1. **Empty** (`$ARGUMENTS` is blank): the flagship "advisor" run. First print exactly one
+0. **Peel the scope first.** If `$ARGUMENTS` contains a `path <X>` or `lib <X>` scope (the keyword
+   plus its single following token, appearing anywhere — leading or trailing), lift that pair out as
+   `<scope>` and let `<rest>` be the remaining tokens. Otherwise `<scope>` is empty and `<rest>` is all
+   of `$ARGUMENTS`. Classify `<rest>` with the cases below to build a base command, then **append
+   `<scope>`** to it (after a space) so the subcommand (`cycle` / `execute` / …) stays the first token
+   planwright dispatches on — never let `path`/`lib` lead. With no scope this is exactly today's
+   behaviour; omit the trailing `<scope>` wherever it is empty.
+
+1. **`<rest>` empty**: the flagship "advisor" run. First print exactly one
    cost-banner line so the heavy run is never silent:
    `codvisor: max-intensity advisor run — up to 10 plan→execute rounds at depth 10 with the explore cold-frontier sweep.`
-   Then invoke planwright with: `cycle 10 depth 10 explore`.
+   Then invoke planwright with: `cycle 10 depth 10 explore <scope>` (e.g. `cycle 10 depth 10 explore`
+   with no scope, or `cycle 10 depth 10 explore path src/auth/` when a scope was peeled).
 
-2. **One or two integers** (whitespace-separated, nothing else): the advisor workflow with a
-   custom cycle count `N`; **depth defaults to 10** (the explore flagship runs deep).
-   - `N` (one integer, e.g. `15`): invoke planwright with `cycle <N> depth 10 explore`.
+2. **`<rest>` is one or two integers** (whitespace-separated, nothing else): the advisor workflow with
+   a custom cycle count `N`; **depth defaults to 10** (the explore flagship runs deep).
+   - `N` (one integer, e.g. `15`): invoke planwright with `cycle <N> depth 10 explore <scope>`.
    - `N D` (two integers, e.g. `5 8` → 5 cycles, depth 8): invoke planwright with
-     `cycle <N> depth <D> explore`. First number = cycles, second = depth.
+     `cycle <N> depth <D> explore <scope>`. First number = cycles, second = depth.
 
-3. **Anything else**: a verbatim passthrough — invoke planwright with `$ARGUMENTS` exactly as
-   given, so `help`, `version`, `execute`, `cycle 3`, `depth 9`, `add OAuth login`, etc. all
-   behave exactly as they would under `/planwright`.
+3. **`<rest>` is anything else**: a verbatim passthrough — invoke planwright with `<rest> <scope>`
+   (the non-scope remainder, then the peeled scope appended), so `help`, `version`, `execute`,
+   `cycle 3`, `depth 9`, `add OAuth login`, etc. all behave exactly as they would under `/planwright`,
+   with any scope riding along after the subcommand.
 
 After resolving, invoke the planwright skill once with the resolved arguments. Print nothing
 of your own except the cost banner in case 1.

@@ -1470,6 +1470,29 @@ assert "cycle 10 depth 10 invent" in body, "no-arg inventor default not preserve
 PY
 then ok "commands/codinventor.md has valid frontmatter and forwards to planwright (inventor default intact)"; else bad "commands/codinventor.md malformed or lost its planwright delegation/inventor default"; fi
 
+# --- Test 13c: codvisor/codinventor fold a path/lib scope into every form -------
+# The helpers must peel a path/lib scope before classifying $ARGUMENTS and append it
+# AFTER the subcommand, so a scoped flagship run (/codvisor path src/auth/) is
+# reachable and cycle/execute stays the first token planwright dispatches on.
+sc_cmd_ok=1
+for cmd in codvisor codinventor; do
+  if [ "$cmd" = codvisor ]; then flag=explore; else flag=invent; fi
+  cf="$ROOT/commands/$cmd.md"
+  python3 - "$cf" "$flag" <<'PY' 2>/dev/null || sc_cmd_ok=0
+import sys
+t = open(sys.argv[1]).read(); flag = sys.argv[2]
+need = []
+if "Peel the scope" not in t: need.append("peel-step")
+if "path <X>" not in t or "lib <X>" not in t: need.append("path/lib-doc")
+if "<rest>" not in t or "<scope>" not in t: need.append("rest/scope-vars")
+if "first token" not in t: need.append("first-token-order")
+# the flagship default is preserved and now carries the appended scope
+if f"cycle 10 depth 10 {flag} <scope>" not in t: need.append("flagship+scope")
+sys.exit(1 if need else 0)
+PY
+done
+if [ "$sc_cmd_ok" = 1 ]; then ok "codvisor/codinventor peel a path/lib scope and append it after the subcommand"; else bad "codvisor/codinventor scope-aware resolution missing or malformed"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]
