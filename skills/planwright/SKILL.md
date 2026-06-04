@@ -635,6 +635,30 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
    capacity** (the 20-item pending cap / `propose_count == 0` still stops with "Plan is at capacity") and
    applies **only** to an explicit `invent`; `explore` and the default never pad (see Hard rules).
 
+   **Mission amendment (rare, dwell-gated; explicit-`invent`-only).** As a project grows, the charter may
+   genuinely fall behind it — so when invent is *repeatedly* forced to stretch the mission, it may make a
+   **rare, small** edit to `MISSION.yaml`, never a casual one. Mechanism — a **dwell gate** so it cannot
+   touch the mission on a whim:
+   - Track `mission_pressure` in `.planwright/final.md` (default 0). After an invent burst whose only
+     above-floor output was **mission-stretching** items (every in-mission net-new candidate was dry),
+     **increment** it; after any burst that lands a genuinely in-mission net-new item, **reset to 0**.
+   - Only when `mission_pressure` reaches **3** (three *consecutive* mission-bound bursts) does invent earn
+     **one** mission edit. When it triggers, that cycle proposes a **single** item and nothing else: a
+     mission-amendment item — `Mode: docs`, `Surfaces: MISSION.yaml`, Rationale citing the sustained
+     pressure and the concrete features it unlocks, Development naming the one constraint relaxed or clause
+     added (keep it **minimal** — one constraint/clause), Verification a content check
+     (`grep -q "<new clause>" MISSION.yaml`). Then **reset `mission_pressure` to 0**.
+   - The amendment executes and commits as its **own** change; the **next** cycle re-reads PROJECT
+     DIRECTION (Stage 1) under the amended mission and only *then* proposes the unlocked features. This
+     one-beat gap means invent never invents against a mission it loosened **in the same run** (no
+     self-justifying loop). The edit is small, isolated, and revertible.
+   - **Never weaken the structural hard ceiling via the mission** — an amendment may relax a *preference*
+     (e.g. "small / dependency-light") but may not authorize a new subsystem, unrelated domain, or
+     redesign; those stay barred regardless of mission text.
+   This is **always-on under explicit `invent`** (the run announces it up front — see Cycle preconditions
+   / the `/codinventor` banner — so whoever runs `invent` is on notice); `explore` and the default never
+   edit the mission.
+
    **Seeded framing (active only when Stage 1.5 emitted `explore_framing` — an `invent` run with a
    `seed`).** Without a seed, the invent survey is **comprehensive** (survey every module against PROJECT
    DIRECTION) and deterministic — unchanged behavior. With a seed, *focus* the generative survey through
@@ -804,6 +828,10 @@ something to diff against:
    **seed-scoped**: it asserts only that *this framing's* survey came up dry — a different seed/framing
    may still find groundable invention, so it never suppresses a differently-seeded or unseeded invent
    run. An unseeded invent run records neither field (its dryness is comprehensive).
+   **Under `invent`, also persist `mission_pressure: <n>`** (default 0) — the count of consecutive
+   mission-bound invent bursts that drives the dwell-gated mission amendment (Stage 5). Increment it when a
+   burst's only above-floor output was mission-stretching; reset to 0 when a burst lands an in-mission
+   net-new item or when a mission amendment is committed. It is status/routing only — never Evidence.
 
 Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested,
 rungs surveyed (lowest non-empty / final-point), and any capacity stop.
@@ -856,6 +884,11 @@ preamble, headings, code, or commentary in the plan file.
   flagged in its Rationale), because typing `invent` is permission to create. The **grounding floor** and
   **structural hard ceiling** still hold absolutely, and plan capacity still stops it; the relaxation is
   the value bar / mission conservatism, and it applies to **no other mode** (see Stage 5's invent lens).
+- **Editable surfaces.** An item's `Surfaces`/`New Surfaces` may name source, tests, docs, configs, and —
+  under `invent`'s dwell-gated mission amendment (Stage 5) — `MISSION.yaml`. They may **never** name a
+  protected path: `.git/`, `.planwright/` internals (planwright's own memory — items edit it via Stage 11,
+  never as a surface), `LICENSE`, or any secret/credential file (`.env`, `*.pem`, key/credential stores).
+  Editing those is harmful or corrupts planwright itself, regardless of mode or operator awareness.
 - Output **only** the plan file. No code, no edit bundles.
 
 # Execute (implement the plan)
@@ -981,7 +1014,9 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
 4. **Announce** — print the current branch (`git branch --show-current`), the cycle mode
    (`N cycles` or `unlimited`), the planning depth (`depth <D>`, default 6), and which escalation flag is
    on (`explore`, `invent`, or none) before starting any work; if a seed is active, also print
-   `seed <S> (framing: <key>)`.
+   `seed <S> (framing: <key>)`. **Under `invent`, also warn up front** that invent may make rare, small,
+   committed edits to repo files **including `MISSION.yaml`** (dwell-gated — see Stage 5's mission
+   amendment), so whoever runs `invent` is on notice that the charter itself can change.
 
 ## Per-cycle loop (repeat up to N times, or indefinitely when N < 0)
 
