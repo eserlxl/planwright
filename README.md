@@ -78,7 +78,7 @@ A plan item has this 8-field shape (title plus seven required fields):
 For deep dives into how `planwright` operates, refer to the documentation:
 
 - [Mission](MISSION.md): Purpose, scope, and non-goals — the charter the maturity ladder aligns to.
-- [Usage](docs/usage.md): Detailed CLI reference, options, and execute modes.
+- [Usage](docs/usage.md): Detailed CLI reference, options, execute modes, and a troubleshooting guide (reading `final.md`, why a run wrote 0 items, scope no-match, and `build-graph.py --debug` for routing surprises).
 - [Architecture](docs/architecture.md): Explanation of the 11-stage planning pipeline and execute loop.
 - [Development](docs/development.md): How to develop this plugin and use the provided helper scripts.
 - [Graph memory](docs/graph-memory-schema.md): The `.planwright/graph.json` / `digest.md` schema and how Stage 1.5 routes audit attention.
