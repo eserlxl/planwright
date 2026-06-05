@@ -867,6 +867,34 @@ finally:
 PY
 then ok "build-graph.py resolves tsconfig paths aliases (wildcard, exact, baseUrl; JSONC-tolerant)"; else bad "tsconfig paths alias resolution wrong (apply_ts_aliases / parse_tsconfig)"; fi
 
+# --- Test 11r: C/C++ angle includes resolve against -I include roots -----------
+# `#include <project/foo.h>` reaches a header through an -I include root, so it resolves
+# to a unique repo file ending in that sub-path. System headers must never forge an edge:
+# extensionless ones (<vector>) are skipped, and a slashed system header (<sys/types.h>)
+# resolves strictly (no basename fallback) so it cannot link to an unrelated repo types.h.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+fs = {"src/main.c", "include/project/foo.h", "include/bar.h"}
+ci = lambda s: bg.imports_of("c", s, "src/main.c", fs)
+assert ci('#include <project/foo.h>\n') == ["include/project/foo.h"], "angle via include root"
+assert ci('#include <bar.h>\n') == ["include/bar.h"], "angle header-ext basename -> include root"
+assert ci('#include <vector>\n') == [], "extensionless system header skipped"
+# a slashed system header that is NOT in the repo must not link to an unrelated types.h
+fs2 = {"src/main.c", "src/types.h"}
+assert bg.imports_of("c", '#include <sys/types.h>\n', "src/main.c", fs2) == [], "no false system-header edge"
+# ambiguous angle sub-path (two include roots) drops rather than guessing
+fs3 = {"src/main.c", "a/project/foo.h", "b/project/foo.h"}
+assert bg.imports_of("c", '#include <project/foo.h>\n', "src/main.c", fs3) == [], "ambiguous angle drops"
+# quoted includes are unaffected (basename fallback still resolves the project header)
+assert bg.imports_of("c", '#include "foo.h"\n', "src/main.c", {"src/main.c", "src/foo.h"}) == ["src/foo.h"], "quoted unchanged"
+# both styles in one file resolve together
+two = '#include "bar.h"\n#include <project/foo.h>\n'
+assert set(ci(two)) == {"include/bar.h", "include/project/foo.h"}, ci(two)
+PY
+then ok "build-graph.py resolves C/C++ angle includes via include roots (system headers excluded)"; else bad "C angle-include resolution wrong (resolve_c_angle / system-header leak)"; fi
+
 # --- Test 11j: build-graph.py is deterministic (same tree => same graph) -----
 # The builder's header calls it "deterministic" and incremental skipping trusts
 # that identical inputs yield identical sha256/ranking. built_at (date -u) is the

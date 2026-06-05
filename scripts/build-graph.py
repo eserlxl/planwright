@@ -254,6 +254,24 @@ def resolve(target, from_path, fileset, allow_basename=False):
     return None
 
 
+# Header suffixes that mark an angle `#include <...>` as a project header rather than a
+# bare extensionless system header (<vector>, <map>). Used to gate angle-include routing.
+C_HEADER_EXTS = (".h", ".hpp", ".hh", ".hxx", ".h++", ".cuh", ".tpp", ".tcc", ".ipp", ".inc")
+
+
+def resolve_c_angle(target, fileset):
+    """Resolve an angle `#include <path>` against the repo's include roots: the unique
+    tracked file whose path equals `target` or ends with `/target` (i.e. reached through
+    some -I include root). Deliberately NO bare-basename fallback — a system header like
+    <sys/types.h> must not link to an unrelated repo `types.h`; only a genuine
+    include-root hit (the full sub-path matches) creates the edge. Ambiguous -> None."""
+    t = target.replace("\\", "/").strip().lstrip("./")
+    if not t:
+        return None
+    matches = [f for f in fileset if f == t or f.endswith("/" + t)]
+    return matches[0] if len(matches) == 1 else None
+
+
 def resolve_python_import(target, from_path, fileset):
     """Resolve a python import target (a dotted module, possibly relative) to a repo
     file. Dotted names are not paths, so the generic resolver always misses them and
@@ -485,6 +503,7 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
         mods = [("", go_module)] if isinstance(go_module, str) else (go_module or [])
         go_pick = nearest_go_module(from_path, mods)
     raw = []
+    c_angles = []
     if lang == "bash":
         raw += re.findall(r"(?m)^\s*(?:source|\.)\s+([^\s;]+)", text)
     elif lang == "python":
@@ -494,6 +513,14 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
         raw += re.findall(r"""require\(\s*['"]([^'"]+)['"]\s*\)""", text)
     elif lang == "c":
         raw += re.findall(r'(?m)^\s*#\s*include\s+"([^"]+)"', text)
+        # Angle includes (`#include <project/foo.h>`) reach a header through an -I include
+        # root; route them too, but only when they look like a project header — carrying a
+        # path separator or a header extension. Bare extensionless system headers (<vector>,
+        # <map>) match neither and are skipped, and angle paths resolve strictly against
+        # include roots (resolve_c_angle, no basename fallback) so <sys/types.h> cannot
+        # forge an edge to an unrelated repo types.h.
+        c_angles += [a for a in re.findall(r'(?m)^\s*#\s*include\s+<([^>]+)>', text)
+                     if "/" in a or a.lower().endswith(C_HEADER_EXTS)]
     elif lang == "rust":
         raw += re.findall(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_]\w*)\s*;", text)
         raw += re.findall(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([A-Za-z_][\w:]*)", text)
@@ -526,6 +553,10 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
             r = resolve_rust_import(t, from_path, fileset)
         else:
             r = resolve(t, from_path, fileset, allow_basename)
+        if r and r != from_path and r not in out:
+            out.append(r)
+    for a in c_angles:
+        r = resolve_c_angle(a, fileset)
         if r and r != from_path and r not in out:
             out.append(r)
     return out

@@ -536,7 +536,9 @@ unchanged and behaves exactly as before. These are routing/record only — never
 2. **Import edges** — extract with `rg` per language family (best-effort, recall over precision):
    bash `source X` / `. X`; python `import X` / `from X import`; js/ts `import … from "X"` /
    `require("X")` (with `tsconfig`/`jsconfig` `compilerOptions.paths` aliases resolved); c/c++
-   `#include "X"`; rust `mod X;` / `use a::b`; go `import "<module>/pkg"`
+   `#include "X"` (quoted) and `#include <project/foo.h>` (angle includes resolve against the
+   repo's -I include roots — a unique file ending in that sub-path; extensionless and unmatched
+   system headers like `<vector>`/`<sys/types.h>` drop); rust `mod X;` / `use a::b`; go `import "<module>/pkg"`
    (intra-module imports resolve via each file's nearest enclosing `go.mod`, root or nested
    sub-module; stdlib/external and cross-module imports drop); markdown relative `[..](X)` links.
    Resolve targets to
