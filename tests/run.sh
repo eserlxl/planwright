@@ -1766,7 +1766,7 @@ if [ "$sc_cmd_ok" = 1 ]; then ok "codvisor/codinventor peel a path/lib scope and
 # Non-Claude hosts often use AGENTS.md/GEMINI.md text instead of command files, so
 # those copyable adapters must carry the same path/lib peel-and-append rule.
 sc_host_ok=1
-for hf in AGENTS.example.md GEMINI.md GEMINI.example.md; do
+for hf in AGENTS.example.md GEMINI.example_context-mode.md GEMINI.example.md; do
   python3 - "$ROOT/$hf" <<'PY' 2>/dev/null || sc_host_ok=0
 import sys
 t = open(sys.argv[1]).read()
