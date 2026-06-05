@@ -1,6 +1,6 @@
 # planwright
 
-**Grounded codebase planning for AI Coding Assistants (Claude Code and Antigravity).**
+**Grounded codebase planning for AI Coding Assistants (Claude Code, Cursor, and Antigravity).**
 
 > Invoke it with `/planwright` — or the `/codvisor` shortcut for the flagship advisor run (`cycle 10 depth 10 explore`), or `/codinventor` to also propose net-new, seam-bound features (`cycle 10 depth 10 invent`).
 
@@ -28,9 +28,13 @@ flowchart LR
     Cycle -->|nothing left| Done[Done]
 ```
 
-Your AI assistant (Claude Code or Antigravity) runs every stage through the skill, so planwright needs no external binary and makes no separate API/model calls beyond the active session.
+Your AI assistant (Claude Code, Cursor, or Antigravity) runs every stage through the skill, so planwright needs no external binary and makes no separate API/model calls beyond the active session.
 
 To keep large-codebase audits efficient, the plan path builds a **graph memory** (`.planwright/graph.json`) — import and change-coupling edges, PageRank, and articulation points — that routes audit attention toward code where changes can affect many other files and lets repeat runs re-audit only the changed subgraph. A companion `.planwright/digest.md` carries routing-only summaries that are never cited as Evidence. Both live under the gitignored `.planwright/`. See [Graph memory](docs/graph-memory-schema.md) for the schema and stages.
+
+### context-mode (optional)
+
+The plan path's mechanical stages — especially Stage 1 (repo scan) and Stage 1.5 (graph build) — can produce large `rg`/`git` output. The skill routes that bulk through [context-mode](https://github.com/mksglu/context-mode) (`ctx_execute` / `ctx_batch_execute`) so only summarized results enter the session context. context-mode is **optional** on every host (Claude Code, Cursor, Antigravity, etc.); without it, the agent falls back to capped Shell output or the documented by-hand fallbacks in the skill. It is most useful on large repos and at higher planning depths.
 
 > **Note**: Planning never edits your application source. Only `execute` and `cycle` do — and even then, your AI assistant's normal permission prompts for edits and commits still apply. Under `invent` specifically, those edits can — rarely, and only after the dwell gate trips — include `MISSION.md` itself; the run announces this up front, and protected paths (`.git/`, `.planwright/` internals, `LICENSE`, secrets) are never touched.
 
@@ -82,7 +86,7 @@ For deep dives into how `planwright` operates, refer to the documentation:
 
 ## Install
 
-Requires Claude Code or Antigravity. For Claude Code, the plugin install path is recommended; manual skill copy is only for users not using the plugin system.
+Requires Claude Code, Cursor, or Antigravity. For Claude Code, the plugin install path is recommended; manual skill copy is only for users not using the plugin system.
 
 ```bash
 /plugin marketplace add eserlxl/planwright
@@ -97,6 +101,23 @@ Or add a local clone as a marketplace:
 ```
 
 To use it without the plugin system, copy `skills/planwright/` into `~/.claude/skills/`.
+
+## Usage with Cursor
+
+Planwright runs as a Cursor Agent Skill — the same `SKILL.md` workflow as Claude Code, without a plugin marketplace. See [`AGENTS.example.md`](AGENTS.example.md) for the full setup guide.
+
+**Recommended (once per machine):** symlink the skill so bundled scripts resolve correctly:
+
+```bash
+mkdir -p ~/.cursor/skills
+ln -s <PLANWRIGHT_FOLDER>/skills/planwright ~/.cursor/skills/planwright
+```
+
+For `codvisor` / `codinventor` shortcuts, use the `AGENTS.md` block in [`AGENTS.example.md`](AGENTS.example.md) or add thin dispatcher skills (see that file for details).
+
+**Lightweight alternative:** copy the `AGENTS.md` block from [`AGENTS.example.md`](AGENTS.example.md) into the root of each target project.
+
+Then invoke in chat with `@planwright`, natural-language `planwright …` arguments, or the `codvisor` / `codinventor` shortcuts. Cursor's normal edit and terminal approval prompts apply on the execute and cycle paths. Upgrade by `git pull` in the planwright clone (there is no `/plugin upgrade` on Cursor).
 
 ## Usage with Antigravity / Gemini
 
