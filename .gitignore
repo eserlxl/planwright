@@ -12,3 +12,6 @@ __pycache__/
 
 # Test scratch
 .planwright/
+
+# Custom Agent Prompt
+GEMINI.md
