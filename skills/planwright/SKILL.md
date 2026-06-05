@@ -1193,7 +1193,7 @@ Reached only via `planwright upgrade` (or the host equivalent such as `/planwrig
 the installed planwright distribution. This path does **not** plan or edit your project; it only
 refreshes planwright itself.
 
-## Procedure
+## Procedure (upgrade)
 
 1. **Resolve the planwright root.** Prefer the skill base path (`skills/planwright`) and walk two
    directories up. If the host exposes an installed plugin source path, use that when it is more exact.
@@ -1230,7 +1230,7 @@ ran, and the host-specific handoff steps.
 Reached via `planwright version` (or `--version`, `-V`; `/planwright version` on Claude Code).
 Read-only — it neither plans nor edits.
 
-## Procedure
+## Procedure (version)
 
 1. **Current** — the installed/running version. Prefer the detected host install metadata:
    `~/.claude/plugins/installed_plugins.json` for Claude Code, `.codex-plugin/plugin.json` for a Codex
