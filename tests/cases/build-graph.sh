@@ -989,3 +989,36 @@ assert bg.pagerank([], {}) == {}, "empty pagerank must be {}"
 PY
 then ok "pagerank conserves mass (sum~1.0) and redistributes dangling-node rank"; else bad "pagerank lost mass or mis-redistributed dangling rank"; fi
 
+# --- Test 11s: coupling_pairs caps bulk commits (limits git-log O(F^2) blowup) ----
+if python3 - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+# a normal (under-cap) commit yields its pair; repeats accumulate
+assert bg.coupling_pairs([{"a", "b"}], max_files_per_commit=10) == {("a", "b"): 1}
+assert bg.coupling_pairs([{"a", "b"}, {"a", "b"}], max_files_per_commit=10) == {("a", "b"): 2}
+# a bulk commit (over cap) is skipped entirely — no O(F^2) pair explosion
+big = {f"f{i}" for i in range(50)}
+assert bg.coupling_pairs([big], max_files_per_commit=10) == {}
+# the cap is per-commit: a bulk commit is dropped while small ones still count
+assert bg.coupling_pairs([big, {"a", "b"}], max_files_per_commit=10) == {("a", "b"): 1}
+PY
+then ok "coupling_pairs skips bulk commits over the per-commit cap (limits git-log blowup)"; else bad "coupling_pairs did not cap bulk commits"; fi
+
+# --- Test 11t: sh() enforces a timeout so a wedged git cannot hang the build -------
+if python3 - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, subprocess, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+# a fast command completes within the (generous) default timeout
+assert bg.sh(["true"], ".") == ""
+# a slow command must hit the timeout override and raise (not hang forever)
+try:
+    bg.sh(["sleep", "3"], ".", timeout=1)
+except subprocess.TimeoutExpired:
+    pass
+else:
+    sys.exit(1)
+PY
+then ok "sh() times out a wedged subprocess instead of hanging the build"; else bad "sh() did not enforce its timeout"; fi
+

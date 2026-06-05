@@ -24,6 +24,15 @@ import sys
 COUPLING_WINDOW_COMMITS = 200
 COUPLING_MIN_COOCCURRENCE = 3
 RANKED_SURFACE_LIMIT = 20
+# A commit touching more tracked files than this is a bulk op (vendoring, mass
+# reformat, generated-file dump): its pairwise co-occurrence is O(F^2) noise that
+# both distorts the coupling signal and can blow up memory/time on a large `git log`.
+# Such commits are excluded from coupling pairing (their per-file churn still counts).
+COUPLING_MAX_FILES_PER_COMMIT = 100
+# Upper bound (seconds) on any git/subprocess call, so a wedged git (hung credential
+# prompt, lock contention) degrades instead of hanging the whole build. Generous: the
+# heaviest call (`git log -n 200`) is bounded, so no legitimate call approaches this.
+GIT_TIMEOUT_SECONDS = 120
 
 # Rotating generative framings (docs/invent-exploration-design.md, lever 2) — a
 # fixed catalog of vantage *keys* the invent generative lens can reason under. The
@@ -72,8 +81,27 @@ EXT_LANG = {
 }
 
 
-def sh(args, root):
-    return subprocess.check_output(args, cwd=root, text=True)
+def sh(args, root, timeout=GIT_TIMEOUT_SECONDS):
+    # timeout bounds a wedged git so the build degrades instead of hanging forever;
+    # callers handle the resulting SubprocessError (TimeoutExpired/CalledProcessError).
+    return subprocess.check_output(args, cwd=root, text=True, timeout=timeout)
+
+
+def coupling_pairs(commits, max_files_per_commit=COUPLING_MAX_FILES_PER_COMMIT):
+    """Pairwise change-coupling counts over the commit file-sets, skipping bulk
+    commits (more than max_files_per_commit tracked files). Those are O(F^2) noise
+    that distorts coupling and can explode on a large `git log`; per-file churn is
+    counted by the caller and is unaffected by this cap."""
+    pair_co = {}
+    for cset in commits:
+        if len(cset) > max_files_per_commit:
+            continue
+        fs = sorted(cset)
+        for i in range(len(fs)):
+            for j in range(i + 1, len(fs)):
+                k = (fs[i], fs[j])
+                pair_co[k] = pair_co.get(k, 0) + 1
+    return pair_co
 
 
 def lang_of(path, blob):
@@ -713,7 +741,7 @@ def commits_since(prior_sha, head, root):
         return 0
     try:
         out = sh(["git", "rev-list", "--count", f"{prior_sha}..HEAD"], root).strip()
-    except subprocess.CalledProcessError:
+    except subprocess.SubprocessError:
         return None
     return int(out) if out.isdigit() else None
 
@@ -836,13 +864,7 @@ def build(root, prior_path, scope=None, seed=None):
             cur.add(ln)
             churn[ln] = churn.get(ln, 0) + 1
 
-    pair_co = {}
-    for cset in commits:
-        fs = sorted(cset)
-        for i in range(len(fs)):
-            for j in range(i + 1, len(fs)):
-                k = (fs[i], fs[j])
-                pair_co[k] = pair_co.get(k, 0) + 1
+    pair_co = coupling_pairs(commits)
 
     # tsconfig/jsconfig compilerOptions.paths aliases, so `@app/x` style imports resolve.
     ts_aliases = None
@@ -1099,8 +1121,8 @@ def main():
     root = os.path.abspath(args.root)
     try:
         graph = build(root, args.prior, args.scope, args.seed)
-    except subprocess.CalledProcessError as e:
-        sys.stderr.write(f"build-graph: git command failed ({e})\n")
+    except subprocess.SubprocessError as e:
+        sys.stderr.write(f"build-graph: git command failed or timed out ({e})\n")
         return 2
     if args.debug:
         debug_digest(graph, sys.stderr)
