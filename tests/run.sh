@@ -263,6 +263,25 @@ rskill="$(grep -m1 '  version:' "$ROOT/skills/planwright/SKILL.md" | sed -E 's/.
 if [ "$rv" = "$rmeta" ] && [ "$rv" = "$rentry" ] && [ "$rv" = "$rcodex" ] && [ "$rv" = "$rskill" ]; then ok "repo version sources agree at rest ($rv)"; else bad "repo version drift: plugin=$rv meta=$rmeta entry=$rentry codex=$rcodex skill=$rskill"; fi
 if grep -q "## \[$rv\]" "$ROOT/CHANGELOG.md"; then ok "CHANGELOG.md has a section for the current version [$rv]"; else bad "CHANGELOG.md missing a section for the current version [$rv]"; fi
 
+# --- Test 9b: README plan-item example matches the real schema -------------
+if python3 - "$ROOT/README.md" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1]).read()
+m = re.search(r"## Example Plan Item.*?```md\n(.*?)\n```", t, re.S)
+if not m:
+    raise SystemExit(1)
+example = m.group(1)
+required = ["Mode:", "Rationale:", "Evidence:", "Surfaces:",
+            "Development:", "Acceptance:", "Verification:"]
+legacy = ["ID:", "Title:", "Risk:", "Change:", "Files:", "Status:"]
+missing = [f for f in required if not re.search(r"(?m)^\s+" + re.escape(f), example)]
+stale = [f for f in legacy if re.search(r"(?m)^\s*(?:- \[ \]\s*)?" + re.escape(f), example)]
+if not example.startswith("- [ ] ") or example.startswith("- [ ] ID:"):
+    missing.append("checkbox-title")
+sys.exit(1 if missing or stale else 0)
+PY
+then ok "README example plan item matches the real schema"; else bad "README example plan item drifted from the real schema"; fi
+
 # --- Test 10: SKILL.md structural lint -------------------------------------
 if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
 import re, sys

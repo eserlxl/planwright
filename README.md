@@ -60,17 +60,17 @@ Both are general-purpose, session-scoped plans. planwright is a different shape 
 
 ## Example Plan Item
 
-A plan item has this 8-field shape:
+A plan item has this 8-field shape (title plus seven required fields):
 
 ```md
-- [ ] ID: PW-001
-  Title: Add missing validation for config loading
-  Evidence: `src/config.ts:42`
-  Risk: Low
-  Change: Validate required keys before use.
-  Verification: `npm test -- config`
-  Files: `src/config.ts`, `tests/config.test.ts`
-  Status: pending
+- [ ] Guard README plan examples against schema drift
+      Mode: docs
+      Rationale: The README teaches the plan item format users copy into `.planwright/plan.md`.
+      Evidence: README.md:63 names the required shape for plan items.
+      Surfaces: README.md, tests/run.sh
+      Development: Keep the example aligned with the SKILL.md OUTPUT FORMAT and lint-plan.py checks.
+      Acceptance: The example shows the checkbox title and every required continuation field.
+      Verification: bash tests/run.sh
 ```
 
 ## Documentation
