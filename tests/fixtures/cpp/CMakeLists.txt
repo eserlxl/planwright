@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.16)
+project(calc CXX)
+add_library(calc src/calc.cpp)
+target_include_directories(calc PUBLIC include)
+enable_testing()
+add_executable(calc_tests tests/calc_test.cpp)
+target_link_libraries(calc_tests calc)
+add_test(NAME calc_tests COMMAND calc_tests)
