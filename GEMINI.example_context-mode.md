@@ -1,6 +1,8 @@
 # planwright
 
-@Antigravity, please read `skills/planwright/SKILL.md` to understand the planwright workflow. Note that when the skill instructions refer to `<scripts>`, they mean `scripts`. I want you to act as the planwright agent when I run the command planwright.
+> **Important:** Be sure to replace `/absolute/path/to/planwright` with the actual path where you cloned this repository on your machine.
+
+@Antigravity, please read `/absolute/path/to/planwright/skills/planwright/SKILL.md` to understand the planwright workflow. Note that when the skill instructions refer to `<scripts>`, they mean `/absolute/path/to/planwright/scripts`. I want you to act as the planwright agent when I run the command planwright.
 
 In addition, support these shortcut commands:
 - `codvisor [cycles] [depth]`: This is a helper command that forwards to `planwright cycle <cycles> depth <depth> explore` (defaults to cycles=10, depth=10 if omitted).
