@@ -506,6 +506,33 @@ assert bg.imports_of("go", src2, "main.go", fs, mod) == ["math/math.go", "math/u
 PY
 then ok "build-graph.py resolves Go intra-module imports (package dir files; stdlib/external drop; needs go.mod)"; else bad "build-graph.py Go import resolution wrong (resolve_go_import / go.mod module parsing)"; fi
 
+# --- Test 11d6: nested Go sub-modules resolve against the NEAREST go.mod --------
+# A Go monorepo can carry several go.mod files. Each .go file must resolve its imports
+# against its own (deepest enclosing) module, and a package path is relative to THAT
+# module's directory. Cross-module imports (a file in module 'a' importing module 'b')
+# drop, like any non-intra-module path.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+fs = {"go.mod", "root.go", "shared/s.go",
+      "svcA/go.mod", "svcA/main.go", "svcA/util/u.go",
+      "svcB/go.mod", "svcB/main.go", "svcB/util/u.go"}
+mods = [("", "root"), ("svcA", "a"), ("svcB", "b")]
+# nearest_go_module picks the deepest enclosing module
+assert bg.nearest_go_module("svcA/util/u.go", mods) == ("svcA", "a"), "nearest = a"
+assert bg.nearest_go_module("svcB/main.go", mods) == ("svcB", "b"), "nearest = b"
+assert bg.nearest_go_module("root.go", mods) == ("", "root"), "nearest = root"
+# each sub-module resolves its own intra-module import (path relative to its go.mod dir)
+assert bg.imports_of("go", 'import "a/util"\n', "svcA/main.go", fs, mods) == ["svcA/util/u.go"], "a/util"
+assert bg.imports_of("go", 'import "b/util"\n', "svcB/main.go", fs, mods) == ["svcB/util/u.go"], "b/util"
+# root module resolves against the repo root
+assert bg.imports_of("go", 'import "root/shared"\n', "root.go", fs, mods) == ["shared/s.go"], "root/shared"
+# cross-module import drops: a file in module 'a' importing 'b/util' does not match 'a'
+assert bg.imports_of("go", 'import "b/util"\n', "svcA/main.go", fs, mods) == [], "cross-module drops"
+PY
+then ok "build-graph.py resolves nested Go sub-modules against the nearest go.mod"; else bad "nested Go go.mod resolution wrong (module selection or relative package dir)"; fi
+
 # --- Test 11e: coupling fallback ranks by churn-normalized weight, not raw co --
 # Two pairs with equal raw cooccur (3): a/b also churn alone (churn 5, weight
 # 0.6), c/d only co-change (churn 3, weight 1.0). A raw-cooccur ranking would

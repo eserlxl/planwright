@@ -533,8 +533,9 @@ unchanged and behaves exactly as before. These are routing/record only — never
 2. **Import edges** — extract with `rg` per language family (best-effort, recall over precision):
    bash `source X` / `. X`; python `import X` / `from X import`; js/ts `import … from "X"` /
    `require("X")`; c/c++ `#include "X"`; rust `mod X;` / `use a::b`; go `import "<module>/pkg"`
-   (intra-module imports resolve via the root `go.mod` module path; stdlib/external packages and
-   nested sub-module `go.mod` files drop); markdown relative `[..](X)` links. Resolve targets to
+   (intra-module imports resolve via each file's nearest enclosing `go.mod`, root or nested
+   sub-module; stdlib/external and cross-module imports drop); markdown relative `[..](X)` links.
+   Resolve targets to
    repo-relative paths; drop unresolved (a miss only fails to route — it never produces a finding).
 3. **Change-coupling edges** — from `git log --name-only --format=%H -n <coupling_window_commits>`,
    count file pairs that co-commit; keep pairs with `cooccur ≥ coupling_min_cooccurrence`. These

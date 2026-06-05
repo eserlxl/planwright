@@ -172,9 +172,10 @@ raw output never enters context.
    | rust | `mod X;`, `use a::b::c` |
    | go | `import "<module>/pkg"` (intra-module, via root `go.mod`) |
    | markdown | relative `[..](X)` links |
-   Resolve targets to repo-relative paths; drop unresolved. (Go imports resolve only for the
-   repo's own module — its import path is stripped of the root `go.mod` module prefix and mapped
-   to the package directory's `.go` files; stdlib, external, and nested-sub-module imports drop.)
+   Resolve targets to repo-relative paths; drop unresolved. (Go imports resolve against each
+   `.go` file's nearest enclosing `go.mod` — root or nested sub-module — its import path stripped
+   of that module's prefix and mapped, relative to the module's directory, to the package
+   directory's `.go` files; stdlib, external, and cross-module imports drop.)
 3. **Extract change-coupling** from `git log --name-only --format=%H -n <window>` in the
    sandbox: count file pairs per commit, keep pairs with `cooccur >= coupling_min_cooccurrence`.
 4. **Compute metrics** on the import graph: PageRank (centrality) and articulation points.
