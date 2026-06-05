@@ -20,6 +20,15 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.38.0] - 2026-06-05
+
+### Added
+- **`planwright doctor` preflight:** a new read-only command (`scripts/doctor.py`) that reports which capabilities would silently degrade *before* a run starts, instead of surfacing them as fallbacks mid-pipeline. It checks two seams — host tools (`python3`/`git`/`rg`/`fd`, each with its version and exactly what degrades when absent) and bundled-script resolution (`build-graph.py`/`lint-plan.py`/`lifecycle.py` resolving beside `doctor.py`, the `<scripts>` seam) — plus whether the `--root` target is a git work tree. Readable and `--json` output; exits non-zero on a core miss (`git` or a bundled script), while missing `rg`/`fd` or a non-repo target are warn-only. Wired into SKILL.md dispatch / Usage / a new **Doctor** section (with a by-hand fallback for the no-`python3` case), README, and `docs/usage.md`.
+- **C/C++ angle-include resolution:** `build-graph.py` now resolves `#include <project/foo.h>` against the repo's `-I` include roots (the unique tracked file whose path ends in that sub-path), not just quoted `#include "x"`. Resolution is strict — no bare-basename fallback — so a system header like `<sys/types.h>` cannot forge a false edge to an unrelated repo `types.h`, and extensionless system headers (`<vector>`, `<map>`) are skipped entirely.
+
+### Changed
+- Test suite **193 → 200** (`tests/cases/doctor.sh` + Test 11r for angle includes).
+
 ## [1.37.0] - 2026-06-05
 
 ### Added
