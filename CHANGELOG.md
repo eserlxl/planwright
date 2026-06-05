@@ -20,6 +20,18 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.37.0] - 2026-06-05
+
+### Added
+- **TypeScript/JS path aliases:** `build-graph.py` now resolves `tsconfig`/`jsconfig` `compilerOptions.paths` aliases (with `baseUrl` and a `*` wildcard), so an import like `@app/util` maps to its real repo file instead of dropping as node_modules. The config is parsed JSONC-tolerantly via a string-aware comment stripper (a regex would mistake the `/*` inside an alias pattern like `"@app/*"` for a comment).
+- **Nested Go modules:** import resolution now reads every `go.mod` and resolves each `.go` file against its nearest enclosing module (Go monorepos), with the package path taken relative to that module's directory. Cross-module imports drop.
+
+### Changed
+- **Import-edge precision:** comments and Python docstrings are stripped before import extraction (`strip_comments`), so a commented-out or string-embedded import no longer creates a false graph edge. Used only for edge extraction; metrics still see the original text.
+- Disambiguated the three `Procedure` heading slugs in SKILL.md (the planning Procedure keeps `#procedure`; the maintenance ones become `Procedure (upgrade)` / `Procedure (version)`).
+
+Test suite **190 → 193**.
+
 ## [1.36.0] - 2026-06-05
 
 ### Added
