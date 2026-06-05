@@ -16,10 +16,10 @@ else
 fi
 
 # --- Test 0b: the Python helper scripts pass static analysis ---------------
-# build-graph.py (Stage 1.5 graph) and lint-plan.py (Stage 10 plan gate) are the
-# only non-shell scripts; gate both. ast.parse checks syntax without writing
-# __pycache__ into the real tree.
-for py in build-graph.py lint-plan.py; do
+# build-graph.py (Stage 1.5 graph), lint-plan.py (Stage 10 plan gate), and
+# lifecycle.py (Stage 0 housekeeping) are the non-shell scripts; gate all three.
+# ast.parse checks syntax without writing __pycache__ into the real tree.
+for py in build-graph.py lint-plan.py lifecycle.py; do
   if python3 -c "import ast,sys;ast.parse(open(sys.argv[1]).read())" "$ROOT/scripts/$py" 2>/dev/null; then ok "$py parses (no syntax error)"; else bad "$py has a syntax error"; fi
   if command -v pyflakes >/dev/null 2>&1; then
     if pyflakes "$ROOT/scripts/$py" >/dev/null 2>&1; then ok "$py passes pyflakes"; else bad "$py fails pyflakes"; fi

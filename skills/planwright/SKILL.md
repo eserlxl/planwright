@@ -402,7 +402,13 @@ stage (Stage 1.5 for the graph; do the Stage 10 structural checks by hand for th
 ### Stage 0 — Lifecycle housekeeping (mechanical)
 
 If `no-compact` was passed, skip this entire stage (still read pending items in step 4).
-Create `<target>/.planwright/` if it does not exist, then operate on it:
+Create `<target>/.planwright/` if it does not exist, then operate on it.
+
+**Canonical script.** Prefer `<scripts>/lifecycle.py housekeep --root <target>/.planwright` (resolve
+`<scripts>` per **Procedure → Bundled scripts**) — it performs steps 1–3 deterministically
+(test-covered by `tests/run.sh`) and prints the report. Then do step 4 (read the pending items)
+yourself. The numbered steps below are the **specification** it implements; follow them by hand only
+as a fallback when the script cannot run.
 
 1. If `plan.md` exists, move every completed item (`- [x] ...` and its indented continuation lines)
    into `completed.md` (append). Then enforce the **FIFO cap of 100**: if `completed.md` holds more
@@ -410,11 +416,12 @@ Create `<target>/.planwright/` if it does not exist, then operate on it:
 2. Drain any item carrying a `Status:Rejected` / `Status: Rejected` continuation line into
    `rejected.md` (append, preserving its `Rejection:` reason line), removing it from `plan.md`. Then
    enforce the **FIFO cap of 100** on `rejected.md` the same way.
-3. If, after that, **all** remaining items are completed (or the file is empty of pending items),
-   archive the whole file to `plans/plan_<UTC-timestamp>.md` and start fresh.
+3. If, after that, **no pending (`- [ ]`) items remain**, **delete `plan.md`** to start fresh — an
+   empty plan is deleted, never archived (backing up an empty plan is only clutter). When pending
+   items remain, leave `plan.md` untouched so this run merges its new items into them (Stage 11).
 4. Read the remaining **pending** (`- [ ]`) items — these are the existing plan you must not duplicate.
 
-Report counts: compacted, rejected-drained, archived (yes/no).
+Report counts: compacted, rejected-drained, plan kept/deleted.
 
 ### Stage 1 — Scan (mechanical)
 
