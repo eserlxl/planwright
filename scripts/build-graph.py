@@ -282,15 +282,10 @@ def resolve_python_import(target, from_path, fileset):
 JS_EXTS = (".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs")
 
 
-def resolve_js_import(target, from_path, fileset):
-    """Resolve a js/ts import target to a repo file. JS specifiers routinely omit
-    the extension and use directory `index` files, so the generic resolver (exact
-    path only) drops the common case. Probe `<stem>.<ext>` then `<stem>/index.<ext>`.
-    Bare specifiers (`react`) are node_modules — not repo files — so they drop."""
-    if not target.startswith((".", "/")):
-        return None
-    base = os.path.dirname(from_path)
-    stem = os.path.normpath(os.path.join(base, target)) if not target.startswith("/") else target.lstrip("/")
+def _probe_js(stem, fileset):
+    """Resolve a repo-relative JS stem to a file, probing `<stem>`, `<stem>.<ext>`, then
+    `<stem>/index.<ext>` — JS/TS specifiers routinely omit the extension and use directory
+    `index` files."""
     stem = stem.replace("\\", "/")
     if stem in fileset:
         return stem
@@ -300,6 +295,99 @@ def resolve_js_import(target, from_path, fileset):
     for ext in JS_EXTS:
         if stem + "/index" + ext in fileset:
             return stem + "/index" + ext
+    return None
+
+
+def apply_ts_aliases(target, ts_aliases):
+    """Map a bare specifier through tsconfig `compilerOptions.paths` aliases. ts_aliases is
+    (base_dir, [(pattern, [replacements])]); a `*` in the pattern captures a tail that is
+    substituted into each replacement. Returns candidate repo-relative stems (un-probed)."""
+    base_dir, patterns = ts_aliases
+    out = []
+    for pat, repls in patterns:
+        if pat.endswith("/*"):
+            prefix = pat[:-1]  # "@app/*" -> "@app/"
+            if target.startswith(prefix):
+                tail = target[len(prefix):]
+                out += [os.path.normpath(os.path.join(base_dir, r.replace("*", tail))) for r in repls]
+        elif pat == target:
+            out += [os.path.normpath(os.path.join(base_dir, r)) for r in repls]
+    return out
+
+
+def _strip_jsonc(s):
+    """Remove // and /* */ comments from JSONC, skipping string literals (so an alias
+    pattern like `"@app/*"`, which contains `/*`, is not mistaken for a comment start).
+    Regex cannot do this safely, hence the small char walker."""
+    out, i, n, in_str = [], 0, len(s), False
+    while i < n:
+        c = s[i]
+        if in_str:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(s[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_str = False
+            i += 1
+        elif c == '"':
+            in_str = True
+            out.append(c)
+            i += 1
+        elif c == "/" and i + 1 < n and s[i + 1] == "/":
+            while i < n and s[i] != "\n":
+                i += 1
+        elif c == "/" and i + 1 < n and s[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (s[i] == "*" and s[i + 1] == "/"):
+                i += 1
+            i += 2
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def parse_tsconfig(path, cfg_dir):
+    """Best-effort parse of a tsconfig/jsconfig `compilerOptions.paths` map into
+    (base_dir, [(pattern, [repls])]), or None. base_dir = the config's dir + baseUrl,
+    repo-relative. Tolerates JSONC (// and /* */ comments, trailing commas); on any parse
+    failure it returns None and alias resolution is simply skipped (recall over precision)."""
+    try:
+        raw = open(path, encoding="utf-8").read()
+    except OSError:
+        return None
+    raw = _strip_jsonc(raw)
+    raw = re.sub(r",(\s*[}\]])", r"\1", raw)  # trailing commas
+    try:
+        cfg = json.loads(raw)
+    except ValueError:
+        return None
+    co = (cfg.get("compilerOptions") or {}) if isinstance(cfg, dict) else {}
+    paths = co.get("paths") or {}
+    if not isinstance(paths, dict) or not paths:
+        return None
+    base = os.path.normpath(os.path.join(cfg_dir, co.get("baseUrl") or "."))
+    base = "" if base == "." else base
+    patterns = [(pat, repls) for pat, repls in paths.items() if isinstance(repls, list)]
+    return (base, patterns) if patterns else None
+
+
+def resolve_js_import(target, from_path, fileset, ts_aliases=None):
+    """Resolve a js/ts import target to a repo file. A relative/absolute specifier probes
+    `<stem>(.ext)(/index.ext)`. A bare specifier (`react`) is normally node_modules and
+    drops — but a tsconfig/jsconfig `compilerOptions.paths` alias (when present) is applied
+    first, so an aliased import like `@app/util` resolves to its mapped path."""
+    if target.startswith((".", "/")):
+        base = os.path.dirname(from_path)
+        stem = os.path.normpath(os.path.join(base, target)) if not target.startswith("/") else target.lstrip("/")
+        return _probe_js(stem, fileset)
+    if ts_aliases:
+        for mapped in apply_ts_aliases(target, ts_aliases):
+            r = _probe_js(mapped, fileset)
+            if r:
+                return r
     return None
 
 
@@ -387,7 +475,7 @@ def strip_comments(lang, text):
     return text
 
 
-def imports_of(lang, text, from_path, fileset, go_module=None):
+def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
     text = strip_comments(lang, text)
     # Resolve which Go module from_path belongs to (nested-module aware). go_module may be
     # a single module path string (legacy/root), a list of (module_dir, module_path) pairs,
@@ -433,7 +521,7 @@ def imports_of(lang, text, from_path, fileset, go_module=None):
         if lang == "python":
             r = resolve_python_import(t, from_path, fileset)
         elif lang == "js":
-            r = resolve_js_import(t, from_path, fileset)
+            r = resolve_js_import(t, from_path, fileset, ts_aliases)
         elif lang == "rust":
             r = resolve_rust_import(t, from_path, fileset)
         else:
@@ -725,6 +813,14 @@ def build(root, prior_path, scope=None, seed=None):
                 k = (fs[i], fs[j])
                 pair_co[k] = pair_co.get(k, 0) + 1
 
+    # tsconfig/jsconfig compilerOptions.paths aliases, so `@app/x` style imports resolve.
+    ts_aliases = None
+    for cfg in ("tsconfig.json", "jsconfig.json"):
+        if cfg in fileset:
+            ts_aliases = parse_tsconfig(os.path.join(root, cfg), os.path.dirname(cfg))
+            if ts_aliases:
+                break
+
     # Every go.mod's (dir, module path), so Go intra-module imports resolve to repo files,
     # nested sub-modules included (each .go file uses its nearest enclosing module).
     go_modules = []
@@ -742,7 +838,7 @@ def build(root, prior_path, scope=None, seed=None):
         blob = open(os.path.join(root, f), "rb").read()
         lang = lang_of(f, blob)
         text = blob.decode("utf-8", "replace")
-        imps = imports_of(lang, text, f, fileset, go_modules)
+        imps = imports_of(lang, text, f, fileset, go_modules, ts_aliases)
         import_edges[f] = imps
         nodes[f] = {
             "sha256": hashlib.sha256(blob).hexdigest(),

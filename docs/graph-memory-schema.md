@@ -167,7 +167,7 @@ raw output never enters context.
    |--------|----------------|
    | bash | `source X`, `. X` |
    | python | `import X`, `from X import` |
-   | js/ts | `import … from "X"`, `require("X")` |
+   | js/ts | `import … from "X"`, `require("X")` (resolves `tsconfig`/`jsconfig` `paths` aliases) |
    | c/c++ | `#include "X"` |
    | rust | `mod X;`, `use a::b::c` |
    | go | `import "<module>/pkg"` (intra-module, via root `go.mod`) |

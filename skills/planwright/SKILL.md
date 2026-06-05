@@ -532,7 +532,8 @@ unchanged and behaves exactly as before. These are routing/record only — never
    (by extension/shebang).
 2. **Import edges** — extract with `rg` per language family (best-effort, recall over precision):
    bash `source X` / `. X`; python `import X` / `from X import`; js/ts `import … from "X"` /
-   `require("X")`; c/c++ `#include "X"`; rust `mod X;` / `use a::b`; go `import "<module>/pkg"`
+   `require("X")` (with `tsconfig`/`jsconfig` `compilerOptions.paths` aliases resolved); c/c++
+   `#include "X"`; rust `mod X;` / `use a::b`; go `import "<module>/pkg"`
    (intra-module imports resolve via each file's nearest enclosing `go.mod`, root or nested
    sub-module; stdlib/external and cross-module imports drop); markdown relative `[..](X)` links.
    Resolve targets to

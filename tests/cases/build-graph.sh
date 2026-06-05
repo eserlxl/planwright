@@ -835,6 +835,38 @@ assert bg.imports_of("go", src, "main.go", go, "m") == ["real/real.go"], \
 PY
 then ok "build-graph.py strips comments/docstrings so commented-out imports do not create edges"; else bad "comment/docstring stripping wrong (a false edge survived or a real edge was lost)"; fi
 
+# --- Test 11q: TypeScript/JS tsconfig compilerOptions.paths alias resolution ----
+# A bare specifier is normally node_modules and drops, but a tsconfig `paths` alias
+# (with an optional baseUrl and a `*` wildcard) maps it to a repo file. JSONC tolerance
+# (comments, trailing commas) must not break the parse.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, os, shutil, sys, tempfile
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+fs = {"src/app/util.ts", "src/app/m/index.ts", "src/lib/index.ts", "src/a.ts"}
+ts = ("", [("@app/*", ["src/app/*"]), ("@lib", ["src/lib/index.ts"])])
+ri = lambda t, frm=("src/a.ts"): bg.resolve_js_import(t, frm, fs, ts)
+assert ri("@app/util") == "src/app/util.ts", "wildcard alias -> .ts"
+assert ri("@app/m") == "src/app/m/index.ts", "wildcard alias -> dir index"
+assert ri("@lib") == "src/lib/index.ts", "exact (non-wildcard) alias"
+assert ri("react") is None, "unaliased bare specifier still drops"
+assert ri("./app/util", "src/x.ts") == "src/app/util.ts", "relative import unaffected by aliases"
+# baseUrl is applied to replacements
+ts2 = ("src", [("@/*", ["*"])])
+assert bg.resolve_js_import("@/app/util", "src/a.ts", fs, ts2) == "src/app/util.ts", "baseUrl applied"
+# parse_tsconfig tolerates JSONC (line + block comments, trailing comma)
+d = tempfile.mkdtemp()
+try:
+    open(os.path.join(d, "tsconfig.json"), "w").write(
+        '{\n  // editor hint\n  "compilerOptions": {\n'
+        '    "baseUrl": "src",\n'
+        '    "paths": { "@app/*": ["app/*"], } /* aliases */\n  }\n}\n')
+    assert bg.parse_tsconfig(os.path.join(d, "tsconfig.json"), "") == ("src", [("@app/*", ["app/*"])]), "JSONC parse"
+finally:
+    shutil.rmtree(d, ignore_errors=True)
+PY
+then ok "build-graph.py resolves tsconfig paths aliases (wildcard, exact, baseUrl; JSONC-tolerant)"; else bad "tsconfig paths alias resolution wrong (apply_ts_aliases / parse_tsconfig)"; fi
+
 # --- Test 11j: build-graph.py is deterministic (same tree => same graph) -----
 # The builder's header calls it "deterministic" and incremental skipping trusts
 # that identical inputs yield identical sha256/ranking. built_at (date -u) is the
