@@ -32,10 +32,6 @@ Your AI assistant (Claude Code, Cursor, or Antigravity) runs every stage through
 
 To keep large-codebase audits efficient, the plan path builds a **graph memory** (`.planwright/graph.json`) — import and change-coupling edges, PageRank, and articulation points — that routes audit attention toward code where changes can affect many other files and lets repeat runs re-audit only the changed subgraph. A companion `.planwright/digest.md` carries routing-only summaries that are never cited as Evidence. Both live under the gitignored `.planwright/`. See [Graph memory](docs/graph-memory-schema.md) for the schema and stages.
 
-### context-mode (optional)
-
-The plan path's mechanical stages — especially Stage 1 (repo scan) and Stage 1.5 (graph build) — can produce large `rg`/`git` output. The skill routes that bulk through [context-mode](https://github.com/mksglu/context-mode) (`ctx_execute` / `ctx_batch_execute`) so only summarized results enter the session context. context-mode is **optional** on every host (Claude Code, Cursor, Antigravity, etc.); without it, the agent falls back to capped Shell output or the documented by-hand fallbacks in the skill. It is most useful on large repos and at higher planning depths.
-
 > **Note**: Planning never edits your application source. Only `execute` and `cycle` do — and even then, your AI assistant's normal permission prompts for edits and commits still apply. Under `invent` specifically, those edits can — rarely, and only after the dwell gate trips — include `MISSION.md` itself; the run announces this up front, and protected paths (`.git/`, `.planwright/` internals, `LICENSE`, secrets) are never touched.
 
 ## How planwright differs from `/plan` and `/ultraplan`
@@ -130,6 +126,10 @@ Then invoke in chat with `@planwright`, natural-language `planwright …` argume
 Planwright can be run directly via the Antigravity agent. Copy the contents of [`GEMINI.example.md`](GEMINI.example.md) into a `GEMINI.md` file in the root of each target project, and update the absolute path to point to the planwright clone.
 
 Then ask the assistant to run `planwright` or use the `codvisor` and `codinventor` shortcut commands.
+
+## Optional: context-mode
+
+On large repos or at higher planning depths, the plan path's mechanical stages (especially Stage 1 scan and Stage 1.5 graph build) can emit bulky `rg`/`git` output. The skill can route that through [context-mode](https://github.com/mksglu/context-mode) (`ctx_execute` / `ctx_batch_execute`) so only summarized results enter the session. context-mode is optional on every host; without it, planwright falls back to capped Shell output or the by-hand fallbacks in the skill.
 
 ## Quick Start
 
