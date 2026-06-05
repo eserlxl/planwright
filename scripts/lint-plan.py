@@ -224,6 +224,7 @@ def main():
     ap.add_argument("--plan", default=".planwright/plan.md", help="plan file to lint")
     ap.add_argument("--all", action="store_true", help="lint completed (- [x]) items too, not just pending")
     ap.add_argument("--quiet", action="store_true", help="print nothing; only set the exit code")
+    ap.add_argument("--json", action="store_true", help="output structured JSON instead of plain text")
     ap.add_argument("--scope", default=None,
                     help="a graph.json (built with --scope) whose focus/context node sets gate "
                          "Surfaces-in-Focus for a scoped run; no-op when its focus is empty")
@@ -288,9 +289,43 @@ def main():
                 notes += 1
                 print(f"note: '{it['title']}' matches a rejected item — confirm the rejection reason is resolved")
 
+    note_total = notes + scope_notes
+    if args.json:
+        out_json = {
+            "total_items": len(items),
+            "total_violations": total,
+            "total_advisories": note_total,
+            "items": [],
+            "general_violations": [],
+        }
+        for t in dups:
+            out_json["general_violations"].append(f"duplicate pending title: '{t}'")
+        for idx, item in enumerate(items, 1):
+            item_out = {
+                "index": idx,
+                "line": item["line"],
+                "title": item["title"] or "<untitled>",
+                "violations": lint_item(item, root),
+                "advisories": []
+            }
+            if scope_active:
+                sv, advs = scope_check(item, focus, context)
+                item_out["violations"] += sv
+                item_out["advisories"] += advs
+            
+            if item["title"] in completed:
+                item_out["advisories"].append("matches a completed item \u2014 confirm this is a regression")
+            if item["title"] in rejected:
+                item_out["advisories"].append("matches a rejected item \u2014 confirm the rejection reason is resolved")
+
+            if item_out["violations"] or item_out["advisories"]:
+                out_json["items"].append(item_out)
+                
+        print(json.dumps(out_json, indent=2))
+        return 1 if total else 0
+
     if not args.quiet:
         n = len(items)
-        note_total = notes + scope_notes
         suffix = f" ({note_total} advisory note(s))" if note_total else ""
         if total == 0:
             print(f"lint-plan: {n} item(s) OK{suffix}")
