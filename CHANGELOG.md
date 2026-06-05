@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.34.0] - 2026-06-05
+
+### Changed
+- Generalize planwright for AI coding agents and add Codex packaging.
+
 ## [1.33.1] - 2026-06-05
 
 ### Changed
