@@ -37,6 +37,33 @@ separate model calls.
 
 When planning, do not edit application source. The output of the plan path is **only** the plan file.
 
+## Contents
+
+This file is the full specification *and* the runtime instructions. Read top-to-bottom on first use;
+thereafter jump to the path you are running.
+
+- **Dispatch & options** — [Host command adapter](#host-command-adapter) ·
+  [Invocation & help](#invocation--help) · [Usage](#usage) · [Options](#options) · [Depth](#depth)
+- **Planning model** — [Maturity ladder & the final point](#maturity-ladder--the-final-point) ·
+  [Escalation ladder](#escalation-ladder) · [Inputs](#inputs)
+- **Plan path (read-only)** — [Procedure](#procedure): Stage 0 → 11
+  ([0 Lifecycle](#stage-0--lifecycle-housekeeping-mechanical) ·
+  [1 Scan](#stage-1--scan-mechanical) · [1.5 Graph](#stage-15--build-code-graph-mechanical) ·
+  [2 Audit](#stage-2--audit-mechanical--reasoning) ·
+  [3–7 Dossier](#stages-37--cumulative-planning-dossier-reasoning-passes) ·
+  [8 Draft](#stage-8--draft) · [9 Finalize](#stage-9--finalize) ·
+  [10 Quality gate](#stage-10--strict-quality-gate-final) · [11 Write](#stage-11--write-the-plan)) ·
+  [Output format](#output-format-exact) · [Hard rules](#hard-rules-do-not-violate)
+- **Execute path (edits source)** — [Execute](#execute-implement-the-plan):
+  [Preconditions](#preconditions-check-first-in-order) · [Per-item loop](#per-item-loop) ·
+  [Broad final verification](#after-all-targeted-items--broad-final-verification) ·
+  [Rejection schema](#rejection-schema-must-be-machine-readable-for-the-feedback-loop)
+- **Cycle path (automated loops)** — [Cycle](#cycle-plan--execute-repeated):
+  [Per-cycle loop](#per-cycle-loop-repeat-up-to-n-times-or-indefinitely-when-n--0) ·
+  [Stop conditions](#stop-conditions)
+- **Maintenance** — [Upgrade](#upgrade-update-planwright-itself) ·
+  [Version](#version-show-current-and-latest)
+
 ## Host command adapter
 
 planwright has one canonical argument grammar: `planwright <args>`. Hosts only differ in how they
