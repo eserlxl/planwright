@@ -86,7 +86,11 @@ For deep dives into how `planwright` operates, refer to the documentation:
 
 ## Install
 
-Requires Claude Code, Cursor, or Antigravity. For Claude Code, the plugin install path is recommended; manual skill copy is only for users not using the plugin system.
+Planwright runs inside an AI coding assistant — no external binary. Install the skill for the host in use.
+
+### Claude Code
+
+The plugin install path is recommended; manual skill copy is only for users not using the plugin system.
 
 ```bash
 /plugin marketplace add eserlxl/planwright
@@ -102,7 +106,9 @@ Or add a local clone as a marketplace:
 
 To use it without the plugin system, copy `skills/planwright/` into `~/.claude/skills/`.
 
-## Usage with Cursor
+Then invoke with `/planwright`, `/codvisor`, or `/codinventor`. Upgrade with `/planwright upgrade`.
+
+### Cursor
 
 Planwright runs as a Cursor Agent Skill — the same `SKILL.md` workflow as Claude Code, without a plugin marketplace. See [`AGENTS.example.md`](AGENTS.example.md) for the full setup guide.
 
@@ -119,11 +125,11 @@ For `codvisor` / `codinventor` shortcuts, use the `AGENTS.md` block in [`AGENTS.
 
 Then invoke in chat with `@planwright`, natural-language `planwright …` arguments, or the `codvisor` / `codinventor` shortcuts. Cursor's normal edit and terminal approval prompts apply on the execute and cycle paths. Upgrade by `git pull` in the planwright clone (there is no `/plugin upgrade` on Cursor).
 
-## Usage with Antigravity / Gemini
+### Antigravity / Gemini
 
-Planwright can be run directly via the Antigravity agent. To use it in any of your projects, copy the contents of [`GEMINI.example.md`](GEMINI.example.md) into a `GEMINI.md` file in the root of your target project, and update the absolute path to point to your planwright clone.
+Planwright can be run directly via the Antigravity agent. Copy the contents of [`GEMINI.example.md`](GEMINI.example.md) into a `GEMINI.md` file in the root of each target project, and update the absolute path to point to the planwright clone.
 
-Then, you can simply ask the assistant to run `planwright` or use the `codvisor` and `codinventor` shortcut commands.
+Then ask the assistant to run `planwright` or use the `codvisor` and `codinventor` shortcut commands.
 
 ## Quick Start
 
