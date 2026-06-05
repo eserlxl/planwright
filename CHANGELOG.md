@@ -20,6 +20,16 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.36.0] - 2026-06-05
+
+### Added
+- `scripts/lifecycle.py` mechanizes Stage 0 lifecycle housekeeping (`drain-completed` / `drain-rejected` / `reset-if-empty` / `housekeep`) with the FIFO-100 cap, so the most error-prone bookkeeping has deterministic, test-covered backing instead of being done by hand. SKILL.md Stage 0 now invokes it (the by-hand fallback is kept).
+- A large multi-language **integration test** (`tests/cases/integration-scale.sh`): a generated 129-file repo with import stars across Python/JS/C/Rust/Go, asserting build-graph routing at scale (schema, per-language edge resolution, centrality ranking, clusters + articulation points) within a time bound.
+
+### Changed
+- **Stage 0 step 3 behavior:** an empty plan (no pending items) is now **deleted** instead of archived to `plans/` — completed and rejected items are already preserved in their own files, so backing up an empty plan was only clutter. Pending items are left untouched so the next run merges its new items into them.
+- Split the SKILL.md invent-semantics prose **drift-guards** into `tests/cases/skill-guards.sh`, leaving the structural/wiring/behavioral contracts in `skill-contract.sh`. Test suite **182 → 190**.
+
 ## [1.35.0] - 2026-06-05
 
 ### Security
