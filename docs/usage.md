@@ -1,6 +1,9 @@
 # Usage
 
 `planwright` provides commands for planning your work (read-only) and executing it (mutating).
+It has one canonical argument grammar, `planwright <args>`; each host only changes the trigger token
+(`/planwright` on Claude Code, `@planwright` on Cursor, and usually `planwright` in Codex,
+Antigravity, or Gemini project instructions).
 
 ## Quick Start
 
@@ -14,7 +17,8 @@
 
 ## Plan Commands (Read-only)
 
-The `/planwright` command scans the codebase and generates plan items in `.planwright/plan.md`.
+The `planwright` command (or host equivalent such as `/planwright`) scans the codebase and generates
+plan items in `.planwright/plan.md`.
 
 ```bash
 /planwright                      Plan from audit (depth 6, propose 5, default settings)
@@ -64,7 +68,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 
 ### Execute Modes
 
-- **Auto Mode** (`/planwright execute`): Runs through all pending items in order, implements them, verifies them, and automatically commits the successful ones. Pauses only if there is a hard blocker or a failing final verification. Note: Claude Code's standard permission prompts for edits and commits still apply.
+- **Auto Mode** (`planwright execute`, `/planwright execute` on Claude Code): Runs through all pending items in order, implements them, verifies them, and automatically commits the successful ones. Pauses only if there is a hard blocker or a failing final verification. The host agent's standard permission prompts for edits, shell commands, and commits still apply.
 - **Interactive Mode** (`--interactive`): Halts on every item to let you approve the implementation, show the diff, run the verification, and explicitly confirm the commit.
 - **Targeted Mode** (`N`): Executes only the `N`th pending item.
 - **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until it reaches a recorded final point (all rungs dry, recorded in `.planwright/final.md`). Append `depth D` to plan at depth `D` (1–10) on every round, e.g. `/planwright cycle 3 depth 8`.
@@ -111,6 +115,8 @@ new warning — fails this gate.
 ## Helper Commands
 
 Two thin shortcuts forward to the planwright skill; any planwright arguments pass through verbatim.
+Use slash spelling on Claude Code and the bare names (`codvisor`, `codinventor`) or host dispatcher
+skills/instructions elsewhere.
 
 ```bash
 /codvisor                  Flagship advisor run: cycle 10 depth 10 explore (prints a cost banner first)
@@ -122,9 +128,9 @@ Two thin shortcuts forward to the planwright skill; any planwright arguments pas
 ```
 
 After any `invent` run finishes, planwright closes its report with a one-line suggestion to run
-`/codvisor` (the flagship `cycle 10 depth 10 explore` sweep) to harden the net-new code — the invent
-tier's final burst never gets a later planning round's deep repair/coverage audit, and `/codvisor`
-provides it. It is a **suggestion only**: planwright never auto-runs it, so you keep the beat to
+`/codvisor` or the host's `codvisor` equivalent (the flagship `cycle 10 depth 10 explore` sweep) to
+harden the net-new code — the invent tier's final burst never gets a later planning round's deep
+repair/coverage audit, and `codvisor` provides it. It is a **suggestion only**: planwright never auto-runs it, so you keep the beat to
 inspect or revert flagged invent-tier items before hardening them.
 
 ## Maintenance
@@ -134,21 +140,26 @@ inspect or revert flagged invent-tier items before hardening them.
 /planwright upgrade              Update planwright itself to the latest version (alias: update)
 ```
 
-`version` is read-only: it reports the installed version (from
-`~/.claude/plugins/installed_plugins.json`) against the latest at the marketplace source, e.g.
-`planwright 1.7.0 (latest 1.7.0) → up to date`. `/planwright help` also prints the running version
-in its header.
+`version` is read-only: it reports the installed version from the detected host metadata when
+available (`~/.claude/plugins/installed_plugins.json` for Claude Code, `.codex-plugin/plugin.json` for
+Codex packaging, or the skill frontmatter for direct skill installs) against the latest local source it
+can resolve. `/planwright help` on Claude Code, or `planwright help` elsewhere, also prints the running
+version in its header.
 
-`upgrade` (or `update`) neither plans nor edits your project — it refreshes the planwright plugin. It locates the
-`eserlxl` marketplace source, fast-forwards it if it is a local git clone, reports the installed
-version versus the latest, then hands you the interactive steps it cannot run itself:
+`upgrade` (or `update`) neither plans nor edits your project — it refreshes the planwright
+distribution. It resolves the local planwright root, fast-forwards it if it is a clean git clone,
+reports the installed version versus the latest, then gives the host-specific handoff:
 
 ```bash
+# Claude Code plugin installs
 /plugin marketplace update eserlxl
 /reload-plugins
 ```
 
-(Run `/plugin install planwright@eserlxl` between those two only if the version did not advance.)
+Run `/plugin install planwright@eserlxl` between those two only if the version did not advance. For
+Codex, reinstall the local plugin from the marketplace that points at this repo, or start a new thread
+after updating a direct `~/.codex/skills/planwright` symlink/copy. For Cursor, Antigravity, and Gemini,
+update the clone or copied skill and reload the host context if it caches instructions.
 
 ## Graph Memory (audit routing)
 

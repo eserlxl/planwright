@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Eser KUBALI
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Bump the plugin version in lockstep across plugin.json, marketplace.json,
-# and CHANGELOG.md.
+# Bump the plugin version in lockstep across Claude/Codex manifests,
+# marketplace.json, skill frontmatter, and CHANGELOG.md.
 #
 # This script updates version numbers and the changelog — it does NOT create a
 # git tag or GitHub release. Tags should only be created at release milestones:
@@ -23,6 +23,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_JSON="$ROOT/.claude-plugin/plugin.json"
 MARKET_JSON="$ROOT/.claude-plugin/marketplace.json"
+CODEX_PLUGIN_JSON="$ROOT/.codex-plugin/plugin.json"
 CHANGELOG="$ROOT/CHANGELOG.md"
 
 usage() {
@@ -81,11 +82,11 @@ PY
 
 DATE="$(date -u +%Y-%m-%d)"
 
-# --- Update both JSON manifests -------------------------------------------
+# --- Update JSON manifests -------------------------------------------------
 if [ -z "$DRY_RUN" ]; then
-python3 - "$PLUGIN_JSON" "$MARKET_JSON" "$NEW" <<'PY'
+python3 - "$PLUGIN_JSON" "$MARKET_JSON" "$CODEX_PLUGIN_JSON" "$NEW" <<'PY'
 import json, sys
-plugin_path, market_path, new = sys.argv[1:4]
+plugin_path, market_path, codex_plugin_path, new = sys.argv[1:5]
 
 with open(plugin_path) as f:
     plugin = json.load(f)
@@ -102,6 +103,16 @@ for entry in market.get("plugins", []):
         entry["version"] = new
 with open(market_path, "w") as f:
     json.dump(market, f, indent=2); f.write("\n")
+
+try:
+    with open(codex_plugin_path) as f:
+        codex_plugin = json.load(f)
+except FileNotFoundError:
+    codex_plugin = None
+if codex_plugin is not None:
+    codex_plugin["version"] = new
+    with open(codex_plugin_path, "w") as f:
+        json.dump(codex_plugin, f, indent=2); f.write("\n")
 PY
 fi
 
@@ -168,8 +179,9 @@ else
   echo "Bumped: $CURRENT -> $NEW"
   echo "  updated $(realpath --relative-to="$ROOT" "$PLUGIN_JSON")"
   echo "  updated $(realpath --relative-to="$ROOT" "$MARKET_JSON")"
+  [ -f "$CODEX_PLUGIN_JSON" ] && echo "  updated $(realpath --relative-to="$ROOT" "$CODEX_PLUGIN_JSON")"
   [ -n "$SKILLS_SYNCED" ] && echo "  updated$SKILLS_SYNCED"
   echo "  changelog entry added ($DATE)"
   echo
-  echo "Next: review the diff, commit, then run /plugin marketplace update <name>"
+  echo "Next: review the diff, commit, then refresh/reinstall in the host you are testing."
 fi

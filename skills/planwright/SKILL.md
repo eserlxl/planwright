@@ -4,14 +4,13 @@ description: >
   Grounded codebase planning. Scans + audits a repository and produces a verification-ready
   checkbox plan in .planwright/plan.md using the exact 8-field item format
   (Mode/Rationale/Evidence/Surfaces/New Surfaces/Development/Acceptance/Verification).
-  Runs a multi-stage dossier -> draft -> finalize -> quality-gate pipeline with Claude doing
-  every stage directly. The `execute` subcommand then implements the plan items, verifies each,
-  and records completed/rejected items.
+  Runs a multi-stage dossier to draft to finalize to quality-gate pipeline with the active
+  AI coding agent doing every stage directly. The `execute` subcommand then implements the
+  plan items, verifies each, and records completed/rejected items.
   Trigger when the user asks to "plan", "run plan mode", "generate a plan", "refresh the plan",
   "propose plan items", "execute the plan", "implement the plan", "cycle", "dogfood", or mentions
-  .planwright/plan.md. Run `/planwright help` for usage and options.
-  Supports: execute [--interactive] [N], cycle <N>, explore, invent, seed <S>, update, version, upgrade, depth <D>, propose <N>, max <N>, no-compact, dry-run, help.
-argument-hint: "[instruction] | execute [N] | cycle <N> [depth <D>] [explore|invent [seed <S>]] | depth <D> | version | upgrade | help"
+  .planwright/plan.md. Run `planwright help` (or the host command equivalent) for usage and options.
+  Supports: execute, interactive execute, targeted execute, cycle N, explore, invent, seed S, update, version, upgrade, depth D, propose N, max N, no-compact, dry-run, help.
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
@@ -22,20 +21,41 @@ metadata:
 
 This skill has three clearly partitioned paths:
 
-- **Plan** (`/planwright`, default) — scans and audits the codebase, then runs a multi-stage
+- **Plan** (`planwright`, default) — scans and audits the codebase, then runs a multi-stage
   *dossier → draft → finalize → quality-gate* pipeline to emit concrete plan items in
   `.planwright/plan.md`. **Read-only: it writes only the plan file, never application source.**
-- **Execute** (`/planwright execute`) — implements the pending plan items, verifies each, commits
+- **Execute** (`planwright execute`) — implements the pending plan items, verifies each, commits
   the ones that pass, and records the rest. **This is the only path that edits source.**
-- **Cycle** (`/planwright cycle N`) — runs N sequential plan→execute rounds unattended: proposes
+- **Cycle** (`planwright cycle N`) — runs N sequential plan→execute rounds unattended: proposes
   items, implements them all, verifies, then repeats. It climbs a **maturity ladder** (repair →
   coverage → opportunity → vision) so a clean tree keeps producing valuable work, and stops early only
   when it reaches a **recorded final point** (all four rungs dry — see **Maturity ladder & the final
   point**).
 
-Claude itself runs every stage, so it needs no external binary and spends no separate model calls.
+The active AI coding agent runs every stage, so planwright needs no external binary and spends no
+separate model calls.
 
 When planning, do not edit application source. The output of the plan path is **only** the plan file.
+
+## Host command adapter
+
+planwright has one canonical argument grammar: `planwright <args>`. Hosts only differ in how they
+load the skill and what command token they expose. Before dispatching below, strip the host trigger and
+classify the remaining tokens as the canonical argument string.
+
+| Host | User-facing trigger | Canonical arguments passed to this skill |
+|------|---------------------|------------------------------------------|
+| Claude Code plugin | `/planwright <args>` | `<args>` |
+| Cursor skill | `@planwright <args>` or `planwright <args>` | `<args>` |
+| Codex skill/plugin | `planwright <args>` in chat, or the Codex skill invocation carrying `<args>` | `<args>` |
+| Antigravity / Gemini | `planwright <args>` after the `GEMINI.md`/project instruction loads this file | `<args>` |
+
+The helper names `codvisor` and `codinventor` are also host adapters: they resolve to
+`cycle 10 depth 10 explore` and `cycle 10 depth 10 invent` respectively unless the user supplied
+arguments. On hosts without slash commands, use the bare names (`codvisor`, `codinventor`) or dispatcher
+skills/instructions that load this `SKILL.md` with the resolved canonical argument string. In the Usage
+block, `/planwright`, `/codvisor`, and `/codinventor` are the Claude Code spellings; substitute the
+host trigger above while keeping the arguments unchanged.
 
 ## Invocation & help
 
@@ -341,9 +361,9 @@ Run these stages in order. Stages 0–2 are mechanical (use tools). Stages 3–1
 you perform yourself — treat each as a distinct lens and carry forward a cumulative dossier.
 
 **Bundled scripts — resolve their path first.** planwright's canonical scripts (`build-graph.py`,
-`lint-plan.py`) ship **inside the plugin**, not in the repo you are planning. Resolve them from the
-**"Base directory for this skill"** path the harness prints when this skill loads: that base ends in
-`skills/planwright`, and the scripts live two directories up under `scripts/` — i.e.
+`lint-plan.py`) ship **inside the planwright distribution**, not in the repo you are planning. Resolve
+them from the **"Base directory for this skill"** path the host prints or exposes when this skill loads:
+that base ends in `skills/planwright`, and the scripts live two directories up under `scripts/` — i.e.
 `<skill-base>/../../scripts/`. Compute that **absolute** path once at the start of the run and write it
 as `<scripts>` wherever a script is invoked below (so `<scripts>/build-graph.py`,
 `<scripts>/lint-plan.py`). **Never invoke a bundled script as a bare `scripts/…`** — the current working
@@ -436,7 +456,7 @@ Then load the planning memory so this run learns from prior ones:
       **Escalation ladder**), so a recorded `deepest_tier: invent` is **informational only** — it
       records *why one prior burst came up empty*, but a fresh `invent` invocation re-asserts the
       must-generate mandate and **re-surveys** the net-new tier. This is what lets repeated
-      `/codinventor` (or `cycle … invent`) runs keep landing net-new work instead of freezing at the
+      `codinventor` (or `cycle … invent`) runs keep landing net-new work instead of freezing at the
       first recorded invent-dry point. (Re-surveying a *genuine* empty simply re-writes the same
       `deepest_tier: invent` and the cycle's own deep-final-point stop ends that run — see **Cycle**
       step 3 — so the bound still holds; what changes is only that the marker no longer blocks the
@@ -697,8 +717,8 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
      (e.g. "small / dependency-light") but may not authorize a new subsystem, unrelated domain, or
      redesign; those stay barred regardless of mission text.
    This is **always-on under explicit `invent`** (the run announces it up front — see Cycle preconditions
-   / the `/codinventor` banner — so whoever runs `invent` is on notice); `explore` and the default never
-   edit the mission.
+   / the `codinventor` helper banner — so whoever runs `invent` is on notice); `explore` and the default
+   never edit the mission.
 
    **Seeded framing (active only when Stage 1.5 emitted `explore_framing` — an `invent` run with a
    `seed`).** Without a seed, the invent survey is **comprehensive** (survey every module against PROJECT
@@ -958,8 +978,9 @@ preamble, headings, code, or commentary in the plan file.
 
 # Execute (implement the plan)
 
-Reached only via `/planwright execute`. This is the mutating path: it edits source, runs
-verification, and commits. Everything below replaces the planning Procedure.
+Reached only via `planwright execute` (or the host equivalent such as `/planwright execute`). This is
+the mutating path: it edits source, runs verification, and commits. Everything below replaces the
+planning Procedure.
 
 ## Preconditions (check first, in order)
 
@@ -987,8 +1008,9 @@ verification, and commits. Everything below replaces the planning Procedure.
   in the resolved Focus, leaving out-of-scope items pending. Useful to implement just one component's
   items from a whole-repo plan.
 
-In both modes, Claude Code's normal tool permission prompts for edits and commits still apply — auto
-only suppresses planwright's *own* item-by-item questions, never the permission system.
+In both modes, the host agent's normal permission prompts for file edits, shell commands, and commits
+still apply — auto only suppresses planwright's *own* item-by-item questions, never the host permission
+system.
 
 ## Per-item loop
 
@@ -1050,7 +1072,8 @@ blocked, and the broad final-verify result.
 
 # Cycle (plan → execute, repeated)
 
-Reached only via `/planwright cycle N`. Runs N sequential plan→execute rounds on the current branch
+Reached only via `planwright cycle N` (or the host equivalent such as `/planwright cycle N`). Runs N
+sequential plan→execute rounds on the current branch
 without interruption. Each round proposes new items, implements them all, verifies, and feeds the
 results into the next round's audit, **climbing the maturity ladder** (repair → coverage → opportunity
 → vision) as lower rungs run dry. Useful for unattended dogfooding or bulk progress on a feature. It
@@ -1061,7 +1084,7 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
 1. **N is valid** — N must be a non-zero integer. Positive values (1–100) run exactly N cycles.
    **Negative values run unlimited cycles** — the loop continues until a stop condition fires (no
    more work, hard blocker, or failed broad verify). Zero is invalid.
-   If missing or non-integer, print `Usage: /planwright cycle <N>  (N ≠ 0; negative = unlimited)`
+   If missing or non-integer, print `Usage: planwright cycle <N>  (N != 0; negative = unlimited)`
    and STOP.
 2. **Clean working tree** — run `git status --porcelain`. If it reports anything (excluding
    `.planwright/`), STOP and report the dirty paths. Do not mix uncommitted work with per-item commits.
@@ -1136,7 +1159,7 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
 
    If items are pending or were written, proceed to Execute as normal.
 4. **Execute** — run the full per-item execute loop over every pending item (same as
-   `/planwright execute` auto mode). Collect per-cycle stats: items completed, items rejected.
+   `planwright execute` auto mode). Collect per-cycle stats: items completed, items rejected.
 5. **Broad final verification** — run the project's full build + test suite (not just per-item
    focused tests), including the **warnings-clean gate** (Execute → broad final verification: where the
    toolchain emits warnings, any new warning this cycle introduced is must-fix). If it fails, STOP and
@@ -1157,11 +1180,12 @@ Print a cumulative summary:
   deep final point — the run reaches N (or `plan at capacity`, or the rare `no groundable seam remains`)
 
 **Hardening suggestion (after an `invent` run only).** When the completed run was an `invent` run,
-end the cumulative summary with **one** line suggesting the user run **`/codvisor`** (the flagship
-explore sweep, `cycle 10 depth 10 explore`) to harden this run's net-new code. The invent tier
+end the cumulative summary with **one** line suggesting the user run **`/codvisor`** or the host's
+`codvisor` equivalent (the flagship explore sweep, `cycle 10 depth 10 explore`) to harden this run's
+net-new code. The invent tier
 relaxes the value bar and mission conservatism to land fresh, seam-bound capability — and the
 **final** invent burst lands in the last cycle, so it never gets a *subsequent* planning round's deep
-repair/coverage audit; `/codvisor` re-enters the maturity ladder at the bottom and adds the
+repair/coverage audit; `codvisor` re-enters the maturity ladder at the bottom and adds the
 cold-frontier sweep + expand tier, hardening every invented surface before the next growth burst.
 This is a **suggestion only** — never auto-dispatch the explore run; the user decides when (which
 preserves their beat to inspect or revert flagged invent-tier items first). It is a no-op for
@@ -1188,42 +1212,57 @@ round's audit will learn from the rejection reasons in `rejected.md`.
 
 # Upgrade (update planwright itself)
 
-Reached only via `/planwright upgrade`. Updates the installed planwright plugin to the latest version.
-This path does **not** plan or edit your project; it only refreshes planwright.
+Reached only via `planwright upgrade` (or the host equivalent such as `/planwright upgrade`). Updates
+the installed planwright distribution. This path does **not** plan or edit your project; it only
+refreshes planwright itself.
 
 ## Procedure
 
-1. **Locate the marketplace source.** Read `~/.claude/plugins/known_marketplaces.json` and find the
-   `eserlxl` entry. Note its `source` (a `github` repo, or a local `directory`/`git` path) and the
-   installed version from `~/.claude/plugins/installed_plugins.json` (`planwright@eserlxl`).
-2. **Refresh the source when it is a local git clone.** If the source is a `directory`/`git` path that
-   is a git repo, run `git -C <path> pull --ff-only` to fetch the latest. If that tree is dirty or the
-   pull is not fast-forward, STOP and report — do not force it. For a `github` source, skip this step
-   (the marketplace update fetches directly).
-3. **Report versions.** Print installed version → latest available `version` from the source's
-   `.claude-plugin/plugin.json`. If they already match, say "already up to date" and skip step 4.
-4. **Hand off the two interactive steps.** The skill cannot run `/plugin` or `/reload-plugins` itself
-   (they are user UI commands). Tell the user to run, in order:
-   - `/plugin marketplace update eserlxl`
-   - `/plugin install planwright@eserlxl` (only if the version did not advance after the update)
-   - `/reload-plugins`
-5. **Confirm.** After the user reloads, the new version is active; suggest `/planwright help` to verify.
+1. **Resolve the planwright root.** Prefer the skill base path (`skills/planwright`) and walk two
+   directories up. If the host exposes an installed plugin source path, use that when it is more exact.
+2. **Detect the host/package surface.**
+   - Claude Code plugin: if `~/.claude/plugins/known_marketplaces.json` contains the `eserlxl`
+     marketplace, read the installed version from `~/.claude/plugins/installed_plugins.json`
+     (`planwright@eserlxl`) and the latest version from the marketplace source's
+     `.claude-plugin/plugin.json`.
+   - Codex plugin: if the planwright root contains `.codex-plugin/plugin.json`, read that manifest
+     version and treat the current install as Codex-managed. If a local marketplace entry is known to
+     the host, report it; otherwise report the local root path and do not guess a marketplace name.
+   - Cursor, Antigravity/Gemini, or manual skill copy/symlink: read this file's frontmatter
+     `metadata.version` and the local root's manifests when present.
+3. **Refresh a local git source when possible.** If the resolved root is a git repo, run
+   `git -C <planwright-root> pull --ff-only`. If that tree is dirty or the pull is not fast-forward,
+   STOP and report; do not force it. If the install is a copied skill with no git root, report that the
+   user must update the source clone and re-copy or re-link the skill.
+4. **Report versions and host handoff.** Print current → latest when both are known; otherwise print
+   current and the exact local root that was inspected. Then give only the handoff steps for the detected
+   host:
+   - Claude Code: `/plugin marketplace update eserlxl`, then `/plugin install planwright@eserlxl` only
+     if needed, then `/reload-plugins`.
+   - Codex: reinstall the local plugin from the marketplace that points at this root, or start a new
+     thread after updating a direct `~/.codex/skills/planwright` symlink/copy.
+   - Cursor: restart/reload Cursor's agent context after updating the clone or re-copying the skill.
+   - Antigravity/Gemini: keep `GEMINI.md` pointing at the updated clone; no plugin reload is required
+     unless the host caches project instructions.
 
-Report: source type, old → new version, whether a local pull ran, and the handoff steps.
+Report: detected host/package surface, root path, old → new version when known, whether a local pull
+ran, and the host-specific handoff steps.
 
 # Version (show current and latest)
 
-Reached via `/planwright version` (or `--version`, `-V`). Read-only — it neither plans nor edits.
+Reached via `planwright version` (or `--version`, `-V`; `/planwright version` on Claude Code).
+Read-only — it neither plans nor edits.
 
 ## Procedure
 
-1. **Current** — the installed/running version: read `~/.claude/plugins/installed_plugins.json`
-   (`planwright@eserlxl`). If that is unavailable (e.g. running from `~/.claude/skills/` without the
-   plugin), fall back to this file's frontmatter `metadata.version`.
-2. **Latest** — read the `version` from the marketplace source's `.claude-plugin/plugin.json` (resolve
-   the source path from `~/.claude/plugins/known_marketplaces.json`). For a `github` source whose clone
-   is not local, report latest as "unknown (run /planwright upgrade to fetch)".
+1. **Current** — the installed/running version. Prefer the detected host install metadata:
+   `~/.claude/plugins/installed_plugins.json` for Claude Code, `.codex-plugin/plugin.json` for a Codex
+   plugin root, or this file's frontmatter `metadata.version` for direct skill installs.
+2. **Latest** — read the version from the resolved planwright root's manifest, preferring
+   `.codex-plugin/plugin.json` on Codex, `.claude-plugin/plugin.json` on Claude Code, and this file's
+   frontmatter as a fallback. If the source is remote-only or cannot be resolved locally, report latest
+   as `unknown (run planwright upgrade from the host that installed it)`.
 3. **Report** one line: `planwright <current> (latest <latest>)`. If latest > current, add
-   "→ upgrade available: run /planwright upgrade"; if equal, add "→ up to date".
+   `→ upgrade available: run planwright upgrade`; if equal, add `→ up to date`.
 
 STOP after reporting.

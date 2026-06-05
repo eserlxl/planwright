@@ -9,10 +9,11 @@ forward progress — never plausible-sounding work that wasn't checked.
 
 ## How it works (in one breath)
 
-Claude runs every stage directly — there is no external binary and no separate model call. A
-multi-stage pipeline (scan → graph → audit → dossier → draft → finalize → strict quality gate → write)
-emits checkbox items into `.planwright/plan.md`; the execute path implements, verifies, and commits
-them; the cycle path repeats the two, climbing a maturity ladder until a recorded final point.
+The active AI coding agent runs every stage directly — there is no external binary and no separate
+model call. A multi-stage pipeline (scan → graph → audit → dossier → draft → finalize → strict quality
+gate → write) emits checkbox items into `.planwright/plan.md`; the execute path implements, verifies,
+and commits them; the cycle path repeats the two, climbing a maturity ladder until a recorded final
+point.
 
 ## Scope
 

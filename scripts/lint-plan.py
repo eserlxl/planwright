@@ -5,7 +5,7 @@
 # Canonical, deterministic linter for planwright plan items (.planwright/plan.md).
 # It enforces the *machine-checkable subset* of the SKILL.md OUTPUT FORMAT, Stage 10
 # strict quality gate, and Hard rules — the structural invariants that do not need
-# Claude's judgement, so they never have to be re-checked by hand:
+# the active agent's judgement, so they never have to be re-checked by hand:
 #
 #   * every pending item carries all required fields (Mode, Rationale, Evidence,
 #     Surfaces, Development, Acceptance, Verification; New Surfaces optional);
@@ -22,11 +22,11 @@
 #     (TODO / tbd / manual / n-a / ... — never a runnable command);
 #   * no two pending items share a title (the maturity ladder's monotonic-drain
 #     guard). As a non-failing advisory it also notes pending titles that match a
-#     completed.md / rejected.md item, for Claude to confirm a regression or a
+#     completed.md / rejected.md item, for the active agent to confirm a regression or a
 #     resolved rejection rather than blocking it.
 #
 # Semantic checks that need code understanding (is the Evidence a *real* defect?
-# does Development name a real call site?) stay Claude's job — this linter is
+# does Development name a real call site?) stay the active agent's job — this linter is
 # deliberately precise over clever so it never raises a false failure.
 #
 # It only reads the plan + the working tree; it prints findings and exits non-zero

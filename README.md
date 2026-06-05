@@ -1,8 +1,11 @@
 # planwright
 
-**Grounded codebase planning for AI Coding Assistants (Claude Code, Cursor, and Antigravity).**
+**Grounded codebase planning for AI coding agents (Claude Code, Codex, Cursor, Antigravity, and Gemini).**
 
-> Invoke it with `/planwright` — or the `/codvisor` shortcut for the flagship advisor run (`cycle 10 depth 10 explore`), or `/codinventor` to also propose net-new, seam-bound features (`cycle 10 depth 10 invent`).
+> Invoke it with your host's `planwright` trigger — for example `/planwright` on Claude Code,
+> `@planwright` on Cursor, or `planwright` in Codex/Antigravity/Gemini project instructions. The
+> `codvisor` shortcut resolves to `cycle 10 depth 10 explore`; `codinventor` resolves to
+> `cycle 10 depth 10 invent`.
 
 Planwright is a planning-first skill/workflow for codebase work. It audits a project, writes grounded implementation items to `.planwright/plan.md`, and can optionally execute verified items one by one.
 
@@ -17,22 +20,23 @@ It operates using three distinct, partitioned paths:
 
 ```mermaid
 flowchart LR
-    User -->|/planwright| Plan[Plan Pipeline] --> Doc[.planwright/plan.md]
+    User -->|planwright| Plan[Plan Pipeline] --> Doc[.planwright/plan.md]
 
-    User -->|/planwright execute| Exec[Implement & Verify]
+    User -->|planwright execute| Exec[Implement & Verify]
     Exec -- Pass --> Commit[Commit]
     Exec -- Fail --> Revert[Revert]
 
-    User -->|/planwright cycle N| Cycle[Plan → Execute × N]
+    User -->|planwright cycle N| Cycle[Plan → Execute × N]
     Cycle -->|repeat| Cycle
     Cycle -->|nothing left| Done[Done]
 ```
 
-Your AI assistant (Claude Code, Cursor, or Antigravity) runs every stage through the skill, so planwright needs no external binary and makes no separate API/model calls beyond the active session.
+Your AI coding agent runs every stage through the skill, so planwright needs no external binary and
+makes no separate API/model calls beyond the active session.
 
 To keep large-codebase audits efficient, the plan path builds a **graph memory** (`.planwright/graph.json`) — import and change-coupling edges, PageRank, and articulation points — that routes audit attention toward code where changes can affect many other files and lets repeat runs re-audit only the changed subgraph. A companion `.planwright/digest.md` carries routing-only summaries that are never cited as Evidence. Both live under the gitignored `.planwright/`. See [Graph memory](docs/graph-memory-schema.md) for the schema and stages.
 
-> **Note**: Planning never edits your application source. Only `execute` and `cycle` do — and even then, your AI assistant's normal permission prompts for edits and commits still apply. Under `invent` specifically, those edits can — rarely, and only after the dwell gate trips — include `MISSION.md` itself; the run announces this up front, and protected paths (`.git/`, `.planwright/` internals, `LICENSE`, secrets) are never touched.
+> **Note**: Planning never edits your application source. Only `execute` and `cycle` do — and even then, your AI coding agent's normal permission prompts for edits and commits still apply. Under `invent` specifically, those edits can — rarely, and only after the dwell gate trips — include `MISSION.md` itself; the run announces this up front, and protected paths (`.git/`, `.planwright/` internals, `LICENSE`, secrets) are never touched.
 
 ## How planwright differs from `/plan` and `/ultraplan`
 
@@ -50,7 +54,7 @@ Both are general-purpose, session-scoped plans. planwright is a different shape 
 | Output | Free-form prose | Free-form prose | Exact 8-field checkbox items, each with a runnable `Verification:` |
 | Execution | Exit mode → implement now | Same | Separate `execute` path: implements, **runs each item's verification, commits per item**, records pass/fail |
 | Iteration | One-shot | One-shot refine | `cycle N` climbs a maturity ladder to a recorded **final point** |
-| Runs | Local | Cloud (web auth) | Runs inside Claude Code — no extra binary, daemon, server, or separate API/model integration |
+| Runs | Local | Cloud (web auth) | Runs inside the active AI coding agent — no extra binary, daemon, server, or separate API/model integration |
 
 **Rules of thumb:** reach for **`/plan`** to think through any task you'll execute right away; **`/ultraplan`** when you want cloud-grade refinement on a hard problem; **planwright** when you want a grounded, verifiable plan of *codebase* work — especially unattended multi-round progress (`cycle`) with per-item verification and commits. They compose, too: design with `/plan`, then let planwright drive the verified execution.
 
@@ -84,6 +88,17 @@ For deep dives into how `planwright` operates, refer to the documentation:
 
 Planwright runs inside an AI coding assistant — no external binary. Install the skill for the host in use.
 
+### Command adapters
+
+The workflow has one argument grammar: `planwright <args>`. Each host only changes the trigger token:
+
+| Host | Use this trigger | Shortcut spelling |
+|------|------------------|-------------------|
+| Claude Code | `/planwright <args>` | `/codvisor`, `/codinventor` |
+| Codex | `planwright <args>` after installing/loading the skill | `codvisor`, `codinventor` |
+| Cursor | `@planwright <args>` or `planwright <args>` | `@codvisor`/`codvisor`, `@codinventor`/`codinventor` |
+| Antigravity / Gemini | `planwright <args>` from the `GEMINI.md` project instruction | `codvisor`, `codinventor` |
+
 ### Claude Code
 
 The plugin install path is recommended; manual skill copy is only for users not using the plugin system.
@@ -106,7 +121,7 @@ Then invoke with `/planwright`, `/codvisor`, or `/codinventor`. Upgrade with `/p
 
 ### Cursor
 
-Planwright runs as a Cursor Agent Skill — the same `SKILL.md` workflow as Claude Code, without a plugin marketplace. See [`AGENTS.example.md`](AGENTS.example.md) for the full setup guide.
+Planwright runs as a Cursor Agent Skill — the same agent-neutral `SKILL.md` workflow, without a plugin marketplace. See [`AGENTS.example.md`](AGENTS.example.md) for the full setup guide.
 
 **Recommended (once per machine):** symlink the skill so bundled scripts resolve correctly:
 
@@ -121,9 +136,29 @@ For `codvisor` / `codinventor` shortcuts, use the `AGENTS.md` block in [`AGENTS.
 
 Then invoke in chat with `@planwright`, natural-language `planwright …` arguments, or the `codvisor` / `codinventor` shortcuts. Cursor's normal edit and terminal approval prompts apply on the execute and cycle paths. Upgrade by `git pull` in the planwright clone (there is no `/plugin upgrade` on Cursor).
 
+### Codex
+
+Planwright can be used as a Codex skill directly, or packaged with the included `.codex-plugin/plugin.json`.
+
+**Direct skill install (simple):**
+
+```bash
+mkdir -p ~/.codex/skills
+ln -s <PLANWRIGHT_FOLDER>/skills/planwright ~/.codex/skills/planwright
+```
+
+Invoke in chat with `planwright`, for example `planwright depth 8`, `planwright execute`, or
+`planwright cycle 3`. Use `codvisor` / `codinventor` as natural-language shortcuts or add a small
+dispatcher skill that reads `commands/codvisor.md` / `commands/codinventor.md` and then loads
+`skills/planwright/SKILL.md` with the resolved argument string.
+
+**Codex plugin packaging:** this repository includes `.codex-plugin/plugin.json` so a local Codex
+marketplace can expose the same skill as a plugin. Keep the marketplace entry pointed at this repo or
+at a copy that preserves the `skills/planwright` and `scripts/` layout.
+
 ### Antigravity / Gemini
 
-Planwright can be run directly via the Antigravity agent. Copy the contents of [`GEMINI.example.md`](GEMINI.example.md) into a `GEMINI.md` file in the root of each target project, and update the absolute path to point to the planwright clone.
+Planwright can be run directly via Antigravity or Gemini project instructions. Copy the contents of [`GEMINI.example.md`](GEMINI.example.md) into a `GEMINI.md` file in the root of each target project, and update the absolute path to point to the planwright clone.
 
 Then ask the assistant to run `planwright` or use the `codvisor` and `codinventor` shortcut commands.
 
@@ -132,6 +167,9 @@ Then ask the assistant to run `planwright` or use the `codvisor` and `codinvento
 On large repos or at higher planning depths, the plan path's mechanical stages (especially Stage 1 scan and Stage 1.5 graph build) can emit bulky `rg`/`git` output. The skill can route that through [context-mode](https://github.com/mksglu/context-mode) (`ctx_execute` / `ctx_batch_execute`) so only summarized results enter the session. context-mode is optional on every host; without it, planwright falls back to capped Shell output or the by-hand fallbacks in the skill.
 
 ## Quick Start
+
+Examples below use Claude Code slash-command spelling. On Codex, Cursor, Antigravity, or Gemini, use
+the equivalent trigger from the command adapter table and keep the arguments the same.
 
 ```bash
 # Generate a plan for your project

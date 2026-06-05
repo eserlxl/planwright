@@ -6,7 +6,11 @@
 # via /plugin. Produces the same layout as this repo.
 #
 # Usage:
-#   scripts/make-plugin.sh <plugin-name> [dest-dir]
+#   scripts/make-plugin.sh [--no-gpg-sign] <plugin-name> [dest-dir]
+#
+# Options:
+#   --no-gpg-sign               disable GPG signing for the initial scaffold commit
+#   --disable-gpg-signing       alias for --no-gpg-sign
 #
 # Options via environment:
 #   AUTHOR_NAME, AUTHOR_EMAIL   default to your git config
@@ -17,11 +21,45 @@
 #   scripts/make-plugin.sh code-mapper ~/plugins/code-mapper
 set -euo pipefail
 
-NAME="${1:-}"
-DEST="${2:-./$NAME}"
+usage() {
+  echo "Usage: $(basename "$0") [--no-gpg-sign] <plugin-name> [dest-dir]"
+  echo "Options: --no-gpg-sign, --disable-gpg-signing"
+  echo "Env: AUTHOR_NAME, AUTHOR_EMAIL, PLUGIN_DESC, NO_GIT=1"
+}
 
-[ "$NAME" = "--help" ] || [ "$NAME" = "-h" ] && { echo "Usage: $(basename "$0") <plugin-name> [dest-dir]"; echo "Env: AUTHOR_NAME, AUTHOR_EMAIL, PLUGIN_DESC, NO_GIT=1"; exit 0; }
-[ -n "$NAME" ] || { echo "Usage: $(basename "$0") <plugin-name> [dest-dir]" >&2; exit 1; }
+DISABLE_GPG_SIGNING=0
+POSITIONAL=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-gpg-sign|--disable-gpg-signing)
+      DISABLE_GPG_SIGNING=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      while [ $# -gt 0 ]; do POSITIONAL+=("$1"); shift; done
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      POSITIONAL+=("$1")
+      shift
+      ;;
+  esac
+done
+
+[ "${#POSITIONAL[@]}" -le 2 ] || { echo "Too many positional arguments" >&2; usage >&2; exit 1; }
+NAME="${POSITIONAL[0]:-}"
+DEST="${POSITIONAL[1]:-./$NAME}"
+
+[ -n "$NAME" ] || { usage >&2; exit 1; }
 echo "$NAME" | grep -Eq '^[a-z][a-z0-9-]*$' \
   || { echo "Plugin name must be lowercase kebab-case (e.g. my-plugin)" >&2; exit 1; }
 [ -e "$DEST" ] && { echo "Destination already exists: $DEST" >&2; exit 1; }
@@ -262,8 +300,13 @@ EOF
 if [ "${NO_GIT:-0}" != "1" ]; then
   git -C "$DEST" init -q
   git -C "$DEST" add -A
-  git -C "$DEST" -c user.name="$AUTHOR_NAME" -c user.email="$AUTHOR_EMAIL" \
-    commit -q -m "Initial scaffold: $NAME Claude Code plugin (v0.1.0)"
+  if [ "$DISABLE_GPG_SIGNING" = "1" ]; then
+    git -C "$DEST" -c user.name="$AUTHOR_NAME" -c user.email="$AUTHOR_EMAIL" -c commit.gpgsign=false \
+      commit -q -m "Initial scaffold: $NAME Claude Code plugin (v0.1.0)"
+  else
+    git -C "$DEST" -c user.name="$AUTHOR_NAME" -c user.email="$AUTHOR_EMAIL" \
+      commit -q -m "Initial scaffold: $NAME Claude Code plugin (v0.1.0)"
+  fi
 fi
 
 echo "Created plugin '$NAME' at: $DEST (LICENSE: GPL-3.0-or-later)"

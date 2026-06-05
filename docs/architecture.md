@@ -1,10 +1,13 @@
 # Architecture
 
-`planwright` is a Claude Code plugin designed with two distinct paths: **Plan** and **Execute**. The core idea is to physically separate the auditing and generation of work from the actual implementation and editing of the source code. Claude runs every stage directly; there are no external binaries and no separate model calls required.
+`planwright` is an AI-agent skill/workflow designed with two distinct paths: **Plan** and **Execute**.
+The core idea is to physically separate the auditing and generation of work from the actual
+implementation and editing of the source code. The active AI coding agent runs every stage directly;
+there are no external binaries and no separate model calls required.
 
 ## The Planning Pipeline
 
-When invoked via `/planwright`, the plugin executes a multi-stage pipeline. The entire planning phase is **read-only**: it never edits your application source. It only writes the generated plan items to `<repo>/.planwright/plan.md`.
+When invoked via `planwright` (or the host equivalent such as `/planwright`), the workflow executes a multi-stage pipeline. The entire planning phase is **read-only**: it never edits your application source. It only writes the generated plan items to `<repo>/.planwright/plan.md`.
 
 The pipeline consists of 11 numbered stages plus a mechanical graph-building pass (Stage 1.5):
 
@@ -76,8 +79,9 @@ implemented in this note.
 
 #### Design note — test→source coverage routing (implemented) <!-- 2026-06-03 -->
 
-**Problem.** The coverage rung (Stage 2a "missing focused tests") is routed almost entirely by Claude's
-judgement: it reads PROJECT TEST TARGETS and decides which source files lack a covering test. The graph
+**Problem.** The coverage rung (Stage 2a "missing focused tests") is routed almost entirely by the
+active agent's judgement: it reads PROJECT TEST TARGETS and decides which source files lack a covering
+test. The graph
 carries no signal for *which source node a test reaches*, even though the information is already in it —
 a gtest file `#include`s the header under test, a JS spec `import`s its module, so those edges exist in
 the import graph; co-changing test/source pairs show up as `coupling_edges`. Nothing surfaces "this
@@ -132,7 +136,7 @@ Appends the surviving items into `.planwright/plan.md`, then runs `scripts/lint-
 
 ## The Execution Path
 
-When invoked via `/planwright execute`, the plugin enters the **Execute** path. This is the only path that modifies the source code.
+When invoked via `planwright execute` (or the host equivalent such as `/planwright execute`), the workflow enters the **Execute** path. This is the only path that modifies the source code.
 
 1. **Preconditions**: It ensures a clean git working tree so that per-item commits don't entangle with uncommitted work.
 2. **Implement**: Implements the item by editing the surfaces declared in the plan item.
@@ -144,7 +148,7 @@ When invoked via `/planwright execute`, the plugin enters the **Execute** path. 
 
 ## The Cycle Path
 
-When invoked via `/planwright cycle N`, the plugin automates both phases by running sequential plan→execute rounds. It is ideal for unattended autonomous development. A negative `N` value (e.g., `-1`) runs the cycle continuously until it reaches a recorded final point.
+When invoked via `planwright cycle N` (or the host equivalent such as `/planwright cycle N`), the workflow automates both phases by running sequential plan→execute rounds. It is ideal for unattended autonomous development. A negative `N` value (e.g., `-1`) runs the cycle continuously until it reaches a recorded final point.
 
 ### The Maturity Ladder & the Final Point
 

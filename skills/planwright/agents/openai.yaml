@@ -1,0 +1,7 @@
+interface:
+  display_name: "planwright"
+  short_description: "Grounded verification-ready planning."
+  default_prompt: "Use $planwright to audit this repo and write a verification-ready plan."
+
+policy:
+  allow_implicit_invocation: true

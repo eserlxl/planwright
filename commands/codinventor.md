@@ -5,9 +5,11 @@ argument-hint: "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 invent)
 
 You are dispatching the **planwright** skill on behalf of the `/codinventor` helper command.
 Do **not** re-implement any planwright logic here — resolve the arguments below, then invoke
-the planwright skill (via the Skill tool, skill `planwright:planwright`) with the resolved
-argument string, and let the skill do everything else (it owns all planning/execute/cycle
-behaviour, the maturity ladder, and the explore/invent escalation ladder).
+the planwright skill with the resolved argument string, and let the skill do everything else
+(it owns all planning/execute/cycle behaviour, the maturity ladder, and the explore/invent
+escalation ladder). On Claude Code, that hand-off is the Skill tool invocation
+`planwright:planwright`; on other hosts, load `skills/planwright/SKILL.md` or use the host's native
+skill invocation with the same resolved argument string.
 
 `codinventor` is the `invent` twin of `/codvisor`: same structure, same passthrough — it only
 defaults to the **invent** flag instead of **explore**, so the escalation ladder is permitted to

@@ -17,6 +17,12 @@ bad() { echo "FAIL - $1"; FAIL=$((FAIL + 1)); }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# Keep fixture commits independent of the developer's global git config. In
+# particular, signed-commit defaults require a writable GPG home, which CI and
+# sandboxed runs often do not have.
+export GIT_CONFIG_GLOBAL="$TMP/gitconfig"
+printf '[commit]\n\tgpgsign = false\n' > "$GIT_CONFIG_GLOBAL"
+
 ver() { python3 -c "import json,sys;print(json.load(open(sys.argv[1]))$2)" "$1"; }
 
 # --- Test 0: shellcheck main repo scripts ----------------------------------
@@ -50,11 +56,12 @@ bs_out="$("$WORK/scripts/bump-version.sh" patch -m "smoke-test bump")"
 pj="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
 mm="$(ver "$WORK/.claude-plugin/marketplace.json" "['metadata']['version']")"
 me="$(ver "$WORK/.claude-plugin/marketplace.json" "['plugins'][0]['version']")"
+cj="$(ver "$WORK/.codex-plugin/plugin.json" "['version']")"
 
 if printf '%s' "$bs_out" | grep -q "Bumped:"; then ok "bump-version prints Bumped: summary on success"; else bad "bump-version missing Bumped: summary on success"; fi
 if printf '%s' "$bs_out" | grep -q "updated skills/"; then ok "bump-version reports updated skill files on success"; else bad "bump-version missing skill file update report"; fi
 if [ "$pj" != "$before" ]; then ok "bump-version changed version ($before -> $pj)"; else bad "version unchanged"; fi
-if [ "$pj" = "$mm" ] && [ "$pj" = "$me" ]; then ok "manifests in lockstep ($pj)"; else bad "out of sync: plugin=$pj meta=$mm entry=$me"; fi
+if [ "$pj" = "$mm" ] && [ "$pj" = "$me" ] && [ "$pj" = "$cj" ]; then ok "manifests in lockstep ($pj)"; else bad "out of sync: plugin=$pj meta=$mm entry=$me codex=$cj"; fi
 if grep -q "## \[$pj\]" "$WORK/CHANGELOG.md"; then ok "changelog gained [$pj] section"; else bad "changelog missing [$pj]"; fi
 if grep -q "### Changed" "$WORK/CHANGELOG.md"; then ok "changelog entry has ### Changed section"; else bad "changelog entry missing ### Changed section"; fi
 if grep -q "smoke-test bump" "$WORK/CHANGELOG.md"; then ok "changelog -m note appears in entry"; else bad "changelog -m note missing from entry"; fi
@@ -138,10 +145,11 @@ if "$ROOT/scripts/bump-version.sh" 1.a.b >/dev/null 2>&1; then bad "bump-version
 if "$ROOT/scripts/bump-version.sh" --help >/dev/null 2>/dev/null; then ok "bump-version --help exits 0"; else bad "bump-version --help exits non-zero"; fi
 if "$ROOT/scripts/bump-version.sh" --help 2>/dev/null | grep -q -- '--dry-run'; then ok "bump-version --help mentions --dry-run"; else bad "bump-version --help missing --dry-run"; fi
 if "$ROOT/scripts/make-plugin.sh" --help >/dev/null 2>/dev/null; then ok "make-plugin --help exits 0"; else bad "make-plugin --help exits non-zero"; fi
+if "$ROOT/scripts/make-plugin.sh" --help 2>/dev/null | grep -q -- '--no-gpg-sign'; then ok "make-plugin --help mentions --no-gpg-sign"; else bad "make-plugin --help missing --no-gpg-sign"; fi
 
 # --- Test 2f: make-plugin.sh git init path creates an initial commit -------
 GEN_GIT="$TMP/gen_git"
-if AUTHOR_NAME="Test Author" AUTHOR_EMAIL="test@test.com" "$ROOT/scripts/make-plugin.sh" demo "$GEN_GIT" >/dev/null 2>&1; then
+if AUTHOR_NAME="Test Author" AUTHOR_EMAIL="test@test.com" "$ROOT/scripts/make-plugin.sh" --no-gpg-sign demo "$GEN_GIT" >/dev/null 2>&1; then
   if git -C "$GEN_GIT" log --oneline 2>/dev/null | grep -q "Initial scaffold"; then ok "make-plugin.sh git path creates initial commit"; else bad "make-plugin.sh git path: initial commit message missing"; fi
   if git -C "$GEN_GIT" log --format="%ae" -1 2>/dev/null | grep -q "test@test.com"; then ok "AUTHOR_EMAIL set as git commit author"; else bad "AUTHOR_EMAIL not recorded in git commit author"; fi
   if python3 -c "import json,sys;m=json.load(open('$GEN_GIT/.claude-plugin/marketplace.json'));sys.exit(0 if m.get('owner',{}).get('email')=='test@test.com' else 1)" 2>/dev/null; then ok "AUTHOR_EMAIL in generated marketplace.json owner.email"; else bad "AUTHOR_EMAIL missing from generated marketplace.json owner.email"; fi
@@ -230,13 +238,16 @@ mkdir -p "$DRYR"
 ( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$DRYR" && tar -xf - )
 dr_before="$(python3 -c "import json;print(json.load(open('$DRYR/.claude-plugin/plugin.json'))['version'])")"
 dr_market_before="$(python3 -c "import json;print(json.load(open('$DRYR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
+dr_codex_before="$(python3 -c "import json;print(json.load(open('$DRYR/.codex-plugin/plugin.json'))['version'])")"
 dr_cl_before="$(wc -l < "$DRYR/CHANGELOG.md")"
 dr_out="$("$DRYR/scripts/bump-version.sh" patch --dry-run 2>/dev/null)"
 dr_after="$(python3 -c "import json;print(json.load(open('$DRYR/.claude-plugin/plugin.json'))['version'])")"
 dr_market_after="$(python3 -c "import json;print(json.load(open('$DRYR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
+dr_codex_after="$(python3 -c "import json;print(json.load(open('$DRYR/.codex-plugin/plugin.json'))['version'])")"
 dr_cl_after="$(wc -l < "$DRYR/CHANGELOG.md")"
 if [ "$dr_before" = "$dr_after" ]; then ok "--dry-run did not modify plugin.json"; else bad "--dry-run modified plugin.json ($dr_before -> $dr_after)"; fi
 if [ "$dr_market_before" = "$dr_market_after" ]; then ok "--dry-run did not modify marketplace.json"; else bad "--dry-run modified marketplace.json ($dr_market_before -> $dr_market_after)"; fi
+if [ "$dr_codex_before" = "$dr_codex_after" ]; then ok "--dry-run did not modify codex plugin.json"; else bad "--dry-run modified codex plugin.json ($dr_codex_before -> $dr_codex_after)"; fi
 if [ "$dr_cl_before" = "$dr_cl_after" ]; then ok "--dry-run did not modify CHANGELOG.md"; else bad "--dry-run modified CHANGELOG.md (lines: $dr_cl_before -> $dr_cl_after)"; fi
 if printf '%s' "$dr_out" | grep -q "dry-run:"; then ok "--dry-run output shows version info"; else bad "--dry-run output missing version info"; fi
 if printf '%s' "$dr_out" | grep -q "would sync"; then ok "--dry-run shows which skills would be synced"; else bad "--dry-run missing skill sync preview"; fi
@@ -247,8 +258,9 @@ if printf '%s' "$dr_note_out" | grep -q "dry note"; then ok "--dry-run -m flag s
 rv="$(ver "$ROOT/.claude-plugin/plugin.json" "['version']")"
 rmeta="$(ver "$ROOT/.claude-plugin/marketplace.json" "['metadata']['version']")"
 rentry="$(ver "$ROOT/.claude-plugin/marketplace.json" "['plugins'][0]['version']")"
+rcodex="$(ver "$ROOT/.codex-plugin/plugin.json" "['version']")"
 rskill="$(grep -m1 '  version:' "$ROOT/skills/planwright/SKILL.md" | sed -E 's/.*"([^"]+)".*/\1/')"
-if [ "$rv" = "$rmeta" ] && [ "$rv" = "$rentry" ] && [ "$rv" = "$rskill" ]; then ok "repo version sources agree at rest ($rv)"; else bad "repo version drift: plugin=$rv meta=$rmeta entry=$rentry skill=$rskill"; fi
+if [ "$rv" = "$rmeta" ] && [ "$rv" = "$rentry" ] && [ "$rv" = "$rcodex" ] && [ "$rv" = "$rskill" ]; then ok "repo version sources agree at rest ($rv)"; else bad "repo version drift: plugin=$rv meta=$rmeta entry=$rentry codex=$rcodex skill=$rskill"; fi
 if grep -q "## \[$rv\]" "$ROOT/CHANGELOG.md"; then ok "CHANGELOG.md has a section for the current version [$rv]"; else bad "CHANGELOG.md missing a section for the current version [$rv]"; fi
 
 # --- Test 10: SKILL.md structural lint -------------------------------------
@@ -1357,7 +1369,7 @@ PY
 then ok "pagerank conserves mass (sum~1.0) and redistributes dangling-node rank"; else bad "pagerank lost mass or mis-redistributed dangling rank"; fi
 
 # --- Test 12: lint-plan.py enforces the Stage 10 structural gate -----------
-# The OUTPUT FORMAT + Stage 10 + Hard rules were enforced only by Claude reading
+# The OUTPUT FORMAT + Stage 10 + Hard rules were enforced only by the active agent reading
 # prose; lint-plan.py mechanizes their machine-checkable subset. A well-formed plan
 # (real Surfaces, absent New Surface) passes; a malformed one fails per-violation.
 GOOD_PLAN="$TMP/good_plan.md"

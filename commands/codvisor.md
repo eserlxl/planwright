@@ -5,9 +5,11 @@ argument-hint: "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 explore
 
 You are dispatching the **planwright** skill on behalf of the `/codvisor` helper command.
 Do **not** re-implement any planwright logic here — resolve the arguments below, then invoke
-the planwright skill (via the Skill tool, skill `planwright:planwright`) with the resolved
-argument string, and let the skill do everything else (it owns all planning/execute/cycle
-behaviour, the maturity ladder, and the explore escalation).
+the planwright skill with the resolved argument string, and let the skill do everything else
+(it owns all planning/execute/cycle behaviour, the maturity ladder, and the explore escalation).
+On Claude Code, that hand-off is the Skill tool invocation `planwright:planwright`; on other hosts,
+load `skills/planwright/SKILL.md` or use the host's native skill invocation with the same resolved
+argument string.
 
 Raw arguments: `$ARGUMENTS`
 

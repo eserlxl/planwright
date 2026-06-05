@@ -1,0 +1,39 @@
+{
+  "name": "planwright",
+  "version": "1.33.1",
+  "description": "Grounded codebase planning for AI coding agents. It audits a repository and writes a verification-ready checkbox plan where every item cites real file:line evidence and a runnable verification, then can optionally implement and verify each item one commit at a time.",
+  "author": {
+    "name": "Eser KUBALI",
+    "email": "eserlxl@gmail.com",
+    "url": "https://github.com/eserlxl"
+  },
+  "homepage": "https://github.com/eserlxl/planwright",
+  "repository": "https://github.com/eserlxl/planwright",
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "planning",
+    "plan-mode",
+    "codebase",
+    "audit",
+    "skill"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "planwright",
+    "shortDescription": "Grounded, verification-ready codebase planning.",
+    "longDescription": "Planwright scans and audits a codebase, writes grounded plan items to .planwright/plan.md, and can execute verified items one commit at a time.",
+    "developerName": "Eser KUBALI",
+    "category": "Productivity",
+    "capabilities": [
+      "Planning",
+      "Code review",
+      "Repository automation",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Run planwright depth 6",
+      "Run planwright cycle 3",
+      "Run codvisor to harden this repo"
+    ]
+  }
+}

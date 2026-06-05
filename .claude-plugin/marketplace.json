@@ -5,7 +5,7 @@
     "email": "eserlxl@gmail.com"
   },
   "metadata": {
-    "description": "Marketplace hosting the planwright planning skill for Claude Code.",
+    "description": "Claude Code marketplace hosting the agent-neutral planwright planning skill.",
     "version": "1.33.1"
   },
   "plugins": [

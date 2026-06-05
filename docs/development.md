@@ -4,7 +4,7 @@ Helper scripts for developing `planwright` live in the `scripts/` directory.
 
 ## Typical Development Loop
 
-When modifying the plugin, the standard workflow is:
+When modifying the distribution, the standard workflow is:
 
 1. Edit the core skill code (e.g., `skills/planwright/SKILL.md`).
 2. Commit your change. `bump-version.sh` refuses to run on a dirty tree (see
@@ -14,10 +14,12 @@ When modifying the plugin, the standard workflow is:
    scripts/bump-version.sh patch -m "Your change note"
    ```
 4. Commit the version bump.
-5. Update the plugin locally to test:
+5. Update the host package locally to test. For Claude Code:
    ```bash
    /plugin marketplace update eserlxl
    ```
+   For Codex plugin packaging, reinstall the local plugin from the marketplace entry that points at
+   this repo, or start a new thread after updating a direct `~/.codex/skills/planwright` symlink/copy.
 
 If you deliberately want to bump alongside uncommitted edits (collapsing steps 1–4 into a
 single commit), pass `ALLOW_DIRTY=1` to skip the guard:
@@ -35,8 +37,9 @@ scripts/bump-version.sh <major|minor|patch|X.Y.Z> [-m "note"]
 ```
 
 This script bumps the version globally across the plugin files. It updates:
-- `plugin.json`
-- `marketplace.json`
+- `.claude-plugin/plugin.json`
+- `.claude-plugin/marketplace.json`
+- `.codex-plugin/plugin.json` when present
 - Every `skills/*/SKILL.md` frontmatter
 - `CHANGELOG.md`
 
@@ -55,7 +58,7 @@ scripts/bump-version.sh --help
 ### `make-plugin.sh`
 
 ```bash
-scripts/make-plugin.sh <plugin-name> [dest-dir]
+scripts/make-plugin.sh [--no-gpg-sign] <plugin-name> [dest-dir]
 ```
 
 Scaffolds a fresh, self-hosting Claude Code plugin. It creates:
@@ -67,6 +70,10 @@ Scaffolds a fresh, self-hosting Claude Code plugin. It creates:
 - Initializes a Git repository
 
 It also bundles `bump-version.sh` into the new plugin.
+
+By default, the initial scaffold commit respects your normal git signing configuration. Pass
+`--no-gpg-sign` (alias: `--disable-gpg-signing`) to disable GPG signing for that initial commit, which
+is useful in CI or sandboxed environments without a writable GPG home.
 
 It honors several environment variables if set: `AUTHOR_NAME`, `AUTHOR_EMAIL`, `PLUGIN_DESC`, `NO_GIT=1`.
 

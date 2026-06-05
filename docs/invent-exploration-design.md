@@ -36,7 +36,7 @@ The instinct: *"a deterministic graph tree doesn't allow creativity, even in `in
 random graph each run."* The observation (invent converges to the same ideas) is real; the proposed lever
 is not, for three reasons:
 
-- **The graph is routing only, never ideation.** It orders *what Claude looks at*; it never proposes
+- **The graph is routing only, never ideation.** It orders *what the active agent looks at*; it never proposes
   anything and is barred from being Evidence (Stage 10 rejects any item citing graph memory). Invent's
   creativity comes from the **generative lenses (Stage 5–6)**, which in the maturity/invent rungs survey
   **project-wide against PROJECT DIRECTION**, not along graph edges. What *bounds* invention is the **hard
