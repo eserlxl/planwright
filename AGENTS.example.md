@@ -1,12 +1,12 @@
 # Cursor / Codex Integration Example
 
-To use the `planwright` workflow with Cursor or Codex in **other projects**, choose one of the setup paths below. The skill install path is recommended; the `AGENTS.md` pointer is a lightweight alternative when a project-local hint is enough.
+To use the `planwright` workflow with Cursor or Codex in **other projects**, choose one of the setup paths below. Cursor works best as a host skill. Codex works best as a local plugin, with direct skill install as a simple alternative. The `AGENTS.md` pointer is a lightweight fallback when a project-local hint is enough.
 
 > **Important:** Replace `/absolute/path/to/planwright` with the actual path where this repository is cloned on the machine (for example `/opt/lxl/claude/planwright`).
 
 ---
 
-## Recommended: install as a host skill
+## Cursor: install as a host skill
 
 Install planwright once on the machine so every project can invoke it without per-repo wiring.
 
@@ -27,14 +27,66 @@ Install planwright once on the machine so every project can invoke it without pe
 
    The symlink must preserve the layout `skills/planwright/SKILL.md` with `scripts/` two levels up (`../../scripts/`), because the skill resolves `build-graph.py` and `lint-plan.py` from that path.
 
-   For Codex:
+## Codex: install as a local plugin
+
+The Codex plugin path is recommended because it preserves the repository layout that Planwright uses
+to find `scripts/build-graph.py` and `scripts/lint-plan.py`.
+
+1. Keep the clone at `/absolute/path/to/planwright`, or symlink/copy it into the personal plugin area:
 
    ```bash
-   mkdir -p ~/.codex/skills
-   ln -s /absolute/path/to/planwright/skills/planwright ~/.codex/skills/planwright
+   mkdir -p ~/plugins ~/.agents/plugins
+   ln -s /absolute/path/to/planwright ~/plugins/planwright
    ```
 
-3. *(Optional)* For `codvisor` / `codinventor` shortcuts without an `AGENTS.md` block, add small dispatcher skills under the host's skill directory that read `commands/codvisor.md` or `commands/codinventor.md` for argument resolution, then load `skills/planwright/SKILL.md` with the resolved planwright argument string. The bundled command files include the Claude Code `planwright:planwright` hand-off as one adapter; on Cursor or Codex, read the planwright `SKILL.md` directly or use the host's native skill invocation.
+2. Create or update `~/.agents/plugins/marketplace.json`:
+
+   ```json
+   {
+     "name": "personal",
+     "interface": {
+       "displayName": "Personal"
+     },
+     "plugins": [
+       {
+         "name": "planwright",
+         "source": {
+           "source": "local",
+           "path": "./plugins/planwright"
+         },
+         "policy": {
+           "installation": "AVAILABLE",
+           "authentication": "ON_INSTALL"
+         },
+         "category": "Productivity"
+       }
+     ]
+   }
+   ```
+
+   The `./plugins/planwright` path is resolved relative to the personal marketplace root (`~`), not
+   relative to `~/.agents/plugins/`.
+
+3. Install from the personal marketplace:
+
+   ```bash
+   codex plugin add planwright@personal
+   ```
+
+4. Start a new Codex thread after installing or reinstalling the plugin.
+
+## Codex: direct skill alternative
+
+Codex reads direct user skills from `~/.agents/skills` and follows symlinked skill folders. Symlinking
+is preferred here because Planwright resolves bundled scripts from `../../scripts/` relative to
+`skills/planwright`.
+
+   ```bash
+   mkdir -p ~/.agents/skills
+   ln -s /absolute/path/to/planwright/skills/planwright ~/.agents/skills/planwright
+   ```
+
+*(Optional)* For `codvisor` / `codinventor` shortcuts without an `AGENTS.md` block, add small dispatcher skills under the host's skill directory that read `commands/codvisor.md` or `commands/codinventor.md` for argument resolution, then load `skills/planwright/SKILL.md` with the resolved planwright argument string. The bundled command files include the Claude Code `planwright:planwright` hand-off as one adapter; on Cursor or Codex, read the planwright `SKILL.md` directly or use the host's native skill invocation.
 
 **Invoke in chat:**
 

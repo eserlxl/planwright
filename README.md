@@ -138,23 +138,69 @@ Then invoke in chat with `@planwright`, natural-language `planwright …` argume
 
 ### Codex
 
-Planwright can be used as a Codex skill directly, or packaged with the included `.codex-plugin/plugin.json`.
+Planwright works best on Codex as a local plugin, because the plugin keeps this repository's
+`skills/planwright` and `scripts/` layout together. Codex also supports direct user skills under
+`~/.agents/skills`.
+
+**Recommended: local plugin marketplace**
+
+Keep this repository as the plugin root, or symlink/copy it to the personal plugin area:
+
+```bash
+mkdir -p ~/plugins ~/.agents/plugins
+ln -s <PLANWRIGHT_FOLDER> ~/plugins/planwright
+```
+
+Create or update `~/.agents/plugins/marketplace.json`:
+
+```json
+{
+  "name": "personal",
+  "interface": {
+    "displayName": "Personal"
+  },
+  "plugins": [
+    {
+      "name": "planwright",
+      "source": {
+        "source": "local",
+        "path": "./plugins/planwright"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
+```
+
+Then install from the personal marketplace and start a new Codex thread:
+
+```bash
+codex plugin add planwright@personal
+```
+
+The `./plugins/planwright` path is resolved relative to the personal marketplace root (`~`), not
+relative to `~/.agents/plugins/`.
 
 **Direct skill install (simple):**
 
 ```bash
-mkdir -p ~/.codex/skills
-ln -s <PLANWRIGHT_FOLDER>/skills/planwright ~/.codex/skills/planwright
+mkdir -p ~/.agents/skills
+ln -s <PLANWRIGHT_FOLDER>/skills/planwright ~/.agents/skills/planwright
 ```
 
-Invoke in chat with `planwright`, for example `planwright depth 8`, `planwright execute`, or
-`planwright cycle 3`. Use `codvisor` / `codinventor` as natural-language shortcuts or add a small
-dispatcher skill that reads `commands/codvisor.md` / `commands/codinventor.md` and then loads
-`skills/planwright/SKILL.md` with the resolved argument string.
+Codex follows symlinked skill folders, which is important here because Planwright resolves helper
+scripts from `../../scripts/` relative to `skills/planwright`. If you copy instead of symlink, keep
+that layout intact or use the plugin path above.
 
-**Codex plugin packaging:** this repository includes `.codex-plugin/plugin.json` so a local Codex
-marketplace can expose the same skill as a plugin. Keep the marketplace entry pointed at this repo or
-at a copy that preserves the `skills/planwright` and `scripts/` layout.
+Invoke in chat with `planwright`, for example `planwright depth 8`, `planwright execute`, or
+`planwright cycle 3`. You can also explicitly mention the skill as `$planwright`. Use `codvisor` /
+`codinventor` as natural-language shortcuts or add a small dispatcher skill that reads
+`commands/codvisor.md` / `commands/codinventor.md` and then loads `skills/planwright/SKILL.md` with
+the resolved argument string.
 
 ### Antigravity / Gemini
 

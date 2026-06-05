@@ -14,7 +14,7 @@ description: >
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.34.0"
+  version: "1.34.1"
 ---
 
 # planwright
@@ -1240,7 +1240,7 @@ refreshes planwright itself.
    - Claude Code: `/plugin marketplace update eserlxl`, then `/plugin install planwright@eserlxl` only
      if needed, then `/reload-plugins`.
    - Codex: reinstall the local plugin from the marketplace that points at this root, or start a new
-     thread after updating a direct `~/.codex/skills/planwright` symlink/copy.
+     thread after updating a direct `~/.agents/skills/planwright` symlink/copy.
    - Cursor: restart/reload Cursor's agent context after updating the clone or re-copying the skill.
    - Antigravity/Gemini: keep `GEMINI.md` pointing at the updated clone; no plugin reload is required
      unless the host caches project instructions.

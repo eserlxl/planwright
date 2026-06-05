@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.34.1] - 2026-06-05
+
+### Changed
+- Correct Codex install instructions for personal plugins and direct skills.
+
 ## [1.34.0] - 2026-06-05
 
 ### Changed
