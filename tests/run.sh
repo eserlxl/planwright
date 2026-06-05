@@ -1697,6 +1697,25 @@ adv_rc=0
 adv_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$ADV/plan.md" 2>&1)" || adv_rc=$?
 if [ "$adv_rc" -eq 0 ] && printf '%s' "$adv_out" | grep -qF "matches a completed item"; then ok "lint-plan.py advisory note alone does not fail the gate"; else bad "lint-plan.py advisory wrongly failed the gate (or note missing)"; fi
 
+# --- Test 12f: lint-plan.py --json emits one clean JSON doc with accurate counts --
+# --json must print a single parseable JSON document (no leading text-mode note/
+# violation lines), and total_advisories must equal the advisories actually listed
+# in items[] — including under --quiet, where the count must not silently drop to 0.
+# Reuses $ADV/plan.md (a clean item whose title matches an $ADV completed.md entry,
+# i.e. exactly one advisory).
+for jflag in "" "--quiet"; do
+  if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$ADV/plan.md" --json $jflag \
+     | python3 -c '
+import json, sys
+d = json.load(sys.stdin)                       # raises if stdout is not pure JSON
+listed = sum(len(i["advisories"]) for i in d["items"])
+assert d["total_advisories"] == listed, (d["total_advisories"], listed)
+assert d["total_advisories"] >= 1              # the completed-title match
+' 2>/dev/null
+  then ok "lint-plan.py --json $jflag is parseable and total_advisories matches items[]"
+  else bad "lint-plan.py --json $jflag emitted non-JSON or a mismatched advisory count"; fi
+done
+
 # --- Test 13: commands/codvisor.md is a well-formed planwright helper command ---
 # /codvisor is a thin alias that forwards to the planwright skill; guard its delegation
 # contract so an edit can't silently drop the planwright reference or the no-arg default.

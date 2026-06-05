@@ -243,6 +243,12 @@ def main():
     text = open(args.plan, encoding="utf-8").read()
     items = [it for it in parse_items(text) if args.all or not it["checked"]]
 
+    # Human-readable lines go to stdout only in text mode: --quiet suppresses them,
+    # and --json must keep stdout a single clean JSON document (any leading text would
+    # make the output unparseable), so it suppresses the text rendering too. Counters
+    # (total, scope_notes, notes) are still accumulated unconditionally so the JSON
+    # summary fields are correct regardless of --quiet.
+    text = not args.quiet and not args.json
     total, scope_notes = 0, 0
     for idx, item in enumerate(items, 1):
         violations = lint_item(item, root)
@@ -252,13 +258,13 @@ def main():
             violations += sv
         if violations:
             total += len(violations)
-            if not args.quiet:
+            if text:
                 print(f"item {idx} (line {item['line']}): {item['title'] or '<untitled>'}")
                 for msg in violations:
                     print(f"  - {msg}")
         for msg in advisories:
             scope_notes += 1
-            if not args.quiet:
+            if text:
                 print(f"note: item {idx} '{item['title'] or '<untitled>'}': {msg}")
 
     # Cross-item: a title repeated among pending items is always a violation
@@ -271,7 +277,7 @@ def main():
         seen.add(t)
     for t in dups:
         total += 1
-        if not args.quiet:
+        if text:
             print(f"duplicate pending title: '{t}'")
 
     # Advisory (does NOT fail the gate): re-proposing completed/rejected work is a
@@ -280,13 +286,14 @@ def main():
     completed = past_titles(args.plan, "completed.md")
     rejected = past_titles(args.plan, "rejected.md")
     notes = 0
-    if not args.quiet:
-        for it in items:
-            if it["title"] in completed:
-                notes += 1
+    for it in items:
+        if it["title"] in completed:
+            notes += 1
+            if text:
                 print(f"note: '{it['title']}' matches a completed item — confirm this is a regression")
-            if it["title"] in rejected:
-                notes += 1
+        if it["title"] in rejected:
+            notes += 1
+            if text:
                 print(f"note: '{it['title']}' matches a rejected item — confirm the rejection reason is resolved")
 
     note_total = notes + scope_notes
