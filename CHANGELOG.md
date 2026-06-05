@@ -20,6 +20,14 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.39.0] - 2026-06-05
+
+### Added
+- **`lint-plan.py --fix`:** opt-in auto-correction of the two mechanical, filesystem-verifiable violations, applied in place before the normal lint runs — a `CMakeLists` Surface respelled `CMakeLists.txt`, and an already-existing `New Surface` moved into `Surfaces` (it cannot be a *new* file, so the move is always correct). Every judgement-dependent violation (missing fields, invalid `Mode`, placeholder `Verification`, a non-existent Surface, graph-memory `Evidence`) is still only reported, never rewritten; the reverse swap (a non-existent Surface → `New Surfaces`) is deliberately *not* auto-applied, since it may be a typo rather than a new file. Edits are surgical (only the `Surfaces`/`New Surfaces` lines change — wrapped prose, titles, and blanks stay byte-identical), idempotent, and skip completed/rejected items unless `--all` is passed. `--fix --json` adds a `fixes_applied` array; `--dry-run` callers must not combine it with `--fix`, which writes. SKILL.md Stage 11 and `docs/architecture.md` note the option.
+
+### Changed
+- Test suite **200 → 203** (Tests 12f/12g for `--fix`).
+
 ## [1.38.0] - 2026-06-05
 
 ### Added
