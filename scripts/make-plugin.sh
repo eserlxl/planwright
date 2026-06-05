@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Eser KUBALI
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Scaffold a new, self-hosting Claude Code plugin (one skill) ready to install
-# via /plugin. Produces the same layout as this repo.
+# Scaffold a new, self-hosting plugin (one skill) ready to install in Claude Code
+# or Codex. Produces the same manifest layout as this repo.
 #
 # Usage:
 #   scripts/make-plugin.sh [--no-gpg-sign] <plugin-name> [dest-dir]
@@ -78,7 +78,7 @@ AUTHOR_NAME_JSON="$(json_escape "$AUTHOR_NAME")"
 AUTHOR_EMAIL_JSON="$(json_escape "$AUTHOR_EMAIL")"
 PLUGIN_DESC_JSON="$(json_escape "$PLUGIN_DESC")"
 
-mkdir -p "$DEST/.claude-plugin" "$DEST/skills/$NAME" "$DEST/scripts"
+mkdir -p "$DEST/.claude-plugin" "$DEST/.codex-plugin" "$DEST/skills/$NAME" "$DEST/scripts"
 
 # --- plugin.json -----------------------------------------------------------
 cat > "$DEST/.claude-plugin/plugin.json" <<EOF
@@ -117,6 +117,32 @@ cat > "$DEST/.claude-plugin/marketplace.json" <<EOF
       "keywords": ["skill"]
     }
   ]
+}
+EOF
+
+# --- .codex-plugin/plugin.json --------------------------------------------
+cat > "$DEST/.codex-plugin/plugin.json" <<EOF
+{
+  "name": "$NAME",
+  "version": "0.1.0",
+  "description": $PLUGIN_DESC_JSON,
+  "author": {
+    "name": $AUTHOR_NAME_JSON,
+    "email": $AUTHOR_EMAIL_JSON
+  },
+  "license": "GPL-3.0-or-later",
+  "keywords": ["skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "$NAME",
+    "shortDescription": $PLUGIN_DESC_JSON,
+    "developerName": $AUTHOR_NAME_JSON,
+    "category": "Productivity",
+    "defaultPrompt": [
+      "Run $NAME",
+      "Run $NAME help"
+    ]
+  }
 }
 EOF
 
@@ -236,7 +262,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 python3 - "$ROOT" <<'PY'
 import glob, json, sys
-for f in glob.glob(sys.argv[1] + "/.claude-plugin/*.json"):
+for d in (".claude-plugin", ".codex-plugin"):
+  for f in glob.glob(sys.argv[1] + "/" + d + "/*.json"):
     json.load(open(f))
 print("ok - manifests parse")
 PY
@@ -263,7 +290,7 @@ jobs:
       - name: Shellcheck
         run: shellcheck scripts/*.sh tests/*.sh
       - name: Validate manifests
-        run: python3 -c "import json,glob;[json.load(open(f)) for f in glob.glob('.claude-plugin/*.json')]"
+        run: python3 -c "import json,glob;[json.load(open(f)) for d in ('.claude-plugin','.codex-plugin') for f in glob.glob(d+'/*.json')]"
       - name: Smoke tests
         run: bash tests/run.sh
 EOF
