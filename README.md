@@ -1,10 +1,10 @@
 # planwright
 
-**Grounded codebase planning for Claude Code.**
+**Grounded codebase planning for AI Coding Assistants (Claude Code and Antigravity).**
 
 > Invoke it with `/planwright` — or the `/codvisor` shortcut for the flagship advisor run (`cycle 10 depth 10 explore`), or `/codinventor` to also propose net-new, seam-bound features (`cycle 10 depth 10 invent`).
 
-Planwright is a planning-first Claude Code skill for codebase work. It audits a project, writes grounded implementation items to `.planwright/plan.md`, and can optionally execute verified items one by one.
+Planwright is a planning-first skill/workflow for codebase work. It audits a project, writes grounded implementation items to `.planwright/plan.md`, and can optionally execute verified items one by one.
 
 "Grounded" means every planned change must point back to concrete repository evidence, such as `file:line` references.
 
@@ -28,11 +28,11 @@ flowchart LR
     Cycle -->|nothing left| Done[Done]
 ```
 
-Claude Code runs every stage through the skill, so planwright needs no external binary and makes no separate API/model calls beyond the active Claude Code session.
+Your AI assistant (Claude Code or Antigravity) runs every stage through the skill, so planwright needs no external binary and makes no separate API/model calls beyond the active session.
 
 To keep large-codebase audits efficient, the plan path builds a **graph memory** (`.planwright/graph.json`) — import and change-coupling edges, PageRank, and articulation points — that routes audit attention toward code where changes can affect many other files and lets repeat runs re-audit only the changed subgraph. A companion `.planwright/digest.md` carries routing-only summaries that are never cited as Evidence. Both live under the gitignored `.planwright/`. See [Graph memory](docs/graph-memory-schema.md) for the schema and stages.
 
-> **Note**: Planning never edits your application source. Only `/planwright execute` and `/planwright cycle` do — and even then, Claude Code's normal permission prompts for edits and commits still apply. Under `invent` specifically, those edits can — rarely, and only after the dwell gate trips — include `MISSION.md` itself; the run announces this up front, and protected paths (`.git/`, `.planwright/` internals, `LICENSE`, secrets) are never touched.
+> **Note**: Planning never edits your application source. Only `execute` and `cycle` do — and even then, your AI assistant's normal permission prompts for edits and commits still apply. Under `invent` specifically, those edits can — rarely, and only after the dwell gate trips — include `MISSION.md` itself; the run announces this up front, and protected paths (`.git/`, `.planwright/` internals, `LICENSE`, secrets) are never touched.
 
 ## How planwright differs from `/plan` and `/ultraplan`
 
@@ -82,7 +82,7 @@ For deep dives into how `planwright` operates, refer to the documentation:
 
 ## Install
 
-Requires Claude Code. The plugin install path is recommended; manual skill copy is only for users not using the plugin system.
+Requires Claude Code or Antigravity. For Claude Code, the plugin install path is recommended; manual skill copy is only for users not using the plugin system.
 
 ```bash
 /plugin marketplace add eserlxl/planwright
