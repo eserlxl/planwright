@@ -210,7 +210,8 @@ def load_focus(scope_path):
     when the graph is whole-repo (no/empty `focus` key) or unreadable — callers treat
     an empty focus as 'no scope active', so the gate stays a no-op by default."""
     try:
-        g = json.load(open(scope_path, encoding="utf-8"))
+        with open(scope_path, encoding="utf-8") as fh:
+            g = json.load(fh)
     except (ValueError, OSError):
         return set(), set()
     return set(g.get("focus") or []), set(g.get("context") or [])
@@ -250,7 +251,8 @@ def past_titles(plan_path, fname):
     path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), fname)
     if not os.path.exists(path):
         return set()
-    return {it["title"] for it in parse_items(open(path, encoding="utf-8").read()) if it["title"]}
+    with open(path, encoding="utf-8") as fh:
+        return {it["title"] for it in parse_items(fh.read()) if it["title"]}
 
 
 # --- Auto-fix (--fix) --------------------------------------------------------
@@ -406,13 +408,15 @@ def main():
         if not args.quiet:
             print(f"lint-plan: no plan file at {args.plan} (nothing to lint)")
         return 0
-    text = open(args.plan, encoding="utf-8").read()
+    with open(args.plan, encoding="utf-8") as fh:
+        text = fh.read()
 
     fixes = []
     if args.fix:
         fixed, fixes = fix_text(text, root, args.all)
         if fixes:
-            open(args.plan, "w", encoding="utf-8").write(fixed)
+            with open(args.plan, "w", encoding="utf-8") as fh:
+                fh.write(fixed)
             text = fixed
         if not args.quiet and not args.json:
             if fixes:

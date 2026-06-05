@@ -401,7 +401,8 @@ def parse_tsconfig(path, cfg_dir):
     repo-relative. Tolerates JSONC (// and /* */ comments, trailing commas); on any parse
     failure it returns None and alias resolution is simply skipped (recall over precision)."""
     try:
-        raw = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as fh:
+            raw = fh.read()
     except OSError:
         return None
     raw = _strip_jsonc(raw)
@@ -842,7 +843,8 @@ def build(root, prior_path, scope=None, seed=None):
     prior_graph = {}
     if prior_path and os.path.exists(prior_path):
         try:
-            loaded = json.load(open(prior_path))
+            with open(prior_path, encoding="utf-8") as fh:
+                loaded = json.load(fh)
             prior_graph = loaded if isinstance(loaded, dict) else {}
         except (ValueError, OSError):
             prior_graph = {}
@@ -879,7 +881,8 @@ def build(root, prior_path, scope=None, seed=None):
     go_modules = []
     for gm in sorted(f for f in fileset if os.path.basename(f) == "go.mod"):
         try:
-            txt = open(os.path.join(root, gm), encoding="utf-8").read()
+            with open(os.path.join(root, gm), encoding="utf-8") as fh:
+                txt = fh.read()
             mm = re.search(r"(?m)^\s*module\s+(\S+)", txt)
             if mm:
                 go_modules.append((os.path.dirname(gm), mm.group(1)))
@@ -888,7 +891,8 @@ def build(root, prior_path, scope=None, seed=None):
 
     nodes, import_edges = {}, {}
     for f in files:
-        blob = open(os.path.join(root, f), "rb").read()
+        with open(os.path.join(root, f), "rb") as fh:
+            blob = fh.read()
         lang = lang_of(f, blob)
         text = blob.decode("utf-8", "replace")
         imps = imports_of(lang, text, f, fileset, go_modules, ts_aliases)

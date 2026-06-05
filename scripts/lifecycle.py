@@ -68,11 +68,13 @@ def render(preamble, blocks):
 def read_blocks(path):
     if not os.path.exists(path):
         return [], []
-    return parse(open(path, encoding="utf-8").read())
+    with open(path, encoding="utf-8") as fh:
+        return parse(fh.read())
 
 
 def write(path, preamble, blocks):
-    open(path, "w", encoding="utf-8").write(render(preamble, blocks))
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(render(preamble, blocks))
 
 
 def append_capped(path, new_blocks):
@@ -99,7 +101,8 @@ def reset_if_empty(plan_path):
     if it was deleted. Pending items are left untouched (the next run merges into them)."""
     if not os.path.exists(plan_path):
         return False
-    _, blocks = parse(open(plan_path, encoding="utf-8").read())
+    with open(plan_path, encoding="utf-8") as fh:
+        _, blocks = parse(fh.read())
     pending = [b for b in blocks if not b["checked"] and not b["rejected"]]
     if not pending:
         os.remove(plan_path)
