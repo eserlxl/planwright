@@ -777,6 +777,37 @@ assert bg.imports_of("c", '#include "dup.h"\n', "src/main.c", c2) == [], "ambigu
 PY
 then ok "js extension/index and C include-root imports resolve"; else bad "js or C import resolution broke (extension, index, basename, or ambiguity)"; fi
 
+# --- Test 11p: import-looking lines inside comments/strings do NOT create edges -
+# strip_comments() removes block/line comments and Python docstrings before the import
+# regexes run, so a commented-out or string-embedded import no longer mis-routes the
+# graph. The REAL import on the next line must still resolve (recall preserved).
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+# C: an #include inside a /* */ block is ignored; the real one resolves.
+c = {"src/main.c", "src/real.h", "src/fake.h"}
+src = '/*\n#include "fake.h"\n*/\n#include "real.h"\n'
+assert bg.imports_of("c", src, "src/main.c", c) == ["src/real.h"], \
+    bg.imports_of("c", src, "src/main.c", c)
+# JS: require() in a // line comment and a /* */ block comment are ignored.
+js = {"src/app.js", "src/real.js", "src/fake.js"}
+src = '// const f = require("./fake")\n/* require("./fake") */\nconst r = require("./real")\n'
+assert bg.imports_of("js", src, "src/app.js", js) == ["src/real.js"], \
+    bg.imports_of("js", src, "src/app.js", js)
+# Python: an `import` inside a triple-quoted docstring is ignored; the real one resolves.
+py = {"pkg/__init__.py", "pkg/real.py", "pkg/fake.py"}
+src = '"""\nimport pkg.fake\n"""\nimport pkg.real\n'
+assert bg.imports_of("python", src, "pkg/__init__.py", py) == ["pkg/real.py"], \
+    bg.imports_of("python", src, "pkg/__init__.py", py)
+# Go: an import inside a /* */ block is ignored; the real grouped import resolves.
+go = {"go.mod", "main.go", "real/real.go", "fake/fake.go"}
+src = '/*\nimport "m/fake"\n*/\nimport (\n\t"m/real"\n)\n'
+assert bg.imports_of("go", src, "main.go", go, "m") == ["real/real.go"], \
+    bg.imports_of("go", src, "main.go", go, "m")
+PY
+then ok "build-graph.py strips comments/docstrings so commented-out imports do not create edges"; else bad "comment/docstring stripping wrong (a false edge survived or a real edge was lost)"; fi
+
 # --- Test 11j: build-graph.py is deterministic (same tree => same graph) -----
 # The builder's header calls it "deterministic" and incremental skipping trusts
 # that identical inputs yield identical sha256/ranking. built_at (date -u) is the

@@ -348,7 +348,31 @@ def resolve_go_import(target, module_path, fileset):
     return sorted(out)
 
 
+def strip_comments(lang, text):
+    """Best-effort removal of comments and Python docstrings before import extraction,
+    so an import-looking line inside a comment or a multi-line string does not produce a
+    false import edge (e.g. `#include "x"` inside a C `/* ... */`, or `import x` inside a
+    Python `\"\"\"docstring\"\"\"`). Deliberately conservative: it strips block/line
+    comments and Python triple-quoted strings, not every string literal — recall still
+    beats precision, and a missed strip only re-admits a false edge, which merely
+    mis-routes and never produces a finding. Used only for import extraction; the original
+    text still feeds branch_count and the metrics."""
+    if lang in ("c", "js", "rust", "go"):
+        # C/C++ `#include` uses `#` for the preprocessor, not a comment, so only `/* */`
+        # and `//` are stripped here (never `#`).
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        text = re.sub(r"(?m)//.*$", "", text)
+    elif lang == "python":
+        text = re.sub(r'"""(?:.|\n)*?"""', "", text)
+        text = re.sub(r"'''(?:.|\n)*?'''", "", text)
+        text = re.sub(r"(?m)#.*$", "", text)
+    elif lang == "bash":
+        text = re.sub(r"(?m)#.*$", "", text)
+    return text
+
+
 def imports_of(lang, text, from_path, fileset, go_module=None):
+    text = strip_comments(lang, text)
     raw = []
     if lang == "bash":
         raw += re.findall(r"(?m)^\s*(?:source|\.)\s+([^\s;]+)", text)
