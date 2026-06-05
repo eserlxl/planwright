@@ -61,7 +61,7 @@ thereafter jump to the path you are running.
 - **Cycle path (automated loops)** — [Cycle](#cycle-plan--execute-repeated):
   [Per-cycle loop](#per-cycle-loop-repeat-up-to-n-times-or-indefinitely-when-n--0) ·
   [Stop conditions](#stop-conditions)
-- **Maintenance** — [Upgrade](#upgrade-update-planwright-itself) ·
+- **Maintenance** — [Doctor](#doctor) · [Upgrade](#upgrade-update-planwright-itself) ·
   [Version](#version-show-current-and-latest)
 
 ## Host command adapter
@@ -101,6 +101,8 @@ Before doing anything else, inspect the argument the skill was invoked with:
   trailing `depth <D>` (and other plan options) applies to every planning round in the cycle.
 - If the first token is `upgrade` or `update`, dispatch to the **Upgrade** section at the end of
   this file and follow that procedure instead of the planning Procedure.
+- If the first token is `doctor`, dispatch to the **Doctor** section at the end of this file and
+  follow that preflight procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
   **option overrides** (see Options), then run the planning Procedure.
 
@@ -143,6 +145,7 @@ CYCLE (automated plan → execute loops)
 /planwright cycle <N> depth <D> explore   Combine: every round (and the escalation) runs at depth D
 
 MAINTENANCE
+/planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version
 /planwright update               Alias for upgrade
@@ -1241,5 +1244,34 @@ Read-only — it neither plans nor edits.
    as `unknown (run planwright upgrade from the host that installed it)`.
 3. **Report** one line: `planwright <current> (latest <latest>)`. If latest > current, add
    `→ upgrade available: run planwright upgrade`; if equal, add `→ up to date`.
+
+STOP after reporting.
+
+## Doctor
+
+Reached only via `planwright doctor` (or the host equivalent such as `/planwright doctor`). A
+read-only **preflight**: it inspects the host environment and reports, up front, which capabilities
+would silently degrade during a real run — instead of letting those fallbacks surface mid-pipeline.
+It writes nothing and never plans.
+
+**Canonical check.** Prefer the deterministic, test-covered `<scripts>/doctor.py` (resolve
+`<scripts>` per **Procedure → Bundled scripts**): run
+`python3 <scripts>/doctor.py --root <target>` in the sandbox and relay its report. It checks two
+seams and the target:
+
+1. **Host tools** — `python3` (the bundled-script runtime), `git` (graph file enumeration,
+   change-coupling edges, Execute's per-item commits), `rg`/`fd` (fast Stage 1 scanning). Each is
+   reported present/absent with its version and exactly what degrades when missing.
+2. **Bundled-script resolution** — that `build-graph.py`, `lint-plan.py`, and `lifecycle.py` resolve
+   beside `doctor.py` (the `<scripts>` seam). A miss here means a broken/partial install.
+3. **Target** — whether `--root` is a git work tree (the graph build needs one).
+
+Severity is `ok` / `warn` (degraded, run still works) / `fail` (a core capability is unavailable:
+missing `git` or a missing bundled script). The script exits non-zero when any check fails.
+
+**By-hand fallback** (the script's own runtime is missing — no `python3` — so it cannot run): report
+that `python3` is unavailable (every bundled script will fall back to its by-hand SKILL.md spec),
+then check `git`/`rg`/`fd` on `PATH` and whether `<target>` is a git repo, and relay the same
+three-seam summary by hand.
 
 STOP after reporting.

@@ -255,6 +255,7 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codinventor 5 8           # cycle 5 depth 8 invent (cycles, depth)
 
 # Maintenance
+/planwright doctor     # preflight: check git/rg/python3 + bundled-script resolution
 /planwright version    # show current and latest available version
 /planwright upgrade    # update planwright itself to the latest version (alias: update)
 ```

@@ -136,9 +136,15 @@ inspect or revert flagged invent-tier items before hardening them.
 ## Maintenance
 
 ```bash
+/planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version (alias: update)
 ```
+
+`doctor` is read-only: it reports which host tools (`git`, `rg`, `fd`) and bundled scripts
+(`build-graph.py`, `lint-plan.py`, `lifecycle.py`) are available, what degrades when one is missing,
+and whether the target is a git work tree — a preflight so a run's fallbacks surface up front rather
+than mid-pipeline. It exits non-zero when a core capability (`git` or a bundled script) is unavailable.
 
 `version` is read-only: it reports the installed version from the detected host metadata when
 available (`~/.claude/plugins/installed_plugins.json` for Claude Code, `.codex-plugin/plugin.json` for
