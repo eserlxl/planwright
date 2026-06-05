@@ -98,6 +98,12 @@ Or add a local clone as a marketplace:
 
 To use it without the plugin system, copy `skills/planwright/` into `~/.claude/skills/`.
 
+## Usage with Antigravity / Gemini
+
+Planwright can be run directly via the Antigravity agent. To use it in any of your projects, copy the contents of [`GEMINI.example.md`](GEMINI.example.md) into a `GEMINI.md` file in the root of your target project, and update the absolute path to point to your planwright clone.
+
+Then, you can simply ask the assistant to run `planwright` or use the `codvisor` and `codinventor` shortcut commands.
+
 ## Quick Start
 
 ```bash
