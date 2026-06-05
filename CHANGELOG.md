@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.39.1] - 2026-06-05
+
+### Changed
+- build-graph: bound git subprocess timeout and cap bulk-commit coupling (avoids hangs and O(F^2) git-log blowup)
+
 ## [1.39.0] - 2026-06-05
 
 ### Added
