@@ -15,7 +15,7 @@ argument-hint: "[instruction] | execute [N] | cycle <N> [depth <D>] [explore|inv
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.33.0"
+  version: "1.33.1"
 ---
 
 # planwright
@@ -1000,9 +1000,11 @@ For each targeted pending item, in plan order:
 2. **Verify** — run the item's `Verification:` command exactly.
    - If the item has no `Verification:` line, or the command cannot be run (missing target, unknown
      tool), do **not** mark it done — reject it with reason `unverifiable: <detail>`.
-3. **On PASS** — flip `- [ ]` to `- [x]` in `plan.md`, then commit on the current branch with message
-   `planwright: <item title>` (use the Haiku commit convention if configured). Move the completed item
-   to `completed.md` and enforce the FIFO cap of 100.
+3. **On PASS** — flip `- [ ]` to `- [x]` in `plan.md`, then commit on the current branch with a message
+   that describes the change itself — typically the `<item title>` as the subject (use the Haiku commit
+   convention if configured). Do **not** prefix the subject with `planwright:` or otherwise name the
+   tool; the commit should read as a normal change to the repo. Move the completed item to
+   `completed.md` and enforce the FIFO cap of 100.
 4. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
    fails, **reject**: revert this item's edits (`git restore` / `git checkout --` the touched paths so
    no partial change is committed), append a `Status:Rejected` and `Rejection: <one-line reason>` to

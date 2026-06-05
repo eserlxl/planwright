@@ -3,6 +3,11 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.33.1] - 2026-06-05
+
+### Changed
+- Execute no longer prefixes per-item commit subjects with `planwright:`. Commits now describe the change itself (typically the item title) and read as normal repo commits, instead of restating the tool name on every commit.
+
 ## [1.33.0] - 2026-06-04
 
 ### Changed
