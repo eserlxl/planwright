@@ -1108,40 +1108,22 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
    **within Focus** — a scoped cycle matures just that component and stops at its scoped final point.
    Record the number of new items Stage 11 wrote.
 3. **Check for work** — Stage 11 writing **0 new items** with **0 pending items** is **not** by itself
-   a stop: it only means the change-gated rungs are dry. The planning round must have climbed the
-   **maturity ladder** (surveyed the opportunity and vision rungs project-wide; see **Maturity ladder &
-   the final point**) before idling.
-   - **Without `explore`** (default): stop early **only when the planning round declared the final
-     point** — i.e. it wrote `.planwright/final.md` because all four rungs were dry. Then print
+   a stop: it only means the change-gated rungs are dry. The round must have surveyed the opportunity and
+   vision rungs project-wide first (see **Maturity ladder & the final point**) before idling.
+   - **Without `explore`/`invent`** (default): stop early **only when the round declared the final point**
+     — it wrote `.planwright/final.md` because all four rungs were dry. Print
      `Cycle i/N: final point reached — <one-line why>.` and STOP.
-   - **With `explore` or `invent`**: when the round *would* declare the final point, **escalate through
-     the ladder** instead of stopping (see **Escalation ladder**), spending the remaining cycle budget:
-     1. **Cold-frontier sweep** (in-round) — re-run Stages 2–10 routed by the graph's `ranked_cold`
-        list. If it writes ≥1 item, delete the stale `final.md` and proceed to Execute (ladder live).
-     2. **Expand** — if the cold frontier is also dry and the budget still allows (this is not the last
-        cycle), switch into the **expand** posture: survey lenses 5–6 project-wide for latent-capability
-        completion (Stage 5's expand lens). If it writes ≥1 item, delete the stale `final.md`, proceed
-        to Execute, and keep the expand posture for subsequent cycles (their generative survey stays in
-        the expand posture until expand itself goes dry).
-     3. **Invent** (`invent` only) — if the cold frontier **and** expand are both dry and the budget
-        still allows, run a **bounded invent burst** (≤3 cycles, independent of `N`): survey lenses 5–6
-        under the invent lens (net-new, seam-bound — Stage 5). Per Stage 5's **invent-must-generate**
-        rule the burst **emits ≥1 item** whenever any candidate clears the grounding floor + structural
-        hard ceiling (it may be below the value bar / mission-stretching, flagged) — so the invent tier
-        effectively does not go *invent-dry* while a seam remains to extend. When a `seed` is active, that
-        survey is *focused through the seeded framing* (Stage 5's seeded-framing rule) and the burst is
-        seed-scoped; without a seed it is comprehensive — and on an empty survey the burst **auto-rotates
-        the framings** (Stage 5) before it may conclude dry. Delete the stale `final.md`, proceed to Execute,
-        and continue (re-checking the fixpoint after the burst).
-     4. **Deep final point** — for `explore`, when the cold frontier **and** expand are both dry, write
-        `final.md` (`deepest_tier: expand`). Under **`invent`** a deep final point is reached **only** in
-        the rare genuine empty — *no* net-new candidate clears even the grounding floor + structural hard
-        ceiling (no seam left to extend) — **and only once that empty is earned by breadth (Framing
-        auto-rotation exhausted every vantage) and earned by rigor (the per-seam gate justified every
-        seam)**, Stage 5; then write `final.md` (`deepest_tier: invent`, with the reason
-        for the empty, plus `invent_framings_tried` + `invent_seams_examined`). Print `Cycle i/N: deep final point reached — <tiers> all dry.` and STOP (even if
-        cycles remain). Otherwise the invent burst keeps producing groundable work and the cycle runs to
-        its budget `N` (so `cycle -1 invent` does not self-terminate — that is the point of `invent`).
+   - **With `explore` or `invent`**: when the round *would* declare the final point, **escalate through the
+     ladder** instead of stopping — **full tier mechanics in the Escalation ladder section** — spending the
+     remaining cycle budget: cold-frontier sweep (in-round) → **expand** (latent completion, persists across
+     cycles) → under `invent` a **bounded invent burst** (≤3 cycles; `must-generate` so it emits ≥1
+     groundable net-new item while a seam remains; a seeded survey focuses through the framing and
+     auto-rotates on an empty pass). Each tier that writes ≥1 item deletes the stale `final.md` and proceeds
+     to Execute. Stop at the **deep final point**: under `explore` when cold-frontier + expand are both dry
+     (`deepest_tier: expand`); under `invent` only in the rare earned empty (no seam clears floor + ceiling,
+     earned by breadth + rigor — `deepest_tier: invent`, recording `invent_framings_tried` +
+     `invent_seams_examined`). Print `Cycle i/N: deep final point reached — <tiers> all dry.` and STOP;
+     otherwise `invent` runs to budget `N` (so `cycle -1 invent` does not self-terminate).
 
    If items are pending or were written, proceed to Execute as normal.
 4. **Execute** — run the full per-item execute loop over every pending item (same as
