@@ -858,8 +858,11 @@ structural mistakes those passes are not meant to re-verify by hand. **When a Sc
 (an existing Surface outside Focus fails; a `repair` Surface one hop upstream in Context is a non-failing
 advisory you confirm; `New Surfaces` stay your judgement) — it is a no-op on a whole-repo graph. Fix every
 violation it reports in `plan.md` and resolve each advisory, then re-run it until it exits clean before
-reporting done. (On `dry-run`, run the linter against the would-be items the same way before printing
-them; write no file.)
+reporting done. For the two purely mechanical, filesystem-verifiable violations you may pass **`--fix`**
+(it respells a `CMakeLists` Surface as `CMakeLists.txt` and moves an already-existing `New Surface` into
+`Surfaces`, in place, then lints the result); every other violation still needs your judgement. (On
+`dry-run`, run the linter against the would-be items the same way before printing them; write no file —
+and do not pass `--fix`, which writes.)
 
 Then, unless `dry-run` was passed (no graph-memory state is persisted on a dry run),
 **persist the incremental-audit baseline** so the next run's Stage 1.5 dirty-set comparison has

@@ -403,3 +403,97 @@ assert d["total_advisories"] >= 1              # the completed-title match
   else bad "lint-plan.py --json $jflag emitted non-JSON or a mismatched advisory count"; fi
 done
 
+# --- Test 12f: lint-plan.py --fix auto-corrects the two mechanical violations ---
+# --fix rewrites IN PLACE only the unambiguous, filesystem-verifiable violations:
+# a CMakeLists surface is respelled CMakeLists.txt, and a New Surface that already
+# exists is moved to Surfaces (it cannot be a *new* file). Everything else is left for
+# the agent. Untouched items must stay byte-identical and the fix must be idempotent.
+FIXROOT="$TMP/fixroot"; mkdir -p "$FIXROOT/.planwright" "$FIXROOT/src" "$FIXROOT/include"
+: > "$FIXROOT/src/foo.c"; : > "$FIXROOT/include/bar.h"; : > "$FIXROOT/CMakeLists.txt"
+FIXPLAN="$FIXROOT/.planwright/plan.md"
+cat > "$FIXPLAN" <<'EOF'
+# planwright Plan — .
+<!-- Session: x -->
+
+- [ ] Wire the build target
+      Mode: develop
+      Rationale: the target is unbuilt.
+      Evidence: src/foo.c:1 lacks a build rule
+      Surfaces: src/foo.c, CMakeLists
+      New Surfaces: include/bar.h, brandnew.c
+      Development: add the target
+      Acceptance: it builds
+      Verification: bash tests/run.sh
+
+- [ ] Untouched clean item
+      Mode: docs
+      Rationale: doc gap
+      Evidence: README has no usage
+      Surfaces: src/foo.c
+      Development: add usage
+      Acceptance: documented
+      Verification: bash tests/run.sh
+EOF
+# Capture the second (clean) item verbatim to prove --fix leaves it byte-identical.
+untouched_before="$(sed -n '/^- \[ \] Untouched clean item/,$p' "$FIXPLAN")"
+fix_rc=0
+python3 "$ROOT/scripts/lint-plan.py" --fix --root "$FIXROOT" --plan "$FIXPLAN" --quiet || fix_rc=$?
+untouched_after="$(sed -n '/^- \[ \] Untouched clean item/,$p' "$FIXPLAN")"
+if [ "$fix_rc" = "0" ] \
+   && grep -q '^      Surfaces: src/foo.c, CMakeLists.txt, include/bar.h$' "$FIXPLAN" \
+   && grep -q '^      New Surfaces: brandnew.c$' "$FIXPLAN" \
+   && ! grep -q 'CMakeLists,' "$FIXPLAN" \
+   && [ "$untouched_before" = "$untouched_after" ]; then
+  ok "lint-plan.py --fix respells CMakeLists.txt, moves existing New Surfaces, leaves clean items intact"
+else
+  bad "lint-plan.py --fix mis-corrected (rc=$fix_rc) or disturbed an untouched item"
+fi
+
+# Idempotency: a second --fix finds nothing to change and the file is byte-stable.
+sha1="$(python3 - "$FIXPLAN" <<'PY'
+import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())
+PY
+)"
+fix2="$(python3 "$ROOT/scripts/lint-plan.py" --fix --root "$FIXROOT" --plan "$FIXPLAN")"
+sha2="$(python3 - "$FIXPLAN" <<'PY'
+import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())
+PY
+)"
+if printf '%s' "$fix2" | grep -q 'no auto-fixable violations' && [ "$sha1" = "$sha2" ]; then
+  ok "lint-plan.py --fix is idempotent (second run is a no-op, file byte-stable)"
+else
+  bad "lint-plan.py --fix is not idempotent (re-applied a fix or changed bytes)"
+fi
+
+# --- Test 12g: --fix never touches a non-existent Surface or a completed item ----
+# A Surface that does not exist is NOT auto-moved to New Surfaces (it may be a typo, not
+# a new file) — only the agent decides that. Completed items are off-limits without --all.
+SAFEROOT="$TMP/fixsafe"; mkdir -p "$SAFEROOT/.planwright"; : > "$SAFEROOT/real.c"
+SAFEPLAN="$SAFEROOT/.planwright/plan.md"
+cat > "$SAFEPLAN" <<'EOF'
+# planwright Plan — .
+
+- [ ] Pending with a typo'd Surface
+      Mode: develop
+      Rationale: r
+      Evidence: real.c:1 wrong
+      Surfaces: real.c, srcc/typo.c
+      Development: d
+      Acceptance: a
+      Verification: bash tests/run.sh
+
+- [x] Completed with bad spelling
+      Mode: develop
+      Surfaces: CMakeLists
+      Verification: true
+EOF
+before_safe="$(cat "$SAFEPLAN")"
+python3 "$ROOT/scripts/lint-plan.py" --fix --root "$SAFEROOT" --plan "$SAFEPLAN" --quiet || true
+# The pending typo'd Surface stays in Surfaces (not moved); the completed CMakeLists is
+# untouched (no --all). The whole file must be byte-identical.
+if [ "$before_safe" = "$(cat "$SAFEPLAN")" ]; then
+  ok "lint-plan.py --fix leaves a non-existent Surface and a completed item untouched"
+else
+  bad "lint-plan.py --fix wrongly rewrote a typo'd Surface or a completed item"
+fi
+

@@ -32,7 +32,12 @@
 # It only reads the plan + the working tree; it prints findings and exits non-zero
 # when any pending item violates a rule (0 when the plan is clean or empty).
 #
-#   python3 scripts/lint-plan.py [--root DIR] [--plan PATH] [--all] [--quiet] [--scope GRAPH]
+# With --fix it first auto-corrects the two mechanical, filesystem-verifiable violations
+# in place — a `CMakeLists` surface respelled `CMakeLists.txt`, and an already-existing
+# New Surface moved into Surfaces (it cannot be a *new* file) — then lints the result.
+# Every other violation needs the agent's judgement and is only reported, never rewritten.
+#
+#   python3 scripts/lint-plan.py [--root DIR] [--plan PATH] [--all] [--fix] [--quiet] [--scope GRAPH]
 #
 # With --scope GRAPH (a graph.json built with build-graph.py --scope), it also
 # enforces the Stage 10 Surfaces-in-Focus gate for a scoped run: a pending item's
@@ -248,6 +253,133 @@ def past_titles(plan_path, fname):
     return {it["title"] for it in parse_items(open(path, encoding="utf-8").read()) if it["title"]}
 
 
+# --- Auto-fix (--fix) --------------------------------------------------------
+# Only the two mechanically-unambiguous, filesystem-verifiable violations are auto-fixed;
+# everything else needs the agent's judgement and is left for the normal lint to report.
+HEAD_RE = re.compile(r"^- \[([ xX])\]\s*(.*)$")
+FIELD_RE = re.compile(r"^(\s+)([A-Z][A-Za-z ]*?):\s*(.*)$")
+
+
+def _tool_owned(p):
+    np = p.replace("\\", "/")
+    return np == ".planwright" or np.startswith(".planwright/")
+
+
+def field_spans(lines):
+    """Locate, per item, the line span of each known field so the fixer can rewrite a
+    field surgically — leaving every other line (titles, wrapped Development/Acceptance
+    prose, blanks, comments) byte-identical. Returns a list of items, each
+    {checked, line, fields:{name: (start, end, indent, joined_value)}}, where the span is
+    [start, end) over the field's header line plus its indented continuation lines. Field
+    detection mirrors parse_items() exactly so the fixer and the linter agree on structure."""
+    items = []
+    cur = None
+    pend = None  # [name, start, indent, [value_parts], end_exclusive]
+
+    def close():
+        nonlocal pend
+        if pend and cur is not None:
+            name, start, indent, parts, end = pend
+            cur["fields"][name] = (start, end, indent, " ".join(parts).strip())
+        pend = None
+
+    for i, raw in enumerate(lines):
+        h = HEAD_RE.match(raw)
+        if h:
+            close()
+            cur = {"checked": h.group(1).lower() == "x", "line": i + 1, "fields": {}}
+            items.append(cur)
+            continue
+        if cur is None:
+            continue
+        m = FIELD_RE.match(raw)
+        if m and m.group(2) in KNOWN_FIELDS:
+            close()
+            val = m.group(3).strip()
+            pend = [m.group(2), i, m.group(1), [val] if val else [], i + 1]
+        elif pend and raw.strip():
+            pend[3].append(raw.strip())
+            pend[4] = i + 1
+        elif not raw.strip():
+            close()
+    close()
+    return items
+
+
+def fix_text(text, root, include_checked=False):
+    """Apply the two safe auto-fixes to plan text and return (new_text, changes).
+
+    1. A `CMakeLists` Surface/New-Surface is respelled `CMakeLists.txt`.
+    2. A New Surface that already exists on disk is moved into Surfaces — it cannot be
+       a *new* file, so the move is always correct. (The reverse — a non-existent
+       Surface — is deliberately NOT auto-moved: it may be a typo, not a new file.)
+
+    Edits are surgical (only the Surfaces / New Surfaces field lines are rewritten) and
+    applied bottom-up so line indices stay valid. Re-emitting a touched field normalizes
+    it to a single comma-joined line; untouched items are left exactly as written."""
+    had_nl = text.endswith("\n")
+    lines = text.splitlines()
+    items = field_spans(lines)
+    edits = []  # (start, end, [replacement_lines])
+    changes = []
+
+    for it in items:
+        if it["checked"] and not include_checked:
+            continue
+        where = f"item at line {it['line']}"
+        s_span = it["fields"].get("Surfaces")
+        n_span = it["fields"].get("New Surfaces")
+        surfaces = split_paths(s_span[3]) if s_span else []
+        new_surf = split_paths(n_span[3]) if n_span else []
+        orig_surf, orig_new = list(surfaces), list(new_surf)
+
+        def respell(paths):
+            out = []
+            for p in paths:
+                if os.path.basename(p) == "CMakeLists":
+                    fixed = p + ".txt"
+                    out.append(fixed)
+                    changes.append(f"{where}: respelled '{p}' -> '{fixed}'")
+                else:
+                    out.append(p)
+            return out
+
+        surfaces = respell(surfaces)
+        new_surf = respell(new_surf)
+
+        # Move New Surfaces that already exist (and are safe, non-tool-owned) to Surfaces.
+        kept_new = []
+        for p in new_surf:
+            safe = unsafe_surface(p, root) is None and not _tool_owned(p)
+            if safe and os.path.exists(os.path.join(root, p)):
+                if p not in surfaces:
+                    surfaces.append(p)
+                changes.append(f"{where}: moved existing '{p}' from New Surfaces to Surfaces")
+            else:
+                kept_new.append(p)
+        new_surf = kept_new
+
+        if s_span and surfaces != orig_surf:
+            edits.append((s_span[0], s_span[1], [f"{s_span[2]}Surfaces: {', '.join(surfaces)}"]))
+        if n_span and (new_surf != orig_new or (not s_span and surfaces != orig_surf)):
+            repl = []
+            if not s_span and surfaces:
+                # No Surfaces field existed; create it (using the New Surfaces indent) so
+                # the moved file lands in a real Surfaces field rather than being dropped.
+                repl.append(f"{n_span[2]}Surfaces: {', '.join(surfaces)}")
+            if new_surf:
+                repl.append(f"{n_span[2]}New Surfaces: {', '.join(new_surf)}")
+            edits.append((n_span[0], n_span[1], repl))
+
+    for start, end, repl in sorted(edits, key=lambda e: e[0], reverse=True):
+        lines[start:end] = repl
+
+    new_text = "\n".join(lines)
+    if had_nl and not new_text.endswith("\n"):
+        new_text += "\n"
+    return new_text, changes
+
+
 def main():
     ap = argparse.ArgumentParser(description="Lint planwright plan items against the Stage 10 structural gate.")
     ap.add_argument("--root", default=".", help="repo root for Surfaces existence checks (default: cwd)")
@@ -255,6 +387,10 @@ def main():
     ap.add_argument("--all", action="store_true", help="lint completed (- [x]) items too, not just pending")
     ap.add_argument("--quiet", action="store_true", help="print nothing; only set the exit code")
     ap.add_argument("--json", action="store_true", help="output structured JSON instead of plain text")
+    ap.add_argument("--fix", action="store_true",
+                    help="auto-correct the two mechanical violations (CMakeLists.txt spelling; "
+                         "move an already-existing New Surface to Surfaces) in place, then lint "
+                         "the result; review the change with git diff")
     ap.add_argument("--scope", default=None,
                     help="a graph.json (built with --scope) whose focus/context node sets gate "
                          "Surfaces-in-Focus for a scoped run; no-op when its focus is empty")
@@ -271,6 +407,21 @@ def main():
             print(f"lint-plan: no plan file at {args.plan} (nothing to lint)")
         return 0
     text = open(args.plan, encoding="utf-8").read()
+
+    fixes = []
+    if args.fix:
+        fixed, fixes = fix_text(text, root, args.all)
+        if fixes:
+            open(args.plan, "w", encoding="utf-8").write(fixed)
+            text = fixed
+        if not args.quiet and not args.json:
+            if fixes:
+                print(f"lint-plan --fix: applied {len(fixes)} fix(es):")
+                for c in fixes:
+                    print(f"  - {c}")
+            else:
+                print("lint-plan --fix: no auto-fixable violations")
+
     items = [it for it in parse_items(text) if args.all or not it["checked"]]
 
     # Human-readable lines go to stdout only in text mode: --quiet suppresses them,
@@ -345,6 +496,8 @@ def main():
             "items": [],
             "general_violations": [],
         }
+        if args.fix:
+            out_json["fixes_applied"] = fixes
         for t in dups:
             out_json["general_violations"].append(f"duplicate pending title: '{t}'")
         for rec in records:
