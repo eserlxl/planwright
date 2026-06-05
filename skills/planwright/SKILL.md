@@ -681,116 +681,61 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
    still attaches to a named existing surface, stays under the hard ceiling (no new subsystem, domain,
    or redesign), and carries a runnable verification.
 
-   **Invent lens (active during an `invent` invent burst — see Escalation ladder).** Same survey as the
-   expand lens, but the "must already be latent" restriction is lifted: a **genuinely new** capability,
-   API, or mode may be proposed if it bolts to a real existing seam, serves PROJECT DIRECTION, and stays
-   under the hard ceiling (no new subsystem, domain, or redesign). Net-new items take mode `develop`,
-   and when they rest on an unresolved design decision they carry a preceding design item (Stage 7
-   rule b). The grounding floor is unchanged — a net-new idea with no real seam to attach to is dropped.
+   **Invent lens** (active during an `invent` burst — see Escalation ladder). Like the expand lens, but the
+   "must already be latent" restriction is lifted: a **genuinely new** capability, API, or mode may be
+   proposed if it bolts to a real existing seam, serves PROJECT DIRECTION, and stays under the hard ceiling
+   (no new subsystem, domain, or redesign). Net-new items take mode `develop` (a preceding design item when
+   they rest on an unresolved decision — Stage 7 rule b). The grounding floor is unchanged.
+   *Full rationale for everything below: `docs/invent-exploration-design.md` → "Invent tier — full
+   normative mechanics".*
 
-   **`invent` must generate (explicit-`invent`-only rule).** Typing `invent` is explicit permission to
-   create, so the invent tier **must propose at least one net-new item** rather than declare itself dry —
-   it does **not** get to return nothing because the work would only *extend* a deliberately minimal
-   project. Two gates still hold absolutely (they keep the plan executable, not merely tidy): the
-   **grounding floor** (a real existing seam, exact Surfaces, and a runnable Verification) and the
-   **structural hard ceiling** (no new subsystem, domain, or redesign — it must be one implementable
-   change). What is **relaxed under explicit `invent`** is the *value bar* and *mission conservatism*:
-   rank every net-new candidate that clears those two gates and emit the **highest-value** one even if it
-   sits below the normal value bar or stretches a mission preference (e.g. a "small / minimal /
-   dependency-light" mandate). When the emitted item is below the normal bar or stretches the mission,
-   **say so in its Rationale** (e.g. "invent-tier: emitted under invent-must-generate; stretches MISSION
-   'small', or below the usual value bar") so the plan stays honest about why it is there. Consequences,
-   by design: the invent tier therefore (almost) never records an *invent-dry* deep final point — there is
-   always a next groundable feature — so `cycle -1 invent` runs to its budget rather than self-terminating;
-   the only genuine empty is when **no** candidate clears the grounding floor + structural ceiling (no seam
-   left to extend at all), and that empty must be **earned by breadth** (Framing auto-rotation — every
-   vantage tried) **and earned by rigor** (the per-seam gate below — every seam audited) before it is
-   reported with its reason. This rule is **subject to plan
-   capacity** (the 20-item pending cap / `propose_count == 0` still stops with "Plan is at capacity") and
-   applies **only** to an explicit `invent`; `explore` and the default never pad (see Hard rules).
+   **`invent` must generate (explicit-`invent`-only).** Typing `invent` is permission to create, so the
+   invent tier **must propose at least one net-new item** rather than declare itself dry. Two gates never
+   relax: the **grounding floor** (real seam, exact Surfaces, runnable Verification) and the **structural
+   hard ceiling** (no new subsystem/domain/redesign — one implementable change). What relaxes under explicit
+   `invent` is the *value bar* and *mission conservatism*: rank every candidate clearing both gates and emit
+   the highest-value one even if it sits **below the value bar** or **stretches the mission** — flag that in
+   its Rationale. So an ordinary `invent` run never records an invent-dry final point (`cycle -1 invent`
+   runs to budget); the only genuine empty is when no candidate clears floor + ceiling, and it must be
+   **earned by breadth** (auto-rotation, below) **and earned by rigor** (per-seam gate, below). Subject to
+   plan capacity ("Plan is at capacity"); `explore`/default never pad (see Hard rules).
 
-   **Earned empty — per-seam justification gate (an empty must be *earned by rigor*).** A `deepest_tier:
-   invent` may be written **only** after enumerating **each candidate seam considered** — the real public
-   surfaces/APIs (in PROJECT IMPLEMENTATION SIGNALS) a net-new capability could bolt to — and recording,
-   per seam, *why* no extension of it clears the two never-relaxed gates. The empty must be **shown, not
-   asserted**. The **only** valid per-seam reasons are: **(ceiling)** every coherent extension is a new
-   subsystem / unrelated domain / from-scratch redesign; **(floor)** no extension can carry a runnable
-   verification or it attaches to no real surface; or **(genuinely trivial)** the only extension is
-   trivial *with a concrete justification* (e.g. "a one-line alias adding no new logic"). **Invalid**
-   reasons — each one means **`invent` must generate** *emits* that seam's best candidate (flagged in
-   Rationale), **not** an empty — are: "below the value bar", "stretches the mission" (e.g. a
-   "small / dependency-light" preference), and bare or **unjustified "trivial"** (a numerical
-   approximation, a new overload with conversion logic, a new mode, or a newly-exposed capability is
-   **not** trivial — this is exactly the misjudgement that wrongly declared a dry tier in the past). If
-   **any** seam's recorded reason is invalid, the empty is **rejected** and that seam's best grounded
-   candidate is emitted instead. Record the audit as `invent_seams_examined` (Stage 11). This mechanizes
-   `must-generate` as a checklist: you cannot reach an empty without writing a floor/ceiling/justified-
-   trivial reason for every seam.
+   **Earned empty — per-seam justification gate (earned by rigor).** A `deepest_tier: invent` may be written
+   **only** after enumerating each candidate seam and recording, per seam, why no extension clears the two
+   gates — **shown, not asserted**. Valid reasons only: **(ceiling)** every extension is a new
+   subsystem/domain/redesign; **(floor)** no extension carries a runnable verification or attaches to a real
+   surface; **(trivial)** the only extension is trivial *with concrete justification* (e.g. a one-line
+   alias). Invalid — each forces `must-generate` to emit that seam's best candidate, not an empty: "below
+   the value bar", "stretches the mission", and bare/**unjustified "trivial"** (a new overload, mode, or
+   newly-exposed capability is **not** trivial). Record `invent_seams_examined` (Stage 11).
 
-   **Mission amendment (rare, dwell-gated; explicit-`invent`-only).** As a project grows, the charter may
-   genuinely fall behind it — so when invent is *repeatedly* forced to stretch the mission, it may make a
-   **rare, small** edit to `MISSION.md`, never a casual one. Mechanism — a **dwell gate** so it cannot
-   touch the mission on a whim:
-   - Track `mission_pressure` in `.planwright/final.md` (default 0). After an invent burst whose only
-     above-floor output was **mission-stretching** items (every in-mission net-new candidate was dry),
-     **increment** it; after any burst that lands a genuinely in-mission net-new item, **reset to 0**.
-   - Only when `mission_pressure` reaches **3** (three *consecutive* mission-bound bursts) does invent earn
-     **one** mission edit. When it triggers, that cycle proposes a **single** item and nothing else: a
-     mission-amendment item — `Mode: docs`, `Surfaces: MISSION.md`, Rationale citing the sustained
-     pressure and the concrete features it unlocks, Development naming the one constraint relaxed or clause
-     added (keep it **minimal** — one constraint/clause), Verification a content check
-     (`grep -q "<new clause>" MISSION.md`). Then **reset `mission_pressure` to 0**.
-   - The amendment executes and commits as its **own** change; the **next** cycle re-reads PROJECT
-     DIRECTION (Stage 1) under the amended mission and only *then* proposes the unlocked features. This
-     one-beat gap means invent never invents against a mission it loosened **in the same run** (no
-     self-justifying loop). The edit is small, isolated, and revertible.
-   - **Never weaken the structural hard ceiling via the mission** — an amendment may relax a *preference*
-     (e.g. "small / dependency-light") but may not authorize a new subsystem, unrelated domain, or
-     redesign; those stay barred regardless of mission text.
-   This is **always-on under explicit `invent`** (the run announces it up front — see Cycle preconditions
-   / the `codinventor` helper banner — so whoever runs `invent` is on notice); `explore` and the default
-   never edit the mission.
+   **Mission amendment (rare, dwell-gated, explicit-`invent`-only).** When invent is repeatedly forced to
+   stretch the mission it may make one **rare, small** edit to `MISSION.md`. Track `mission_pressure` in
+   `final.md` (default 0): increment after a burst whose only above-floor output was mission-stretching;
+   reset to 0 when a burst lands an in-mission net-new item. Only when it **reaches 3** (three consecutive
+   mission-bound bursts) does that cycle propose a **single** mission-amendment item and nothing else
+   (`Mode: docs`, `Surfaces: MISSION.md`, Development naming the one constraint relaxed, Verification a
+   `grep -q "<new clause>" MISSION.md` check), then reset to 0. It commits as its own change; the **next
+   cycle** re-reads PROJECT DIRECTION under the amended mission and only then proposes the unlocked features
+   (no same-run self-justification). **Never weaken the structural hard ceiling via the mission** — only a
+   preference may relax. Always-on under explicit `invent`, announced up front so whoever runs it is **on
+   notice**; `explore`/default never edit the mission, and the protected-path denylist (`.git/`,
+   `.planwright/`, `LICENSE`, secrets) is never editable regardless.
 
-   **Seeded framing (active only when Stage 1.5 emitted `explore_framing` — an `invent` run with a
-   `seed`).** Without a seed, the invent survey is **comprehensive** (survey every module against PROJECT
-   DIRECTION) and deterministic — unchanged **on a hit**; on an *empty* survey it auto-rotates the
-   framings before it may conclude dry (see **Framing auto-rotation** below). With a seed, *focus* the generative survey through
-   the one recorded vantage below: survey for net-new capability **from that angle**, letting it dominate
-   what this run proposes. This **scopes generation** (which ideas are surveyed), not mere re-ranking — a
-   single seeded run is intentionally a *focused* survey, and comprehensiveness is recovered **across the
-   seed sequence** (successive seeds pick different framings and explore different regions, so repeated
-   `invent` runs stop re-deriving the same few ideas — the convergence this addresses is a cross-run
-   problem). Map `explore_framing` → vantage question:
-   - `power-user` — "what would an expert/power user want that the current design makes hard?"
-   - `integration` — "what external integration or interoperability is missing?"
-   - `onboarding` — "what would make first-run / onboarding trivial for a new user?"
-   - `reliability` — "what failure mode or recovery path is unhandled?"
-   - `automation` — "what manual workflow could be automated end-to-end?"
-
-   The framing's leverage **scales with the repo's idea space**: on a large, multi-domain repo (where a
-   single run cannot survey the whole net-new space anyway) it materially changes what is proposed; on a
-   small repo it mostly shifts coverage across runs. It never lowers the bar or lifts the hard ceiling —
-   every framing still demands a real seam, a concrete payoff, and a runnable verification, and a framing
-   that surfaces nothing above the value bar declares the tier dry exactly as an unfocused survey would
-   (a focused survey is not a license to invent filler).
-
-   **Framing auto-rotation (empty-only; an empty must be *earned by breadth*).** A single survey —
-   comprehensive (unseeded) or seeded — that comes up empty does **not** conclude the invent tier dry on
-   that one vantage. Before any invent survey may be declared dry it must have been re-run under **every**
-   framing in the fixed catalog and **all** of them come up empty. On an empty survey, advance to the
-   **next framing in catalog order** (`power-user → integration → onboarding → reliability → automation`,
-   wrapping; skip already-tried — start from the seed's framing when seeded, else from the comprehensive
-   pass) and re-survey *from that vantage*; stop the moment a framing yields a groundable candidate (emit
-   it per **`invent` must generate**) **or** all framings are exhausted. This is **bounded** (≤6 surveys:
-   the comprehensive pass + 5 framings), **deterministic** (catalog order, no RNG, no seed required),
-   **empty-triggered only** (a non-empty pass never rotates and costs nothing extra), and **within this
-   round** (it does not spend invent-burst cycles). Record the vantages tried as `invent_framings_tried`
-   (Stage 11). A non-empty first pass behaves exactly as before; an unseeded empty now means *all five
-   vantages plus the comprehensive pass came up empty*, which is strictly stronger evidence than one
-   pass.
-
-   Stay grounded: every proposal still cites real surfaces and a runnable verification, and still
-   passes Stage 10. Creativity widens *what* is proposed; it never lowers the grounding bar.
+   **Seeded framing + auto-rotation.** Without a seed the invent survey is comprehensive and deterministic;
+   with a `seed`, Stage 1.5 emits `explore_framing` and the survey **focuses** through that one vantage
+   (scopes generation, not re-ranking — comprehensiveness recovered across the seed sequence). Map
+   `explore_framing` → vantage question: `power-user` ("what would an expert/power user want that the design
+   makes hard?"), `integration` ("what external integration/interoperability is missing?"), `onboarding`
+   ("what makes first-run trivial?"), `reliability` ("what failure/recovery path is unhandled?"),
+   `automation` ("what manual workflow could be automated end-to-end?"). **Auto-rotation (empty-only, earned
+   by breadth):** a survey that comes up empty does not conclude dry on one vantage — advance to the **next
+   framing in catalog order** (`power-user → integration → onboarding → reliability → automation`, wrapping,
+   skipping tried) and re-survey until a framing yields a candidate or **all framings are exhausted**.
+   **Bounded** (≤6 surveys), deterministic (catalog order), triggered only **on an empty survey** (a
+   non-empty pass never rotates). Record `invent_framings_tried` (Stage 11). Creativity widens *what* is
+   proposed; it never lowers the grounding bar — every proposal still cites a real surface and a runnable
+   Verification and passes Stage 10.
 6. **Operations & reliability** — config seams, sensitive-data handling, persistence, retry,
    observability, maintenance — with concrete surfaces.
 7. **Prioritization review** — rank, drop low-value/duplicate items, ensure mode diversity, confirm
