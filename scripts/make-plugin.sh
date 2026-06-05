@@ -78,6 +78,15 @@ AUTHOR_NAME_JSON="$(json_escape "$AUTHOR_NAME")"
 AUTHOR_EMAIL_JSON="$(json_escape "$AUTHOR_EMAIL")"
 PLUGIN_DESC_JSON="$(json_escape "$PLUGIN_DESC")"
 
+# The manifests above are JSON, but skills/<name>/SKILL.md carries a YAML frontmatter,
+# where the same raw values are structurally significant: `author:` is a plain scalar
+# (a leading quote or an embedded ": " would misparse) and the folded `description: >`
+# block breaks if the value spans lines. A JSON string is a valid YAML double-quoted
+# scalar, so reuse the JSON escaping for `author:`; collapse the description to one line
+# so multiline input cannot break the block's indentation.
+AUTHOR_NAME_YAML="$AUTHOR_NAME_JSON"
+PLUGIN_DESC_ONELINE="$(printf '%s' "$PLUGIN_DESC" | tr '\r\n\t' '   ')"
+
 mkdir -p "$DEST/.claude-plugin" "$DEST/.codex-plugin" "$DEST/skills/$NAME" "$DEST/scripts"
 
 # --- plugin.json -----------------------------------------------------------
@@ -151,11 +160,11 @@ cat > "$DEST/skills/$NAME/SKILL.md" <<EOF
 ---
 name: $NAME
 description: >
-  $PLUGIN_DESC
+  $PLUGIN_DESC_ONELINE
   Trigger when the user asks to ... . Run \`/$NAME help\` for usage.
 license: GPL-3.0-or-later
 metadata:
-  author: $AUTHOR_NAME
+  author: $AUTHOR_NAME_YAML
   version: "0.1.0"
 ---
 

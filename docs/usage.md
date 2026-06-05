@@ -205,3 +205,69 @@ If an item fails execution (after retry attempts), it is reverted to prevent a d
 ```
 
 These rejected reasons are fed back into the next planning run to prevent planwright from proposing the same doomed work again.
+
+## Troubleshooting & interpreting output
+
+planwright tells you *what* it did but not always *why* at a glance. This section maps the common
+"why did it do that?" moments to the state files under `.planwright/`.
+
+### "It wrote 0 items" — is that a problem?
+
+A run that writes no items is usually **correct**, not stuck. The summary now appends a **zero-item
+diagnostic** naming which of three reasons applies:
+
+- **`capacity`** — the plan already holds `max` (default 20) pending items. Execute or prune them, then
+  re-plan. Not a defect.
+- **`already-at-final-point`** — Stage 1 short-circuited because `.planwright/final.md` records this exact
+  HEAD sha with an empty dirty set and all rungs dry. The project genuinely has no groundable work at this
+  ambition. Raise ambition to re-open it (see below).
+- **`all-rungs-dry`** — all four maturity rungs (repair → coverage → opportunity → vision) were surveyed
+  (the upper two project-wide) and nothing cleared its value bar. The diagnostic names the **closest
+  miss** — the highest-value candidate dropped and the one gate it failed.
+
+To re-open work after a final point: give an explicit instruction (`/planwright add <X>`), raise `depth`,
+or escalate (`/planwright cycle -1 explore`, or `invent`) — a deeper escalation flag than the recorded
+`deepest_tier` always re-surveys. Any run that changes code (non-empty dirty set) also re-opens it.
+
+### Reading `.planwright/final.md`
+
+A **final point** is a *justified* stop, not an idle. The block records the HEAD sha, each rung marked
+dry with a one-line reason, and — under `explore`/`invent` — a `deepest_tier:` (`hot-core` →
+`cold-frontier` → `expand` → `invent`). `deepest_tier: expand` is the strong "deep final point" (cold
+frontier and expand both dry). An `invent` run normally writes **no** `final.md` (it must keep generating
+groundable net-new work) and instead runs to its cycle budget.
+
+### "STOP: working tree not clean"
+
+`execute` and `cycle` refuse to run on a dirty tree so per-item commits never entangle your uncommitted
+work. Commit or stash your changes first. `.planwright/` itself is ignored and does **not** count as dirty.
+
+### "scope '<X>' matched no files"
+
+A `path`/`lib` scope that resolves to an empty Focus is a **hard error** by design — planwright never
+silently falls back to a whole-repo run. Check the path/glob, or for `lib <X>` confirm the cluster /
+build-target / package / directory name actually exists (planwright resolves the logical name to paths in
+Stage 1; see **Component Scope**).
+
+### "The audit looked at the wrong files"
+
+Routing is driven by the Stage 1.5 code graph. To see *why* a file ranked where it did — PageRank,
+articulation flags, churn, and the centrality-vs-coupling signal — run the builder with `--debug`:
+
+```bash
+python3 <scripts>/build-graph.py --debug > .planwright/graph.json
+```
+
+The digest goes to **stderr** (stdout stays clean JSON), and shows `ranked` (all node types — docs can
+float up via link-centrality), `ranked_code` (the `branch_count > 0` list Stage 2b actually traces), and
+`ranked_cold` (the explore cold-frontier order). If docs outrank code in `ranked`, that is expected;
+Stage 2b uses `ranked_code`.
+
+### Where state lives (tool-owned — never edit by hand as a plan Surface)
+
+- `.planwright/plan.md` — pending + completed items.
+- `.planwright/completed.md` / `rejected.md` — drained history (FIFO-capped at 100); rejected reasons feed
+  the next run.
+- `.planwright/graph.json` / `digest.md` — audit routing memory. **Routing only — never valid Evidence.**
+- `.planwright/final.md` — the recorded final point.
+- `.planwright/plans/` — archived past plans.

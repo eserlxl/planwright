@@ -817,6 +817,47 @@ def build(root, prior_path, scope=None, seed=None):
     return graph
 
 
+def debug_digest(graph, out):
+    """Write a human-readable routing digest to `out` (stderr) so a reader can see WHY
+    the graph ranked nodes as it did — the intermediate PageRank/coupling weights,
+    articulation flags, the centrality-vs-coupling signal, the dirty-set decision, and
+    import cycles — without hand-parsing the JSON. stdout stays a clean JSON document, so
+    `--debug` composes with the normal `> graph.json` redirect. Routing diagnostics only;
+    none of this is Evidence."""
+    nodes = graph["nodes"]
+    p = out.write
+    p(f"# build-graph debug — {len(nodes)} nodes, "
+      f"ranking_signal={graph['ranking_signal']} "
+      f"(centrality=PageRank over imports; coupling=git co-change, used when the import "
+      f"graph barely discriminates)\n")
+    d = graph["dirty"]
+    scope_n = d["nodes"]
+    p(f"# dirty: first_run={d['is_first_run']} whole_graph={d['whole_graph']} "
+      f"reason={d['reason']!r} changed={len(d['changed'])} in_scope_nodes={len(scope_n)} "
+      f"clusters={len(d['clusters'])}\n")
+    p(f"# import_cycles={len(graph['import_cycles'])}  "
+      f"coupling_edges={len(graph['coupling_edges'])}  "
+      f"articulation_points={sum(1 for n in nodes.values() if n['is_articulation'])}\n")
+
+    def row(rank, f):
+        n = nodes[f]
+        art = "*art" if n["is_articulation"] else "    "
+        cov = "cov" if n["covered_by_test"] else "UNC"
+        return (f"  {rank:>2}. pr={n['pagerank']:.5f} {art} "
+                f"br={n['branch_count']:>3} churn={n['git_churn']:>3} {cov} {f}")
+
+    p("# ranked (top 10, all node types — link-centrality can float docs up):\n")
+    for i, f in enumerate(graph["ranked"][:10], 1):
+        p(row(i, f) + "\n")
+    p("# ranked_code (top 10, branch_count>0 — Stage 2b correctness routing):\n")
+    for i, f in enumerate(graph["ranked_code"][:10], 1):
+        p(row(i, f) + "\n")
+    p("# ranked_cold (top 10 — explore cold-frontier: never-audited, then uncovered):\n")
+    for i, f in enumerate(graph["ranked_cold"][:10], 1):
+        p(row(i, f) + "\n")
+    out.flush()
+
+
 def main():
     ap = argparse.ArgumentParser(description="Build planwright Stage 1.5 graph.json (prints to stdout).")
     ap.add_argument("--root", default=".", help="repo root (default: cwd)")
@@ -825,6 +866,10 @@ def main():
                     help="restrict to a path/dir/glob; emits focus + context (Focus + 1-hop blast radius) node lists")
     ap.add_argument("--seed", type=int, default=None,
                     help="emit a seeded ranked_explore ordering + explore_framing for invent exploration; recorded as explore_seed")
+    ap.add_argument("--debug", action="store_true",
+                    help="write a human-readable routing digest (ranking signal, top ranked/code/cold "
+                         "nodes with pagerank/churn/articulation, dirty-set + cycles) to stderr; "
+                         "stdout stays clean JSON")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:
@@ -832,6 +877,8 @@ def main():
     except subprocess.CalledProcessError as e:
         sys.stderr.write(f"build-graph: git command failed ({e})\n")
         return 2
+    if args.debug:
+        debug_digest(graph, sys.stderr)
     json.dump(graph, sys.stdout, indent=2)
     sys.stdout.write("\n")
     return 0

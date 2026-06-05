@@ -60,7 +60,11 @@ if [ "${ALLOW_DIRTY:-0}" != "1" ] && git -C "$ROOT" rev-parse --is-inside-work-t
   fi
 fi
 
-CURRENT="$(python3 -c "import json;print(json.load(open('$PLUGIN_JSON'))['version'])")"
+CURRENT="$(python3 - "$PLUGIN_JSON" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["version"])
+PY
+)"
 
 NEW="$(python3 - "$CURRENT" "$BUMP" <<'PY'
 import re, sys

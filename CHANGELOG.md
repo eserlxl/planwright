@@ -3,6 +3,23 @@
 All notable changes to planwright are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Highlights
+
+The dated entries below are fine-grained (many are incremental polish). For the load-bearing
+milestones, read these:
+
+- **Grounded checkbox plans** — the 8-field item format with `file:line` Evidence and a runnable
+  `Verification`, gated by `scripts/lint-plan.py` (the Stage 10 structural gate).
+- **Code graph routing** (`scripts/build-graph.py`) — PageRank + articulation points + change-coupling,
+  incremental dirty-set invalidation, `ranked_code` for correctness routing, and import-cycle detection.
+- **Maturity ladder** — repair → coverage → opportunity → vision, so a clean tree keeps producing
+  valuable work instead of idling at a false fixed point; the recorded **final point** (`final.md`).
+- **Escalation ladder** (`explore` / `invent`) — cold-frontier sweep → expand → net-new invent, with the
+  novelty dial, the grounding floor / structural ceiling, and the dwell-gated mission amendment.
+- **Component scope** (`path` / `lib`) — Focus/Context node sets so a run can mature one component.
+- **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
+  Antigravity, with the `codvisor` / `codinventor` helpers.
+
 ## [1.34.1] - 2026-06-05
 
 ### Changed

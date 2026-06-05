@@ -99,6 +99,28 @@ def split_paths(value):
     return out
 
 
+def unsafe_surface(p, root):
+    """Return a reason string if surface path `p` is not a safe repo-relative path
+    under `root`, else None. Stage 10 says Surfaces are existing *repo-relative*
+    paths, but a bare os.path.exists(os.path.join(root, p)) check is not enough:
+    os.path.join discards `root` for an absolute `p` (so `/etc/hosts` would satisfy
+    "exists"), and `../foo` can resolve to a real file outside the repo. Because
+    execute mode treats declared Surfaces as its edit boundary, either would let an
+    item name a file outside the project. Reject absolute paths (POSIX `/...` or a
+    Windows drive), parent-directory traversal (`..`), and any path whose normalized
+    join escapes `root` — before the existence check runs."""
+    np = p.replace("\\", "/")
+    if np.startswith("/") or (len(np) >= 2 and np[1] == ":"):
+        return "absolute path (Surfaces must be repo-relative)"
+    if ".." in np.split("/"):
+        return "parent-directory traversal '..' (Surfaces must stay within the repo)"
+    full = os.path.normpath(os.path.join(root, np))
+    rootn = os.path.normpath(root)
+    if full != rootn and not full.startswith(rootn + os.sep):
+        return "resolves outside the repo root"
+    return None
+
+
 def lint_item(item, root):
     """Return a list of violation strings for one pending item."""
     v = []
@@ -148,11 +170,19 @@ def lint_item(item, root):
     for p in surfaces:
         if os.path.basename(p) == "CMakeLists":
             v.append(f"Surface '{p}' must be spelled CMakeLists.txt")
+            continue
+        reason = unsafe_surface(p, root)
+        if reason:
+            v.append(f"Surface '{p}' is not a safe repo-relative path: {reason}")
         elif not os.path.exists(os.path.join(root, p)):
             v.append(f"Surface '{p}' does not exist under root")
     for p in new_surfaces:
         if os.path.basename(p) == "CMakeLists":
             v.append(f"New Surface '{p}' must be spelled CMakeLists.txt")
+            continue
+        reason = unsafe_surface(p, root)
+        if reason:
+            v.append(f"New Surface '{p}' is not a safe repo-relative path: {reason}")
         elif os.path.exists(os.path.join(root, p)):
             v.append(f"New Surface '{p}' already exists (move it to Surfaces:)")
     overlap = sorted(set(surfaces) & set(new_surfaces))
@@ -250,12 +280,17 @@ def main():
     # summary fields are correct regardless of --quiet.
     text = not args.quiet and not args.json
     total, scope_notes = 0, 0
+    # Compute each item's findings ONCE here; both the text render below and the JSON
+    # block reuse `records` so lint_item()/scope_check() never run twice per item.
+    records = []
     for idx, item in enumerate(items, 1):
         violations = lint_item(item, root)
         advisories = []
         if scope_active:
             sv, advisories = scope_check(item, focus, context)
             violations += sv
+        records.append({"idx": idx, "item": item, "violations": violations,
+                        "advisories": list(advisories)})
         if violations:
             total += len(violations)
             if text:
@@ -286,13 +321,18 @@ def main():
     completed = past_titles(args.plan, "completed.md")
     rejected = past_titles(args.plan, "rejected.md")
     notes = 0
-    for it in items:
+    for rec in records:
+        it = rec["item"]
         if it["title"] in completed:
             notes += 1
+            rec.setdefault("past_advs", []).append(
+                "matches a completed item — confirm this is a regression")
             if text:
                 print(f"note: '{it['title']}' matches a completed item — confirm this is a regression")
         if it["title"] in rejected:
             notes += 1
+            rec.setdefault("past_advs", []).append(
+                "matches a rejected item — confirm the rejection reason is resolved")
             if text:
                 print(f"note: '{it['title']}' matches a rejected item — confirm the rejection reason is resolved")
 
@@ -307,27 +347,17 @@ def main():
         }
         for t in dups:
             out_json["general_violations"].append(f"duplicate pending title: '{t}'")
-        for idx, item in enumerate(items, 1):
+        for rec in records:
+            item = rec["item"]
             item_out = {
-                "index": idx,
+                "index": rec["idx"],
                 "line": item["line"],
                 "title": item["title"] or "<untitled>",
-                "violations": lint_item(item, root),
-                "advisories": []
+                "violations": rec["violations"],
+                "advisories": rec["advisories"] + rec.get("past_advs", []),
             }
-            if scope_active:
-                sv, advs = scope_check(item, focus, context)
-                item_out["violations"] += sv
-                item_out["advisories"] += advs
-            
-            if item["title"] in completed:
-                item_out["advisories"].append("matches a completed item \u2014 confirm this is a regression")
-            if item["title"] in rejected:
-                item_out["advisories"].append("matches a rejected item \u2014 confirm the rejection reason is resolved")
-
             if item_out["violations"] or item_out["advisories"]:
                 out_json["items"].append(item_out)
-                
         print(json.dumps(out_json, indent=2))
         return 1 if total else 0
 

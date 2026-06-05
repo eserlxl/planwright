@@ -1,8 +1,13 @@
 # planwright invent exploration — seeded, recorded stochasticity (design draft)
 
-Status: **PARTIALLY IMPLEMENTED.** Lever 1's builder substrate — `build-graph.py --seed` emitting
-`explore_seed` + `ranked_explore`, with tests — is shipped. The SKILL.md invent-lens wiring is **still
-PROPOSED and, on the evidence, not worth wiring for normal repos**: two-seed comparisons (Open question 1,
+Status (2026-06-05): **lever 1 — builder shipped, SKILL.md wiring REJECTED (inert); lever 2 — SHIPPED
+end-to-end (builder + SKILL.md wiring).** The two levers reached opposite conclusions, which is why the
+narrative below moves from "proposed" to "done": read each lever's verdict, not the first sentence alone.
+Levers 3–4 remain design-only.
+
+Lever 1's builder substrate — `build-graph.py --seed` emitting
+`explore_seed` + `ranked_explore`, with tests — is shipped. Its SKILL.md invent-lens wiring is **REJECTED,
+not merely proposed — on the evidence it is not worth wiring for any realistic repo**: two-seed comparisons (Open question 1,
 below) on a small repo *and* on a larger one (rls-core, where `pool > propose_count`) both found the
 proposal set **unchanged** — reordering is inert whenever the candidate survey can complete and selection
 is value-ranked, which holds far beyond typical repo sizes. The seed bites only under genuine **survey

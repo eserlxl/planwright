@@ -52,7 +52,12 @@ builder. It leaves file-level centrality ranking (`ranked`, coupling fallback) u
 function granularity on top — the minimal-risk path. **Non-goals:** it is not an AST; only branching
 (not centrality, which functions don't carry in this import-graph model) is attributed per symbol.
 
-#### Design note — lang-aware Stage 2b ranking (deferred) <!-- 2026-06-03 -->
+#### Design note — lang-aware Stage 2b ranking (SHIPPED; historical record) <!-- 2026-06-03 -->
+
+> **Status (since shipped):** `ranked_code` is now implemented in `build-graph.py`, emitted in
+> `graph.json`, consumed by SKILL.md Stage 2b, and covered by `tests/run.sh`. The note below is kept as
+> the **historical design rationale**; the "deferred"/"for a later implementation item" wording records
+> the decision as it was made on 2026-06-03, not the current state.
 
 **Problem.** `imports_of` ingests markdown `[..](..)` links as import edges, so doc files join the
 same import graph as code; `pagerank` and `sort_key` then rank every node by that combined centrality

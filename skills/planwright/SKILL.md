@@ -136,7 +136,7 @@ Plan options may be combined with an instruction, e.g.
 | `no-compact` | off | skip Stage 0 housekeeping for this run |
 | `dry-run` | off | run everything but print the plan, write nothing |
 | `path <X>` | whole repo | **scope**: aim the run at a subtree/glob — items land in that **Focus**; analysis still reads its 1-hop blast radius (**Context**). Composable, depth-orthogonal (see **Scope**) |
-| `lib <X>` | whole repo | **scope**: like `path`, but resolve a logical component name (cluster / build target / package / dir) to the Focus set (see **Scope**) |
+| `lib <X>` | whole repo | **scope**: like `path`, but planwright first resolves a logical component name (cluster / build target / package / dir) to its paths in Stage 1, then scopes to that Focus set — the builder's `--scope` itself takes paths/globs only (see **Scope**) |
 | `explore` | off | **cycle only**: at the final point, escalate instead of stopping — cold-frontier sweep, then the **expand** tier (complete latent capability), spending the remaining cycle budget (see **Escalation ladder**) |
 | `invent` | off | **cycle only**: superset of `explore` — additionally permits net-new, seam-bound capability (the **invent** tier, a bounded ≤3-cycle burst) after the expand tier is dry (see **Escalation ladder**) |
 | `seed <S>` | none (deterministic) | **`invent` only**: focus the invent generative survey through one seeded **framing** (a recorded vantage from a fixed catalog). *Scopes* which net-new ideas a single run surveys — comprehensiveness is recovered across the seed sequence (cross-run), so successive seeds explore different regions instead of re-deriving the same ideas. No effect without `invent`; an unseeded `invent` stays comprehensive and deterministic. Integer. Recorded in `final.md` as `invent_seed`/`invent_framing` (see **Escalation ladder**, Stage 5) |
@@ -416,11 +416,15 @@ anchor the generative rungs (lenses 5–6) propose *toward*:
 If a **Scope** was given (`path <X>` / `lib <X>`), resolve it here, before the rungs use it:
 
 - **SCOPE → FOCUS / CONTEXT** — run `<scripts>/build-graph.py --scope <X>` (Stage 1.5 builds the graph
-  anyway; pass `--scope` so it also emits the `focus` and `context` node lists). For `lib <X>`, resolve
+  anyway; pass `--scope` so it also emits the `focus` and `context` node lists). **Division of labour:**
+  `build-graph.py --scope` resolves **paths and globs only** (see `resolve_scope`); the **logical-name
+  resolution for `lib <X>` is performed by you, here in Stage 1**, *before* the builder runs — `lib` is an
+  agent-resolved convenience, not a builder feature. Resolve
   the logical name to a path set first — in order: an exact graph **cluster label**, then a **build
   target** (CMake `add_library`, a Cargo crate / workspace member, an npm workspace, a Python package
   `<X>/__init__.py`, a Go package dir), then a **directory named `<X>`** — and pass the resolved path(s)
-  as `--scope`. **Focus** (the emitted `focus`) is where items may be proposed; **Context** (the emitted
+  to `--scope` (so the builder always receives concrete paths, never the logical name). **Focus** (the
+  emitted `focus`) is where items may be proposed; **Context** (the emitted
   `context` = Focus + 1-hop blast radius) is what later stages may *read*. **A no-match is a hard error:**
   if `focus` is empty, report `scope '<X>' matched no files` and STOP — never silently fall back to a
   whole-repo run. When a component-level charter/README exists inside Focus, prefer it as the generative
@@ -920,6 +924,16 @@ something to diff against:
 
 Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested,
 rungs surveyed (lowest non-empty / final-point), and any capacity stop.
+
+**Zero-item diagnostic.** When a run writes **0 items**, a bare "Plan is at capacity" / "final point
+reached" is opaque — the user cannot tell a justified stop from a missed survey. So whenever
+`written == 0`, append a one-block diagnosis naming, in order: (a) **why** — `capacity` (pending already
+at `max`), `already-at-final-point` (Stage 1 short-circuit, cite the sha), or `all-rungs-dry` (each rung
+surveyed, nothing above its value bar); (b) the **rungs surveyed** and, for each, whether it was
+change-gated-dry (empty dirty set) or maturity-gated-dry (surveyed project-wide and empty); and (c) the
+**closest miss** — the single highest-value candidate that was considered and dropped, with the one
+gate/bar it failed (e.g. "raised-X proposal dropped: vision value-bar — outcome not mission-concrete").
+This turns a silent 0 into an auditable decision, and is a no-op on any run that writes ≥1 item.
 
 ## OUTPUT FORMAT (exact)
 
