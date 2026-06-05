@@ -1755,6 +1755,26 @@ PY
 done
 if [ "$sc_cmd_ok" = 1 ]; then ok "codvisor/codinventor peel a path/lib scope and append it after the subcommand"; else bad "codvisor/codinventor scope-aware resolution missing or malformed"; fi
 
+# --- Test 13d: host instruction templates preserve scoped shortcut resolution ---
+# Non-Claude hosts often use AGENTS.md/GEMINI.md text instead of command files, so
+# those copyable adapters must carry the same path/lib peel-and-append rule.
+sc_host_ok=1
+for hf in AGENTS.example.md GEMINI.md GEMINI.example.md; do
+  python3 - "$ROOT/$hf" <<'PY' 2>/dev/null || sc_host_ok=0
+import sys
+t = open(sys.argv[1]).read()
+need = []
+for tok in ["path <X>", "lib <X>", "peel", "append"]:
+    if tok not in t:
+        need.append(tok)
+for resolved in ["cycle 10 depth 10 explore path", "cycle 5 depth 8 invent lib"]:
+    if resolved not in t:
+        need.append(resolved)
+sys.exit(1 if need else 0)
+PY
+done
+if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates preserve scoped codvisor/codinventor resolution"; else bad "host instruction templates lost scoped codvisor/codinventor resolution"; fi
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

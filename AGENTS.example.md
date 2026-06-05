@@ -121,6 +121,7 @@ When the user invokes **planwright**, **codvisor**, or **codinventor** (with or 
 - `codinventor` with no args → `cycle 10 depth 10 invent` (print the cost banner from `commands/codinventor.md` first)
 - `codinventor N` → `cycle N depth 10 invent`
 - `codinventor N D` → `cycle N depth D invent`
+- If a `codvisor` / `codinventor` invocation includes `path <X>` or `lib <X>`, peel that scope pair first, resolve the remaining shortcut form, then append the scope after the resolved subcommand (`codvisor path src/auth/` → `cycle 10 depth 10 explore path src/auth/`; `codinventor 5 8 lib parser` → `cycle 5 depth 8 invent lib parser`)
 - Any other `codvisor` / `codinventor` remainder → verbatim passthrough to planwright (same arguments as `planwright <args>`)
 - `planwright <args>` → pass `<args>` to the skill dispatcher described in SKILL.md
 
