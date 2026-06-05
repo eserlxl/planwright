@@ -451,7 +451,8 @@ then ok "build-graph.py routes Rust source (lang, defines, branch_count, mod/use
 # --- Test 11d4: Go source support (lang, defines func/method/type, branch_count) -
 # A .go file must route as lang "go" with extracted funcs/methods/types and a
 # branch_count, so Stage 2b can walk Go functions instead of seeing opaque nodes.
-# (Go imports are absolute module paths, so import edges are intentionally absent.)
+# (Intra-module import edges are covered by Test 11d5 / the go golden fixture; this
+# single-file repo has no go.mod, so it has nothing to import.)
 GOREPO="$TMP/gorepo"
 mkdir -p "$GOREPO"
 git -C "$GOREPO" init -q
@@ -474,6 +475,36 @@ for want in ("Handle", "main", "Server"):
 assert n["branch_count"] > 0, n
 PY
 then ok "build-graph.py routes Go source (lang, defines func/method/type, branch_count)"; else bad "build-graph.py failed to route Go source"; fi
+
+# --- Test 11d5: Go intra-module import resolution via the root go.mod ----------
+# resolve_go_import maps a Go import path to the .go files of the imported package,
+# but ONLY for the repo's own module (stdlib + external packages are not repo files
+# and must drop). Both single-line and grouped `import ( ... )` forms are extracted,
+# and the module path comes from the root go.mod.
+if python3 - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+fs = {"go.mod", "main.go", "math/math.go", "math/util.go", "internal/db/db.go"}
+mod = "mycalc"
+# an intra-module import resolves to EVERY .go file in the imported package dir
+assert bg.resolve_go_import("mycalc/math", mod, fs) == ["math/math.go", "math/util.go"], \
+    bg.resolve_go_import("mycalc/math", mod, fs)
+assert bg.resolve_go_import("mycalc/internal/db", mod, fs) == ["internal/db/db.go"], "nested pkg"
+# stdlib and external modules are not repo files -> no edge
+assert bg.resolve_go_import("fmt", mod, fs) == [], "stdlib drops"
+assert bg.resolve_go_import("github.com/x/y", mod, fs) == [], "external drops"
+# no module path known (no go.mod) -> never resolves
+assert bg.resolve_go_import("mycalc/math", None, fs) == [], "no go.mod -> no edge"
+# end-to-end through imports_of: grouped import block, stdlib dropped, intra-module kept
+src = 'package main\nimport (\n\t"fmt"\n\t"mycalc/math"\n)\n'
+got = bg.imports_of("go", src, "main.go", fs, mod)
+assert got == ["math/math.go", "math/util.go"], got
+# single-line aliased import form is also extracted
+src2 = 'package main\nimport m "mycalc/math"\n'
+assert bg.imports_of("go", src2, "main.go", fs, mod) == ["math/math.go", "math/util.go"], "single-line"
+PY
+then ok "build-graph.py resolves Go intra-module imports (package dir files; stdlib/external drop; needs go.mod)"; else bad "build-graph.py Go import resolution wrong (resolve_go_import / go.mod module parsing)"; fi
 
 # --- Test 11e: coupling fallback ranks by churn-normalized weight, not raw co --
 # Two pairs with equal raw cooccur (3): a/b also churn alone (churn 5, weight

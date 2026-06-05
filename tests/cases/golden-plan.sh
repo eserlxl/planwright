@@ -54,7 +54,8 @@ PY
   else ok "lint-plan fails a broken $lang plan (nonexistent Surface)"; fi
 }
 
-# --- Golden fixtures across three import styles -----------------------------------
+# --- Golden fixtures across four import styles ------------------------------------
 golden_check cpp  src/calc.cpp include/calc.h src/calc.cpp c
 golden_check rust src/lib.rs   src/math.rs    src/math.rs  rust
 golden_check js   src/index.js src/util.js    src/util.js  js
+golden_check go   main.go      math/math.go   math/math.go go

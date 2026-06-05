@@ -64,9 +64,9 @@ EXT_LANG = {
     # rust — so a Rust repo gets centrality routing + Stage 2b function hints
     # instead of degrading to the coupling-only fallback (lang "unknown").
     "rs": "rust",
-    # go — defines/branch give Stage 2b per-function hints; Go imports are absolute
-    # module paths (need go.mod to map to repo files) so import edges are left out
-    # and Go nodes rank via change-coupling rather than import centrality.
+    # go — defines/branch give Stage 2b per-function hints; intra-module imports resolve
+    # to repo files via the root go.mod module path (see resolve_go_import). Imports of
+    # external/stdlib packages, and nested sub-module go.mod files, still drop.
     "go": "go",
 }
 
@@ -323,7 +323,32 @@ def resolve_rust_import(target, from_path, fileset):
     return None
 
 
-def imports_of(lang, text, from_path, fileset):
+def resolve_go_import(target, module_path, fileset):
+    """Resolve a Go import path to the repo `.go` files of the imported package.
+
+    Go imports a package by its full module path (e.g. `import "mymod/pkg/util"` when
+    go.mod declares `module mymod`), so only **intra-module** imports map to repo files;
+    external and stdlib packages are not in the tree and drop. Strip the module prefix to
+    get the package's repo-relative directory, then return every `.go` file directly in
+    that directory — a Go package is a directory of files, so the import couples to all of
+    them. Returns a list (possibly empty). Recall over precision, like the other resolvers;
+    a repo with a sub-directory go.mod (nested module) is resolved against the root module
+    only."""
+    if not module_path:
+        return []
+    if target == module_path:
+        pkg_dir = ""
+    else:
+        prefix = module_path.rstrip("/") + "/"
+        if not target.startswith(prefix):
+            return []
+        pkg_dir = target[len(prefix):].strip("/")
+    out = [f for f in fileset
+           if f.endswith(".go") and os.path.dirname(f) == pkg_dir]
+    return sorted(out)
+
+
+def imports_of(lang, text, from_path, fileset, go_module=None):
     raw = []
     if lang == "bash":
         raw += re.findall(r"(?m)^\s*(?:source|\.)\s+([^\s;]+)", text)
@@ -337,6 +362,12 @@ def imports_of(lang, text, from_path, fileset):
     elif lang == "rust":
         raw += re.findall(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_]\w*)\s*;", text)
         raw += re.findall(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([A-Za-z_][\w:]*)", text)
+    elif lang == "go":
+        # single-line `import "pkg"` (optionally aliased) ...
+        raw += re.findall(r'(?m)^\s*import\s+(?:[\w.]+\s+)?"([^"]+)"', text)
+        # ... and grouped `import ( "p1"\n alias "p2" )` blocks.
+        for block in re.findall(r"(?ms)^\s*import\s*\((.*?)\)", text):
+            raw += re.findall(r'"([^"]+)"', block)
     elif lang == "markdown":
         raw += re.findall(r"\[[^\]]*\]\(([^)]+)\)", text)
     out = []
@@ -344,6 +375,13 @@ def imports_of(lang, text, from_path, fileset):
     # -I include root), so both fall back to a unique basename match.
     allow_basename = lang in ("bash", "c")
     for t in raw:
+        if lang == "go":
+            # a Go import resolves to a *package* (a directory of .go files), so the
+            # resolver returns a list; couple to each file in the imported package.
+            for r in resolve_go_import(t, go_module, fileset):
+                if r and r != from_path and r not in out:
+                    out.append(r)
+            continue
         if lang == "python":
             r = resolve_python_import(t, from_path, fileset)
         elif lang == "js":
@@ -639,12 +677,23 @@ def build(root, prior_path, scope=None, seed=None):
                 k = (fs[i], fs[j])
                 pair_co[k] = pair_co.get(k, 0) + 1
 
+    # Root go.mod module path, so Go intra-module imports resolve to repo files.
+    go_module = None
+    if "go.mod" in fileset:
+        try:
+            gm = open(os.path.join(root, "go.mod"), encoding="utf-8").read()
+            mm = re.search(r"(?m)^\s*module\s+(\S+)", gm)
+            if mm:
+                go_module = mm.group(1)
+        except OSError:
+            pass
+
     nodes, import_edges = {}, {}
     for f in files:
         blob = open(os.path.join(root, f), "rb").read()
         lang = lang_of(f, blob)
         text = blob.decode("utf-8", "replace")
-        imps = imports_of(lang, text, f, fileset)
+        imps = imports_of(lang, text, f, fileset, go_module)
         import_edges[f] = imps
         nodes[f] = {
             "sha256": hashlib.sha256(blob).hexdigest(),

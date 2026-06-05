@@ -170,10 +170,11 @@ raw output never enters context.
    | js/ts | `import … from "X"`, `require("X")` |
    | c/c++ | `#include "X"` |
    | rust | `mod X;`, `use a::b::c` |
+   | go | `import "<module>/pkg"` (intra-module, via root `go.mod`) |
    | markdown | relative `[..](X)` links |
-   Resolve targets to repo-relative paths; drop unresolved. (Go is recognized for
-   `defines`/`branch_count` but contributes no import edges — its imports are absolute
-   module paths that need `go.mod` to map to repo files.)
+   Resolve targets to repo-relative paths; drop unresolved. (Go imports resolve only for the
+   repo's own module — its import path is stripped of the root `go.mod` module prefix and mapped
+   to the package directory's `.go` files; stdlib, external, and nested-sub-module imports drop.)
 3. **Extract change-coupling** from `git log --name-only --format=%H -n <window>` in the
    sandbox: count file pairs per commit, keep pairs with `cooccur >= coupling_min_cooccurrence`.
 4. **Compute metrics** on the import graph: PageRank (centrality) and articulation points.

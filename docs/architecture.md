@@ -27,7 +27,7 @@ Collects ground-truth data from the project to ensure plan items are actionable 
 
 ### Stage 1.5: Build Code Graph
 Builds a structural model of the repo (`.planwright/graph.json`) to **route audit attention** toward high-blast-radius code instead of spreading effort uniformly. Computed entirely in the context-mode sandbox, surfacing only a capped ranked node list:
-- **Import edges** extracted with `rg` per language family (bash/python/js/c/rust/markdown), best-effort. (Go is recognized for `defines`/`branch_count` but yields no import edges — Go imports are absolute module paths that need `go.mod` to resolve to repo files, so Go nodes rank via change-coupling.)
+- **Import edges** extracted with `rg` per language family (bash/python/js/c/rust/go/markdown), best-effort. (Go intra-module imports resolve via the root `go.mod` module path — the module prefix is stripped and the remainder mapped to the package directory's `.go` files; stdlib, external, and nested-sub-module imports drop.)
 - **Change-coupling edges** from `git log` co-commit history — hidden dependencies a reader cannot see.
 - **PageRank** (centrality) and **articulation points** (fragile chokepoints) over the import graph.
 - A `ranked` node list later stages use to prioritize what to read. See `docs/graph-memory-schema.md` for the full schema. This stage always runs (lifecycle-level, like Stages 0 and 1) and falls back gracefully when `git`/`rg` are unavailable.
