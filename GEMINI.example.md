@@ -1,0 +1,13 @@
+# Antigravity Integration Example
+
+If you want to use the `planwright` workflow with the Antigravity AI assistant in **other projects**, copy the content below into a file named `GEMINI.md` in the root directory of your target project.
+
+> **Important:** Be sure to replace `/absolute/path/to/planwright` with the actual path where you cloned this repository on your machine.
+
+---
+
+@Antigravity, please read /absolute/path/to/planwright/skills/planwright/SKILL.md to understand the planwright workflow. I want you to act as the planwright agent when I run the command planwright.
+
+In addition, support these shortcut commands:
+- `codvisor [cycles] [depth]`: This is a helper command that forwards to `planwright cycle <cycles> depth <depth> explore` (defaults to cycles=10, depth=10 if omitted).
+- `codinventor [cycles] [depth]`: This is the invent twin of codvisor. It forwards to `planwright cycle <cycles> depth <depth> invent` (defaults to cycles=10, depth=10 if omitted).
