@@ -20,6 +20,28 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.35.0] - 2026-06-05
+
+### Security
+- `lint-plan.py` now rejects plan `Surfaces`/`New Surfaces` that are absolute paths or escape the repo via `..` *before* the existence check — `os.path.join(root, "/etc/hosts")` previously discarded the root, so an item could name a file outside the project, and execute treats declared Surfaces as its edit boundary.
+
+### Added
+- `build-graph.py` resolves **Go intra-module imports** via the root `go.mod` module path (Go previously yielded no import edges, falling back to change-coupling); Go repos now route by import centrality. Go joins the language fixtures.
+- `build-graph.py --debug` writes a human-readable routing digest (ranking signal, top `ranked`/`ranked_code`/`ranked_cold` nodes with pagerank/churn/articulation, dirty set, import cycles) to stderr while stdout stays clean JSON.
+- A **zero-item diagnostic** in the Stage 11 report explains why a run wrote 0 items (`capacity` / `already-at-final-point` / `all-rungs-dry`) and names the closest miss.
+- End-to-end **golden-plan + language-routing fixtures** for C++, Rust, JS, and Go.
+- A `docs/usage.md` troubleshooting guide, a CHANGELOG Highlights section, and a SKILL.md table of contents.
+
+### Changed
+- SKILL.md: condensed the Stage 5 invent block (full rationale moved to `docs/invent-exploration-design.md`) and de-duplicated the Cycle escalation restatement — net smaller despite the new TOC, with every rule kept inline.
+- `tests/run.sh` split into a shared `tests/lib.sh` harness + topic case files under `tests/cases/` (smoke entrypoint unchanged). Test suite **166 → 182**.
+- `lib <X>` documented as agent-resolved in Stage 1 (the builder's `--scope` takes paths/globs only).
+- Reconciled stale status blocks in the invent-exploration / escalation / architecture design docs.
+
+### Fixed
+- `lint-plan.py` no longer recomputes findings in `--json` mode.
+- `bump-version.sh` reads the current version via `argv`; `make-plugin.sh` emits YAML-safe SKILL.md frontmatter so a quote/colon/newline in the author or description can no longer break it.
+
 ## [1.34.1] - 2026-06-05
 
 ### Changed
