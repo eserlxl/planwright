@@ -144,9 +144,47 @@ def branch_count_of(lang, text):
     return len(re.findall(pat, text)) if pat else 0
 
 
+# Non-whitespace, non-word filler for blanked comment/string regions. NUL is chosen so
+# the symbol regexes' `^\s*` anchor cannot span a blanked region (a space-filled blank
+# would let `\s*` swallow whole lines and pull m.start() back onto the wrong line), while
+# it still matches none of the identifier/keyword/structural tokens those regexes seek.
+_BLANK_FILL = "\x00"
+
+
+def _blank_spans(text, pattern, flags=0):
+    """Replace every match of `pattern` with an equal-length run that keeps newlines but
+    turns each other character into the non-whitespace filler. Length- and newline-
+    preserving, so a blanked region no longer matches symbol patterns while every
+    surviving offset and line number is exactly what it was in the original text."""
+    return re.sub(pattern, lambda m: re.sub(r"[^\n]", _BLANK_FILL, m.group(0)), text, flags=flags)
+
+
+def blank_comments(lang, text):
+    """Like strip_comments, but length- and newline-preserving: comment and Python
+    docstring regions become same-length blank runs instead of being deleted. Used before
+    symbol extraction so a def/class inside a comment or a triple-quoted string is not
+    read as a live definition (mirrors imports_of's strip_comments), while keeping the
+    offsets iter_defines yields valid for defines_at_of's line map and branch_at_of's
+    span slicing of the original text. Same conservative scope as strip_comments."""
+    if lang in ("c", "js", "rust", "go"):
+        text = _blank_spans(text, r"/\*.*?\*/", flags=re.S)
+        text = _blank_spans(text, r"(?m)//.*$")
+    elif lang == "python":
+        text = _blank_spans(text, r'"""(?:.|\n)*?"""')
+        text = _blank_spans(text, r"'''(?:.|\n)*?'''")
+        text = _blank_spans(text, r"(?m)#.*$")
+    elif lang == "bash":
+        text = _blank_spans(text, r"(?m)#.*$")
+    return text
+
+
 def iter_defines(lang, text):
-    """Yield (symbol_name, start_offset) for every definition match, in source
-    order. Shared by defines_of (names) and defines_at_of (name -> line)."""
+    """Yield (symbol_name, start_offset) for every definition match, in source order.
+    Comments and Python docstrings are blanked first (length-preserving) so a definition
+    that exists only inside a comment or string literal is not reported. Shared by
+    defines_of (names), defines_at_of (name -> line), and branch_at_of (span) — the
+    blanking keeps each yielded offset valid against the original text those use."""
+    text = blank_comments(lang, text)
     if lang == "bash":
         for m in re.finditer(r"(?m)^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)\s*\{?", text):
             yield m.group(1), m.start()
