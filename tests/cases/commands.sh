@@ -89,3 +89,33 @@ sys.exit(1 if need else 0)
 PY
 done
 if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates preserve scoped codvisor/codinventor resolution"; else bad "host instruction templates lost scoped codvisor/codinventor resolution"; fi
+
+# --- Test 15: commands/codcycle.md is a well-formed planwright orchestration command ---
+# /codcycle drives planwright across an explore→invent→explore triad per outer cycle; guard
+# its contract so an edit can't drop the planwright delegation, the three fixed phases, the
+# 10-outer-cycle default, or the negative=infinite rule.
+CMD="$ROOT/commands/codcycle.md"
+if [ -f "$CMD" ]; then ok "commands/codcycle.md exists"; else bad "commands/codcycle.md missing"; fi
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+assert m, "no YAML frontmatter"
+fm = m.group(1)
+assert re.search(r"(?m)^description:\s*\S", fm), "missing description"
+assert re.search(r"(?m)^argument-hint:\s*\S", fm), "missing argument-hint"
+body = t[m.end():]
+# the command must delegate to the planwright skill, not reimplement it
+assert "planwright:planwright" in body, "body does not invoke the planwright skill"
+# the three fixed phases of one outer cycle (explore -> invent -> explore)
+assert "cycle 3 depth 10 explore" in body, "explore phase missing"
+assert "cycle 3 depth 10 invent" in body, "invent phase missing"
+# the explore phase must appear on BOTH sides of the invent phase (harden -> grow -> harden)
+ei = body.index("cycle 3 depth 10 invent")
+assert "cycle 3 depth 10 explore" in body[:ei], "no explore phase before invent"
+assert "cycle 3 depth 10 explore" in body[ei:], "no explore phase after invent"
+# the no-arg default (10 outer cycles) and the negative=infinite rule
+assert "10 outer cycles" in body, "no-arg default of 10 outer cycles not stated"
+assert "negative" in body.lower(), "negative=infinite rule not stated"
+PY
+then ok "commands/codcycle.md has valid frontmatter and orchestrates the explore→invent→explore triad"; else bad "commands/codcycle.md malformed or lost its triad/delegation/default contract"; fi

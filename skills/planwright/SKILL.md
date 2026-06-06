@@ -84,6 +84,12 @@ skills/instructions that load this `SKILL.md` with the resolved canonical argume
 block, `/planwright`, `/codvisor`, and `/codinventor` are the Claude Code spellings; substitute the
 host trigger above while keeping the arguments unchanged.
 
+`codcycle` is a different kind of adapter — an **orchestration** command, not a single-invocation alias.
+Per *outer cycle* it drives this skill through three back-to-back phases — `cycle 3 depth 10 explore`,
+then `cycle 3 depth 10 invent`, then `cycle 3 depth 10 explore` (a harden → grow → harden rhythm) —
+defaulting to 10 outer cycles (a negative count runs forever). Each phase is an ordinary cycle run of
+this `SKILL.md`; `codcycle` only sequences them.
+
 ## Invocation & help
 
 Before doing anything else, inspect the argument the skill was invoked with:

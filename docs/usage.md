@@ -127,6 +127,20 @@ skills/instructions elsewhere.
 /codinventor 5 8           cycle 5 depth 8 invent (cycles, depth)
 ```
 
+`/codcycle` is a Claude Code orchestration command (not a single-invocation alias): per *outer cycle*
+it drives the planwright skill through three phases back-to-back — `cycle 3 depth 10 explore`, then
+`cycle 3 depth 10 invent`, then `cycle 3 depth 10 explore` — a **harden → grow → harden** rhythm. With
+no argument it runs 10 outer cycles; one integer sets the outer-cycle count, and a negative count runs
+forever. It stops early on a hard blocker, a failing broad verify, or a full outer cycle that produces
+no new committed work (a stable meta-final-point). Because every outer cycle includes an `invent` phase,
+that phase may make rare, small committed edits to repo files, including `MISSION.md`.
+
+```bash
+/codcycle                  10 outer cycles (explore → invent → explore, cycle 3 depth 10 each)
+/codcycle 3                3 outer cycles
+/codcycle -1               run the explore → invent → explore rhythm until stopped (negative = infinite)
+```
+
 After any `invent` run finishes, planwright closes its report with a one-line suggestion to run
 `/codvisor` or the host's `codvisor` equivalent (the flagship `cycle 10 depth 10 explore` sweep) to
 harden the net-new code — the invent tier's final burst never gets a later planning round's deep
