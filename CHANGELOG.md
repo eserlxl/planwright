@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.39.3] - 2026-06-06
+
+### Changed
+- Council-audit fixes: symlink-safe Surface validation, lifecycle --root traversal guard and exists/open TOCTOU fix, git-log commit-boundary fix, corrupt-graph warning, portable bump-version, non-default tsconfig aliases, timeout-vs-failure messages; CI shellchecks tests/cases; new engine unit suite.
+
 ## [1.39.2] - 2026-06-05
 
 ### Changed

@@ -1,6 +1,6 @@
 {
   "name": "planwright",
-  "version": "1.39.2",
+  "version": "1.39.3",
   "description": "Grounded codebase planning for AI coding agents. It audits a repository and writes a verification-ready checkbox plan where every item cites real file:line evidence and a runnable verification, then can optionally implement and verify each item one commit at a time.",
   "author": {
     "name": "Eser KUBALI",
