@@ -8,7 +8,7 @@ __pycache__/
 *.pyc
 
 # Local Claude state
-.claude/settings.local.json
+.claude/
 
 # Test scratch
 .planwright/
