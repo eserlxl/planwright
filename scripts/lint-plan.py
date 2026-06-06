@@ -66,6 +66,33 @@ PLACEHOLDER_VERIFICATION = {
     "pending", "fixme", "xxx", "?", "...", "tba",
 }
 
+# A Verification can also dodge the set above with unlisted prose ("verify manually",
+# "checks pending approval") that is just as unrunnable. Flag a *multi-word* value that
+# carries no runnable-command signal — no path/operator character and a first token that
+# is not a known runner. A single token (possibly a custom binary) or any value with a
+# command signal is never flagged, so a real command that merely contains a placeholder
+# word ("manual smoke test then bash tests/run.sh") still passes.
+_CMD_SIGNAL = set("/|&;<>$(){}=*\"'`-.")
+_KNOWN_EXEC = {
+    "python", "python3", "py", "bash", "sh", "zsh", "ctest", "cmake", "make",
+    "pytest", "unittest", "npm", "npx", "yarn", "pnpm", "cargo", "go", "node",
+    "grep", "rg", "git", "ninja", "gradle", "mvn", "dotnet", "ruby", "rake",
+    "tox", "deno", "bun", "test", "./",
+}
+
+
+def is_prose_verification(norm):
+    """True when a normalized Verification value reads as prose, not a command:
+    two or more words, no command-signal character, and a first token that is not a
+    known executable. Conservative by design — single tokens and anything carrying a
+    path, flag, shell operator, or dotted target are left alone (see _CMD_SIGNAL)."""
+    tokens = norm.split()
+    if len(tokens) < 2:
+        return False
+    if any(ch in _CMD_SIGNAL for ch in norm):
+        return False
+    return tokens[0] not in _KNOWN_EXEC
+
 
 def parse_items(text):
     """Parse plan.md into a list of items: {checked, title, line, fields}.
@@ -170,6 +197,8 @@ def lint_item(item, root):
         # never a runnable command, so it is a placeholder too.
         if norm in PLACEHOLDER_VERIFICATION or norm == "":
             v.append(f"Verification '{verif}' is a placeholder, not a runnable command")
+        elif is_prose_verification(norm):
+            v.append(f"Verification '{verif}' reads as prose, not a runnable command")
 
     surfaces = split_paths(f.get("Surfaces", ""))
     new_surfaces = split_paths(f.get("New Surfaces", ""))
