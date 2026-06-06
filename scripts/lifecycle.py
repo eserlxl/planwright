@@ -118,9 +118,19 @@ def main():
                     help="the .planwright/ directory to operate on (default: .planwright)")
     ap.add_argument("--quiet", action="store_true", help="suppress the report line")
     args = ap.parse_args()
-    plan = os.path.join(args.root, "plan.md")
-    completed = os.path.join(args.root, "completed.md")
-    rejected = os.path.join(args.root, "rejected.md")
+    # Validate the deletion boundary at the argument edge: reset_if_empty()
+    # os.remove()s <root>/plan.md, so a --root carrying parent-directory traversal
+    # could point the deletion outside the intended directory. Reject '..' components
+    # (same posture as lint-plan.py's unsafe_surface); an explicit absolute/relative
+    # root without traversal stays valid (the tool operates on arbitrary .planwright).
+    if ".." in args.root.replace("\\", "/").split("/"):
+        sys.stderr.write(
+            f"lifecycle: --root '{args.root}' contains parent-directory traversal '..'\n")
+        return 2
+    root = args.root
+    plan = os.path.join(root, "plan.md")
+    completed = os.path.join(root, "completed.md")
+    rejected = os.path.join(root, "rejected.md")
 
     compacted = rdrained = 0
     deleted = False
