@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.39.4] - 2026-06-06
+
+### Changed
+- Engine hardening + coverage: graceful degradation on missing git and invalid-UTF-8 filenames (build-graph), re-audit importers of deleted files in the incremental dirty set, prose-Verification gate in lint-plan, pre-release/build version pins in bump-version, comment/string blanking before symbol extraction — each with a focused test.
+
 ## [1.39.3] - 2026-06-06
 
 ### Changed
