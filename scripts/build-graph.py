@@ -845,9 +845,17 @@ def build(root, prior_path, scope=None, seed=None):
         try:
             with open(prior_path, encoding="utf-8") as fh:
                 loaded = json.load(fh)
-            prior_graph = loaded if isinstance(loaded, dict) else {}
-        except (ValueError, OSError):
-            prior_graph = {}
+            if isinstance(loaded, dict):
+                prior_graph = loaded
+            else:
+                # Warn before masking a data-integrity problem as a slow clean run.
+                sys.stderr.write(
+                    f"build-graph: prior graph '{prior_path}' is not a JSON object; "
+                    "rebuilding from scratch\n")
+        except (ValueError, OSError) as e:
+            sys.stderr.write(
+                f"build-graph: ignoring unreadable prior graph '{prior_path}' ({e}); "
+                "rebuilding from scratch\n")
     prior = prior_graph.get("nodes", {})
     if not isinstance(prior, dict):
         prior = {}
