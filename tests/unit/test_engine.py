@@ -87,6 +87,30 @@ class TestImportResolvers(unittest.TestCase):
         text = "def foo():\n    pass\n\nclass Bar:\n    pass\n"
         self.assertEqual(bg.defines_of("python", text), ["foo", "Bar"])
 
+    def test_defines_of_excludes_commented_and_docstring_defs(self):
+        # blank_comments() blanks # comments and triple-quoted strings before symbol
+        # extraction, so a def/class that exists only inside a comment or docstring is
+        # not reported as a live definition (commit 8bc739a, the defines-side fix).
+        py = (
+            "def real():\n"
+            '    """\n'
+            "    def ghost():\n"
+            "        pass\n"
+            '    """\n'
+            "    return 1\n"
+            "# class Hidden: pass\n"
+            "class Shown:\n"
+            "    pass\n"
+        )
+        self.assertEqual(bg.defines_of("python", py), ["real", "Shown"])
+        # C: a // line comment and a /* */ block comment hide their symbols too.
+        c = (
+            "int real_fn() { return 0; }\n"
+            "// int hidden_fn() { return 1; }\n"
+            "/* TEST(Ghost, Case) { } */\n"
+        )
+        self.assertEqual(bg.defines_of("c", c), ["real_fn"])
+
     def test_resolve_python_absolute(self):
         self.assertEqual(
             bg.resolve_python_import("pkg.b", "x.py", {"pkg/b.py"}), "pkg/b.py")
