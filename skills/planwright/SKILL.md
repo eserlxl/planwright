@@ -109,6 +109,8 @@ Before doing anything else, inspect the argument the skill was invoked with:
   this file and follow that procedure instead of the planning Procedure.
 - If the first token is `doctor`, dispatch to the **Doctor** section at the end of this file and
   follow that preflight procedure instead of the planning Procedure.
+- If the first token is `status`, dispatch to the **Status** section at the end of this file and
+  follow that read-only summary procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
   **option overrides** (see Options), then run the planning Procedure.
 
@@ -152,6 +154,7 @@ CYCLE (automated plan → execute loops)
 
 MAINTENANCE
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
+/planwright status               Read-only: summarize plan/final-point/graph state (--json)
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version
 /planwright update               Alias for upgrade
@@ -1288,5 +1291,37 @@ missing `git` or a missing bundled script). The script exits non-zero when any c
 that `python3` is unavailable (every bundled script will fall back to its by-hand SKILL.md spec),
 then check `git`/`rg`/`fd` on `PATH`, whether `<target>` is a git repo, and whether it gitignores
 `.planwright/`, and relay the same summary by hand.
+
+STOP after reporting.
+
+## Status
+
+Reached only via `planwright status` (or the host equivalent such as `/planwright status`). A
+read-only **summary of the current planning state** — what planwright thinks the project is at —
+so a maintainer can see it at a glance without running a plan or cycle. It reads only the gitignored
+`.planwright/` tool-state directory; it mutates nothing and never plans.
+
+**Canonical check.** Prefer the deterministic, test-covered `<scripts>/status.py` (resolve
+`<scripts>` per **Procedure → Bundled scripts**): run `python3 <scripts>/status.py --root <target>`
+in the sandbox and relay its report (`--json` for machine output, `--quiet` for exit-code-only). It
+reads `<target>/.planwright/` and reports:
+
+1. **Item counts** — pending (`- [ ]` in `plan.md`), completed (`- [x]` in `completed.md`), and
+   rejected (`rejected.md`).
+2. **Final point** — from `final.md`: its `sha`, `date`, and `deepest_tier`, plus whether it is
+   **STALE** — its sha is not the current `git rev-parse HEAD`, so the tree has moved on since the
+   ladder was last exhausted and a fresh run would re-open it (see **Maturity ladder & the final
+   point**). Reports "none recorded" when there is no final point.
+3. **Graph memory** — from `graph.json`: the sha it was built at, its node count, and how many nodes
+   the last build marked dirty.
+
+The exit code is always `0` — status is informational, and "no plan / no final point" is a valid
+state, not an error (unlike Doctor, which fails on a broken environment). It is **never** valid
+Evidence (it summarizes routing/status state, like the graph and final-point markers).
+
+**By-hand fallback** (no `python3`): read `<target>/.planwright/` directly — count the `- [ ]` /
+`- [x]` lines in `plan.md`/`completed.md`, the items in `rejected.md`, the `sha`/`deepest_tier` in
+`final.md` (compare its sha to `git rev-parse HEAD` for staleness), and `graph_built_at_sha` plus the
+node/`dirty` counts in `graph.json` — and relay the same summary by hand.
 
 STOP after reporting.

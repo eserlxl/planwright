@@ -151,6 +151,7 @@ inspect or revert flagged invent-tier items before hardening them.
 
 ```bash
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
+/planwright status               Read-only: summarize plan / final-point / graph state (--json)
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version (alias: update)
 ```
@@ -159,6 +160,12 @@ inspect or revert flagged invent-tier items before hardening them.
 (`build-graph.py`, `lint-plan.py`, `lifecycle.py`) are available, what degrades when one is missing,
 and whether the target is a git work tree — a preflight so a run's fallbacks surface up front rather
 than mid-pipeline. It exits non-zero when a core capability (`git` or a bundled script) is unavailable.
+
+`status` is read-only: it summarizes the current planning state from `.planwright/` — pending /
+completed / rejected item counts, the recorded final point (its sha, date, `deepest_tier`, and
+whether it is **stale** relative to `HEAD`), and the graph memory (node and dirty-node counts) — so a
+maintainer can see where a project stands without running a plan or cycle. `--json` emits the same
+state as a machine-readable object; the exit code is always 0 (an empty state is valid, not an error).
 
 `version` is read-only: it reports the installed version from the detected host metadata when
 available (`~/.claude/plugins/installed_plugins.json` for Claude Code, `.codex-plugin/plugin.json` for
