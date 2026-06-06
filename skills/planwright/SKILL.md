@@ -871,7 +871,9 @@ reporting done. For the two purely mechanical, filesystem-verifiable violations 
 (it respells a `CMakeLists` Surface as `CMakeLists.txt` and moves an already-existing `New Surface` into
 `Surfaces`, in place, then lints the result); every other violation still needs your judgement. (On
 `dry-run`, run the linter against the would-be items the same way before printing them; write no file —
-and do not pass `--fix`, which writes.)
+and do not pass `--fix`, which writes.) The opt-in `--strict` flag promotes the non-failing advisories
+(re-proposed completed/rejected titles; upstream-of-Focus surfaces) to failures, so an unattended CI
+gate can enforce the monotonic-drain guard without a human to confirm each note.
 
 Then, unless `dry-run` was passed (no graph-memory state is persisted on a dry run),
 **persist the incremental-audit baseline** so the next run's Stage 1.5 dirty-set comparison has
@@ -1304,7 +1306,9 @@ seams and the target:
    never `fail`.
 
 Severity is `ok` / `warn` (degraded, run still works) / `fail` (a core capability is unavailable:
-missing `git` or a missing bundled script). The script exits non-zero when any check fails.
+missing `git` or a missing bundled script). The script exits non-zero when any check fails; the opt-in
+`--strict` flag additionally fails on any `warn`, so a CI preflight can require a pristine (not merely
+runnable) environment.
 
 **By-hand fallback** (the script's own runtime is missing — no `python3` — so it cannot run): report
 that `python3` is unavailable (every bundled script will fall back to its by-hand SKILL.md spec),
@@ -1322,8 +1326,8 @@ so a maintainer can see it at a glance without running a plan or cycle. It reads
 
 **Canonical check.** Prefer the deterministic, test-covered `<scripts>/status.py` (resolve
 `<scripts>` per **Procedure → Bundled scripts**): run `python3 <scripts>/status.py --root <target>`
-in the sandbox and relay its report (`--json` for machine output, `--quiet` for exit-code-only). It
-reads `<target>/.planwright/` and reports:
+in the sandbox and relay its report (`--json` for machine output, `--quiet` for exit-code-only,
+`--exit-code` to gate on convergence — see below). It reads `<target>/.planwright/` and reports:
 
 1. **Item counts** — pending (`- [ ]` in `plan.md`), completed (`- [x]` in `completed.md`), and
    rejected (`rejected.md`).
@@ -1334,9 +1338,13 @@ reads `<target>/.planwright/` and reports:
 3. **Graph memory** — from `graph.json`: the sha it was built at, its node count, and how many nodes
    the last build marked dirty.
 
-The exit code is always `0` — status is informational, and "no plan / no final point" is a valid
-state, not an error (unlike Doctor, which fails on a broken environment). It is **never** valid
-Evidence (it summarizes routing/status state, like the graph and final-point markers).
+By default the exit code is always `0` — status is informational, and "no plan / no final point" is a
+valid state, not an error (unlike Doctor, which fails on a broken environment). The opt-in
+`--exit-code` flag is the one exception: it exits `0` only when the project is at a *current* final
+point (a final point is recorded, its sha is HEAD, and nothing is pending) and `1` otherwise, so a
+wrapper or CI gate can check convergence machine-readably (it composes with `--json`/`--quiet`). The
+report itself is **never** valid Evidence (it summarizes routing/status state, like the graph and
+final-point markers).
 
 **By-hand fallback** (no `python3`): read `<target>/.planwright/` directly — count the `- [ ]` /
 `- [x]` lines in `plan.md`/`completed.md`, the items in `rejected.md`, the `sha`/`deepest_tier` in
