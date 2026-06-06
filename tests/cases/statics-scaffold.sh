@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Eser KUBALI
 # SPDX-License-Identifier: GPL-3.0-or-later
+# shellcheck shell=bash
 #
 # Static analysis + bump-version.sh / make-plugin.sh scaffolding.
 # Sourced by tests/run.sh after tests/lib.sh — NOT standalone (uses ROOT/TMP/ok/bad/ver).

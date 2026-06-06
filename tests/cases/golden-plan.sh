@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Eser KUBALI
 # SPDX-License-Identifier: GPL-3.0-or-later
+# shellcheck shell=bash
 #
 # End-to-end golden-plan + language-routing fixtures (tests/fixtures/<lang>/).
 # Sourced by tests/run.sh after tests/lib.sh — NOT standalone (uses ROOT/TMP/ok/bad).

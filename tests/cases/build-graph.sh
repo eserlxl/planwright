@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Eser KUBALI
 # SPDX-License-Identifier: GPL-3.0-or-later
+# shellcheck shell=bash
 #
 # build-graph.py (Stage 1.5 code graph) behavior.
 # Sourced by tests/run.sh after tests/lib.sh — NOT standalone (uses ROOT/TMP/ok/bad/ver).
