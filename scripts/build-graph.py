@@ -84,7 +84,10 @@ EXT_LANG = {
 def sh(args, root, timeout=GIT_TIMEOUT_SECONDS):
     # timeout bounds a wedged git so the build degrades instead of hanging forever;
     # callers handle the resulting SubprocessError (TimeoutExpired/CalledProcessError).
-    return subprocess.check_output(args, cwd=root, text=True, timeout=timeout)
+    # errors="replace": a tracked filename with invalid UTF-8 bytes routes as a lossy
+    # name rather than aborting the whole build with UnicodeDecodeError.
+    return subprocess.check_output(
+        args, cwd=root, text=True, errors="replace", timeout=timeout)
 
 
 def coupling_pairs(commits, max_files_per_commit=COUPLING_MAX_FILES_PER_COMMIT):
@@ -1188,6 +1191,13 @@ def main():
         return 2
     except subprocess.SubprocessError as e:
         sys.stderr.write(f"build-graph: a git command failed ({e})\n")
+        return 2
+    except OSError as e:
+        # A missing git binary raises FileNotFoundError (an OSError, not a
+        # SubprocessError) — degrade gracefully instead of a raw traceback so the
+        # builder honours its "falls back when git is unavailable" contract.
+        sys.stderr.write(
+            f"build-graph: git could not be run ({e}); is git installed and on PATH?\n")
         return 2
     if args.debug:
         debug_digest(graph, sys.stderr)
