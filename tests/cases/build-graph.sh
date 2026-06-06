@@ -1023,3 +1023,18 @@ else:
 PY
 then ok "sh() times out a wedged subprocess instead of hanging the build"; else bad "sh() did not enforce its timeout"; fi
 
+# --- Test 11u: build-graph.py degrades cleanly when the git binary is absent -------
+# A missing git raises FileNotFoundError (OSError, not SubprocessError); main() catches
+# OSError and exits non-zero with a diagnostic instead of a raw traceback (commit
+# d8ace75). Run the builder with a PATH that has python3 but no git.
+GITLESS="$TMP/gitless_bin"
+mkdir -p "$GITLESS"
+ln -sf "$(command -v python3)" "$GITLESS/python3"
+ng_rc=0
+ng_out="$(cd "$ROOT" && PATH="$GITLESS" "$GITLESS/python3" scripts/build-graph.py --root "$ROOT" 2>&1 >/dev/null)" || ng_rc=$?
+if [ "$ng_rc" -ne 0 ] && ! printf '%s' "$ng_out" | grep -q 'Traceback (most recent call last)'; then
+  ok "build-graph.py exits non-zero with a diagnostic (not a traceback) when git is absent"
+else
+  bad "build-graph.py did not degrade cleanly without git (rc=$ng_rc, out=$ng_out)"
+fi
+

@@ -158,6 +158,16 @@ class TestMalformedInput(unittest.TestCase):
         result = bg.defines_of("python", "def café():\n    pass\ndef ok_name():\n    pass\n")
         self.assertIn("ok_name", result)
 
+    def test_sh_replaces_invalid_utf8_bytes(self):
+        # sh() decodes subprocess output with errors="replace" so a tracked filename
+        # (or any output) carrying invalid UTF-8 bytes degrades to a lossy string
+        # instead of aborting the build with UnicodeDecodeError (commit d8ace75).
+        out = bg.sh(
+            ["python3", "-c", r"import sys; sys.stdout.buffer.write(b'a\xff\xfeb')"],
+            _ROOT)
+        self.assertIn("a", out)
+        self.assertIn("b", out)
+
 
 class TestIncrementalDirtyDeletion(unittest.TestCase):
     def test_deleted_source_marks_importers_dirty(self):
