@@ -76,10 +76,13 @@ def render(preamble, blocks):
 
 
 def read_blocks(path):
-    if not os.path.exists(path):
+    # open() + handle the missing-file case rather than exists()-then-open, which
+    # has a TOCTOU window if the file vanishes between the two calls.
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return parse(fh.read())
+    except FileNotFoundError:
         return [], []
-    with open(path, encoding="utf-8") as fh:
-        return parse(fh.read())
 
 
 def write(path, preamble, blocks):
@@ -109,14 +112,20 @@ def drain(plan_path, target_path, pred):
 def reset_if_empty(plan_path):
     """Delete plan.md when it holds no pending (- [ ], non-rejected) item. Returns True
     if it was deleted. Pending items are left untouched (the next run merges into them)."""
-    if not os.path.exists(plan_path):
+    # open()/remove() with FileNotFoundError handling rather than exists()-then-act,
+    # which races if the file is removed concurrently between check and use.
+    try:
+        with open(plan_path, encoding="utf-8") as fh:
+            _, blocks = parse(fh.read())
+    except FileNotFoundError:
         return False
-    with open(plan_path, encoding="utf-8") as fh:
-        _, blocks = parse(fh.read())
     pending = [b for b in blocks
                if not b.get("interstitial") and not b["checked"] and not b["rejected"]]
     if not pending:
-        os.remove(plan_path)
+        try:
+            os.remove(plan_path)
+        except FileNotFoundError:
+            return False
         return True
     return False
 
