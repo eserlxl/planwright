@@ -1038,3 +1038,24 @@ else
   bad "build-graph.py did not degrade cleanly without git (rc=$ng_rc, out=$ng_out)"
 fi
 
+# --- Test 11v: a corrupted --prior graph warns on stderr and forces a full rebuild -
+# build() warns and falls back to a from-scratch rebuild (prior={} -> dirty.is_first_run)
+# when --prior is a non-object or unparseable JSON, instead of silently masking a
+# data-integrity problem as a slow clean run (commit 4623724).
+NOPRIOR="$TMP/corrupt_nonobject.json"; printf '[]' > "$NOPRIOR"
+python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" --prior "$NOPRIOR" 2>"$TMP/cp_no_err.txt" >"$TMP/cp_no_out.json" || true
+if grep -qF 'is not a JSON object' "$TMP/cp_no_err.txt" \
+   && python3 -c "import json,sys;sys.exit(0 if json.load(open('$TMP/cp_no_out.json'))['dirty']['is_first_run'] else 1)"; then
+  ok "build-graph.py warns and rebuilds from a non-object prior graph"
+else
+  bad "build-graph.py did not warn+rebuild on a non-object prior graph"
+fi
+BADPRIOR="$TMP/corrupt_unparseable.json"; printf '{{{' > "$BADPRIOR"
+python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" --prior "$BADPRIOR" 2>"$TMP/cp_bad_err.txt" >"$TMP/cp_bad_out.json" || true
+if grep -qF 'ignoring unreadable prior graph' "$TMP/cp_bad_err.txt" \
+   && python3 -c "import json,sys;sys.exit(0 if json.load(open('$TMP/cp_bad_out.json'))['dirty']['is_first_run'] else 1)"; then
+  ok "build-graph.py warns and rebuilds from an unparseable prior graph"
+else
+  bad "build-graph.py did not warn+rebuild on an unparseable prior graph"
+fi
+
