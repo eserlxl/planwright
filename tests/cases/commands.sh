@@ -122,5 +122,12 @@ assert "codcycle: max-intensity alternating sweep" in body, "cost-banner / inven
 assert "MISSION.md" in body, "invent-may-edit-MISSION.md awareness clause missing"
 # the help/usage line so /codcycle help (and bad args) stays documented
 assert "Usage: /codcycle" in body, "help Usage line missing"
+# scope-peeling parity with codvisor/codinventor (Test 13c): a path/lib scope must be
+# peeled and appended AFTER each phase mode so "cycle" stays planwright's first token
+assert "Peel the scope" in body, "scope peel-step missing"
+assert "path <X>" in body and "lib <X>" in body, "path/lib scope doc missing"
+assert "first token" in body, "first-token-order rule missing"
+assert "cycle 3 depth 10 explore <scope>" in body, "scoped explore phase string missing"
+assert "cycle 3 depth 10 invent <scope>" in body, "scoped invent phase string missing"
 PY
 then ok "commands/codcycle.md has valid frontmatter and orchestrates the explore→invent→explore triad"; else bad "commands/codcycle.md malformed or lost its triad/delegation/default contract"; fi
