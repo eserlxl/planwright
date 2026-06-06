@@ -1269,14 +1269,16 @@ seams and the target:
    reported present/absent with its version and exactly what degrades when missing.
 2. **Bundled-script resolution** — that `build-graph.py`, `lint-plan.py`, and `lifecycle.py` resolve
    beside `doctor.py` (the `<scripts>` seam). A miss here means a broken/partial install.
-3. **Target** — whether `--root` is a git work tree (the graph build needs one).
+3. **Target** — whether `--root` is a git work tree (the graph build needs one), and whether that
+   tree gitignores `.planwright/` (the tool-state directory; a repo that forgets to ignore it commits
+   plan/graph/digest as noise — reported `warn`, never `fail`).
 
 Severity is `ok` / `warn` (degraded, run still works) / `fail` (a core capability is unavailable:
 missing `git` or a missing bundled script). The script exits non-zero when any check fails.
 
 **By-hand fallback** (the script's own runtime is missing — no `python3` — so it cannot run): report
 that `python3` is unavailable (every bundled script will fall back to its by-hand SKILL.md spec),
-then check `git`/`rg`/`fd` on `PATH` and whether `<target>` is a git repo, and relay the same
-three-seam summary by hand.
+then check `git`/`rg`/`fd` on `PATH`, whether `<target>` is a git repo, and whether it gitignores
+`.planwright/`, and relay the same summary by hand.
 
 STOP after reporting.

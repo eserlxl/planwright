@@ -101,3 +101,31 @@ if "<scripts>/doctor.py" not in t: need.append("script-wire")
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md exposes doctor (Usage line + <scripts>/doctor.py wiring)"; else bad "SKILL.md does not wire the doctor command"; fi
+
+# --- Test DR7: the .planwright/ gitignore check — warn when un-ignored, ok once ignored
+# A fresh git work tree with no .gitignore does NOT ignore .planwright/ -> WARN, but the
+# check is warn-only so exit stays 0; adding the ignore rule flips it to ok.
+GI="$TMP/doctor-gitignore"; mkdir -p "$GI"
+git -C "$GI" init -q
+rc=0; out="$(python3 "$DOC" --root "$GI" --json)" || rc=$?
+warn_ok=0
+printf '%s' "$out" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+c={r["name"]:r["status"] for r in d["checks"]}
+sys.exit(0 if c.get(".planwright/ is gitignored")=="warn" else 1)
+' && warn_ok=1
+printf '.planwright/\n' > "$GI/.gitignore"
+ig_ok=0
+out2="$(python3 "$DOC" --root "$GI" --json)"
+printf '%s' "$out2" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+c={r["name"]:r["status"] for r in d["checks"]}
+sys.exit(0 if c.get(".planwright/ is gitignored")=="ok" else 1)
+' && ig_ok=1
+if [ "$rc" = "0" ] && [ "$warn_ok" = "1" ] && [ "$ig_ok" = "1" ]; then
+  ok "doctor.py WARNs when .planwright/ is not gitignored and is ok once ignored (warn-only, exit 0)"
+else
+  bad "doctor.py mis-graded the .planwright/ gitignore check (rc=$rc warn=$warn_ok ig=$ig_ok)"
+fi

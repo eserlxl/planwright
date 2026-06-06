@@ -14,10 +14,13 @@
 #      SKILL.md resolves per "Procedure → Bundled scripts"; doctor confirms it from the
 #      script's own location so a broken install is caught before Stage 1.5.
 #
-# It also reports whether the --root target is a git work tree (graph build needs one).
+# It also reports whether the --root target is a git work tree (graph build needs one)
+# and whether that tree gitignores .planwright/ — the directory MISSION.md keeps all
+# tool state (plan, graph memory, digest, final point) under; a repo that forgets to
+# ignore it commits that state as noise.
 # Nothing is mutated. Exit status is 1 when any required check FAILs (missing git or a
-# missing bundled script), else 0; WARN-level findings (missing rg/fd, non-repo target)
-# never fail the exit code on their own.
+# missing bundled script), else 0; WARN-level findings (missing rg/fd, non-repo target,
+# un-ignored .planwright/) never fail the exit code on their own.
 #
 #   python3 scripts/doctor.py --root .
 #   python3 scripts/doctor.py --root . --json
@@ -135,6 +138,48 @@ def check_target(root):
     }]
 
 
+def check_gitignore(root):
+    """Report whether the target gitignores .planwright/ — the tool-state directory
+    MISSION.md keeps plan/graph/digest/final-point under. WARN (never FAIL) when the
+    work tree does NOT ignore it (the run still works, but tool state would be
+    committed as noise); ok when it is ignored, or n/a when there is no git work tree
+    to judge against (the target check already warns on that)."""
+    ignored = None  # tri-state: True ignored, False not ignored, None undeterminable
+    if shutil.which("git"):
+        try:
+            inside = subprocess.run(
+                ["git", "-C", root, "rev-parse", "--is-inside-work-tree"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if inside.returncode == 0 and inside.stdout.strip() == "true":
+                # Probe a representative path UNDER .planwright/ rather than the bare
+                # directory: a `.planwright/` ignore rule is directory-only, so git will
+                # not match the non-existent bare path `.planwright`, but it does match the
+                # prefix of `.planwright/plan.md` whether or not anything exists yet.
+                # git check-ignore: exit 0 = path is ignored, 1 = not ignored, 128 = error.
+                chk = subprocess.run(
+                    ["git", "-C", root, "check-ignore", "-q", ".planwright/plan.md"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if chk.returncode in (0, 1):
+                    ignored = chk.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            ignored = None
+    if ignored is True:
+        status, detail = "ok", ".planwright/ is gitignored"
+    elif ignored is False:
+        status, detail = "warn", ".planwright/ is NOT gitignored in " + os.path.abspath(root)
+    else:
+        status, detail = "ok", "n/a (no git work tree to check)"
+    return [{
+        "name": ".planwright/ is gitignored",
+        "status": status,
+        "detail": detail,
+        "degrades": "planwright's plan, graph memory, and digest under .planwright/ would be "
+                    "committed as repo noise; add `.planwright/` to .gitignore",
+    }]
+
+
 GLYPH = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL"}
 
 
@@ -164,7 +209,8 @@ def main():
                     help="suppress the readable report (exit code only)")
     args = ap.parse_args()
 
-    records = check_tools() + check_scripts() + check_target(args.root)
+    records = (check_tools() + check_scripts()
+               + check_target(args.root) + check_gitignore(args.root))
     fails = sum(1 for r in records if r["status"] == "fail")
 
     if args.json:
