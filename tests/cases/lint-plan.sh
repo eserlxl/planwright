@@ -287,6 +287,34 @@ else
   bad "lint-plan.py mislabeled a normal missing relative Surface"
 fi
 
+# Symlink-escape guard: unsafe_surface uses realpath (not normpath) so a Surface
+# reachable only through an in-repo symlink that points outside the root is rejected.
+# normpath would leave the symlink unresolved and let `link/secret` pass the containment
+# check, so this pins the realpath choice specifically.
+SLREPO="$TMP/sl_repo"; mkdir -p "$SLREPO/.planwright"
+SLOUT="$TMP/sl_outside"; mkdir -p "$SLOUT"; echo "secret" > "$SLOUT/secret"
+ln -sf "$SLOUT" "$SLREPO/link"   # in-repo symlink escaping the root
+SL_PLAN="$SLREPO/.planwright/plan.md"
+cat > "$SL_PLAN" <<'EOF'
+# planwright Plan — .
+
+- [ ] Surface escapes the root through an in-repo symlink
+      Mode: improve
+      Rationale: r.
+      Evidence: gap.
+      Surfaces: link/secret
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+sl_rc=0
+sl_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$SLREPO" --plan "$SL_PLAN" 2>&1)" || sl_rc=$?
+if [ "$sl_rc" -ne 0 ] && printf '%s' "$sl_out" | grep -qF "resolves outside the repo root"; then
+  ok "lint-plan.py rejects a Surface that escapes the root via an in-repo symlink"
+else
+  bad "lint-plan.py accepted a symlink-escaping Surface (rc=$sl_rc)"
+fi
+
 # Convergence guards: a repeated pending title and a Surfaces/New-Surfaces overlap
 # are always violations (hard fail). The lifecycle dir holds the advisory sources.
 LDIR="$TMP/lintdir"
