@@ -209,6 +209,19 @@ if [ "$pinpj" = "2.5.0" ]; then ok "X.Y.Z explicit pin sets version to 2.5.0"; e
 pinmm="$(python3 -c "import json;print(json.load(open('$PINRR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
 if [ "$pinpj" = "$pinmm" ]; then ok "X.Y.Z explicit pin synced across manifests"; else bad "X.Y.Z pin not synced: plugin=$pinpj market=$pinmm"; fi
 
+# --- Test 7b2: explicit pin accepts a SemVer pre-release / build suffix -----
+# bump-version.sh's version-arg regex accepts an optional -pre and +build suffix
+# (commit 9b2c20c) so a pre-release can be cut; pin one and assert it round-trips
+# verbatim into the manifests (a regression narrowing the regex would drop it).
+PRERR="$TMP/prerr"
+mkdir -p "$PRERR"
+( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$PRERR" && tar -xf - )
+"$PRERR/scripts/bump-version.sh" 2.6.0-rc.1+build.5 >/dev/null
+prepj="$(python3 -c "import json;print(json.load(open('$PRERR/.claude-plugin/plugin.json'))['version'])")"
+if [ "$prepj" = "2.6.0-rc.1+build.5" ]; then ok "explicit pin accepts a pre-release/build suffix (round-trips verbatim)"; else bad "pre-release pin failed: got $prepj"; fi
+premm="$(python3 -c "import json;print(json.load(open('$PRERR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
+if [ "$prepj" = "$premm" ]; then ok "pre-release pin synced across manifests"; else bad "pre-release pin not synced: plugin=$prepj market=$premm"; fi
+
 # --- Test 7c: bump-version.sh exits non-zero when a required file is missing -
 MISRR="$TMP/misrr"
 mkdir -p "$MISRR"
