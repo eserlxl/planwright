@@ -165,7 +165,10 @@ than mid-pipeline. It exits non-zero when a core capability (`git` or a bundled 
 completed / rejected item counts, the recorded final point (its sha, date, `deepest_tier`, and
 whether it is **stale** relative to `HEAD`), and the graph memory (node and dirty-node counts) — so a
 maintainer can see where a project stands without running a plan or cycle. `--json` emits the same
-state as a machine-readable object; the exit code is always 0 (an empty state is valid, not an error).
+state as a machine-readable object; by default the exit code is always 0 (an empty state is valid, not
+an error). Pass `--exit-code` to turn it into a scriptable gate — it exits non-zero when there is
+actionable state (pending items, or a final point gone stale vs `HEAD`), so a cron/CI job can run
+`status --exit-code || planwright cycle -1`.
 
 `version` is read-only: it reports the installed version from the detected host metadata when
 available (`~/.claude/plugins/installed_plugins.json` for Claude Code, `.codex-plugin/plugin.json` for
