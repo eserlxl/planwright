@@ -14,13 +14,14 @@
 #      SKILL.md resolves per "Procedure → Bundled scripts"; doctor confirms it from the
 #      script's own location so a broken install is caught before Stage 1.5.
 #
-# It also reports whether the --root target is a git work tree (graph build needs one)
-# and whether that tree gitignores .planwright/ — the directory MISSION.md keeps all
-# tool state (plan, graph memory, digest, final point) under; a repo that forgets to
-# ignore it commits that state as noise.
+# It also reports whether the --root target is a git work tree (graph build needs one),
+# whether that tree gitignores .planwright/ — the directory MISSION.md keeps all tool
+# state (plan, graph memory, digest, final point) under; a repo that forgets to ignore
+# it commits that state as noise — and whether a git commit identity is configured (the
+# Execute/Cycle paths commit per item, so an unset user.name/user.email fails mid-run).
 # Nothing is mutated. Exit status is 1 when any required check FAILs (missing git or a
 # missing bundled script), else 0; WARN-level findings (missing rg/fd, non-repo target,
-# un-ignored .planwright/) never fail the exit code on their own.
+# un-ignored .planwright/, unset commit identity) never fail the exit code on their own.
 #
 #   python3 scripts/doctor.py --root .
 #   python3 scripts/doctor.py --root . --json
@@ -180,6 +181,37 @@ def check_gitignore(root):
     }]
 
 
+def check_git_identity(root):
+    """Report whether a git commit identity is configured. The Execute and Cycle paths
+    commit every passing item, so an unset user.name/user.email makes each per-item
+    `git commit` fail mid-run with a confusing error. WARN (never FAIL — planning does
+    not commit) when either is unset; ok when both resolve; n/a when there is no git."""
+    name = email = None
+    if shutil.which("git"):
+        def cfg(key):
+            try:
+                out = subprocess.run(["git", "-C", root, "config", key],
+                                     capture_output=True, text=True, timeout=5)
+                return out.stdout.strip() if out.returncode == 0 else ""
+            except (OSError, subprocess.SubprocessError):
+                return None
+        name, email = cfg("user.name"), cfg("user.email")
+    if name is None or email is None:
+        status, detail = "ok", "n/a (git unavailable)"
+    elif name and email:
+        status, detail = "ok", "user.name and user.email are set"
+    else:
+        missing = " and ".join(k for k, v in (("user.name", name), ("user.email", email)) if not v)
+        status, detail = "warn", "git %s is unset" % missing
+    return [{
+        "name": "git commit identity",
+        "status": status,
+        "detail": detail,
+        "degrades": "Execute/Cycle per-item `git commit` will fail until git user.name "
+                    "and user.email are configured (git config --global user.name/.email)",
+    }]
+
+
 GLYPH = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL"}
 
 
@@ -209,8 +241,8 @@ def main():
                     help="suppress the readable report (exit code only)")
     args = ap.parse_args()
 
-    records = (check_tools() + check_scripts()
-               + check_target(args.root) + check_gitignore(args.root))
+    records = (check_tools() + check_scripts() + check_target(args.root)
+               + check_gitignore(args.root) + check_git_identity(args.root))
     fails = sum(1 for r in records if r["status"] == "fail")
 
     if args.json:

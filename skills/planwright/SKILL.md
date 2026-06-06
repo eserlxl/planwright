@@ -1269,9 +1269,11 @@ seams and the target:
    reported present/absent with its version and exactly what degrades when missing.
 2. **Bundled-script resolution** — that `build-graph.py`, `lint-plan.py`, and `lifecycle.py` resolve
    beside `doctor.py` (the `<scripts>` seam). A miss here means a broken/partial install.
-3. **Target** — whether `--root` is a git work tree (the graph build needs one), and whether that
+3. **Target** — whether `--root` is a git work tree (the graph build needs one), whether that
    tree gitignores `.planwright/` (the tool-state directory; a repo that forgets to ignore it commits
-   plan/graph/digest as noise — reported `warn`, never `fail`).
+   plan/graph/digest as noise), and whether a git commit identity (`user.name`/`user.email`) is set
+   (Execute/Cycle commit per item, so an unset identity fails mid-run). Both are reported `warn`,
+   never `fail`.
 
 Severity is `ok` / `warn` (degraded, run still works) / `fail` (a core capability is unavailable:
 missing `git` or a missing bundled script). The script exits non-zero when any check fails.

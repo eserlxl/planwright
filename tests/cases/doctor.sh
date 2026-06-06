@@ -129,3 +129,32 @@ if [ "$rc" = "0" ] && [ "$warn_ok" = "1" ] && [ "$ig_ok" = "1" ]; then
 else
   bad "doctor.py mis-graded the .planwright/ gitignore check (rc=$rc warn=$warn_ok ig=$ig_ok)"
 fi
+
+# --- Test DR8: git commit-identity check — warn when unset, ok once configured -----
+# Isolate config (GIT_CONFIG_GLOBAL/SYSTEM -> /dev/null) so a fresh repo with no local
+# identity resolves to none -> warn (warn-only, exit 0); setting a local identity -> ok.
+ID="$TMP/doctor-identity"; mkdir -p "$ID"
+git -C "$ID" init -q
+rc=0
+out="$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null python3 "$DOC" --root "$ID" --json)" || rc=$?
+id_warn=0
+printf '%s' "$out" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+c={r["name"]:r["status"] for r in d["checks"]}
+sys.exit(0 if c.get("git commit identity")=="warn" else 1)
+' && id_warn=1
+git -C "$ID" config user.name "Test"; git -C "$ID" config user.email "t@e.x"
+out2="$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null python3 "$DOC" --root "$ID" --json)"
+id_ok=0
+printf '%s' "$out2" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+c={r["name"]:r["status"] for r in d["checks"]}
+sys.exit(0 if c.get("git commit identity")=="ok" else 1)
+' && id_ok=1
+if [ "$rc" = "0" ] && [ "$id_warn" = "1" ] && [ "$id_ok" = "1" ]; then
+  ok "doctor.py WARNs when git commit identity is unset and is ok once set (warn-only, exit 0)"
+else
+  bad "doctor.py mis-graded the git commit-identity check (rc=$rc warn=$id_warn ok=$id_ok)"
+fi
