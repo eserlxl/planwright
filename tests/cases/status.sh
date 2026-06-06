@@ -46,6 +46,17 @@ else
   bad "status.py miscounted the fixture .planwright items"
 fi
 
+# --- Test STS6: pending titles are surfaced in the report and the JSON -----------
+rep2="$(python3 "$STAT" --root "$FIX")"
+if printf '%s' "$rep2" | grep -q '^    - one$' \
+   && printf '%s' "$rep2" | grep -q '^    - two$' \
+   && printf '%s' "$fx" | grep -q '"pending_titles"' \
+   && printf '%s' "$fx" | grep -q '"two"'; then
+  ok "status.py lists pending item titles in the readable report and --json"
+else
+  bad "status.py did not surface pending item titles"
+fi
+
 # --- Test STS4: final-point staleness is HEAD-relative in a git fixture -----------
 # A final.md whose sha != HEAD is STALE; rewriting it to the real HEAD clears it.
 GFIX="$TMP/status-git"; mkdir -p "$GFIX/.planwright"

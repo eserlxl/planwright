@@ -162,7 +162,8 @@ and whether the target is a git work tree — a preflight so a run's fallbacks s
 than mid-pipeline. It exits non-zero when a core capability (`git` or a bundled script) is unavailable.
 
 `status` is read-only: it summarizes the current planning state from `.planwright/` — pending /
-completed / rejected item counts, the recorded final point (its sha, date, `deepest_tier`, and
+completed / rejected item counts (with the pending items' titles listed under the count, also exposed
+as a `pending_titles` array in `--json`), the recorded final point (its sha, date, `deepest_tier`, and
 whether it is **stale** relative to `HEAD`), and the graph memory (node and dirty-node counts) — so a
 maintainer can see where a project stands without running a plan or cycle. `--json` emits the same
 state as a machine-readable object; by default the exit code is always 0 (an empty state is valid, not

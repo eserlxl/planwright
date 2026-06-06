@@ -39,6 +39,21 @@ def _count_checkbox(path, marker):
         return 0
 
 
+def _pending_titles(path):
+    """Return the titles of pending (`- [ ] <title>`) items in a plan file, in order.
+    A missing file yields an empty list — an absent plan is a valid state."""
+    marker = "- [ ] "
+    titles = []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith(marker):
+                    titles.append(line[len(marker):].strip())
+    except OSError:
+        return []
+    return titles
+
+
 def _head_sha(root):
     """The target's current HEAD sha, or '' when git is unavailable / not a work tree."""
     try:
@@ -78,7 +93,8 @@ def _shas_match(a, b):
 def collect(root):
     """Build the read-only state record from <root>/.planwright/."""
     pw = os.path.join(root, ".planwright")
-    pending = _count_checkbox(os.path.join(pw, "plan.md"), "- [ ]")
+    pending_titles = _pending_titles(os.path.join(pw, "plan.md"))
+    pending = len(pending_titles)
     completed = _count_checkbox(os.path.join(pw, "completed.md"), "- [x]")
     rejected = _count_checkbox(os.path.join(pw, "rejected.md"), "- [")
     head = _head_sha(root)
@@ -112,6 +128,7 @@ def collect(root):
         "root": os.path.abspath(root),
         "head": head,
         "pending": pending,
+        "pending_titles": pending_titles,
         "completed": completed,
         "rejected": rejected,
         "final_point": final_rec,
@@ -125,6 +142,8 @@ def report(state, quiet):
         return 0
     print("planwright status — " + state["root"])
     print("  pending:   %d" % state["pending"])
+    for title in state["pending_titles"]:
+        print("    - " + title)
     print("  completed: %d" % state["completed"])
     print("  rejected:  %d" % state["rejected"])
 
