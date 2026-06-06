@@ -853,13 +853,17 @@ def build(root, prior_path, scope=None, seed=None):
         prior = {}
 
     # churn + change-coupling
-    log = sh(["git", "log", "--name-only", "--format=%H", "-n", str(COUPLING_WINDOW_COMMITS)], root)
+    # Prefix the commit hash so a commit boundary is detected by an unambiguous
+    # delimiter, not by "line is exactly 40 hex chars" — a tracked file whose path
+    # is itself 40 hex chars (asset hashes, compiled artifacts) would otherwise be
+    # misread as a commit boundary, corrupting churn and change-coupling counts.
+    log = sh(["git", "log", "--name-only", "--format=commit:%H", "-n", str(COUPLING_WINDOW_COMMITS)], root)
     churn, commits, cur = {}, [], None
     for ln in log.split("\n"):
         ln = ln.strip()
         if not ln:
             continue
-        if len(ln) == 40 and all(c in "0123456789abcdef" for c in ln):
+        if ln.startswith("commit:") and len(ln) == 47 and all(c in "0123456789abcdef" for c in ln[7:]):
             cur = set()
             commits.append(cur)
         elif cur is not None and ln in fileset:
