@@ -57,6 +57,24 @@ else
   bad "status.py did not surface pending item titles"
 fi
 
+# --- Test STS7: graph block + final-point rendering from a fixture ----------------
+# Feed a known graph (3 nodes, 2 dirty) and a final point; pin the counts and the
+# report lines so a collect()/report() refactor cannot silently corrupt them.
+GFX="$TMP/status-graph"; mkdir -p "$GFX/.planwright"
+printf '{"graph_built_at_sha":"abc1234567","nodes":{"a":{},"b":{},"c":{}},"dirty":{"nodes":["a","b"]}}\n' \
+  > "$GFX/.planwright/graph.json"
+printf 'sha: abc1234567\ndate: 2026-06-07\ndeepest_tier: expand\n' > "$GFX/.planwright/final.md"
+gj="$(python3 "$STAT" --root "$GFX" --json)"
+grep_rep="$(python3 "$STAT" --root "$GFX")"
+if printf '%s' "$gj" | grep -q '"node_count": 3' \
+   && printf '%s' "$gj" | grep -q '"dirty_node_count": 2' \
+   && printf '%s' "$grep_rep" | grep -qE '^  graph: 3 nodes, 2 dirty' \
+   && printf '%s' "$grep_rep" | grep -q 'deepest_tier=expand'; then
+  ok "status.py renders graph node/dirty counts and the final-point line from a fixture"
+else
+  bad "status.py graph block or final-point rendering is wrong"
+fi
+
 # --- Test STS4: final-point staleness is HEAD-relative in a git fixture -----------
 # A final.md whose sha != HEAD is STALE; rewriting it to the real HEAD clears it.
 GFIX="$TMP/status-git"; mkdir -p "$GFIX/.planwright"
