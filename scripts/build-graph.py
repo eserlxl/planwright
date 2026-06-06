@@ -1137,8 +1137,16 @@ def main():
     root = os.path.abspath(args.root)
     try:
         graph = build(root, args.prior, args.scope, args.seed)
+    except subprocess.TimeoutExpired as e:
+        # Distinguish a transient timeout from a real failure so the user knows
+        # whether to retry (slow/large repo) or investigate (TimeoutExpired is a
+        # SubprocessError subclass, so this branch must precede the generic one).
+        sys.stderr.write(
+            f"build-graph: a git command timed out ({e}); the repository may be "
+            "very large or git may be slow — retrying may help\n")
+        return 2
     except subprocess.SubprocessError as e:
-        sys.stderr.write(f"build-graph: git command failed or timed out ({e})\n")
+        sys.stderr.write(f"build-graph: a git command failed ({e})\n")
         return 2
     if args.debug:
         debug_digest(graph, sys.stderr)
