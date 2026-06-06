@@ -7,16 +7,49 @@
 > `codvisor` shortcut resolves to `cycle 10 depth 10 explore`; `codinventor` resolves to
 > `cycle 10 depth 10 invent`.
 
-Planwright is a planning-first skill/workflow for codebase work. It audits a project, writes grounded implementation items to `.planwright/plan.md`, and can optionally execute verified items one by one.
+Planwright is a planning-first skill for codebase work. It reads your project, finds work worth
+doing, and writes it down as a checklist of concrete, verifiable steps in `.planwright/plan.md`. It
+can then work through that checklist for you — implementing each item, testing it, and committing
+the ones that pass.
 
-"Grounded" means every planned change must point back to concrete repository evidence, such as `file:line` references.
+Every item it proposes must point back to real code (a `file:line` reference) and ship with a
+command that proves it works. That's what **"grounded"** means: no vague advice, no invented
+features floating free of your actual repository.
 
-It operates using three distinct, partitioned paths:
+## Start here: the two commands
 
-- **Plan** — scans and audits the codebase, then runs a multi-stage pipeline to emit concrete, verified plan items into `.planwright/plan.md`. A valid plan item must cite real file/line evidence and include a runnable verification command. Read-only: the plan path writes only the plan file, never your source.
-- **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and records the rest. This is the only path that edits source.
-- **Cycle** — runs N plan→execute rounds unattended, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work, and stopping at a recorded *final point* when every rung is dry (pass `-N` to run until then). The opt-in **`explore`** flag turns that final point into an escalation instead of a stop: it sweeps the *cold frontier* — code the default routing under-examines — and then climbs into the **expand** tier (completing and generalizing latent capability), spending the rest of the requested cycle budget before recording a deeper final point, all without ever lowering the grounding bar. **`invent`** is the superset that adds a bounded net-new, seam-bound burst once expand is dry — and because typing `invent` is permission to create, it **must propose a net-new item** rather than declare itself done on a near-complete project (the grounding floor and structural hard ceiling never relax; below-bar/mission-stretching items are flagged). Add an opt-in **`seed <S>`** to focus the burst through one of several recorded *framings* so successive runs explore different angles instead of converging; and when invent is *repeatedly* blocked by the project's own charter, it may make a rare, dwell-gated, committed edit to **`MISSION.md`** so the charter can grow with the project (announced up front). (See [Usage](docs/usage.md) for the full `cycle`/`explore`/`invent`/`seed` reference.)
-- **Scope** *(modifier for any path above)* — add **`path <X>`** or **`lib <X>`** to aim a run at one component (a subtree or a logical library) instead of the whole repo. Plan items land in that **Focus**, while analysis still reads its 1-hop blast radius (**Context**) so root cause and impact stay visible — a scoped run matures just that component without walling off its dependencies. (See [Scope design](docs/scope-design.md).)
+Most people only need these two. Run them with no arguments and planwright does the rest — it prints
+the cost first, then works autonomously through plan→build→verify rounds until it runs out of
+worthwhile work.
+
+| Command | What it does | Reach for it when… |
+|---|---|---|
+| **`/codvisor`** | Finds and fixes real work already in your codebase — bugs, gaps, rough edges — round after round, then stops when the tree is clean. | You want your project polished and hardened without micromanaging. |
+| **`/codinventor`** | Everything `/codvisor` does, **plus** proposes genuinely new features (anchored to existing code) once the cleanup is done. | You want planwright to also *grow* the project, not just tidy it. |
+
+Both are safe by default: planning never touches your source, and when planwright does start editing
+(building items, committing), your normal edit/commit approval prompts still apply.
+
+> Under the hood, `/codvisor` is shorthand for `cycle 10 depth 10 explore` and `/codinventor` for
+> `cycle 10 depth 10 invent`. You can pass numbers to tune them (`/codvisor 5 8` = 5 rounds at
+> depth 8) — see [Quick Start](#quick-start). The full vocabulary lives in [Concepts](docs/concepts.md).
+
+## How it works: three paths
+
+Planwright separates *deciding what to do* from *doing it*. There are three paths:
+
+- **Plan** *(read-only)* — audits the codebase and writes verified plan items to
+  `.planwright/plan.md`. Each item cites real `file:line` evidence and carries a runnable
+  verification command. This path never edits your source.
+- **Execute** — works through the pending plan items: implements each, runs its verification, commits
+  the ones that pass, and records the rest. This is the only path that edits source.
+- **Cycle** — runs N plan→execute rounds unattended, climbing a maturity ladder
+  (repair → coverage → opportunity → vision) until the work runs dry. The `explore` and `invent`
+  flags (which power `/codvisor` and `/codinventor`) push it further. You can also scope any run to a
+  single component with `path`/`lib`.
+
+  → See [Concepts](docs/concepts.md) for the full story on `cycle`, `explore`, `invent`, `seed`, and
+  scoping, in plain language.
 
 ```mermaid
 flowchart LR
@@ -34,9 +67,15 @@ flowchart LR
 Your AI coding agent runs every stage through the skill, so planwright needs no external binary and
 makes no separate API/model calls beyond the active session.
 
-To keep large-codebase audits efficient, the plan path builds a **graph memory** (`.planwright/graph.json`) — import and change-coupling edges, PageRank, and articulation points — that routes audit attention toward code where changes can affect many other files and lets repeat runs re-audit only the changed subgraph. A companion `.planwright/digest.md` carries routing-only summaries that are never cited as Evidence. Both live under the gitignored `.planwright/`. See [Graph memory](docs/graph-memory-schema.md) for the schema and stages.
+On larger codebases it keeps audits efficient with a **graph memory** under the gitignored
+`.planwright/` — a map of how files import and change together, so it focuses on the code that
+matters most and re-audits only what changed between runs. See
+[Graph memory](docs/graph-memory-schema.md) for the schema and details.
 
-> **Note**: Planning never edits your application source. Only `execute` and `cycle` do — and even then, your AI coding agent's normal permission prompts for edits and commits still apply. Under `invent` specifically, those edits can — rarely, and only after the dwell gate trips — include `MISSION.md` itself; the run announces this up front, and protected paths (`.git/`, `.planwright/` internals, `LICENSE`, secrets) are never touched.
+> **Note on safety:** Planning never edits your application source — only `execute` and `cycle` do,
+> and your normal edit/commit approval prompts still apply. Protected paths (`.git/`,
+> `.planwright/` internals, `LICENSE`, secrets) are never touched. (The one rare exception —
+> `invent` editing `MISSION.md` — is explained in [Concepts](docs/concepts.md#missionmd-edits-under-invent).)
 
 ## How planwright differs from `/plan` and `/ultraplan`
 
@@ -66,7 +105,7 @@ A plan item has this 8-field shape (title plus seven required fields):
 - [ ] Guard README plan examples against schema drift
       Mode: docs
       Rationale: The README teaches the plan item format users copy into `.planwright/plan.md`.
-      Evidence: README.md:63 names the required shape for plan items.
+      Evidence: README.md:102 names the required shape for plan items.
       Surfaces: README.md, tests/run.sh
       Development: Keep the example aligned with the SKILL.md OUTPUT FORMAT and lint-plan.py checks.
       Acceptance: The example shows the checkbox title and every required continuation field.
@@ -77,6 +116,7 @@ A plan item has this 8-field shape (title plus seven required fields):
 
 For deep dives into how `planwright` operates, refer to the documentation:
 
+- [Concepts](docs/concepts.md): How planwright thinks — `cycle`, `explore`, `invent`, `seed`, and scoping, in plain language. **Start here if the flags above are new to you.**
 - [Mission](MISSION.md): Purpose, scope, and non-goals — the charter the maturity ladder aligns to.
 - [Usage](docs/usage.md): Detailed CLI reference, options, execute modes, and a troubleshooting guide (reading `final.md`, why a run wrote 0 items, scope no-match, and `build-graph.py --debug` for routing surprises).
 - [Architecture](docs/architecture.md): Explanation of the 11-stage planning pipeline and execute loop.
