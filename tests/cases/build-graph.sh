@@ -868,6 +868,31 @@ finally:
 PY
 then ok "build-graph.py resolves tsconfig paths aliases (wildcard, exact, baseUrl; JSONC-tolerant)"; else bad "tsconfig paths alias resolution wrong (apply_ts_aliases / parse_tsconfig)"; fi
 
+# --- Test 11q2: aliases resolve from a NON-default tsconfig name (monorepo) ------
+# build() discovers `paths` from tsconfig.base.json/app.json, not just tsconfig.json,
+# and falls through a tsconfig.json that carries no paths (the `extends` monorepo
+# layout). End-to-end: the alias lives only in tsconfig.base.json (commit d868d5e).
+TSBREPO="$TMP/tsbase_repo"
+mkdir -p "$TSBREPO/src/app"
+git -C "$TSBREPO" init -q
+printf 'import { x } from "@app/util";\nexport const y = x;\n' > "$TSBREPO/src/a.ts"
+printf 'export const x = 1;\n' > "$TSBREPO/src/app/util.ts"
+# tsconfig.json present but WITHOUT paths -> parse returns None -> fall through.
+printf '{ "compilerOptions": { "strict": true } }\n' > "$TSBREPO/tsconfig.json"
+# the alias is defined only in the non-default base config.
+printf '{ "compilerOptions": { "paths": { "@app/*": ["src/app/*"] } } }\n' > "$TSBREPO/tsconfig.base.json"
+git -C "$TSBREPO" add -A
+git -C "$TSBREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+tsb_out="$TMP/tsbase_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$TSBREPO" > "$tsb_out" 2>/dev/null
+if python3 - "$tsb_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+imports = g["nodes"]["src/a.ts"].get("imports", [])
+assert "src/app/util.ts" in imports, imports
+PY
+then ok "build-graph.py resolves tsconfig paths aliases from a non-default name (tsconfig.base.json)"; else bad "non-default tsconfig name alias resolution wrong (build() name list)"; fi
+
 # --- Test 11r: C/C++ angle includes resolve against -I include roots -----------
 # `#include <project/foo.h>` reaches a header through an -I include root, so it resolves
 # to a unique repo file ending in that sub-path. System headers must never forge an edge:
