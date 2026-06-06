@@ -867,7 +867,24 @@ def compute_dirty(files, nodes, prior, prior_graph, head, undirected, coupling_e
     else:
         # 1-hop blast radius along import + coupling adjacency (shared with scoping).
         adj = blast_adjacency(files, undirected, coupling_edges)
-        dirty_nodes = one_hop_closure(changed, adj, files)
+        # A deleted source file leaves no edge in the *current* graph, so its
+        # importers never enter the dirty set via `changed` (the file is gone from
+        # `files`). Seed the closure with the prior importers and coupling partners
+        # of every deleted file that still exists, so an ordinary (non-build-config)
+        # source deletion still re-audits the code whose imports/build it just broke.
+        deleted = set(prior) - set(files)
+        impacted = set()
+        if deleted:
+            for f in files:
+                if deleted.intersection(prior.get(f, {}).get("imports", ())):
+                    impacted.add(f)
+            for e in prior_graph.get("coupling_edges", ()):
+                a, b = e.get("a"), e.get("b")
+                if a in deleted and b in files:
+                    impacted.add(b)
+                elif b in deleted and a in files:
+                    impacted.add(a)
+        dirty_nodes = one_hop_closure(set(changed) | impacted, adj, files)
 
     touched = sorted({c["id"] for c in clusters if set(c["members"]) & set(dirty_nodes)})
     return {

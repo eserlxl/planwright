@@ -135,5 +135,32 @@ class TestMalformedInput(unittest.TestCase):
         self.assertIn("ok_name", result)
 
 
+class TestIncrementalDirtyDeletion(unittest.TestCase):
+    def test_deleted_source_marks_importers_dirty(self):
+        # b.py is deleted (gone from `files`); a.py imported it and is unchanged.
+        # The incremental dirty set must still mark a.py dirty so its now-broken
+        # import is re-audited, instead of producing an empty dirty set.
+        files = ["a.py"]
+        nodes = {"a.py": {"sha256": "AH"}}
+        prior = {
+            "a.py": {"sha256": "AH", "imports": ["b.py"]},
+            "b.py": {"sha256": "BH", "imports": []},
+        }
+        prior_graph = {"nodes": prior, "graph_built_at_sha": "x", "coupling_edges": []}
+        undirected = {"a.py": []}
+        clusters = [{"id": 0, "label": "c", "members": ["a.py"]}]
+        orig = bg.commits_since
+        bg.commits_since = lambda *a, **k: 0  # no divergence -> stay on the incremental path
+        try:
+            dirty = bg.compute_dirty(files, nodes, prior, prior_graph,
+                                     "head", undirected, [], clusters, ".")
+        finally:
+            bg.commits_since = orig
+        self.assertFalse(dirty["whole_graph"])
+        self.assertEqual(dirty["changed"], [])  # a.py's content did not change
+        self.assertIn("a.py", dirty["nodes"])    # importer of deleted b.py is dirty
+        self.assertIn(0, dirty["clusters"])
+
+
 if __name__ == "__main__":
     unittest.main()
