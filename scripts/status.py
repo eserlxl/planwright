@@ -193,12 +193,16 @@ def main():
     args = ap.parse_args()
 
     state = collect(args.root)
+    # Surface the convergence verdict as a first-class field so a JSON consumer reads one
+    # canonical boolean instead of re-deriving it from final_point.stale + pending (the
+    # same definition the --exit-code flag uses).
+    state["converged"] = _converged(state)
     if args.json:
         print(json.dumps(state, indent=2))
     else:
         report(state, args.quiet)
     if args.exit_code:
-        return 0 if _converged(state) else 1
+        return 0 if state["converged"] else 1
     return 0
 
 

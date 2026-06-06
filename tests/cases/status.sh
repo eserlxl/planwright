@@ -128,3 +128,24 @@ if [ -n "$echead" ]; then
 else
   ok "status.py --exit-code check skipped (git unavailable)"
 fi
+# --- Test STS9: --json exposes a canonical `converged` boolean ---------------------
+# The convergence verdict is surfaced as state["converged"] so a JSON consumer reads
+# one boolean instead of re-deriving it; it must agree with the --exit-code result.
+CVX="$TMP/status-converged"; mkdir -p "$CVX/.planwright"
+( cd "$CVX" && git init -q && git config user.email t@t && git config user.name t \
+    && git commit -q --allow-empty -m init ) 2>/dev/null
+cvhead="$(git -C "$CVX" rev-parse HEAD 2>/dev/null)"
+if [ -n "$cvhead" ]; then
+  printf 'sha: %s\ndeepest_tier: expand\n' "$cvhead" > "$CVX/.planwright/final.md"
+  conv_true="$(python3 "$STAT" --root "$CVX" --json)"
+  printf -- '- [ ] pending\n' > "$CVX/.planwright/plan.md"
+  conv_false="$(python3 "$STAT" --root "$CVX" --json)"
+  if printf '%s' "$conv_true" | grep -q '"converged": true' \
+     && printf '%s' "$conv_false" | grep -q '"converged": false'; then
+    ok "status.py --json exposes a converged boolean that tracks the convergence state"
+  else
+    bad "status.py --json converged field missing or wrong"
+  fi
+else
+  ok "status.py converged-field check skipped (git unavailable)"
+fi
