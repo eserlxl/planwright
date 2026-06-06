@@ -173,6 +173,43 @@ pd_rc=0
 pd_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PH_DOTS" 2>&1)" || pd_rc=$?
 if [ "$pd_rc" -ne 0 ] && printf '%s' "$pd_out" | grep -qF "is a placeholder"; then ok "lint-plan.py rejects an all-dots '...' Verification placeholder"; else bad "lint-plan.py accepted an all-dots '...' Verification"; fi
 
+# --- Test 12h: prose Verification (no command signal, unknown first token) -------
+# Beyond the fixed PLACEHOLDER_VERIFICATION set, is_prose_verification() flags a
+# multi-word value that carries no command-signal char AND whose first token is not a
+# known runner — "verify the output manually" is just as unrunnable as "TODO". The
+# guard must fire in BOTH directions: flag prose, but never a real two-word command
+# whose first token is a known runner (e.g. "make test" has no signal char yet is real).
+PH_PROSE="$TMP/prose_plan.md"
+cat > "$PH_PROSE" <<'EOF'
+# planwright Plan — .
+
+- [ ] Item with a prose verification
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: verify the output manually
+EOF
+pp_rc=0
+pp_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PH_PROSE" 2>&1)" || pp_rc=$?
+if [ "$pp_rc" -ne 0 ] && printf '%s' "$pp_out" | grep -qF "reads as prose"; then ok "lint-plan.py rejects a prose Verification (no runnable command)"; else bad "lint-plan.py accepted a prose Verification"; fi
+PH_MAKE="$TMP/make_test_plan.md"
+cat > "$PH_MAKE" <<'EOF'
+# planwright Plan — .
+
+- [ ] Item with a real two-word command verification
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: make test
+EOF
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PH_MAKE" --quiet; then ok "lint-plan.py allows a real two-word command (known runner, no signal char)"; else bad "lint-plan.py false-flagged 'make test' as prose"; fi
+
 # --- Test 12e: a Surface must be a safe repo-relative path -----------------------
 # os.path.join(root, p) discards root for an absolute p, so `/etc/hosts` would pass a
 # bare existence check; `../foo` can also resolve to a real file outside the repo.
