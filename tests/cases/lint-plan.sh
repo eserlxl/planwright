@@ -635,3 +635,39 @@ if [ "$file_rc" -eq 0 ]; then
 else
   bad "lint-plan.py wrongly rejected a valid file Surface (rc=$file_rc)"
 fi
+
+# --- Test 12f: a Verification running a missing repo script is a (non-failing) advisory
+# A well-formed item whose Verification invokes `bash <script>` for a script that does
+# not exist will be rejected as unverifiable at execute; lint-plan flags it early as an
+# advisory (exit 0 by default, promoted to a failure under --strict). A Verification
+# that runs an existing script, or a non-interpreter runner (ctest/make), is never flagged.
+VPDIR="$TMP/verifpath"; mkdir -p "$VPDIR"
+mk_vp() { # $1 = Verification command
+  cat > "$VPDIR/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] An item with a checkable verification
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: $1
+EOF
+}
+# missing script -> advisory (default exit 0), --strict exit 1
+mk_vp "bash tests/this-script-does-not-exist.sh"
+vp_def=0; vp_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VPDIR/plan.md" 2>&1)" || vp_def=$?
+vp_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VPDIR/plan.md" --strict --quiet || vp_strict=$?
+# existing script -> no advisory; non-interpreter runner -> no advisory
+mk_vp "bash tests/run.sh"
+vp_ok=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VPDIR/plan.md" --strict --quiet || vp_ok=$?
+mk_vp "ctest --test-dir build -R foo"
+vp_ctest=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VPDIR/plan.md" --strict --quiet || vp_ctest=$?
+if [ "$vp_def" = 0 ] && [ "$vp_strict" = 1 ] && [ "$vp_ok" = 0 ] && [ "$vp_ctest" = 0 ] \
+   && printf '%s' "$vp_out" | grep -qF "which does not exist"; then
+  ok "lint-plan.py flags a Verification that runs a missing repo script (advisory; --strict fails)"
+else
+  bad "lint-plan.py verification-path advisory wrong (def=$vp_def strict=$vp_strict ok=$vp_ok ctest=$vp_ctest)"
+fi
