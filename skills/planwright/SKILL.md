@@ -1315,12 +1315,9 @@ reads `<target>/.planwright/` and reports:
 3. **Graph memory** — from `graph.json`: the sha it was built at, its node count, and how many nodes
    the last build marked dirty.
 
-By default the exit code is always `0` — status is informational, and "no plan / no final point" is a
-valid state, not an error (unlike Doctor, which fails on a broken environment). Pass **`--exit-code`**
-to make it a scriptable gate instead: it returns non-zero when there is **actionable** state — pending
-items, or a recorded final point gone **stale** vs HEAD — and `0` otherwise, so a cron/CI job can run
-`status --exit-code || planwright cycle -1`. Status output is **never** valid Evidence (it summarizes
-routing/status state, like the graph and final-point markers).
+The exit code is always `0` — status is informational, and "no plan / no final point" is a valid
+state, not an error (unlike Doctor, which fails on a broken environment). It is **never** valid
+Evidence (it summarizes routing/status state, like the graph and final-point markers).
 
 **By-hand fallback** (no `python3`): read `<target>/.planwright/` directly — count the `- [ ]` /
 `- [x]` lines in `plan.md`/`completed.md`, the items in `rejected.md`, the `sha`/`deepest_tier` in

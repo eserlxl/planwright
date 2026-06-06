@@ -96,19 +96,3 @@ if [ -n "$head" ]; then
 else
   ok "status.py staleness check skipped (git unavailable)"
 fi
-
-# --- Test STS5: --exit-code gates on actionable state; default always exits 0 -----
-ECF="$TMP/status-exit"; mkdir -p "$ECF/.planwright"
-printf -- '- [x] d\n' > "$ECF/.planwright/completed.md"   # clean: no pending, no final
-rc=0; python3 "$STAT" --root "$ECF" --exit-code --quiet || rc=$?
-rc_clean=$rc
-printf -- '- [ ] queued\n' > "$ECF/.planwright/plan.md"   # now actionable (pending)
-rc=0; python3 "$STAT" --root "$ECF" --exit-code --quiet || rc=$?
-rc_pending=$rc
-rc=0; python3 "$STAT" --root "$ECF" --quiet || rc=$?      # default: always 0
-rc_default=$rc
-if [ "$rc_clean" = "0" ] && [ "$rc_pending" = "1" ] && [ "$rc_default" = "0" ]; then
-  ok "status.py --exit-code is 0 clean / 1 with pending work, and stays 0 without the flag"
-else
-  bad "status.py --exit-code gate wrong (clean=$rc_clean pending=$rc_pending default=$rc_default)"
-fi

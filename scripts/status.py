@@ -175,22 +175,13 @@ def main():
                     help="emit the state as JSON instead of the readable report")
     ap.add_argument("--quiet", action="store_true",
                     help="suppress the readable report (exit code only)")
-    ap.add_argument("--exit-code", action="store_true",
-                    help="exit non-zero when there is actionable state (pending items, or a "
-                         "recorded final point gone stale vs HEAD); for scripting/CI gates")
     args = ap.parse_args()
 
     state = collect(args.root)
-    # Actionable = work is queued, or the tree has moved past the last recorded conclusion.
-    fp = state["final_point"]
-    actionable = state["pending"] > 0 or bool(fp and fp["stale"])
-    rc = 1 if (args.exit_code and actionable) else 0
-
     if args.json:
         print(json.dumps(state, indent=2))
-        return rc
-    report(state, args.quiet)
-    return rc
+        return 0
+    return report(state, args.quiet)
 
 
 if __name__ == "__main__":
