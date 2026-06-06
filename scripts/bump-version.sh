@@ -73,7 +73,9 @@ PY
 NEW="$(python3 - "$CURRENT" "$BUMP" <<'PY'
 import re, sys
 cur, bump = sys.argv[1], sys.argv[2]
-if re.fullmatch(r"\d+\.\d+\.\d+", bump):
+# Accept an explicit target version: strict X.Y.Z, optionally with a SemVer
+# pre-release (-rc1) and/or build (+meta) suffix, so a pre-release can be cut.
+if re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", bump):
     print(bump); raise SystemExit
 try:
     major, minor, patch = (int(x) for x in cur.split("."))
