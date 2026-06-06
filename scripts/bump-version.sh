@@ -26,6 +26,10 @@ MARKET_JSON="$ROOT/.claude-plugin/marketplace.json"
 CODEX_PLUGIN_JSON="$ROOT/.codex-plugin/plugin.json"
 CHANGELOG="$ROOT/CHANGELOG.md"
 
+# Portable repo-relative path. GNU realpath's relative mode is unavailable on
+# stock macOS without Homebrew; python3 is already required by this script.
+relpath() { python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$1" "$ROOT"; }
+
 usage() {
   echo "Usage: $(basename "$0") <major|minor|patch|X.Y.Z> [-m \"changelog note\"] [--dry-run]" >&2
   exit 1
@@ -124,7 +128,7 @@ fi
 SKILLS_SYNCED=""
 for skill in "$ROOT"/skills/*/SKILL.md; do
   [ -f "$skill" ] || continue
-  rel="$(realpath --relative-to="$ROOT" "$skill")"
+  rel="$(relpath "$skill")"
   if [ -n "$DRY_RUN" ]; then
     has_ver="$(python3 -c "import re,sys;t=open(sys.argv[1]).read();print('1' if re.search(r'\n  version:', t) else '0')" "$skill")"
     if [ "$has_ver" = "1" ]; then SKILLS_SYNCED="$SKILLS_SYNCED $rel"; else echo "warning: no metadata 'version:' line in $rel; skipped" >&2; fi
@@ -181,9 +185,9 @@ if [ -n "$DRY_RUN" ]; then
   [ -n "$SKILLS_SYNCED" ] && echo "  would sync$SKILLS_SYNCED"
 else
   echo "Bumped: $CURRENT -> $NEW"
-  echo "  updated $(realpath --relative-to="$ROOT" "$PLUGIN_JSON")"
-  echo "  updated $(realpath --relative-to="$ROOT" "$MARKET_JSON")"
-  [ -f "$CODEX_PLUGIN_JSON" ] && echo "  updated $(realpath --relative-to="$ROOT" "$CODEX_PLUGIN_JSON")"
+  echo "  updated $(relpath "$PLUGIN_JSON")"
+  echo "  updated $(relpath "$MARKET_JSON")"
+  [ -f "$CODEX_PLUGIN_JSON" ] && echo "  updated $(relpath "$CODEX_PLUGIN_JSON")"
   [ -n "$SKILLS_SYNCED" ] && echo "  updated$SKILLS_SYNCED"
   echo "  changelog entry added ($DATE)"
   echo
