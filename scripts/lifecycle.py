@@ -46,8 +46,18 @@ def parse(text):
             blocks.append(cur)
         elif cur is not None and ln.startswith((" ", "\t")):
             cur["lines"].append(ln)
+        elif ln.strip() == "":
+            cur = None  # a blank line ends the current block
         else:
-            cur = None  # blank or non-indented line ends the current block
+            # Non-indented, non-checkbox text between blocks (a header, note, or
+            # separator) is kept as an `interstitial` block so parse()->render()
+            # round-trips it instead of silently dropping it. Interstitials never
+            # count as pending and are never drained (see reset_if_empty / drain).
+            if cur is not None and cur.get("interstitial"):
+                cur["lines"].append(ln)
+            else:
+                cur = {"interstitial": True, "checked": False, "lines": [ln]}
+                blocks.append(cur)
     for b in blocks:
         b["rejected"] = bool(REJECTED.search("\n".join(b["lines"])))
     return preamble, blocks
@@ -103,7 +113,8 @@ def reset_if_empty(plan_path):
         return False
     with open(plan_path, encoding="utf-8") as fh:
         _, blocks = parse(fh.read())
-    pending = [b for b in blocks if not b["checked"] and not b["rejected"]]
+    pending = [b for b in blocks
+               if not b.get("interstitial") and not b["checked"] and not b["rejected"]]
     if not pending:
         os.remove(plan_path)
         return True
