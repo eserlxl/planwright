@@ -881,8 +881,11 @@ def build(root, prior_path, scope=None, seed=None):
     pair_co = coupling_pairs(commits)
 
     # tsconfig/jsconfig compilerOptions.paths aliases, so `@app/x` style imports resolve.
+    # Include the common non-default names (tsconfig.base.json / tsconfig.app.json) used in
+    # mono-repos; first config that actually carries `paths` wins — a name with no paths
+    # returns None and falls through (the usual `tsconfig.json extends tsconfig.base.json`).
     ts_aliases = None
-    for cfg in ("tsconfig.json", "jsconfig.json"):
+    for cfg in ("tsconfig.json", "tsconfig.base.json", "tsconfig.app.json", "jsconfig.json"):
         if cfg in fileset:
             ts_aliases = parse_tsconfig(os.path.join(root, cfg), os.path.dirname(cfg))
             if ts_aliases:
