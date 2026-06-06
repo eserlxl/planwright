@@ -1028,22 +1028,41 @@ system.
 
 For each targeted pending item, in plan order:
 
-1. **Implement** the `Development:` line. Edit only the declared `Surfaces:` (and create the declared
+1. **Value gate (challenge before applying).** Before writing any code, re-judge the item against four
+   keep/kill checks — this is a second, *apply-time* filter independent of the planning value bar
+   (Stage 10), so a marginal item that slipped through planning is caught here instead of padding the
+   tree:
+   - **(a) named failure** — the item must state the concrete bug/regression it prevents or the
+     capability it adds. A test that merely asserts a string/section still exists in a doc or
+     instruction file is **not** a named failure.
+   - **(b) removal test** — if the item did not exist, something must break that *nothing else already
+     catches*. If nothing would break, kill it.
+   - **(c) real consumer** — a user or maintainer who actually hits it. "Someone might script it" /
+     "might be nice" is not a consumer.
+   - **(d) not self-justifying** — an item whose only effect is to test code written **this same run**
+     counts only if it pins externally-observable behaviour, never internals.
+
+   If the item fails **any** check, do **not** implement it: leave `- [ ]` unflipped, append a
+   `Status:Rejected` with `Rejection: value-gate: <which check failed>`, move it to `rejected.md` (FIFO
+   cap 100), and continue. The machine-readable `value-gate:` reason feeds the next plan's PREVIOUSLY
+   REJECTED set (Stage 1), so the whole class is not re-proposed. A value-gate rejection is **not** a
+   hard blocker — keep going. (Prefer three real commits to seven padded ones.)
+2. **Implement** the `Development:` line. Edit only the declared `Surfaces:` (and create the declared
    `New Surfaces:`). If the work would require touching files outside those surfaces, treat the item
    as **blocked** (see below) rather than expanding scope silently.
-2. **Verify** — run the item's `Verification:` command exactly.
+3. **Verify** — run the item's `Verification:` command exactly.
    - If the item has no `Verification:` line, or the command cannot be run (missing target, unknown
      tool), do **not** mark it done — reject it with reason `unverifiable: <detail>`.
-3. **On PASS** — flip `- [ ]` to `- [x]` in `plan.md`, then commit on the current branch with a message
+4. **On PASS** — flip `- [ ]` to `- [x]` in `plan.md`, then commit on the current branch with a message
    that describes the change itself — typically the `<item title>` as the subject (use the Haiku commit
    convention if configured). Do **not** prefix the subject with `planwright:` or otherwise name the
    tool; the commit should read as a normal change to the repo. Move the completed item to
    `completed.md` and enforce the FIFO cap of 100.
-4. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
+5. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
    fails, **reject**: revert this item's edits (`git restore` / `git checkout --` the touched paths so
    no partial change is committed), append a `Status:Rejected` and `Rejection: <one-line reason>` to
    the item, move it to `rejected.md` (FIFO cap 100), and continue.
-5. **Blocked** — if the item depends on an unresolved design decision, or needs surfaces it does not
+6. **Blocked** — if the item depends on an unresolved design decision, or needs surfaces it does not
    declare, leave it pending, record why, and treat it as a **hard blocker**: in auto mode STOP here.
 
 ## After all targeted items — broad final verification
