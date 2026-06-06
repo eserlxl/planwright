@@ -64,3 +64,27 @@ if [ "$rc" = "1" ] && [ -z "$qout" ]; then
 else
   bad "check-links.py --quiet was not silent or lost its exit code (rc=$rc out='$qout')"
 fi
+
+# --- Test CL5: link titles and angle-bracket targets resolve; broken titled link caught
+# clean_target() strips a trailing "title" and a <...> wrapper. Pin both branches: a
+# titled link and an angle-bracket link to an existing file must pass, while a titled
+# link to a missing file must still be flagged (with the title stripped from the report).
+TT="$TMP/check-links-title"; mkdir -p "$TT"
+git -C "$TT" init -q
+printf '# Home\n\n[a](other.md "a title")\n[b](<other.md>)\n' > "$TT/good.md"
+printf '# Other\n' > "$TT/other.md"
+git -C "$TT" add -A
+rc=0; out="$(python3 "$CL" --root "$TT")" || rc=$?
+if [ "$rc" = "0" ] && printf '%s' "$out" | grep -q 'markdown file(s) OK'; then
+  ok "check-links.py resolves a titled link and an angle-bracket target"
+else
+  bad "check-links.py mis-parsed a titled or angle-bracket link (rc=$rc): $out"
+fi
+printf '[c](missing.md "t")\n' >> "$TT/good.md"
+git -C "$TT" add -A
+rc=0; out="$(python3 "$CL" --root "$TT")" || rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$out" | grep -q 'missing.md (file does not exist)'; then
+  ok "check-links.py flags a broken titled link with the title stripped from the report"
+else
+  bad "check-links.py did not flag a broken titled link (rc=$rc): $out"
+fi
