@@ -358,6 +358,33 @@ if [ "$ld_rc" -ne 0 ]; then ok "lint-plan.py fails on convergence violations"; e
 if printf '%s' "$ld_out" | grep -qF "duplicate pending title: 'A finished thing'"; then ok "lint-plan.py flags a duplicate pending title"; else bad "lint-plan.py missed a duplicate pending title"; fi
 if printf '%s' "$ld_out" | grep -qF "both Surfaces and New Surfaces"; then ok "lint-plan.py flags a Surfaces/New-Surfaces overlap"; else bad "lint-plan.py missed a Surfaces/New-Surfaces overlap"; fi
 
+# --- Test 12d-strict: --strict promotes a re-proposal advisory to a failure -------
+# A well-formed plan whose only issue is a pending title matching a completed item is
+# an advisory (does NOT fail by default), so a CI gate cannot catch an accidental
+# re-proposal. --strict promotes such advisories to failures (exit 1) to enforce the
+# monotonic-drain guarantee; without it the same plan stays clean (exit 0).
+SDIR="$TMP/strictdir"; mkdir -p "$SDIR"
+printf '# completed\n\n- [x] Reuse me\n' > "$SDIR/completed.md"
+cat > "$SDIR/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] Reuse me
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+st_def=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SDIR/plan.md" --quiet || st_def=$?
+st_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SDIR/plan.md" --strict --quiet || st_strict=$?
+if [ "$st_def" = 0 ] && [ "$st_strict" = 1 ]; then
+  ok "lint-plan.py --strict promotes a re-proposal advisory to a failure (default stays clean)"
+else
+  bad "lint-plan.py --strict wrong (default=$st_def strict=$st_strict)"
+fi
+
 # --- Test 12e: lint-plan.py --scope mechanizes the Stage 10 Surfaces-in-Focus gate
 # Reads the builder's focus/context sets: a Surface in Focus passes; an out-of-Focus
 # existing Surface fails (a non-repair in Context, or anything outside Context); a

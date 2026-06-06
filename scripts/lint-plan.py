@@ -433,6 +433,9 @@ def main():
     ap.add_argument("--scope", default=None,
                     help="a graph.json (built with --scope) whose focus/context node sets gate "
                          "Surfaces-in-Focus for a scoped run; no-op when its focus is empty")
+    ap.add_argument("--strict", action="store_true",
+                    help="promote advisories (re-proposing completed/rejected work; upstream-of-"
+                         "Focus surfaces) to failures, so a CI gate can enforce monotonic-drain")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
 
@@ -529,6 +532,9 @@ def main():
                 print(f"note: '{it['title']}' matches a rejected item — confirm the rejection reason is resolved")
 
     note_total = notes + scope_notes
+    # --strict promotes advisories to failures so automation can enforce monotonic-drain;
+    # by default advisories never affect the exit code (Claude confirms them by hand).
+    fail = bool(total) or (args.strict and bool(note_total))
     if args.json:
         out_json = {
             "total_items": len(items),
@@ -553,16 +559,18 @@ def main():
             if item_out["violations"] or item_out["advisories"]:
                 out_json["items"].append(item_out)
         print(json.dumps(out_json, indent=2))
-        return 1 if total else 0
+        return 1 if fail else 0
 
     if not args.quiet:
         n = len(items)
         suffix = f" ({note_total} advisory note(s))" if note_total else ""
-        if total == 0:
+        if total == 0 and not (args.strict and note_total):
             print(f"lint-plan: {n} item(s) OK{suffix}")
+        elif total == 0:
+            print(f"lint-plan: {note_total} advisory note(s) failed --strict across {n} item(s)")
         else:
             print(f"lint-plan: {total} violation(s) across {n} item(s){suffix}")
-    return 1 if total else 0
+    return 1 if fail else 0
 
 
 if __name__ == "__main__":
