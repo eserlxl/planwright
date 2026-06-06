@@ -215,8 +215,10 @@ def check_git_identity(root):
 GLYPH = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL"}
 
 
-def report(records, quiet):
-    """Print the human-readable report and return the process exit code."""
+def report(records, quiet, strict=False):
+    """Print the human-readable report and return the process exit code. By default
+    only a `fail` sets a non-zero code; --strict also fails on any `warn` so a CI
+    preflight can require a pristine (not merely runnable) environment."""
     fails = sum(1 for r in records if r["status"] == "fail")
     warns = sum(1 for r in records if r["status"] == "warn")
     if not quiet:
@@ -226,9 +228,10 @@ def report(records, quiet):
             if r["status"] != "ok":
                 print("         degrades: %s" % r["degrades"])
         verdict = "FAIL" if fails else ("WARN" if warns else "OK")
-        print("doctor: %s (%d fail, %d warn, %d total)"
-              % (verdict, fails, warns, len(records)))
-    return 1 if fails else 0
+        strict_note = " [--strict: warn → fail]" if (strict and warns and not fails) else ""
+        print("doctor: %s (%d fail, %d warn, %d total)%s"
+              % (verdict, fails, warns, len(records), strict_note))
+    return 1 if (fails or (strict and warns)) else 0
 
 
 def main():
@@ -239,6 +242,9 @@ def main():
                     help="emit the findings as JSON instead of the readable report")
     ap.add_argument("--quiet", action="store_true",
                     help="suppress the readable report (exit code only)")
+    ap.add_argument("--strict", action="store_true",
+                    help="also exit non-zero on any warn (un-ignored .planwright/, unset "
+                         "git identity, missing rg/fd), so CI can require a pristine env")
     args = ap.parse_args()
 
     records = (check_tools() + check_scripts() + check_target(args.root)
@@ -255,9 +261,9 @@ def main():
             "checks": records,
         }
         print(json.dumps(payload, indent=2))
-        return 1 if fails else 0
+        return 1 if (fails or (args.strict and warns)) else 0
 
-    return report(records, args.quiet)
+    return report(records, args.quiet, args.strict)
 
 
 if __name__ == "__main__":

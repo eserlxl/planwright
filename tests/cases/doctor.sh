@@ -158,3 +158,27 @@ if [ "$rc" = "0" ] && [ "$id_warn" = "1" ] && [ "$id_ok" = "1" ]; then
 else
   bad "doctor.py mis-graded the git commit-identity check (rc=$rc warn=$id_warn ok=$id_ok)"
 fi
+
+# --- Test DR9: --strict promotes warns to failures (pristine-env gate) ------------
+# A fresh git work tree with no .gitignore has at least one warn (.planwright/ not
+# ignored) and no fail: doctor exits 0 by default but 1 under --strict, so a CI
+# preflight can require a pristine (not merely runnable) env. Default is unchanged.
+STR="$TMP/doctor-strict"; mkdir -p "$STR"
+git -C "$STR" init -q
+ds_def=0; python3 "$DOC" --root "$STR" --quiet || ds_def=$?
+ds_strict=0; python3 "$DOC" --root "$STR" --strict --quiet || ds_strict=$?
+ds_env=0
+python3 "$DOC" --root "$STR" --json | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+sys.exit(0 if d["fail"]==0 and d["warn"]>0 else 1)
+' && ds_env=1
+if [ "$ds_env" = 1 ]; then
+  if [ "$ds_def" = 0 ] && [ "$ds_strict" = 1 ]; then
+    ok "doctor.py --strict promotes warns to failures (default stays exit 0)"
+  else
+    bad "doctor.py --strict wrong (default=$ds_def strict=$ds_strict)"
+  fi
+else
+  ok "doctor.py --strict check skipped (env has a fail or no warn)"
+fi
