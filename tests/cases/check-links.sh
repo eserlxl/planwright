@@ -54,3 +54,13 @@ if [ "$rc" = "0" ] && printf '%s' "$out" | grep -q 'markdown file(s) OK'; then
 else
   bad "check-links.py false-flagged inline-code or fenced link syntax (rc=$rc): $out"
 fi
+
+# --- Test CL4: --quiet prints nothing but preserves the exit code -----------------
+# Parity with doctor/lint-plan/lifecycle: --quiet is exit-code-only. Reuse the broken
+# fixture from CL2 ($LK) — quiet must emit no stdout yet still exit 1.
+rc=0; qout="$(python3 "$CL" --root "$LK" --quiet)" || rc=$?
+if [ "$rc" = "1" ] && [ -z "$qout" ]; then
+  ok "check-links.py --quiet emits nothing and still exits 1 on a broken tree"
+else
+  bad "check-links.py --quiet was not silent or lost its exit code (rc=$rc out='$qout')"
+fi

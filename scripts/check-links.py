@@ -20,10 +20,11 @@
 # failure: anything it cannot resolve confidently (a non-.md anchor target, a multi-line
 # link, an unparseable heading) is skipped rather than flagged. It only reads the tree.
 #
-#   python3 scripts/check-links.py [--root DIR]
+#   python3 scripts/check-links.py [--root DIR] [--quiet]
 #
 # Exit status: 0 when every intra-repo link/anchor resolves, 1 when any is broken (each
 # printed as `file:line: broken link -> target (reason)`), 2 on a usage/enumeration error.
+# --quiet suppresses all output and sets only the exit code (parity with the siblings).
 import argparse
 import os
 import re
@@ -165,23 +166,29 @@ def check_file(root, relpath, anchor_cache):
 def main():
     ap = argparse.ArgumentParser(description="Check intra-repo Markdown links and anchors.")
     ap.add_argument("--root", default=".", help="repo root to check (default: cwd)")
+    ap.add_argument("--quiet", action="store_true",
+                    help="print nothing; only set the exit code (parity with the sibling scripts)")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:
         files = list_markdown(root)
     except (OSError, subprocess.SubprocessError) as exc:
-        sys.stderr.write("check-links: could not enumerate markdown files (%s)\n" % exc)
+        if not args.quiet:
+            sys.stderr.write("check-links: could not enumerate markdown files (%s)\n" % exc)
         return 2
 
     anchor_cache, total = {}, 0
     for relpath in files:
         for lineno, target, reason in check_file(root, relpath, anchor_cache):
             total += 1
-            print("%s:%d: broken link -> %s (%s)" % (relpath, lineno, target, reason))
+            if not args.quiet:
+                print("%s:%d: broken link -> %s (%s)" % (relpath, lineno, target, reason))
     if total:
-        print("check-links: %d broken link(s) across %d file(s)" % (total, len(files)))
+        if not args.quiet:
+            print("check-links: %d broken link(s) across %d file(s)" % (total, len(files)))
         return 1
-    print("check-links: %d markdown file(s) OK" % len(files))
+    if not args.quiet:
+        print("check-links: %d markdown file(s) OK" % len(files))
     return 0
 
 
