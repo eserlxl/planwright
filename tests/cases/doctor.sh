@@ -17,7 +17,9 @@ if [ "$rc" = "0" ] \
    && printf '%s' "$out" | grep -q '"fail": 0' \
    && printf '%s' "$out" | grep -q '"<scripts>/build-graph.py"' \
    && printf '%s' "$out" | grep -q '"<scripts>/lint-plan.py"' \
-   && printf '%s' "$out" | grep -q '"<scripts>/lifecycle.py"'; then
+   && printf '%s' "$out" | grep -q '"<scripts>/lifecycle.py"' \
+   && printf '%s' "$out" | grep -q '"<scripts>/status.py"' \
+   && printf '%s' "$out" | grep -q '"<scripts>/check-links.py"'; then
   ok "doctor.py reports ok=true (exit 0) in a healthy env with all bundled scripts"
 else
   bad "doctor.py did not pass in a healthy env (rc=$rc)"
@@ -35,13 +37,13 @@ fi
 
 # --- Test DR3: a broken install (no sibling scripts) FAILs with exit 1 -----------
 # Copy doctor.py ALONE into an isolated dir; check_scripts resolves siblings from
-# __file__, so all three bundled scripts are missing -> 3 fails -> ok=false, exit 1.
+# __file__, so all five bundled scripts are missing -> 5 fails -> ok=false, exit 1.
 ISO="$TMP/doctor-iso"; mkdir -p "$ISO"
 cp "$DOC" "$ISO/doctor.py"
 rc=0; out="$(python3 "$ISO/doctor.py" --root "$ROOT" --json)" || rc=$?
 if [ "$rc" = "1" ] \
    && printf '%s' "$out" | grep -q '"ok": false' \
-   && printf '%s' "$out" | grep -q '"fail": 3' \
+   && printf '%s' "$out" | grep -q '"fail": 5' \
    && printf '%s' "$out" | grep -q '"status": "fail"'; then
   ok "doctor.py FAILs (exit 1) when the bundled scripts cannot be resolved beside it"
 else

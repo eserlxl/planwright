@@ -43,6 +43,8 @@ BUNDLED = [
     ("build-graph.py", "Stage 1.5 code-graph build (centrality, cycles, scope)"),
     ("lint-plan.py", "Stage 11 / Execute structural plan lint"),
     ("lifecycle.py", "Stage 0 lifecycle housekeeping (drain / FIFO / reset)"),
+    ("status.py", "the `status` read-only planning-state summary"),
+    ("check-links.py", "the intra-repo Markdown link-check verification command"),
 ]
 
 

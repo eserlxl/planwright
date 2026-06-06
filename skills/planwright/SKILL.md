@@ -1297,8 +1297,9 @@ seams and the target:
 1. **Host tools** — `python3` (the bundled-script runtime), `git` (graph file enumeration,
    change-coupling edges, Execute's per-item commits), `rg`/`fd` (fast Stage 1 scanning). Each is
    reported present/absent with its version and exactly what degrades when missing.
-2. **Bundled-script resolution** — that `build-graph.py`, `lint-plan.py`, and `lifecycle.py` resolve
-   beside `doctor.py` (the `<scripts>` seam). A miss here means a broken/partial install.
+2. **Bundled-script resolution** — that the bundled scripts (`build-graph.py`, `lint-plan.py`,
+   `lifecycle.py`, `status.py`, and `check-links.py`) resolve beside `doctor.py` (the `<scripts>`
+   seam). A miss here means a broken/partial install.
 3. **Target** — whether `--root` is a git work tree (the graph build needs one), whether that
    tree gitignores `.planwright/` (the tool-state directory; a repo that forgets to ignore it commits
    plan/graph/digest as noise), and whether a git commit identity (`user.name`/`user.email`) is set
