@@ -563,3 +563,48 @@ else
   bad "lint-plan.py --fix wrongly rewrote a typo'd Surface or a completed item"
 fi
 
+
+# --- Test: a directory Surface is rejected; an equivalent file Surface passes -------
+# OUTPUT FORMAT: Surfaces are existing *files* that change. A directory passes the bare
+# existence check but is not an editable boundary, so lint_item must flag it. A real file
+# at the same root must still pass (the guard fires only on directories).
+DIRPLAN="$TMP/dir_surface_plan.md"
+cat > "$DIRPLAN" <<'EOP'
+# planwright Plan — .
+
+- [ ] Item naming a directory as a Surface
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/ exists.
+      Surfaces: scripts
+      Development: edit something under scripts/.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOP
+dir_rc=0
+dir_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$DIRPLAN" 2>&1)" || dir_rc=$?
+if [ "$dir_rc" -ne 0 ] && printf '%s' "$dir_out" | grep -qF "is a directory"; then
+  ok "lint-plan.py rejects a directory Surface (must name specific files)"
+else
+  bad "lint-plan.py accepted a directory Surface (rc=$dir_rc): $dir_out"
+fi
+FILEPLAN="$TMP/file_surface_plan.md"
+cat > "$FILEPLAN" <<'EOP'
+# planwright Plan — .
+
+- [ ] Item naming a file as a Surface
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOP
+file_rc=0
+python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$FILEPLAN" --quiet || file_rc=$?
+if [ "$file_rc" -eq 0 ]; then
+  ok "lint-plan.py accepts a file Surface (directory guard does not over-fire)"
+else
+  bad "lint-plan.py wrongly rejected a valid file Surface (rc=$file_rc)"
+fi

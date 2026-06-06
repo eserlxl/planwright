@@ -213,6 +213,11 @@ def lint_item(item, root):
             v.append(f"Surface '{p}' is not a safe repo-relative path: {reason}")
         elif not os.path.exists(os.path.join(root, p)):
             v.append(f"Surface '{p}' does not exist under root")
+        elif os.path.isdir(os.path.join(root, p)):
+            # OUTPUT FORMAT: Surfaces are existing *files* that will change. A directory
+            # passes os.path.exists but is not an editable boundary the execute path can
+            # honor, so name the specific file(s) instead.
+            v.append(f"Surface '{p}' is a directory; name the specific file(s) that change")
     for p in new_surfaces:
         if os.path.basename(p) == "CMakeLists":
             v.append(f"New Surface '{p}' must be spelled CMakeLists.txt")
