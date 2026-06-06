@@ -117,5 +117,10 @@ assert "cycle 3 depth 10 explore" in body[ei:], "no explore phase after invent"
 # the no-arg default (10 outer cycles) and the negative=infinite rule
 assert "10 outer cycles" in body, "no-arg default of 10 outer cycles not stated"
 assert "negative" in body.lower(), "negative=infinite rule not stated"
+# the heavy-run cost banner — doubles as the invent-may-edit-MISSION.md awareness notice
+assert "codcycle: max-intensity alternating sweep" in body, "cost-banner / invent awareness notice missing"
+assert "MISSION.md" in body, "invent-may-edit-MISSION.md awareness clause missing"
+# the help/usage line so /codcycle help (and bad args) stays documented
+assert "Usage: /codcycle" in body, "help Usage line missing"
 PY
 then ok "commands/codcycle.md has valid frontmatter and orchestrates the explore→invent→explore triad"; else bad "commands/codcycle.md malformed or lost its triad/delegation/default contract"; fi
