@@ -119,8 +119,11 @@ def unsafe_surface(p, root):
         return "absolute path (Surfaces must be repo-relative)"
     if ".." in np.split("/"):
         return "parent-directory traversal '..' (Surfaces must stay within the repo)"
-    full = os.path.normpath(os.path.join(root, np))
-    rootn = os.path.normpath(root)
+    # realpath (not normpath) so a path reachable only through an in-repo symlink
+    # that escapes the root is caught — normpath leaves symlinks unresolved, which
+    # would let `link/secret` (link -> outside) pass the containment check below.
+    full = os.path.realpath(os.path.join(root, np))
+    rootn = os.path.realpath(root)
     if full != rootn and not full.startswith(rootn + os.sep):
         return "resolves outside the repo root"
     return None
