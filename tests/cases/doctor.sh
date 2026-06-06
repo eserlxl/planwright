@@ -184,3 +184,37 @@ if [ "$ds_env" = 1 ]; then
 else
   ok "doctor.py --strict check skipped (env has a fail or no warn)"
 fi
+
+# --- Test DR10: --fix auto-remediates the .planwright/ gitignore warn --------------
+# A fresh git work tree with no .gitignore warns on .planwright/; `doctor --fix` appends
+# a `.planwright/` rule and the re-check reports ok. Idempotent: a second --fix is a
+# no-op, and the other warns are never auto-fixed.
+FIXR="$TMP/doctor-fix"; mkdir -p "$FIXR"
+git -C "$FIXR" init -q
+fx_warn=0
+python3 "$DOC" --root "$FIXR" --json | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+c={r["name"]:r["status"] for r in d["checks"]}
+sys.exit(0 if c.get(".planwright/ is gitignored")=="warn" else 1)
+' && fx_warn=1
+fx_out="$(python3 "$DOC" --root "$FIXR" --fix --json)"
+fx_now_ok=0
+printf '%s' "$fx_out" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+c={r["name"]:r["status"] for r in d["checks"]}
+sys.exit(0 if c.get(".planwright/ is gitignored")=="ok" and d.get("fixed") else 1)
+' && fx_now_ok=1
+# the rule is actually in .gitignore, and a second --fix is a no-op (fixed: null)
+fx_rule=0; grep -qx '.planwright/' "$FIXR/.gitignore" && fx_rule=1
+fx_idem=0
+python3 "$DOC" --root "$FIXR" --fix --json | python3 -c '
+import json,sys
+sys.exit(0 if json.load(sys.stdin).get("fixed") is None else 1)
+' && fx_idem=1
+if [ "$fx_warn" = 1 ] && [ "$fx_now_ok" = 1 ] && [ "$fx_rule" = 1 ] && [ "$fx_idem" = 1 ]; then
+  ok "doctor.py --fix adds .planwright/ to .gitignore, flips the warn to ok, and is idempotent"
+else
+  bad "doctor.py --fix wrong (warn=$fx_warn nowok=$fx_now_ok rule=$fx_rule idem=$fx_idem)"
+fi

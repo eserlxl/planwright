@@ -236,6 +236,32 @@ def report(records, quiet, strict=False):
     return 1 if (fails or (strict and warns)) else 0
 
 
+def apply_gitignore_fix(root):
+    """Auto-remediate the one fixable warn: if the work tree does not ignore .planwright/,
+    append a `.planwright/` rule to <root>/.gitignore (creating it if absent) and return
+    the gitignore path; else None. The other warns are deliberately not auto-fixed — an
+    unset git identity needs the user's name/email and a missing rg/fd cannot be installed
+    from here. Mirrors lint-plan --fix: an opt-in, narrow, reviewable write."""
+    if check_gitignore(root)[0]["status"] != "warn":
+        return None
+    gi = os.path.join(root, ".gitignore")
+    try:
+        with open(gi, encoding="utf-8") as fh:
+            existing = fh.read()
+    except OSError:
+        existing = ""
+    if ".planwright/" in [ln.strip() for ln in existing.splitlines()]:
+        return None
+    try:
+        with open(gi, "a", encoding="utf-8") as fh:
+            if existing and not existing.endswith("\n"):
+                fh.write("\n")
+            fh.write(".planwright/\n")
+    except OSError:
+        return None
+    return gi
+
+
 def main():
     ap = argparse.ArgumentParser(description="planwright environment preflight (doctor).")
     ap.add_argument("--root", default=".",
@@ -247,7 +273,12 @@ def main():
     ap.add_argument("--strict", action="store_true",
                     help="also exit non-zero on any warn (un-ignored .planwright/, unset "
                          "git identity, missing rg/fd), so CI can require a pristine env")
+    ap.add_argument("--fix", action="store_true",
+                    help="auto-remediate the one fixable warn by adding `.planwright/` to "
+                         ".gitignore (the other warns need the user); then re-check")
     args = ap.parse_args()
+
+    fixed = apply_gitignore_fix(args.root) if args.fix else None
 
     records = (check_tools() + check_scripts() + check_target(args.root)
                + check_gitignore(args.root) + check_git_identity(args.root))
@@ -262,9 +293,13 @@ def main():
             "total": len(records),
             "checks": records,
         }
+        if args.fix:
+            payload["fixed"] = fixed
         print(json.dumps(payload, indent=2))
         return 1 if (fails or (args.strict and warns)) else 0
 
+    if fixed and not args.quiet:
+        print("doctor: fixed — added `.planwright/` to " + fixed)
     return report(records, args.quiet, args.strict)
 
 

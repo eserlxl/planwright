@@ -1287,7 +1287,9 @@ STOP after reporting.
 Reached only via `planwright doctor` (or the host equivalent such as `/planwright doctor`). A
 read-only **preflight**: it inspects the host environment and reports, up front, which capabilities
 would silently degrade during a real run — instead of letting those fallbacks surface mid-pipeline.
-It writes nothing and never plans.
+It never plans, and by default writes nothing; the one exception is the opt-in `--fix` flag, which
+auto-remediates the single fixable warn by adding `.planwright/` to `.gitignore` (the other warns —
+an unset git identity, a missing tool — need the user) and then re-checks. Mirrors `lint-plan --fix`.
 
 **Canonical check.** Prefer the deterministic, test-covered `<scripts>/doctor.py` (resolve
 `<scripts>` per **Procedure → Bundled scripts**): run
