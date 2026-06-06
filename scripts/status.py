@@ -19,8 +19,11 @@
 #   python3 scripts/status.py --root .
 #   python3 scripts/status.py --root . --json
 #
-# Read-only and informational: the exit code is always 0 (unlike doctor, which fails
-# on a broken environment) — "no plan / no final point" is a valid state, not an error.
+# Read-only and informational: by default the exit code is always 0 (unlike doctor,
+# which fails on a broken environment) — "no plan / no final point" is a valid state,
+# not an error. The opt-in --exit-code flag is the one exception: it returns 0 only when
+# the project is at a *current* final point (a final point is recorded, its sha is HEAD,
+# and nothing is pending) and 1 otherwise, so a wrapper or CI gate can check convergence.
 
 import argparse
 import json
@@ -166,6 +169,15 @@ def report(state, quiet):
     return 0
 
 
+def _converged(state):
+    """True when the project is at a *current* final point with no pending work: a final
+    point is recorded, it is not stale (its sha is HEAD), and nothing is pending. This is
+    the machine-checkable form of the north star — "when planwright says final point, it
+    means it" — that the opt-in --exit-code flag maps to a 0/1 exit status."""
+    fp = state["final_point"]
+    return bool(fp) and not fp["stale"] and state["pending"] == 0
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="planwright planning-state summary (read-only).")
@@ -175,13 +187,19 @@ def main():
                     help="emit the state as JSON instead of the readable report")
     ap.add_argument("--quiet", action="store_true",
                     help="suppress the readable report (exit code only)")
+    ap.add_argument("--exit-code", action="store_true",
+                    help="exit 0 only at a current final point with no pending items, "
+                         "else 1 (composes with --json/--quiet; off by default)")
     args = ap.parse_args()
 
     state = collect(args.root)
     if args.json:
         print(json.dumps(state, indent=2))
-        return 0
-    return report(state, args.quiet)
+    else:
+        report(state, args.quiet)
+    if args.exit_code:
+        return 0 if _converged(state) else 1
+    return 0
 
 
 if __name__ == "__main__":

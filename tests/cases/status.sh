@@ -96,3 +96,35 @@ if [ -n "$head" ]; then
 else
   ok "status.py staleness check skipped (git unavailable)"
 fi
+
+# --- Test STS8: --exit-code maps convergence to a 0/1 exit status -----------------
+# Opt-in exit code: 0 only at a *current* final point (sha == HEAD) with 0 pending;
+# 1 when work is pending or the final point is stale/absent. The default (no flag)
+# stays exit 0 always, so existing callers are unaffected.
+ECX="$TMP/status-exitcode"; mkdir -p "$ECX/.planwright"
+( cd "$ECX" && git init -q && git config user.email t@t && git config user.name t \
+    && git commit -q --allow-empty -m init ) 2>/dev/null
+echead="$(git -C "$ECX" rev-parse HEAD 2>/dev/null)"
+if [ -n "$echead" ]; then
+  # converged: current final point, no plan.md (0 pending) -> rc 0
+  printf 'sha: %s\ndeepest_tier: expand\n' "$echead" > "$ECX/.planwright/final.md"
+  rc_conv=0; python3 "$STAT" --root "$ECX" --exit-code --quiet || rc_conv=$?
+  # default (no flag) still exits 0 even with a pending item present
+  printf -- '- [ ] some pending item\n' > "$ECX/.planwright/plan.md"
+  rc_default=0; python3 "$STAT" --root "$ECX" --quiet || rc_default=$?
+  # pending work -> --exit-code rc 1
+  rc_pending=0; python3 "$STAT" --root "$ECX" --exit-code --quiet || rc_pending=$?
+  rm -f "$ECX/.planwright/plan.md"
+  # stale final point (sha != HEAD), 0 pending -> --exit-code rc 1
+  printf 'sha: 0000000000000000000000000000000000000000\ndeepest_tier: expand\n' \
+    > "$ECX/.planwright/final.md"
+  rc_stale=0; python3 "$STAT" --root "$ECX" --exit-code --quiet || rc_stale=$?
+  if [ "$rc_conv" = 0 ] && [ "$rc_default" = 0 ] && [ "$rc_pending" = 1 ] \
+     && [ "$rc_stale" = 1 ]; then
+    ok "status.py --exit-code is 0 at a current final point, 1 when pending/stale; default stays 0"
+  else
+    bad "status.py --exit-code wrong (conv=$rc_conv default=$rc_default pending=$rc_pending stale=$rc_stale)"
+  fi
+else
+  ok "status.py --exit-code check skipped (git unavailable)"
+fi
