@@ -114,3 +114,62 @@ if "plans/plan_" in stage0 or "archive the whole file" in stage0:
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md Stage 0 wires lifecycle.py and deletes an empty plan (no stale archive step)"; else bad "SKILL.md Stage 0 missing lifecycle.py wiring or still archives an empty plan"; fi
+
+# --- Test L5: non-indented interstitial text is preserved and not counted pending -
+# parse()/render() keep a non-indented note between checkbox blocks as an `interstitial`
+# block (commit 20d0c3f), and reset_if_empty must NOT count it as a pending item.
+# (a) the note survives a drain-triggered rewrite verbatim; (b) reset-if-empty deletes a
+# plan whose only non-checked block is interstitial (the not-interstitial guard).
+LCI="$TMP/lc5/.planwright"; mkdir -p "$LCI"
+cat > "$LCI/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [x] A finished item
+      Mode: improve
+      Verification: true
+
+## A human note between blocks
+
+- [ ] A surviving pending item
+      Mode: docs
+      Surfaces: README.md
+      Verification: true
+EOF
+python3 "$LC" housekeep --root "$LCI" >/dev/null
+ipend="$(grep -c '^- \[ \]' "$LCI/plan.md" 2>/dev/null || true)"
+if [ -f "$LCI/plan.md" ] && [ "$ipend" = "1" ] \
+   && grep -qF '## A human note between blocks' "$LCI/plan.md" \
+   && grep -q '^- \[x\] A finished item' "$LCI/completed.md"; then
+  ok "lifecycle.py preserves non-indented interstitial text across a drain-rewrite"
+else
+  bad "lifecycle.py dropped or mishandled interstitial text (pending=$ipend)"
+fi
+LCN="$TMP/lc5b/.planwright"; mkdir -p "$LCN"
+cat > "$LCN/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [x] A done item
+      Mode: docs
+      Verification: true
+
+## A leftover interstitial note, no pending item
+EOF
+python3 "$LC" reset-if-empty --root "$LCN" >/dev/null
+if [ ! -f "$LCN/plan.md" ]; then
+  ok "lifecycle.py reset-if-empty deletes a plan whose only non-checked block is interstitial"
+else
+  bad "lifecycle.py kept a plan with no pending item (interstitial miscounted as pending)"
+fi
+
+# --- Test L6: lifecycle.py rejects a --root carrying parent-directory traversal ----
+# main() guards its os.remove deletion boundary by rejecting a --root with a `..`
+# component (commit 1dfbac4), exiting non-zero with a diagnostic before touching disk.
+SENTINEL="$TMP/lc6_sentinel.txt"; printf 'keep\n' > "$SENTINEL"
+trav_rc=0
+trav_out="$(python3 "$LC" housekeep --root "../escape" 2>&1)" || trav_rc=$?
+if [ "$trav_rc" -ne 0 ] && printf '%s' "$trav_out" | grep -qF "parent-directory traversal" \
+   && [ -f "$SENTINEL" ]; then
+  ok "lifecycle.py rejects a --root containing parent-directory traversal"
+else
+  bad "lifecycle.py accepted a traversal --root (rc=$trav_rc)"
+fi
