@@ -138,6 +138,24 @@ fr_rc=0
 ( cd "$CWD_NOPLAN" && python3 "$ROOT/scripts/lint-plan.py" --root "$FR" --quiet ) || fr_rc=$?
 if [ "$fr_rc" -ne 0 ]; then ok "lint-plan.py --root resolves the default plan under root from a foreign cwd"; else bad "lint-plan.py --root linted nothing from a foreign cwd (default plan not resolved under root)"; fi
 
+# --- Test 12d: unsafe_surface containment is filesystem-root-safe ------------------
+# Regression: the check used `full.startswith(rootn + os.sep)`, so when root resolves to
+# "/" (a repo cloned at a filesystem/drive root) every "/x" path failed containment
+# (startswith("//")) and the gate rejected valid in-repo Surfaces. commonpath fixes it.
+if python3 - "$ROOT/scripts/lint-plan.py" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("lp", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+# A relative surface under a filesystem-root repo is contained (None), not rejected.
+assert m.unsafe_surface("scripts/x.py", "/") is None, "filesystem-root containment rejected a valid surface"
+# Sanity: normal containment passes; absolute / traversal are still rejected.
+assert m.unsafe_surface("scripts/x.py", "/repo") is None
+assert m.unsafe_surface("/etc/hosts", "/repo") is not None
+assert m.unsafe_surface("../outside", "/repo") is not None
+PY
+then ok "lint-plan.py unsafe_surface containment is safe at a filesystem root"
+else bad "lint-plan.py unsafe_surface mishandles a filesystem-root repo"; fi
+
 # --- Test 12c: lint-plan.py rejects a placeholder Verification value ---------
 # Verification must be a runnable command; a bare "TODO"/"manual"/"n/a" passes the
 # non-empty check but is unverifiable, so lint-plan flags it before execute wastes a

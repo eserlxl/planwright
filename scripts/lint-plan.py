@@ -152,7 +152,14 @@ def unsafe_surface(p, root):
     # would let `link/secret` (link -> outside) pass the containment check below.
     full = os.path.realpath(os.path.join(root, np))
     rootn = os.path.realpath(root)
-    if full != rootn and not full.startswith(rootn + os.sep):
+    # commonpath is filesystem-root-safe: when root resolves to "/" (or a drive root),
+    # `rootn + os.sep` is "//" and every "/x" path fails startswith — wrongly rejecting a
+    # repo cloned at a filesystem root. commonpath([full, rootn]) == rootn avoids that.
+    try:
+        contained = full == rootn or os.path.commonpath([full, rootn]) == rootn
+    except ValueError:
+        contained = False  # different drive / uncomparable -> not contained
+    if not contained:
         return "resolves outside the repo root"
     return None
 
