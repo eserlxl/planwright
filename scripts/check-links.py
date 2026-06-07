@@ -162,6 +162,10 @@ def check_file(root, relpath, anchor_cache):
             if not target or EXTERNAL_RE.match(target):
                 continue
             path, _, anchor = target.partition("#")
+            # Decode the anchor symmetrically with the path below: a percent-encoded
+            # anchor (e.g. #my%20section linking an <a name="my section"> anchor) must
+            # match the decoded name, not the literal '%20', or a valid link false-fails.
+            anchor = urllib.parse.unquote(anchor)
             # A real file target may carry a `?query` (drop it) and percent-encoding
             # like `%20` (decode it) before it is matched against disk, or a valid link
             # such as `docs/core%20concepts.md` / `usage.md?v=1` false-fails as broken.

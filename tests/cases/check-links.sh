@@ -172,3 +172,20 @@ if [ "$esc_rc" = "1" ] && printf '%s' "$esc_out" | grep -q 'escapes repo root'; 
 else
   bad "check-links.py accepted a link escaping the repo root (rc=$esc_rc): $esc_out"
 fi
+
+# --- Test CL11: a percent-encoded anchor is decoded before the membership test -----
+# A link to an explicit <a name="..."> anchor written percent-encoded (#my%20section)
+# must resolve to the decoded name, not false-fail; a genuinely missing one still flags
+# (so the decode does not over-match).
+AE="$TMP/cl-anchor-encoded"; mkdir -p "$AE"; git -C "$AE" init -q
+printf '# Home\n\n<a name="my section"></a>\n\n[enc](#my%%20section)\n[bad](#no%%20such)\n' > "$AE/index.md"
+git -C "$AE" add -A
+ae_rc=0
+ae_out="$(python3 "$CL" --root "$AE" 2>&1)" || ae_rc=$?
+if [ "$ae_rc" = "1" ] \
+   && printf '%s' "$ae_out" | grep -q '#no%20such' \
+   && ! printf '%s' "$ae_out" | grep -q '#my%20section'; then
+  ok "check-links.py decodes a percent-encoded anchor before matching (resolves a valid one, still flags a missing one)"
+else
+  bad "check-links.py mis-handled a percent-encoded anchor (rc=$ae_rc): $ae_out"
+fi
