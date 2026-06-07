@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.42.0] - 2026-06-07
+
+### Changed
+- status surfaces rejected-item detail; build-graph --dot GraphViz export; atomic lifecycle writes
+
 ## [1.41.0] - 2026-06-07
 
 ### Changed
