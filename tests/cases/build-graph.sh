@@ -353,6 +353,30 @@ else
   bad "build-graph --dot did not emit a correct DOT import graph or altered the default JSON output"
 fi
 
+# --- Test 11c2h2: --dot also renders change-coupling edges (hidden-dependency view) -
+# build-graph computes change-coupling pairs (files that co-change in history) but they were
+# invisible in the import-only DOT export; --dot now emits each coupling pair as a dashed,
+# arrowless (dir=none) edge — distinct from the solid directed import edges — while leaving
+# the default JSON output free of any DOT styling.
+CDOTREPO="$TMP/cdotrepo"; mkdir -p "$CDOTREPO"
+git -C "$CDOTREPO" init -q
+printf 'x\n' > "$CDOTREPO/cup_a.md"; printf 'y\n' > "$CDOTREPO/cup_b.md"
+git -C "$CDOTREPO" add -A && git -C "$CDOTREPO" -c user.name=t -c user.email=t@e.com commit -qm c0
+# Co-commit the pair three more times so their cooccur clears coupling_min_cooccurrence (3).
+for i in 1 2 3; do
+  printf 'x%s\n' "$i" >> "$CDOTREPO/cup_a.md"; printf 'y%s\n' "$i" >> "$CDOTREPO/cup_b.md"
+  git -C "$CDOTREPO" add -A && git -C "$CDOTREPO" -c user.name=t -c user.email=t@e.com commit -qm "c$i"
+done
+cdot_out="$(python3 "$ROOT/scripts/build-graph.py" --root "$CDOTREPO" --dot 2>/dev/null)"
+cjson_out="$(python3 "$ROOT/scripts/build-graph.py" --root "$CDOTREPO" 2>/dev/null)"
+if printf '%s' "$cdot_out" | grep -qE '"cup_a.md" -> "cup_b.md" \[style=dashed, dir=none\];' \
+   && printf '%s' "$cjson_out" | grep -q '"coupling_edges"' \
+   && ! printf '%s' "$cjson_out" | grep -q 'style=dashed'; then
+  ok "build-graph --dot renders change-coupling edges (dashed, dir=none); default stays JSON"
+else
+  bad "build-graph --dot did not render the change-coupling edge: $cdot_out"
+fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.

@@ -1187,9 +1187,11 @@ def debug_digest(graph, out):
 
 
 def to_dot(graph):
-    """Serialize the import graph as GraphViz DOT — one node line per tracked file and one
-    directed edge per resolved import. Interop/visualization output only; the JSON graph
-    stays the canonical form planwright itself consumes. Needs no graphviz to emit (text)."""
+    """Serialize the graph as GraphViz DOT — one node line per tracked file, one solid
+    directed edge per resolved import, and one dashed arrowless edge per change-coupling
+    pair (the hidden dependencies a reader cannot see by reading code). Interop/visualization
+    output only; the JSON graph stays the canonical form planwright itself consumes. Needs no
+    graphviz to emit (text)."""
     nodes = graph.get("nodes", {})
     lines = ["digraph planwright {"]
     for path in sorted(nodes):
@@ -1197,6 +1199,22 @@ def to_dot(graph):
     for path in sorted(nodes):
         for target in sorted(nodes[path].get("imports", []) or []):
             lines.append('  "%s" -> "%s";' % (path, target))
+    # Change-coupling edges: undirected pairs that co-change in history, rendered dashed and
+    # arrowless (dir=none) so they read distinctly from the solid directed import edges. Dedupe
+    # by unordered pair (and sort) so each coupling relationship renders once, deterministically.
+    seen = set()
+    coupling = []
+    for edge in graph.get("coupling_edges", []) or []:
+        a, b = edge.get("a"), edge.get("b")
+        if a is None or b is None:
+            continue
+        key = tuple(sorted((a, b)))
+        if key in seen:
+            continue
+        seen.add(key)
+        coupling.append(key)
+    for a, b in sorted(coupling):
+        lines.append('  "%s" -> "%s" [style=dashed, dir=none];' % (a, b))
     lines.append("}")
     return "\n".join(lines) + "\n"
 
