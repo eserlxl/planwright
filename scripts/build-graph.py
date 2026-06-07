@@ -1202,7 +1202,13 @@ def to_dot(graph):
     visible = set(context) if context is not None else set(nodes)
     lines = ["digraph planwright {"]
     for path in sorted(nodes):
-        if path in visible:
+        if path not in visible:
+            continue
+        if nodes[path].get("is_articulation"):
+            # Cut-vertices are wide-blast-radius chokepoints (the #1 structural-risk signal);
+            # render them as bold boxes so they read distinctly from the plain ellipse nodes.
+            lines.append('  "%s" [shape=box, style=bold];' % path)
+        else:
             lines.append('  "%s";' % path)
     for path in sorted(nodes):
         if path not in visible:

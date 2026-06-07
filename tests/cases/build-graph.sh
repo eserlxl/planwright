@@ -394,7 +394,7 @@ sdot_scoped="$(python3 "$ROOT/scripts/build-graph.py" --root "$SDOTREPO" --scope
 sdot_full="$(python3 "$ROOT/scripts/build-graph.py" --root "$SDOTREPO" --dot 2>/dev/null)"
 if printf '%s' "$sdot_scoped" | grep -q '"src/api.sh" -> "src/auth.sh";' \
    && printf '%s' "$sdot_scoped" | grep -q '"src/auth.sh" -> "lib/crypto.sh";' \
-   && printf '%s' "$sdot_scoped" | grep -q '"lib/crypto.sh";' \
+   && printf '%s' "$sdot_scoped" | grep -qE '^  "lib/crypto.sh"( \[|;)' \
    && ! printf '%s' "$sdot_scoped" | grep -q 'lib/deep.sh' \
    && ! printf '%s' "$sdot_scoped" | grep -q 'other/orphan.sh' \
    && printf '%s' "$sdot_full" | grep -q '"lib/deep.sh";' \
@@ -402,6 +402,31 @@ if printf '%s' "$sdot_scoped" | grep -q '"src/api.sh" -> "src/auth.sh";' \
   ok "build-graph --dot honors --scope (renders Focus+Context only; unscoped renders all)"
 else
   bad "build-graph --dot did not scope the render: $sdot_scoped"
+fi
+
+# --- Test 11c2h4: --dot marks articulation points (the fragile chokepoints) ---------
+# build-graph computes is_articulation (cut-vertices whose removal disconnects the graph
+# = wide-blast-radius chokepoints); --dot now renders those nodes as bold boxes so an
+# expert can spot the structural risks visually, leaving leaf nodes as plain ellipses.
+# Fixture: a chain mid -> leaf with a second importer of mid, making mid a cut vertex.
+ARTREPO="$TMP/artrepo"; mkdir -p "$ARTREPO"
+git -C "$ARTREPO" init -q
+printf '#!/usr/bin/env bash\nsource mid.sh\nleft() { echo l; }\n' > "$ARTREPO/left.sh"
+printf '#!/usr/bin/env bash\nsource mid.sh\nright() { echo r; }\n' > "$ARTREPO/right.sh"
+printf '#!/usr/bin/env bash\nsource leaf.sh\nmid() { echo m; }\n' > "$ARTREPO/mid.sh"
+printf '#!/usr/bin/env bash\nleaf() { echo f; }\n' > "$ARTREPO/leaf.sh"
+git -C "$ARTREPO" add -A && git -C "$ARTREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+art_out="$(python3 "$ROOT/scripts/build-graph.py" --root "$ARTREPO" --dot 2>/dev/null)"
+art_json="$(python3 "$ROOT/scripts/build-graph.py" --root "$ARTREPO" 2>/dev/null)"
+# Confirm the graph actually flags mid.sh as an articulation point (else the test is vacuous).
+mid_is_art="$(printf '%s' "$art_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["nodes"]["mid.sh"]["is_articulation"])')"
+if [ "$mid_is_art" = "True" ] \
+   && printf '%s' "$art_out" | grep -qE '^  "mid.sh" \[shape=box, style=bold\];$' \
+   && printf '%s' "$art_out" | grep -qE '^  "leaf.sh";$' \
+   && ! printf '%s' "$art_out" | grep -qE '^  "leaf.sh" \['; then
+  ok "build-graph --dot marks articulation points as bold boxes; leaf nodes stay plain"
+else
+  bad "build-graph --dot did not mark the articulation point: $art_out"
 fi
 
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
