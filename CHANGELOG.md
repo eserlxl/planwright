@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.40.0] - 2026-06-07
+
+### Changed
+- Add status, check-links, and codcycle commands; doctor/lint-plan --strict, doctor --fix, value gates, SHA-256 build-graph
+
 ## [1.39.4] - 2026-06-06
 
 ### Changed
