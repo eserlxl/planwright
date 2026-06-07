@@ -78,7 +78,7 @@ perturb the file-level ranking), and reuses the already-computed `branch_count` 
 **Why this over the alternatives.** Re-weighting markdown edges down inside `pagerank` would distort
 the structural model every other consumer reads; building a code-only subgraph duplicates the import
 graph. A derived, additive `ranked_code` view is deterministic, schema-additive, and minimal-risk.
-**Deferred implementation seam:** `build()` ranking block (`scripts/build-graph.py:530`–`534`,
+**Deferred implementation seam:** `build()` ranking block (`scripts/build-graph.py:1097`–`1108`,
 `sort_key`/`ranked`) plus a one-line schema addition in `docs/graph-memory-schema.md`; **not**
 implemented in this note.
 
