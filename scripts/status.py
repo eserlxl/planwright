@@ -60,6 +60,46 @@ def _pending_titles(path):
     return titles
 
 
+# Canonical mode order for the pending breakdown (matches the plan OUTPUT FORMAT mode
+# table); an absent or unrecognised Mode is tallied under "other" so the per-mode counts
+# always sum to the pending total.
+_MODE_ORDER = ("repair", "improve", "develop", "docs", "reorganize")
+
+
+def _pending_modes(path):
+    """Tally pending (`- [ ] `) items by their `Mode:` continuation line. Returns an
+    ordered dict {mode: count} following _MODE_ORDER (then "other" for any absent or
+    unrecognised mode), with zero-count modes omitted. The counts sum to the pending
+    total, so the breakdown always reconciles. A missing file yields an empty dict."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return {}
+    raw = {}
+    in_pending = False
+    have_mode = False
+    for line in lines:
+        if line.startswith("- ["):
+            if in_pending and not have_mode:        # previous pending item had no Mode line
+                raw["other"] = raw.get("other", 0) + 1
+            in_pending = line.startswith("- [ ] ")
+            have_mode = False
+        elif in_pending and not have_mode:
+            stripped = line.strip()
+            if stripped.startswith("Mode:"):
+                mode = stripped[len("Mode:"):].strip().lower()
+                key = mode if mode in _MODE_ORDER else "other"
+                raw[key] = raw.get(key, 0) + 1
+                have_mode = True
+    if in_pending and not have_mode:                # trailing pending item with no Mode line
+        raw["other"] = raw.get("other", 0) + 1
+    ordered = {m: raw[m] for m in _MODE_ORDER if raw.get(m)}
+    if raw.get("other"):
+        ordered["other"] = raw["other"]
+    return ordered
+
+
 def _rejected_items(path):
     """Return rejected items as {"title","reason"} dicts, in file order. Each rejected
     entry is a `- [ ] <title>` (or `- [x]`) line followed by indented continuation lines;
@@ -127,6 +167,7 @@ def collect(root):
     pw = os.path.join(root, ".planwright")
     pending_titles = _pending_titles(os.path.join(pw, "plan.md"))
     pending = len(pending_titles)
+    pending_modes = _pending_modes(os.path.join(pw, "plan.md"))
     completed = _count_checkbox(os.path.join(pw, "completed.md"), "- [x]")
     rejected = _count_checkbox(os.path.join(pw, "rejected.md"), "- [")
     rejected_items = _rejected_items(os.path.join(pw, "rejected.md"))
@@ -162,6 +203,7 @@ def collect(root):
         "head": head,
         "pending": pending,
         "pending_titles": pending_titles,
+        "pending_modes": pending_modes,
         "completed": completed,
         "rejected": rejected,
         "rejected_items": rejected_items,
@@ -175,7 +217,9 @@ def report(state, quiet):
     if quiet:
         return 0
     print("planwright status — " + state["root"])
-    print("  pending:   %d" % state["pending"])
+    modes = state.get("pending_modes") or {}
+    breakdown = "  (%s)" % ", ".join("%s %d" % (m, c) for m, c in modes.items()) if modes else ""
+    print("  pending:   %d%s" % (state["pending"], breakdown))
     for title in state["pending_titles"]:
         print("    - " + title)
     print("  completed: %d" % state["completed"])
