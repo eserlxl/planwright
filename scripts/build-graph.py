@@ -929,7 +929,9 @@ def build(root, prior_path, scope=None, seed=None):
         ln = ln.strip()
         if not ln:
             continue
-        if ln.startswith("commit:") and len(ln) == 47 and all(c in "0123456789abcdef" for c in ln[7:]):
+        # 47 = "commit:" + 40-char SHA-1; 71 = "commit:" + 64-char SHA-256. The hex
+        # check below still rejects a same-length filename misread as a boundary.
+        if ln.startswith("commit:") and len(ln) in (47, 71) and all(c in "0123456789abcdef" for c in ln[7:]):
             cur = set()
             commits.append(cur)
         elif cur is not None and ln in fileset:

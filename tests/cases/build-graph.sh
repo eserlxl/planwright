@@ -107,6 +107,33 @@ assert set(g["ranked"][:2]) == {"alpha.md", "beta.md"}, g["ranked"][:2]
 PY
 then ok "build-graph.py coupling fallback ranks the coupled pair first"; else bad "build-graph.py coupling fallback ranking wrong"; fi
 
+# --- Test 11h: build-graph.py parses commit boundaries in SHA-256 repos ------
+# A SHA-256 repo produces 64-char hashes (a 71-char `commit:<hash>` line); the
+# commit-boundary gate must accept that length, else change-coupling/churn silently
+# break. Without the fix the boundary is never matched and no coupling edge appears.
+S256="$TMP/sha256repo"; mkdir -p "$S256"
+if git -C "$S256" init -q --object-format=sha256 2>/dev/null; then
+  for f in alpha beta; do echo "# $f" > "$S256/$f.md"; done
+  git -C "$S256" add -A
+  git -C "$S256" -c user.name=t -c user.email=t@e.com commit -qm init
+  for i in 1 2 3; do
+    echo "e$i" >> "$S256/alpha.md"; echo "e$i" >> "$S256/beta.md"
+    git -C "$S256" add -A
+    git -C "$S256" -c user.name=t -c user.email=t@e.com commit -qm "co $i"
+  done
+  s256_out="$TMP/sha256_graph.json"
+  python3 "$ROOT/scripts/build-graph.py" --root "$S256" > "$s256_out" 2>/dev/null
+  if python3 - "$s256_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+edge = [e for e in g["coupling_edges"] if {e["a"], e["b"]} == {"alpha.md", "beta.md"}]
+assert edge and edge[0]["cooccur"] >= 3, "no alpha/beta coupling edge in a SHA-256 repo"
+PY
+  then ok "build-graph.py parses commit boundaries in a SHA-256 repo (coupling edge present)"; else bad "build-graph.py missed coupling in a SHA-256 repo (commit boundary not parsed)"; fi
+else
+  ok "build-graph.py SHA-256 check skipped (git lacks --object-format=sha256)"
+fi
+
 # --- Test 11c2: ranked_code excludes zero-branch nodes Stage 2b cannot read ----
 # A doc/data node carries branch_count 0 and no functions; link-centrality can
 # float it to the top of `ranked`, but ranked_code must hold only code nodes so
