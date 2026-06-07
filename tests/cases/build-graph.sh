@@ -822,6 +822,35 @@ d = json.load(open(sys.argv[1]))["dirty"]
 assert d["whole_graph"] is True and "build-config" in d["reason"] and "CMakeLists.txt" in d["reason"], d
 PY
 then ok "whole-graph invalidation when a build-config file is deleted"; else bad "deleted build-config did not force whole-graph re-audit"; fi
+# (c) deleted SOURCE file (not build-config): a surviving importer must go dirty via the
+# incremental impacted-seeding path, NOT whole_graph — exercising build()->compute_dirty
+# end-to-end. The unit test pins compute_dirty directly with hand-built dicts; the shell
+# tests above only cover the build-config deletion that short-circuits to whole_graph, so
+# the full-pipeline source-deletion wiring was never integration-tested.
+SDREPO="$TMP/srcdel"; mkdir -p "$SDREPO"
+git -C "$SDREPO" init -q
+sdgc() { git -C "$SDREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf '# a\n[see b](b.md)\n' > "$SDREPO/a.md"   # a.md imports b.md (markdown link edge)
+printf '# b\n' > "$SDREPO/b.md"
+printf '# c\n' > "$SDREPO/c.md"                  # unrelated, must stay clean
+git -C "$SDREPO" add -A; sdgc -m init
+sd_prior="$TMP/sd_prior.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" > "$sd_prior" 2>/dev/null
+git -C "$SDREPO" rm -q b.md; sdgc -m "drop b"
+sd_del="$TMP/sd_del.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --prior "$sd_prior" > "$sd_del" 2>/dev/null
+if python3 - "$sd_prior" "$sd_del" <<'PY' 2>/dev/null
+import json, sys
+prior = json.load(open(sys.argv[1]))
+assert prior["nodes"]["a.md"]["imports"] == ["b.md"], prior["nodes"]["a.md"]  # edge must exist
+d = json.load(open(sys.argv[2]))["dirty"]
+assert d["whole_graph"] is False, d                 # incremental path, not whole-graph
+assert d["reason"] == "incremental", d
+assert d["changed"] == [], d                        # a.md/c.md bytes unchanged
+assert "a.md" in d["nodes"], d                       # importer of deleted b.md re-audited
+assert "c.md" not in d["nodes"], d                   # unrelated file stays clean
+PY
+then ok "source-file deletion marks its surviving importer dirty end-to-end (incremental, not whole-graph)"; else bad "deleted source file did not seed its importer into the incremental dirty set"; fi
 
 # --- Test 11i2: whole-graph invalidation when HEAD diverges beyond the window -
 # The third whole-graph trigger (build-graph.py compute_dirty): re-audit everything
