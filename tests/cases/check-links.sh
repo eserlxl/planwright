@@ -157,3 +157,18 @@ if [ "$crc" = "0" ] && [ "$cout" = "[]" ]; then
 else
   bad "check-links.py --json wrong on a clean tree (rc=$crc out='$cout')"
 fi
+
+# --- Test CL10: a relative link that escapes the repo root is rejected -------------
+# A ../outside.md link to a real file ABOVE the repo root is not an intra-repo link
+# even though it exists on disk; flag it rather than silently resolving outside the tree.
+ESC="$TMP/cl-escape"; mkdir -p "$ESC/repo"; git -C "$ESC/repo" init -q
+printf '# outside the repo\n' > "$ESC/outside.md"
+printf '# Home\n\n[escape](../outside.md)\n' > "$ESC/repo/index.md"
+git -C "$ESC/repo" add -A
+esc_rc=0
+esc_out="$(python3 "$CL" --root "$ESC/repo" 2>&1)" || esc_rc=$?
+if [ "$esc_rc" = "1" ] && printf '%s' "$esc_out" | grep -q 'escapes repo root'; then
+  ok "check-links.py rejects a relative link that escapes the repo root"
+else
+  bad "check-links.py accepted a link escaping the repo root (rc=$esc_rc): $esc_out"
+fi
