@@ -182,6 +182,23 @@ if [ "$nc_rc" -eq 0 ]; then ok "bump exits 0 when changelog has no prior version
 ncpj="$(python3 -c "import json;print(json.load(open('$NCSEC/.claude-plugin/plugin.json'))['version'])")"
 if grep -q "## \[$ncpj\]" "$NCSEC/CHANGELOG.md"; then ok "version entry present in changelog with no prior sections"; else bad "version entry missing from changelog with no prior sections"; fi
 
+# --- Test 5b: a relative bump from a pinned pre-release increments the core --------
+# Regression: after pinning a SemVer pre-release/build (e.g. 2.6.0-rc.1+build.5) a later
+# relative bump parsed cur.split('.') as three ints and crashed ("not X.Y.Z"); the bump
+# must instead operate on the release core and yield a clean X.Y.Z.
+PRE="$TMP/prerelease"
+mkdir -p "$PRE"
+( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$PRE" && tar -xf - )
+"$PRE/scripts/bump-version.sh" 2.6.0-rc.1+build.5 >/dev/null 2>&1
+pre_set="$(python3 -c "import json;print(json.load(open('$PRE/.claude-plugin/plugin.json'))['version'])")"
+pre_rc=0; pre_out="$("$PRE/scripts/bump-version.sh" patch -m "post-prerelease bump" 2>&1)" || pre_rc=$?
+pre_new="$(python3 -c "import json;print(json.load(open('$PRE/.claude-plugin/plugin.json'))['version'])")"
+if [ "$pre_set" = "2.6.0-rc.1+build.5" ] && [ "$pre_rc" -eq 0 ] && [ "$pre_new" = "2.6.1" ]; then
+  ok "bump-version relative-bumps from a pinned pre-release ($pre_set -> $pre_new)"
+else
+  bad "bump-version failed to bump from a pinned pre-release (set=$pre_set rc=$pre_rc new=$pre_new out=$pre_out)"
+fi
+
 # --- Test 6: bump-version.sh minor increment resets patch to 0 -------------
 MINRR="$TMP/minrr"
 mkdir -p "$MINRR"

@@ -77,10 +77,14 @@ cur, bump = sys.argv[1], sys.argv[2]
 # pre-release (-rc1) and/or build (+meta) suffix, so a pre-release can be cut.
 if re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", bump):
     print(bump); raise SystemExit
-try:
-    major, minor, patch = (int(x) for x in cur.split("."))
-except ValueError:
+# A relative bump operates on the release core: strip any SemVer pre-release
+# (-rc.1) / build (+meta) suffix from the current version first, so a bump from
+# a pinned pre-release (e.g. 2.6.0-rc.1+build.5) increments cleanly instead of
+# crashing on cur.split(".").
+core = re.match(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$", cur)
+if not core:
     sys.stderr.write(f"Current version '{cur}' is not X.Y.Z\n"); raise SystemExit(1)
+major, minor, patch = (int(g) for g in core.groups())
 if bump == "major":   major, minor, patch = major + 1, 0, 0
 elif bump == "minor": minor, patch = minor + 1, 0
 elif bump == "patch": patch += 1

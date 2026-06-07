@@ -57,6 +57,27 @@ else
   bad "status.py did not surface pending item titles"
 fi
 
+# --- Test STS6b: pending items are broken down by Mode (power-user composition) ----
+# A power user judging plan maturity needs the repair/improve/develop mix, not just a
+# flat count: the readable report appends a (mode N, ...) breakdown in canonical order
+# and --json carries pending_modes; the counts reconcile with the pending total.
+MFX="$TMP/status-modes"; mkdir -p "$MFX/.planwright"
+printf -- '- [ ] a\n      Mode: repair\n- [ ] b\n      Mode: repair\n- [ ] c\n      Mode: improve\n- [ ] d\n      Mode: develop\n' > "$MFX/.planwright/plan.md"
+mrep="$(python3 "$STAT" --root "$MFX")"
+mjson="$(python3 "$STAT" --root "$MFX" --json)"
+if printf '%s' "$mrep" | grep -qE '^  pending:   4  \(repair 2, improve 1, develop 1\)$' \
+   && printf '%s' "$mjson" | python3 -c 'import json,sys; assert json.load(sys.stdin)["pending_modes"]=={"repair":2,"improve":1,"develop":1}'; then
+  ok "status.py breaks pending items down by mode in canonical order (report + JSON)"
+else
+  bad "status.py pending-mode breakdown wrong: $mrep"
+fi
+EFX="$TMP/status-empty"; mkdir -p "$EFX/.planwright"
+if python3 "$STAT" --root "$EFX" | grep -qE '^  pending:   0$'; then
+  ok "status.py shows no mode breakdown when no items are pending"
+else
+  bad "status.py emitted a spurious mode breakdown on an empty plan"
+fi
+
 # --- Test STS11: rejected items surface their titles + Rejection reasons ----------
 # status lists pending titles; for the feedback loop a power user also needs to see
 # what was rejected and why without cat'ing rejected.md. The readable report lists the
