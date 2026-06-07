@@ -257,6 +257,7 @@ cat > "$DEST/.gitignore" <<EOF
 __pycache__/
 *.pyc
 .claude/settings.local.json
+.planwright/
 EOF
 
 # --- tests/ + CI -----------------------------------------------------------

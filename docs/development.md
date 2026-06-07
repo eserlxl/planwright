@@ -81,3 +81,17 @@ It honors several environment variables if set: `AUTHOR_NAME`, `AUTHOR_EMAIL`, `
 # Show usage and available env vars
 scripts/make-plugin.sh --help
 ```
+
+### `check-links.py`
+
+Verifies that every intra-repo Markdown link and `#anchor` resolves, so a broken docs link
+(e.g. a README pointer to a missing page) is caught instead of shipping. It is also run as part of
+`bash tests/run.sh`, so the suite fails on a broken link.
+
+```bash
+# Check the whole repo's markdown (exit 0 when every link/anchor resolves)
+python3 scripts/check-links.py
+
+# Exit-code only, no output
+python3 scripts/check-links.py --quiet
+```

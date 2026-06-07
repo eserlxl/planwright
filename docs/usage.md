@@ -127,6 +127,24 @@ skills/instructions elsewhere.
 /codinventor 5 8           cycle 5 depth 8 invent (cycles, depth)
 ```
 
+`/codcycle` is a Claude Code orchestration command (not a single-invocation alias): per *outer cycle*
+it drives the planwright skill through two phases back-to-back — `cycle 3 depth 10 explore`, then an
+**adaptive** `cycle 3..12 depth 10 invent` — a **harden → grow** rhythm, and closes the whole run with a
+single final `cycle 3 depth 10 explore` phase. The invent cycle count is adaptive: it ramps from the base
+3 up to 4× (12) when the verified-commit count declines between outer cycles (dig harder as the well
+dries) and relaxes back toward the base as commits recover; the explore counts stay fixed. With no
+argument it runs 10 outer cycles; one integer sets the outer-cycle count, and a negative count runs
+forever. It stops early on a hard blocker, a failing broad verify, or a full outer cycle that produces no
+new committed work (a stable meta-final-point) — and runs the final explore afterward unless it stopped on
+a broken tree. Because every outer cycle includes an `invent` phase, that phase may make rare, small
+committed edits to repo files, including `MISSION.md`.
+
+```bash
+/codcycle                  10 outer cycles (explore → invent, cycle 3 depth 10 each) + a final explore
+/codcycle 3                3 outer cycles + a final explore
+/codcycle -1               run the explore → invent rhythm until stopped (negative = infinite), then a final explore
+```
+
 After any `invent` run finishes, planwright closes its report with a one-line suggestion to run
 `/codvisor` or the host's `codvisor` equivalent (the flagship `cycle 10 depth 10 explore` sweep) to
 harden the net-new code — the invent tier's final burst never gets a later planning round's deep
@@ -137,6 +155,7 @@ inspect or revert flagged invent-tier items before hardening them.
 
 ```bash
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
+/planwright status               Read-only: summarize plan / final-point / graph state (--json)
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version (alias: update)
 ```
@@ -145,6 +164,13 @@ inspect or revert flagged invent-tier items before hardening them.
 (`build-graph.py`, `lint-plan.py`, `lifecycle.py`) are available, what degrades when one is missing,
 and whether the target is a git work tree — a preflight so a run's fallbacks surface up front rather
 than mid-pipeline. It exits non-zero when a core capability (`git` or a bundled script) is unavailable.
+
+`status` is read-only: it summarizes the current planning state from `.planwright/` — pending /
+completed / rejected item counts (with the pending items' titles listed under the count, also exposed
+as a `pending_titles` array in `--json`), the recorded final point (its sha, date, `deepest_tier`, and
+whether it is **stale** relative to `HEAD`), and the graph memory (node and dirty-node counts) — so a
+maintainer can see where a project stands without running a plan or cycle. `--json` emits the same
+state as a machine-readable object; the exit code is always 0 (an empty state is valid, not an error).
 
 `version` is read-only: it reports the installed version from the detected host metadata when
 available (`~/.claude/plugins/installed_plugins.json` for Claude Code, `.codex-plugin/plugin.json` for

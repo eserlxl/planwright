@@ -5,7 +5,8 @@
 > Invoke it with your host's `planwright` trigger — for example `/planwright` on Claude Code,
 > `@planwright` on Cursor, or `planwright` in Codex/Antigravity/Gemini project instructions. The
 > `codvisor` shortcut resolves to `cycle 10 depth 10 explore`; `codinventor` resolves to
-> `cycle 10 depth 10 invent`.
+> `cycle 10 depth 10 invent`; and `codcycle` loops the two together — explore then an adaptive
+> invent each outer cycle, with one closing explore.
 
 Planwright is a planning-first skill for codebase work. It reads your project, finds work worth
 doing, and writes it down as a checklist of concrete, verifiable steps in `.planwright/plan.md`. It
@@ -16,23 +17,26 @@ Every item it proposes must point back to real code (a `file:line` reference) an
 command that proves it works. That's what **"grounded"** means: no vague advice, no invented
 features floating free of your actual repository.
 
-## Start here: the two commands
+## Start here: the three commands
 
-Most people only need these two. Run them with no arguments and planwright does the rest — it prints
+Most people only need these three. Run them with no arguments and planwright does the rest — it prints
 the cost first, then works autonomously through plan→build→verify rounds until it runs out of
 worthwhile work.
 
-| Command | What it does | Reach for it when… |
-|---|---|---|
-| **`/codvisor`** | Finds and fixes real work already in your codebase — bugs, gaps, rough edges — round after round, then stops when the tree is clean. | You want your project polished and hardened without micromanaging. |
-| **`/codinventor`** | Everything `/codvisor` does, **plus** proposes genuinely new features (anchored to existing code) once the cleanup is done. | You want planwright to also *grow* the project, not just tidy it. |
+| Command        | What it does                       | Best for           |
+|----------------|------------------------------------|--------------------|
+| `/codvisor`    | Fixes real work, stops when clean. | Analyze and repair |
+| `/codinventor` | Fixes work, adds net-new features. | Innovation         |
+| `/codcycle`    | Loops both adaptively, hardens.    | Autonomous coding  |
 
-Both are safe by default: planning never touches your source, and when planwright does start editing
+All three are safe by default: planning never touches your source, and when planwright does start editing
 (building items, committing), your normal edit/commit approval prompts still apply.
 
 > Under the hood, `/codvisor` is shorthand for `cycle 10 depth 10 explore` and `/codinventor` for
 > `cycle 10 depth 10 invent`. You can pass numbers to tune them (`/codvisor 5 8` = 5 rounds at
-> depth 8) — see [Quick Start](#quick-start). The full vocabulary lives in [Concepts](docs/concepts.md).
+> depth 8) — see [Quick Start](#quick-start). `/codcycle` *orchestrates* many such runs — an explore
+> then an adaptive invent per outer cycle, with one closing explore — so reach for it when you want
+> codvisor and codinventor on a loop. The full vocabulary lives in [Concepts](docs/concepts.md).
 
 ## How it works: three paths
 
@@ -294,8 +298,15 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codinventor 15            # cycle 15 depth 10 invent (one number = cycles; depth defaults to 10)
 /codinventor 5 8           # cycle 5 depth 8 invent (cycles, depth)
 
+# /codcycle — alternate hardening and growth: explore → invent per outer cycle, one final explore closes the run
+# (the invent cycle count is adaptive: base 3, ramping to 4x = 12 as verified commits decline, then relaxing back)
+/codcycle                  # 10 outer cycles, each: cycle 3 depth 10 explore then adaptive invent; then one closing explore
+/codcycle 3                # 3 outer cycles (one integer = outer-cycle count) + a final closing explore
+/codcycle -1               # run the explore→invent rhythm forever (negative = infinite), closing with a final explore
+
 # Maintenance
 /planwright doctor     # preflight: check git/rg/python3 + bundled-script resolution
+/planwright status     # read-only: summarize plan / final-point / graph state (--json)
 /planwright version    # show current and latest available version
 /planwright upgrade    # update planwright itself to the latest version (alias: update)
 ```

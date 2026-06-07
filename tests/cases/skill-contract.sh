@@ -58,6 +58,26 @@ else
   ok "SKILL.md invokes bundled scripts via the skill base dir, not a bare scripts/ path"
 fi
 
+# --- Test 10c: the version-bearing manifests bump-version syncs stay in agreement ---
+# bump-version.sh updates .claude-plugin/plugin.json, .claude-plugin/marketplace.json,
+# .codex-plugin/plugin.json, and skills/*/SKILL.md frontmatter in lockstep; nothing else
+# guards that a hand-edit / partial bump did not drift them, which would make version/
+# upgrade report a wrong version. Assert all four agree.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import json, os, re, sys
+root = sys.argv[1]
+vers = {}
+vers["claude-plugin"] = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))["version"]
+vers["codex-plugin"] = json.load(open(os.path.join(root, ".codex-plugin/plugin.json")))["version"]
+mk = json.load(open(os.path.join(root, ".claude-plugin/marketplace.json")))
+vers["marketplace"] = mk["plugins"][0]["version"]
+t = open(os.path.join(root, "skills/planwright/SKILL.md")).read()
+m = re.search(r'\n  version:\s*"([^"]+)"', t)
+vers["skill-frontmatter"] = m.group(1) if m else None
+sys.exit(0 if len(set(vers.values())) == 1 and None not in vers.values() else 1)
+PY
+then ok "version is in agreement across the four manifests bump-version syncs"; else bad "version drift across plugin/marketplace/codex/SKILL manifests"; fi
+
 # --- Test 10c: SKILL.md wires path/lib scoping to the focus/context graph keys ---
 # Contract between the SKILL.md procedure and build-graph.py: the scope feature must
 # be documented (path + lib options) AND ride on the --scope flag / focus+context

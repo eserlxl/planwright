@@ -23,7 +23,8 @@
 #   * no two pending items share a title (the maturity ladder's monotonic-drain
 #     guard). As a non-failing advisory it also notes pending titles that match a
 #     completed.md / rejected.md item, for the active agent to confirm a regression or a
-#     resolved rejection rather than blocking it.
+#     resolved rejection rather than blocking it, and notes a Verification that runs a
+#     repo script which does not exist (the item would be unverifiable at execute).
 #
 # Semantic checks that need code understanding (is the Evidence a *real* defect?
 # does Development name a real call site?) stay the active agent's job — this linter is
@@ -213,6 +214,11 @@ def lint_item(item, root):
             v.append(f"Surface '{p}' is not a safe repo-relative path: {reason}")
         elif not os.path.exists(os.path.join(root, p)):
             v.append(f"Surface '{p}' does not exist under root")
+        elif os.path.isdir(os.path.join(root, p)):
+            # OUTPUT FORMAT: Surfaces are existing *files* that will change. A directory
+            # passes os.path.exists but is not an editable boundary the execute path can
+            # honor, so name the specific file(s) instead.
+            v.append(f"Surface '{p}' is a directory; name the specific file(s) that change")
     for p in new_surfaces:
         if os.path.basename(p) == "CMakeLists":
             v.append(f"New Surface '{p}' must be spelled CMakeLists.txt")
@@ -414,6 +420,34 @@ def fix_text(text, root, include_checked=False):
     return new_text, changes
 
 
+# Interpreters a Verification command may invoke a repo script through. Used only to
+# decide whether the first argument is a script path worth an existence check.
+VERIF_INTERPRETERS = {"bash", "sh", "zsh", "python", "python3", "py"}
+
+
+def verification_missing_script(verif, root):
+    """If a Verification runs a known interpreter on a repo-relative script that does
+    not exist, return that script path; else None. Deliberately conservative — only the
+    first non-flag argument after a recognized interpreter is checked, so non-interpreter
+    runners (ctest, make, …), inline `-c` snippets, and absolute/URL targets are never
+    flagged. This is an advisory (non-failing), so a stray false negative is harmless and
+    a false positive is avoided by construction."""
+    if not verif:
+        return None
+    toks = verif.split()
+    if not toks or toks[0] not in VERIF_INTERPRETERS:
+        return None
+    for t in toks[1:]:
+        if t.startswith("-"):
+            continue
+        cand = t.strip('"').strip("'")
+        path_like = ("/" in cand or cand.endswith((".sh", ".py")))
+        if path_like and not cand.startswith("/") and "://" not in cand:
+            return cand if not os.path.exists(os.path.join(root, cand)) else None
+        return None  # first real arg is not a repo path (e.g. -c snippet) — stay quiet
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser(description="Lint planwright plan items against the Stage 10 structural gate.")
     ap.add_argument("--root", default=".", help="repo root for Surfaces existence checks (default: cwd)")
@@ -428,6 +462,9 @@ def main():
     ap.add_argument("--scope", default=None,
                     help="a graph.json (built with --scope) whose focus/context node sets gate "
                          "Surfaces-in-Focus for a scoped run; no-op when its focus is empty")
+    ap.add_argument("--strict", action="store_true",
+                    help="promote advisories (re-proposing completed/rejected work; upstream-of-"
+                         "Focus surfaces) to failures, so a CI gate can enforce monotonic-drain")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
 
@@ -476,6 +513,13 @@ def main():
         if scope_active:
             sv, advisories = scope_check(item, focus, context)
             violations += sv
+        # Advisory: a Verification that runs a repo script which does not exist will be
+        # rejected as unverifiable at execute — flag it now (non-failing; --strict
+        # promotes it) so an unattended cycle does not waste a plan->execute round.
+        missing = verification_missing_script(item["fields"].get("Verification", ""), root)
+        if missing:
+            advisories = list(advisories) + [
+                f"Verification runs '{missing}', which does not exist (item will be unverifiable)"]
         records.append({"idx": idx, "item": item, "violations": violations,
                         "advisories": list(advisories)})
         if violations:
@@ -524,6 +568,9 @@ def main():
                 print(f"note: '{it['title']}' matches a rejected item — confirm the rejection reason is resolved")
 
     note_total = notes + scope_notes
+    # --strict promotes advisories to failures so automation can enforce monotonic-drain;
+    # by default advisories never affect the exit code (Claude confirms them by hand).
+    fail = bool(total) or (args.strict and bool(note_total))
     if args.json:
         out_json = {
             "total_items": len(items),
@@ -548,16 +595,18 @@ def main():
             if item_out["violations"] or item_out["advisories"]:
                 out_json["items"].append(item_out)
         print(json.dumps(out_json, indent=2))
-        return 1 if total else 0
+        return 1 if fail else 0
 
     if not args.quiet:
         n = len(items)
         suffix = f" ({note_total} advisory note(s))" if note_total else ""
-        if total == 0:
+        if total == 0 and not (args.strict and note_total):
             print(f"lint-plan: {n} item(s) OK{suffix}")
+        elif total == 0:
+            print(f"lint-plan: {note_total} advisory note(s) failed --strict across {n} item(s)")
         else:
             print(f"lint-plan: {total} violation(s) across {n} item(s){suffix}")
-    return 1 if total else 0
+    return 1 if fail else 0
 
 
 if __name__ == "__main__":

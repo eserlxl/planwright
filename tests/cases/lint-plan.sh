@@ -358,6 +358,33 @@ if [ "$ld_rc" -ne 0 ]; then ok "lint-plan.py fails on convergence violations"; e
 if printf '%s' "$ld_out" | grep -qF "duplicate pending title: 'A finished thing'"; then ok "lint-plan.py flags a duplicate pending title"; else bad "lint-plan.py missed a duplicate pending title"; fi
 if printf '%s' "$ld_out" | grep -qF "both Surfaces and New Surfaces"; then ok "lint-plan.py flags a Surfaces/New-Surfaces overlap"; else bad "lint-plan.py missed a Surfaces/New-Surfaces overlap"; fi
 
+# --- Test 12d-strict: --strict promotes a re-proposal advisory to a failure -------
+# A well-formed plan whose only issue is a pending title matching a completed item is
+# an advisory (does NOT fail by default), so a CI gate cannot catch an accidental
+# re-proposal. --strict promotes such advisories to failures (exit 1) to enforce the
+# monotonic-drain guarantee; without it the same plan stays clean (exit 0).
+SDIR="$TMP/strictdir"; mkdir -p "$SDIR"
+printf '# completed\n\n- [x] Reuse me\n' > "$SDIR/completed.md"
+cat > "$SDIR/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] Reuse me
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+st_def=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SDIR/plan.md" --quiet || st_def=$?
+st_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SDIR/plan.md" --strict --quiet || st_strict=$?
+if [ "$st_def" = 0 ] && [ "$st_strict" = 1 ]; then
+  ok "lint-plan.py --strict promotes a re-proposal advisory to a failure (default stays clean)"
+else
+  bad "lint-plan.py --strict wrong (default=$st_def strict=$st_strict)"
+fi
+
 # --- Test 12e: lint-plan.py --scope mechanizes the Stage 10 Surfaces-in-Focus gate
 # Reads the builder's focus/context sets: a Surface in Focus passes; an out-of-Focus
 # existing Surface fails (a non-repair in Context, or anything outside Context); a
@@ -563,3 +590,84 @@ else
   bad "lint-plan.py --fix wrongly rewrote a typo'd Surface or a completed item"
 fi
 
+
+# --- Test: a directory Surface is rejected; an equivalent file Surface passes -------
+# OUTPUT FORMAT: Surfaces are existing *files* that change. A directory passes the bare
+# existence check but is not an editable boundary, so lint_item must flag it. A real file
+# at the same root must still pass (the guard fires only on directories).
+DIRPLAN="$TMP/dir_surface_plan.md"
+cat > "$DIRPLAN" <<'EOP'
+# planwright Plan — .
+
+- [ ] Item naming a directory as a Surface
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/ exists.
+      Surfaces: scripts
+      Development: edit something under scripts/.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOP
+dir_rc=0
+dir_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$DIRPLAN" 2>&1)" || dir_rc=$?
+if [ "$dir_rc" -ne 0 ] && printf '%s' "$dir_out" | grep -qF "is a directory"; then
+  ok "lint-plan.py rejects a directory Surface (must name specific files)"
+else
+  bad "lint-plan.py accepted a directory Surface (rc=$dir_rc): $dir_out"
+fi
+FILEPLAN="$TMP/file_surface_plan.md"
+cat > "$FILEPLAN" <<'EOP'
+# planwright Plan — .
+
+- [ ] Item naming a file as a Surface
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOP
+file_rc=0
+python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$FILEPLAN" --quiet || file_rc=$?
+if [ "$file_rc" -eq 0 ]; then
+  ok "lint-plan.py accepts a file Surface (directory guard does not over-fire)"
+else
+  bad "lint-plan.py wrongly rejected a valid file Surface (rc=$file_rc)"
+fi
+
+# --- Test 12f: a Verification running a missing repo script is a (non-failing) advisory
+# A well-formed item whose Verification invokes `bash <script>` for a script that does
+# not exist will be rejected as unverifiable at execute; lint-plan flags it early as an
+# advisory (exit 0 by default, promoted to a failure under --strict). A Verification
+# that runs an existing script, or a non-interpreter runner (ctest/make), is never flagged.
+VPDIR="$TMP/verifpath"; mkdir -p "$VPDIR"
+mk_vp() { # $1 = Verification command
+  cat > "$VPDIR/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] An item with a checkable verification
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: $1
+EOF
+}
+# missing script -> advisory (default exit 0), --strict exit 1
+mk_vp "bash tests/this-script-does-not-exist.sh"
+vp_def=0; vp_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VPDIR/plan.md" 2>&1)" || vp_def=$?
+vp_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VPDIR/plan.md" --strict --quiet || vp_strict=$?
+# existing script -> no advisory; non-interpreter runner -> no advisory
+mk_vp "bash tests/run.sh"
+vp_ok=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VPDIR/plan.md" --strict --quiet || vp_ok=$?
+mk_vp "ctest --test-dir build -R foo"
+vp_ctest=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VPDIR/plan.md" --strict --quiet || vp_ctest=$?
+if [ "$vp_def" = 0 ] && [ "$vp_strict" = 1 ] && [ "$vp_ok" = 0 ] && [ "$vp_ctest" = 0 ] \
+   && printf '%s' "$vp_out" | grep -qF "which does not exist"; then
+  ok "lint-plan.py flags a Verification that runs a missing repo script (advisory; --strict fails)"
+else
+  bad "lint-plan.py verification-path advisory wrong (def=$vp_def strict=$vp_strict ok=$vp_ok ctest=$vp_ctest)"
+fi

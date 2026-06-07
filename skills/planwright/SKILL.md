@@ -84,6 +84,14 @@ skills/instructions that load this `SKILL.md` with the resolved canonical argume
 block, `/planwright`, `/codvisor`, and `/codinventor` are the Claude Code spellings; substitute the
 host trigger above while keeping the arguments unchanged.
 
+`codcycle` is a different kind of adapter — an **orchestration** command, not a single-invocation alias.
+Per *outer cycle* it drives this skill through two back-to-back phases — `cycle 3 depth 10 explore`,
+then an **adaptive** `cycle 3..12 depth 10 invent` (a harden → grow rhythm) — and closes the whole run
+with a single final `cycle 3 depth 10 explore` phase, defaulting to 10 outer cycles (a negative count
+runs forever). The invent cycle count ramps from the base 3 up to 4× (12) when the verified-commit count
+declines between outer cycles and relaxes back as it recovers; the explore counts stay fixed. Each phase
+is an ordinary cycle run of this `SKILL.md`; `codcycle` only sequences them.
+
 ## Invocation & help
 
 Before doing anything else, inspect the argument the skill was invoked with:
@@ -103,6 +111,8 @@ Before doing anything else, inspect the argument the skill was invoked with:
   this file and follow that procedure instead of the planning Procedure.
 - If the first token is `doctor`, dispatch to the **Doctor** section at the end of this file and
   follow that preflight procedure instead of the planning Procedure.
+- If the first token is `status`, dispatch to the **Status** section at the end of this file and
+  follow that read-only summary procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
   **option overrides** (see Options), then run the planning Procedure.
 
@@ -146,6 +156,7 @@ CYCLE (automated plan → execute loops)
 
 MAINTENANCE
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
+/planwright status               Read-only: summarize plan/final-point/graph state (--json)
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version
 /planwright update               Alias for upgrade
@@ -862,7 +873,9 @@ reporting done. For the two purely mechanical, filesystem-verifiable violations 
 (it respells a `CMakeLists` Surface as `CMakeLists.txt` and moves an already-existing `New Surface` into
 `Surfaces`, in place, then lints the result); every other violation still needs your judgement. (On
 `dry-run`, run the linter against the would-be items the same way before printing them; write no file —
-and do not pass `--fix`, which writes.)
+and do not pass `--fix`, which writes.) The opt-in `--strict` flag promotes the non-failing advisories
+(re-proposed completed/rejected titles; upstream-of-Focus surfaces) to failures, so an unattended CI
+gate can enforce the monotonic-drain guard without a human to confirm each note.
 
 Then, unless `dry-run` was passed (no graph-memory state is persisted on a dry run),
 **persist the incremental-audit baseline** so the next run's Stage 1.5 dirty-set comparison has
@@ -1019,22 +1032,41 @@ system.
 
 For each targeted pending item, in plan order:
 
-1. **Implement** the `Development:` line. Edit only the declared `Surfaces:` (and create the declared
+1. **Value gate (challenge before applying).** Before writing any code, re-judge the item against four
+   keep/kill checks — this is a second, *apply-time* filter independent of the planning value bar
+   (Stage 10), so a marginal item that slipped through planning is caught here instead of padding the
+   tree:
+   - **(a) named failure** — the item must state the concrete bug/regression it prevents or the
+     capability it adds. A test that merely asserts a string/section still exists in a doc or
+     instruction file is **not** a named failure.
+   - **(b) removal test** — if the item did not exist, something must break that *nothing else already
+     catches*. If nothing would break, kill it.
+   - **(c) real consumer** — a user or maintainer who actually hits it. "Someone might script it" /
+     "might be nice" is not a consumer.
+   - **(d) not self-justifying** — an item whose only effect is to test code written **this same run**
+     counts only if it pins externally-observable behaviour, never internals.
+
+   If the item fails **any** check, do **not** implement it: leave `- [ ]` unflipped, append a
+   `Status:Rejected` with `Rejection: value-gate: <which check failed>`, move it to `rejected.md` (FIFO
+   cap 100), and continue. The machine-readable `value-gate:` reason feeds the next plan's PREVIOUSLY
+   REJECTED set (Stage 1), so the whole class is not re-proposed. A value-gate rejection is **not** a
+   hard blocker — keep going. (Prefer three real commits to seven padded ones.)
+2. **Implement** the `Development:` line. Edit only the declared `Surfaces:` (and create the declared
    `New Surfaces:`). If the work would require touching files outside those surfaces, treat the item
    as **blocked** (see below) rather than expanding scope silently.
-2. **Verify** — run the item's `Verification:` command exactly.
+3. **Verify** — run the item's `Verification:` command exactly.
    - If the item has no `Verification:` line, or the command cannot be run (missing target, unknown
      tool), do **not** mark it done — reject it with reason `unverifiable: <detail>`.
-3. **On PASS** — flip `- [ ]` to `- [x]` in `plan.md`, then commit on the current branch with a message
+4. **On PASS** — flip `- [ ]` to `- [x]` in `plan.md`, then commit on the current branch with a message
    that describes the change itself — typically the `<item title>` as the subject (use the Haiku commit
    convention if configured). Do **not** prefix the subject with `planwright:` or otherwise name the
    tool; the commit should read as a normal change to the repo. Move the completed item to
    `completed.md` and enforce the FIFO cap of 100.
-4. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
+5. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
    fails, **reject**: revert this item's edits (`git restore` / `git checkout --` the touched paths so
    no partial change is committed), append a `Status:Rejected` and `Rejection: <one-line reason>` to
    the item, move it to `rejected.md` (FIFO cap 100), and continue.
-5. **Blocked** — if the item depends on an unresolved design decision, or needs surfaces it does not
+6. **Blocked** — if the item depends on an unresolved design decision, or needs surfaces it does not
    declare, leave it pending, record why, and treat it as a **hard blocker**: in auto mode STOP here.
 
 ## After all targeted items — broad final verification
@@ -1257,7 +1289,9 @@ STOP after reporting.
 Reached only via `planwright doctor` (or the host equivalent such as `/planwright doctor`). A
 read-only **preflight**: it inspects the host environment and reports, up front, which capabilities
 would silently degrade during a real run — instead of letting those fallbacks surface mid-pipeline.
-It writes nothing and never plans.
+It never plans, and by default writes nothing; the one exception is the opt-in `--fix` flag, which
+auto-remediates the single fixable warn by adding `.planwright/` to `.gitignore` (the other warns —
+an unset git identity, a missing tool — need the user) and then re-checks. Mirrors `lint-plan --fix`.
 
 **Canonical check.** Prefer the deterministic, test-covered `<scripts>/doctor.py` (resolve
 `<scripts>` per **Procedure → Bundled scripts**): run
@@ -1267,16 +1301,59 @@ seams and the target:
 1. **Host tools** — `python3` (the bundled-script runtime), `git` (graph file enumeration,
    change-coupling edges, Execute's per-item commits), `rg`/`fd` (fast Stage 1 scanning). Each is
    reported present/absent with its version and exactly what degrades when missing.
-2. **Bundled-script resolution** — that `build-graph.py`, `lint-plan.py`, and `lifecycle.py` resolve
-   beside `doctor.py` (the `<scripts>` seam). A miss here means a broken/partial install.
-3. **Target** — whether `--root` is a git work tree (the graph build needs one).
+2. **Bundled-script resolution** — that the bundled scripts (`build-graph.py`, `lint-plan.py`,
+   `lifecycle.py`, `status.py`, and `check-links.py`) resolve beside `doctor.py` (the `<scripts>`
+   seam). A miss here means a broken/partial install.
+3. **Target** — whether `--root` is a git work tree (the graph build needs one), whether that
+   tree gitignores `.planwright/` (the tool-state directory; a repo that forgets to ignore it commits
+   plan/graph/digest as noise), and whether a git commit identity (`user.name`/`user.email`) is set
+   (Execute/Cycle commit per item, so an unset identity fails mid-run). Both are reported `warn`,
+   never `fail`.
 
 Severity is `ok` / `warn` (degraded, run still works) / `fail` (a core capability is unavailable:
-missing `git` or a missing bundled script). The script exits non-zero when any check fails.
+missing `git` or a missing bundled script). The script exits non-zero when any check fails; the opt-in
+`--strict` flag additionally fails on any `warn`, so a CI preflight can require a pristine (not merely
+runnable) environment.
 
 **By-hand fallback** (the script's own runtime is missing — no `python3` — so it cannot run): report
 that `python3` is unavailable (every bundled script will fall back to its by-hand SKILL.md spec),
-then check `git`/`rg`/`fd` on `PATH` and whether `<target>` is a git repo, and relay the same
-three-seam summary by hand.
+then check `git`/`rg`/`fd` on `PATH`, whether `<target>` is a git repo, and whether it gitignores
+`.planwright/`, and relay the same summary by hand.
+
+STOP after reporting.
+
+## Status
+
+Reached only via `planwright status` (or the host equivalent such as `/planwright status`). A
+read-only **summary of the current planning state** — what planwright thinks the project is at —
+so a maintainer can see it at a glance without running a plan or cycle. It reads only the gitignored
+`.planwright/` tool-state directory; it mutates nothing and never plans.
+
+**Canonical check.** Prefer the deterministic, test-covered `<scripts>/status.py` (resolve
+`<scripts>` per **Procedure → Bundled scripts**): run `python3 <scripts>/status.py --root <target>`
+in the sandbox and relay its report (`--json` for machine output, `--quiet` for exit-code-only,
+`--exit-code` to gate on convergence — see below). It reads `<target>/.planwright/` and reports:
+
+1. **Item counts** — pending (`- [ ]` in `plan.md`), completed (`- [x]` in `completed.md`), and
+   rejected (`rejected.md`).
+2. **Final point** — from `final.md`: its `sha`, `date`, and `deepest_tier`, plus whether it is
+   **STALE** — its sha is not the current `git rev-parse HEAD`, so the tree has moved on since the
+   ladder was last exhausted and a fresh run would re-open it (see **Maturity ladder & the final
+   point**). Reports "none recorded" when there is no final point.
+3. **Graph memory** — from `graph.json`: the sha it was built at, its node count, and how many nodes
+   the last build marked dirty.
+
+By default the exit code is always `0` — status is informational, and "no plan / no final point" is a
+valid state, not an error (unlike Doctor, which fails on a broken environment). The opt-in
+`--exit-code` flag is the one exception: it exits `0` only when the project is at a *current* final
+point (a final point is recorded, its sha is HEAD, and nothing is pending) and `1` otherwise, so a
+wrapper or CI gate can check convergence machine-readably (it composes with `--json`/`--quiet`). The
+report itself is **never** valid Evidence (it summarizes routing/status state, like the graph and
+final-point markers).
+
+**By-hand fallback** (no `python3`): read `<target>/.planwright/` directly — count the `- [ ]` /
+`- [x]` lines in `plan.md`/`completed.md`, the items in `rejected.md`, the `sha`/`deepest_tier` in
+`final.md` (compare its sha to `git rev-parse HEAD` for staleness), and `graph_built_at_sha` plus the
+node/`dirty` counts in `graph.json` — and relay the same summary by hand.
 
 STOP after reporting.

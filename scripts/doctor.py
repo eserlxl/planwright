@@ -14,10 +14,14 @@
 #      SKILL.md resolves per "Procedure → Bundled scripts"; doctor confirms it from the
 #      script's own location so a broken install is caught before Stage 1.5.
 #
-# It also reports whether the --root target is a git work tree (graph build needs one).
+# It also reports whether the --root target is a git work tree (graph build needs one),
+# whether that tree gitignores .planwright/ — the directory MISSION.md keeps all tool
+# state (plan, graph memory, digest, final point) under; a repo that forgets to ignore
+# it commits that state as noise — and whether a git commit identity is configured (the
+# Execute/Cycle paths commit per item, so an unset user.name/user.email fails mid-run).
 # Nothing is mutated. Exit status is 1 when any required check FAILs (missing git or a
-# missing bundled script), else 0; WARN-level findings (missing rg/fd, non-repo target)
-# never fail the exit code on their own.
+# missing bundled script), else 0; WARN-level findings (missing rg/fd, non-repo target,
+# un-ignored .planwright/, unset commit identity) never fail the exit code on their own.
 #
 #   python3 scripts/doctor.py --root .
 #   python3 scripts/doctor.py --root . --json
@@ -39,6 +43,8 @@ BUNDLED = [
     ("build-graph.py", "Stage 1.5 code-graph build (centrality, cycles, scope)"),
     ("lint-plan.py", "Stage 11 / Execute structural plan lint"),
     ("lifecycle.py", "Stage 0 lifecycle housekeeping (drain / FIFO / reset)"),
+    ("status.py", "the `status` read-only planning-state summary"),
+    ("check-links.py", "the intra-repo Markdown link-check verification command"),
 ]
 
 
@@ -135,11 +141,86 @@ def check_target(root):
     }]
 
 
+def check_gitignore(root):
+    """Report whether the target gitignores .planwright/ — the tool-state directory
+    MISSION.md keeps plan/graph/digest/final-point under. WARN (never FAIL) when the
+    work tree does NOT ignore it (the run still works, but tool state would be
+    committed as noise); ok when it is ignored, or n/a when there is no git work tree
+    to judge against (the target check already warns on that)."""
+    ignored = None  # tri-state: True ignored, False not ignored, None undeterminable
+    if shutil.which("git"):
+        try:
+            inside = subprocess.run(
+                ["git", "-C", root, "rev-parse", "--is-inside-work-tree"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if inside.returncode == 0 and inside.stdout.strip() == "true":
+                # Probe a representative path UNDER .planwright/ rather than the bare
+                # directory: a `.planwright/` ignore rule is directory-only, so git will
+                # not match the non-existent bare path `.planwright`, but it does match the
+                # prefix of `.planwright/plan.md` whether or not anything exists yet.
+                # git check-ignore: exit 0 = path is ignored, 1 = not ignored, 128 = error.
+                chk = subprocess.run(
+                    ["git", "-C", root, "check-ignore", "-q", ".planwright/plan.md"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if chk.returncode in (0, 1):
+                    ignored = chk.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            ignored = None
+    if ignored is True:
+        status, detail = "ok", ".planwright/ is gitignored"
+    elif ignored is False:
+        status, detail = "warn", ".planwright/ is NOT gitignored in " + os.path.abspath(root)
+    else:
+        status, detail = "ok", "n/a (no git work tree to check)"
+    return [{
+        "name": ".planwright/ is gitignored",
+        "status": status,
+        "detail": detail,
+        "degrades": "planwright's plan, graph memory, and digest under .planwright/ would be "
+                    "committed as repo noise; add `.planwright/` to .gitignore",
+    }]
+
+
+def check_git_identity(root):
+    """Report whether a git commit identity is configured. The Execute and Cycle paths
+    commit every passing item, so an unset user.name/user.email makes each per-item
+    `git commit` fail mid-run with a confusing error. WARN (never FAIL — planning does
+    not commit) when either is unset; ok when both resolve; n/a when there is no git."""
+    name = email = None
+    if shutil.which("git"):
+        def cfg(key):
+            try:
+                out = subprocess.run(["git", "-C", root, "config", key],
+                                     capture_output=True, text=True, timeout=5)
+                return out.stdout.strip() if out.returncode == 0 else ""
+            except (OSError, subprocess.SubprocessError):
+                return None
+        name, email = cfg("user.name"), cfg("user.email")
+    if name is None or email is None:
+        status, detail = "ok", "n/a (git unavailable)"
+    elif name and email:
+        status, detail = "ok", "user.name and user.email are set"
+    else:
+        missing = " and ".join(k for k, v in (("user.name", name), ("user.email", email)) if not v)
+        status, detail = "warn", "git %s is unset" % missing
+    return [{
+        "name": "git commit identity",
+        "status": status,
+        "detail": detail,
+        "degrades": "Execute/Cycle per-item `git commit` will fail until git user.name "
+                    "and user.email are configured (git config --global user.name/.email)",
+    }]
+
+
 GLYPH = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL"}
 
 
-def report(records, quiet):
-    """Print the human-readable report and return the process exit code."""
+def report(records, quiet, strict=False):
+    """Print the human-readable report and return the process exit code. By default
+    only a `fail` sets a non-zero code; --strict also fails on any `warn` so a CI
+    preflight can require a pristine (not merely runnable) environment."""
     fails = sum(1 for r in records if r["status"] == "fail")
     warns = sum(1 for r in records if r["status"] == "warn")
     if not quiet:
@@ -149,9 +230,36 @@ def report(records, quiet):
             if r["status"] != "ok":
                 print("         degrades: %s" % r["degrades"])
         verdict = "FAIL" if fails else ("WARN" if warns else "OK")
-        print("doctor: %s (%d fail, %d warn, %d total)"
-              % (verdict, fails, warns, len(records)))
-    return 1 if fails else 0
+        strict_note = " [--strict: warn → fail]" if (strict and warns and not fails) else ""
+        print("doctor: %s (%d fail, %d warn, %d total)%s"
+              % (verdict, fails, warns, len(records), strict_note))
+    return 1 if (fails or (strict and warns)) else 0
+
+
+def apply_gitignore_fix(root):
+    """Auto-remediate the one fixable warn: if the work tree does not ignore .planwright/,
+    append a `.planwright/` rule to <root>/.gitignore (creating it if absent) and return
+    the gitignore path; else None. The other warns are deliberately not auto-fixed — an
+    unset git identity needs the user's name/email and a missing rg/fd cannot be installed
+    from here. Mirrors lint-plan --fix: an opt-in, narrow, reviewable write."""
+    if check_gitignore(root)[0]["status"] != "warn":
+        return None
+    gi = os.path.join(root, ".gitignore")
+    try:
+        with open(gi, encoding="utf-8") as fh:
+            existing = fh.read()
+    except OSError:
+        existing = ""
+    if ".planwright/" in [ln.strip() for ln in existing.splitlines()]:
+        return None
+    try:
+        with open(gi, "a", encoding="utf-8") as fh:
+            if existing and not existing.endswith("\n"):
+                fh.write("\n")
+            fh.write(".planwright/\n")
+    except OSError:
+        return None
+    return gi
 
 
 def main():
@@ -162,9 +270,18 @@ def main():
                     help="emit the findings as JSON instead of the readable report")
     ap.add_argument("--quiet", action="store_true",
                     help="suppress the readable report (exit code only)")
+    ap.add_argument("--strict", action="store_true",
+                    help="also exit non-zero on any warn (un-ignored .planwright/, unset "
+                         "git identity, missing rg/fd), so CI can require a pristine env")
+    ap.add_argument("--fix", action="store_true",
+                    help="auto-remediate the one fixable warn by adding `.planwright/` to "
+                         ".gitignore (the other warns need the user); then re-check")
     args = ap.parse_args()
 
-    records = check_tools() + check_scripts() + check_target(args.root)
+    fixed = apply_gitignore_fix(args.root) if args.fix else None
+
+    records = (check_tools() + check_scripts() + check_target(args.root)
+               + check_gitignore(args.root) + check_git_identity(args.root))
     fails = sum(1 for r in records if r["status"] == "fail")
 
     if args.json:
@@ -176,10 +293,14 @@ def main():
             "total": len(records),
             "checks": records,
         }
+        if args.fix:
+            payload["fixed"] = fixed
         print(json.dumps(payload, indent=2))
-        return 1 if fails else 0
+        return 1 if (fails or (args.strict and warns)) else 0
 
-    return report(records, args.quiet)
+    if fixed and not args.quiet:
+        print("doctor: fixed — added `.planwright/` to " + fixed)
+    return report(records, args.quiet, args.strict)
 
 
 if __name__ == "__main__":
