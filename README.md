@@ -25,9 +25,9 @@ worthwhile work.
 
 | Command | What it does | Reach for it when… |
 |---|---|---|
-| **`/codvisor`** | Finds and fixes real work already in your codebase — bugs, gaps, rough edges — round after round, then stops when the tree is clean. | You want your project polished and hardened without micromanaging. |
-| **`/codinventor`** | Everything `/codvisor` does, **plus** proposes genuinely new features (anchored to existing code) once the cleanup is done. | You want planwright to also *grow* the project, not just tidy it. |
-| **`/codcycle`** | Alternates the two on repeat — an explore (harden) then invent (grow) each outer cycle, with the invent effort *adapting* to how much new work is left, and one final hardening pass to close. | You want a long, hands-off run that keeps both polishing **and** growing until the project truly converges. |
+| `/codvisor` | Finds and fixes real work in your code, then stops when it's clean. | You want it polished and hardened, hands-off. |
+| `/codinventor` | Fixes real work **and** proposes net-new features, anchored to real code. | You want it to also *grow*, not just tidy. |
+| `/codcycle` | Loops the two — harden then grow each cycle (invent effort *adapts*), with a final harden. | You want a long run that keeps polishing **and** growing. |
 
 All three are safe by default: planning never touches your source, and when planwright does start editing
 (building items, committing), your normal edit/commit approval prompts still apply.
