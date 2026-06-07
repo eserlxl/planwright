@@ -1021,6 +1021,36 @@ assert bg.imports_of("c", '#include "dup.h"\n', "src/main.c", c2) == [], "ambigu
 PY
 then ok "js extension/index and C include-root imports resolve"; else bad "js or C import resolution broke (extension, index, basename, or ambiguity)"; fi
 
+# --- Test 11o2: JS/TS path aliases resolve against the NEAREST-ENCLOSING tsconfig, so a
+# nested-package monorepo (packages/app/tsconfig.json) is not misrouted by a root-only scan.
+# imports_of accepts the multi-config list form [(cfg_dir, (base_dir, patterns)), ...] and picks
+# the deepest config enclosing each file (nearest_ts_config), mirroring the go.mod nearest-module
+# rule. A root file still resolves the root alias; a packages/app file resolves its OWN @app alias
+# (which the root config does not define) — the exact case the old first-config-wins scan dropped.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+js = {"src/root.ts", "src/shared.ts", "packages/app/src/main.ts", "packages/app/src/util.ts"}
+ts_configs = [
+    ("", ("src", [("@root/*", ["./*"])])),                              # root: @root/x -> src/x
+    ("packages/app", ("packages/app/src", [("@app/*", ["./*"])])),      # nested: @app/x -> packages/app/src/x
+]
+ji = lambda src, frm: bg.imports_of("js", src, frm, js, None, ts_configs)
+# a nested-package file resolves its own (nested) @app alias — dropped by a root-only scan
+assert ji('import {u} from "@app/util"\n', "packages/app/src/main.ts") == ["packages/app/src/util.ts"], \
+    "nested @app alias must resolve against packages/app/tsconfig.json"
+# the root alias still resolves for a root-level file
+assert ji('import {s} from "@root/shared"\n', "src/root.ts") == ["src/shared.ts"], "root alias still resolves"
+# a nested file does NOT see the root @root alias as its own (nearest-enclosing, not merged)
+assert ji('import {s} from "@root/shared"\n', "packages/app/src/main.ts") == [], \
+    "nested file resolves only its nearest config, not the root alias"
+# nearest_ts_config picks the deepest enclosing config directly
+assert bg.nearest_ts_config("packages/app/src/main.ts", ts_configs)[0] == "packages/app/src", "deepest config wins"
+assert bg.nearest_ts_config("src/root.ts", ts_configs)[0] == "src", "root config for a root file"
+PY
+then ok "build-graph.py resolves JS/TS aliases against the nearest-enclosing tsconfig (monorepo-aware)"; else bad "nested tsconfig alias resolution broke (monorepo misroute or root regression)"; fi
+
 # --- Test 11p: import-looking lines inside comments/strings do NOT create edges -
 # strip_comments() removes block/line comments and Python docstrings before the import
 # regexes run, so a commented-out or string-embedded import no longer mis-routes the
