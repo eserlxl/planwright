@@ -149,3 +149,15 @@ if [ -n "$cvhead" ]; then
 else
   ok "status.py converged-field check skipped (git unavailable)"
 fi
+
+# --- Test STS10: completed count is case-insensitive on the x marker --------------
+# lifecycle.py / lint-plan.py accept an uppercase `- [X]` completed item; status must
+# count it too, else progress is undercounted relative to what those tools recognize.
+UCX="$TMP/status-upper"; mkdir -p "$UCX/.planwright"
+printf -- '- [x] lower done\n- [X] upper done\n' > "$UCX/.planwright/completed.md"
+ucx="$(python3 "$STAT" --root "$UCX" --json)"
+if printf '%s' "$ucx" | grep -q '"completed": 2'; then
+  ok "status.py counts an uppercase '- [X]' completed item (matches lifecycle/lint-plan)"
+else
+  bad "status.py undercounted an uppercase '- [X]' completed item"
+fi

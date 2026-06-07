@@ -34,10 +34,13 @@ import sys
 
 def _count_checkbox(path, marker):
     """Count lines beginning with the given checkbox marker (e.g. '- [ ] ' / '- [x] ')
-    in a plan-style file. A missing file counts as 0 — an absent log is a valid state."""
+    in a plan-style file. A missing file counts as 0 — an absent log is a valid state.
+    Case-insensitive on the marker so an uppercase '- [X]' completed item (which
+    lifecycle.py and lint-plan.py both accept) is counted, not silently dropped."""
+    marker = marker.lower()
     try:
         with open(path, encoding="utf-8") as fh:
-            return sum(1 for line in fh if line.startswith(marker))
+            return sum(1 for line in fh if line.lower().startswith(marker))
     except OSError:
         return 0
 
