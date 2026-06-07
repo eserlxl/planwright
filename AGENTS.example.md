@@ -2,6 +2,8 @@
 
 To use the `planwright` workflow with Cursor or Codex in **other projects**, choose one of the setup paths below. Cursor works best as a host skill. Codex works best as a local plugin, with direct skill install as a simple alternative. The `AGENTS.md` pointer is a lightweight fallback when a project-local hint is enough.
 
+> **Any AGENTS.md-aware agent works the same way.** Planwright is one agent-neutral `SKILL.md` plus stdlib-only helper scripts; each host integration is just a thin pointer to it. So the `AGENTS.md` block below is not Cursor/Codex-specific — it also drives **Windsurf, Cline, Roo Code, Amp, and Zed** (and any other agent that reads a project `AGENTS.md`) with no new adapter. Full graph-backed grounding requires the host to run the bundled Python helpers; agents that cannot execute scripts get the planning prose but not the file:line evidence.
+
 > **Important:** Replace `/absolute/path/to/planwright` with the actual path where this repository is cloned on the machine (for example `/opt/lxl/claude/planwright`).
 
 ---
@@ -103,7 +105,7 @@ Run `planwright help` (or `@planwright help`) for the full option reference.
 
 ## Alternative: project `AGENTS.md` pointer
 
-If a machine-wide skill install is not desired, copy the block below into a file named `AGENTS.md` in the **root of the target project** (the repo being planned, not the planwright clone).
+If a machine-wide skill install is not desired, copy the block below into a file named `AGENTS.md` in the **root of the target project** (the repo being planned, not the planwright clone). This is also the supported path for **Windsurf, Cline, Roo Code, Amp, Zed**, and any other agent that reads a project `AGENTS.md` — they all dispatch `planwright`, `codvisor`, and `codinventor` through the same shared skill.
 
 ```markdown
 ## planwright

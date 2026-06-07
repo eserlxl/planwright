@@ -145,6 +145,12 @@ The workflow has one argument grammar: `planwright <args>`. Each host only chang
 | Cursor | `@planwright <args>` or `planwright <args>` | `@codvisor`/`codvisor`, `@codinventor`/`codinventor` |
 | Antigravity / Gemini | `planwright <args>` from the `GEMINI.md` project instruction | `codvisor`, `codinventor` |
 
+### Why any agent can host it
+
+Planwright is not re-implemented per agent. The entire workflow lives in one agent-neutral file, `skills/planwright/SKILL.md`, backed by stdlib-only Python helpers in `scripts/`. Everything host-specific is a **thin adapter** — a plugin manifest or a pointer file whose only job is "read `SKILL.md`, resolve helper scripts from `../../scripts/`." The named hosts above just differ in how that adapter is delivered (a `.claude-plugin/`/`.codex-plugin/` manifest, a Cursor skill symlink, or a `GEMINI.md` instruction).
+
+Because of this, **any agent that reads a project `AGENTS.md` file is already supported** — no new adapter required. Drop the block from [`AGENTS.example.md`](AGENTS.example.md) into the target repo's `AGENTS.md` and the agent will dispatch `planwright`, `codvisor`, and `codinventor` through the same shared skill. This covers AGENTS.md-aware agents such as Windsurf, Cline, Roo Code, Amp, and Zed in addition to the first-class hosts above. The only requirement for full fidelity is that the host can run the bundled Python helpers; agents that cannot execute scripts get the planning prose but not the graph-backed grounding.
+
 ### Claude Code
 
 The plugin install path is recommended; manual skill copy is only for users not using the plugin system.
