@@ -75,7 +75,7 @@ def anchors_of(path):
             lines = fh.read().splitlines()
     except OSError:
         return None
-    slugs, in_fence = set(), False
+    slugs, counts, in_fence = set(), {}, False
     for raw in lines:
         s = raw.lstrip()
         if s.startswith("```") or s.startswith("~~~"):
@@ -87,20 +87,22 @@ def anchors_of(path):
         if m:
             slug = slugify(m.group(1))
             if slug:
-                slugs.add(slug)
+                # GitHub disambiguates a REPEATED heading by appending -1, -2, … in order
+                # of occurrence: the 1st `slug`, the 2nd `slug-1`, the 3rd `slug-2`. Emit
+                # exactly those anchors so a bogus `slug-999` on a single heading does not
+                # resolve (the old `-\d+$` strip accepted any numeric suffix).
+                n = counts.get(slug, 0)
+                slugs.add(slug if n == 0 else "%s-%d" % (slug, n))
+                counts[slug] = n + 1
         for am in HTML_ANCHOR_RE.finditer(raw):
             slugs.add(am.group(1).lower())
     return slugs
 
 
 def anchor_ok(anchor, slugs):
-    """True when `anchor` resolves against a page's anchor set. GitHub disambiguates
-    repeated headings with a -1/-2 suffix, so accept that pattern too."""
-    a = anchor.lower()
-    if a in slugs:
-        return True
-    base = re.sub(r"-\d+$", "", a)
-    return base in slugs and base != a
+    """True when `anchor` resolves against a page's anchor set. anchors_of already emits
+    GitHub's real `-1/-2` disambiguation anchors, so this is a plain membership test."""
+    return anchor.lower() in slugs
 
 
 def clean_target(raw):

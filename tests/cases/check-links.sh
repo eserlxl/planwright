@@ -88,3 +88,23 @@ if [ "$rc" = "1" ] && printf '%s' "$out" | grep -q 'missing.md (file does not ex
 else
   bad "check-links.py did not flag a broken titled link (rc=$rc): $out"
 fi
+
+# --- Test CL6: bogus numeric-suffix anchors are caught; real duplicate suffixes pass
+# GitHub only mints `-N` anchors for REPEATED headings. A `#heading-2` link where
+# `# Heading` appears once must be flagged; where it appears 3x, `#heading-1` resolves.
+NS="$TMP/cl-numsuffix"; mkdir -p "$NS"; git -C "$NS" init -q
+printf '# Heading\n\n[bogus](#heading-2)\n' > "$NS/single.md"
+git -C "$NS" add -A
+ns_rc=0
+ns_out="$(python3 "$CL" --root "$NS" 2>&1)" || ns_rc=$?
+# check a real-duplicate fixture in isolation so the single.md break does not mask it
+DUP="$TMP/cl-dup"; mkdir -p "$DUP"; git -C "$DUP" init -q
+printf '# Dup\n\n# Dup\n\n# Dup\n\n[real](#dup-1)\n[real2](#dup-2)\n' > "$DUP/dup.md"
+git -C "$DUP" add -A
+dup_rc=0
+python3 "$CL" --root "$DUP" >/dev/null 2>&1 || dup_rc=$?
+if [ "$ns_rc" = "1" ] && printf '%s' "$ns_out" | grep -q '#heading-2' && [ "$dup_rc" = "0" ]; then
+  ok "check-links.py flags a bogus -N anchor on a single heading but accepts real duplicate suffixes"
+else
+  bad "check-links.py numeric-suffix anchor handling wrong (single_rc=$ns_rc dup_rc=$dup_rc)"
+fi
