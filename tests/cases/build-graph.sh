@@ -1111,3 +1111,22 @@ else
   bad "build-graph.py did not warn+rebuild on an unparseable prior graph"
 fi
 
+
+# --- Test 11i: build-graph.py does not depend on the external `date` binary --------
+# built_at is now stamped via datetime, not a `date` subprocess. Shadow `date` with a
+# failing stub on PATH: before the fix sh(["date",...]) aborted the whole build; now it
+# is never called, so the build still succeeds with a valid ISO-8601 built_at.
+SHADOW="$TMP/datebreak"; mkdir -p "$SHADOW"
+printf '#!/bin/sh\nexit 1\n' > "$SHADOW/date"; chmod +x "$SHADOW/date"
+db_out="$TMP/datebreak_graph.json"
+db_rc=0
+PATH="$SHADOW:$PATH" python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" > "$db_out" 2>/dev/null || db_rc=$?
+if [ "$db_rc" = 0 ] && python3 -c "
+import json, sys, re
+d = json.load(open('$db_out'))
+sys.exit(0 if re.match(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\$', d.get('built_at','')) else 1)
+" 2>/dev/null; then
+  ok "build-graph.py builds with a broken/absent date binary (built_at via datetime)"
+else
+  bad "build-graph.py still depends on the external date binary (rc=$db_rc)"
+fi

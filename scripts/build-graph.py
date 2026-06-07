@@ -20,6 +20,7 @@ import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 COUPLING_WINDOW_COMMITS = 200
 COUPLING_MIN_COOCCURRENCE = 3
@@ -1089,7 +1090,7 @@ def build(root, prior_path, scope=None, seed=None):
     graph = {
         "version": 1,
         "graph_built_at_sha": head,
-        "built_at": sh(["date", "-u", "+%Y-%m-%dT%H:%M:%SZ"], root).strip(),
+        "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "target": ".",
         "ranking_signal": signal,
         "params": {
