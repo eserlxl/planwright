@@ -1,14 +1,12 @@
 # planwright
 
-**Grounded codebase planning for AI coding agents (Claude Code, Codex, Cursor, Antigravity, and Gemini).**
+**A free, local control loop for AI coding agents: grounded planning, verification, execution, and repeatable codebase improvement.**
 
-> Invoke it with your host's `planwright` trigger — for example `/planwright` on Claude Code,
-> `@planwright` on Cursor, or `planwright` in Codex/Antigravity/Gemini project instructions. The
-> `codvisor` shortcut resolves to `cycle 10 depth 10 explore`; `codinventor` resolves to
-> `cycle 10 depth 10 invent`; and `codcycle` loops the two together — explore then a
-> framing-rotated invent each outer cycle, with one closing explore.
+> Use `/codvisor` to repair and harden a repo, `/codinventor` to add grounded new capability,
+> or `/codcycle` to alternate both. Planwright works through the AI coding agent you already use:
+> Claude Code, Codex, Cursor, Antigravity, Gemini, or any AGENTS.md-aware agent.
 
-Planwright is a planning-first skill for codebase work. It reads your project, finds work worth
+Planwright is a planning-first control loop for codebase work. It reads your project, finds work worth
 doing, and writes it down as a checklist of concrete, verifiable steps in `.planwright/plan.md`. It
 can then work through that checklist for you — implementing each item, testing it, and committing
 the ones that pass.
@@ -17,22 +15,31 @@ Every item it proposes must point back to real code (a `file:line` reference) an
 command that proves it works. That's what **"grounded"** means: no vague advice, no invented
 features floating free of your actual repository.
 
-No new subscription. No cloud lock-in. Use Planwright with the AI coding agent you already have.
+Automated AI coding should not require a proprietary cloud engineer. Planwright brings that loop to the coding agent you already use.
+
+## Why Planwright exists
+
+Modern AI coding tools are increasingly built with AI coding tools themselves. That loop should not be limited to large AI labs or proprietary hosted platforms.
+
+Planwright brings the same pattern to ordinary repositories: your agent inspects the codebase, writes grounded and verifiable work items, implements them, runs the checks, commits what passes, and repeats.
+
+The difference is control. Planwright is local, free, agent-neutral, and file-based. You can inspect the plan, reject weak items, keep normal approval prompts, and move the same workflow between Claude Code, Codex, Cursor, Gemini, Antigravity, or any AGENTS.md-aware agent.
 
 ## Start here: the three commands
 
-Most people only need these three. Run them with no arguments and planwright does the rest — it prints
-the cost first, then works autonomously through plan→build→verify rounds until it runs out of
+Most people only need these three. Run them with no arguments and planwright does the rest — it prints the estimated AI/session cost first, then works autonomously through plan→build→verify rounds until it runs out of
 worthwhile work.
 
 | Command        | What it does                       | Best for           |
 |----------------|------------------------------------|--------------------|
 | `/codvisor`    | Fixes real work, stops when clean. | Analyze and repair |
-| `/codinventor` | Fixes work, adds net-new features. | Innovation         |
-| `/codcycle`    | Loops explore+invent, hardens.     | Autonomous coding  |
+| `/codinventor` | Discovers and adds grounded new capabilities. | Feature discovery  |
+| `/codcycle`    | Alternates repair and invention rounds.     | Autonomous improvement  |
 
 All three are safe by default: planning never touches your source, and when planwright does start editing
 (building items, committing), your normal edit/commit approval prompts still apply.
+
+It is autonomous in workflow, not unchecked in permissions: your host agent still controls file edits, terminal commands, and commits through its normal approval model.
 
 > Under the hood, `/codvisor` is shorthand for `cycle 10 depth 10 explore` and `/codinventor` for
 > `cycle 10 depth 10 invent`. You can pass numbers to tune them (`/codvisor 5 8` = 5 rounds at
@@ -149,7 +156,7 @@ The workflow has one argument grammar: `planwright <args>`. Each host only chang
 
 Planwright is not re-implemented per agent. The entire workflow lives in one agent-neutral file, `skills/planwright/SKILL.md`, backed by stdlib-only Python helpers in `scripts/`. Everything host-specific is a **thin adapter** — a plugin manifest or a pointer file whose only job is "read `SKILL.md`, resolve helper scripts from `../../scripts/`." The named hosts above just differ in how that adapter is delivered (a `.claude-plugin/`/`.codex-plugin/` manifest, a Cursor skill symlink, or a `GEMINI.md` instruction).
 
-Because of this, **any agent that reads a project `AGENTS.md` file is already supported** — no new adapter required. Drop the block from [`AGENTS.example.md`](AGENTS.example.md) into the target repo's `AGENTS.md` and the agent will dispatch `planwright`, `codvisor`, and `codinventor` through the same shared skill. This covers AGENTS.md-aware agents such as Windsurf, Cline, Roo Code, Amp, and Zed in addition to the first-class hosts above. The only requirement for full fidelity is that the host can run the bundled Python helpers; agents that cannot execute scripts get the planning prose but not the graph-backed grounding.
+Because of this, any agent that reliably reads a project `AGENTS.md` file can host Planwright without a dedicated adapter. Drop the block from [`AGENTS.example.md`](AGENTS.example.md) into the target repo's `AGENTS.md` and the agent will dispatch `planwright`, `codvisor`, and `codinventor` through the same shared skill. This covers AGENTS.md-aware agents such as Windsurf, Cline, Roo Code, Amp, and Zed in addition to the first-class hosts above. The only requirement for full fidelity is that the host can run the bundled Python helpers; agents that cannot execute scripts get the planning prose but not the graph-backed grounding.
 
 ### Claude Code
 
