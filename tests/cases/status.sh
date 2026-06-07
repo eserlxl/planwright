@@ -57,6 +57,27 @@ else
   bad "status.py did not surface pending item titles"
 fi
 
+# --- Test STS11: rejected items surface their titles + Rejection reasons ----------
+# status lists pending titles; for the feedback loop a power user also needs to see
+# what was rejected and why without cat'ing rejected.md. The readable report lists the
+# rejected title; --json carries a rejected_items array of {title, reason}. A rejected
+# entry with only `Status: Rejected` (no Rejection: line) yields an empty reason.
+RJX="$TMP/status-rejected"; mkdir -p "$RJX/.planwright"
+printf -- '- [ ] flaky idea\n      Status: Rejected\n      Rejection: value-gate: real consumer — emits noise not signal\n- [ ] bare reject\n      Status: Rejected\n' \
+  > "$RJX/.planwright/rejected.md"
+rjj="$(python3 "$STAT" --root "$RJX" --json)"
+rjr="$(python3 "$STAT" --root "$RJX")"
+if printf '%s' "$rjj" | grep -q '"rejected_items"' \
+   && printf '%s' "$rjj" | grep -q '"title": "flaky idea"' \
+   && printf '%s' "$rjj" | grep -q 'value-gate: real consumer' \
+   && printf '%s' "$rjj" | grep -q '"reason": ""' \
+   && printf '%s' "$rjr" | grep -q '^    - flaky idea — value-gate: real consumer' \
+   && printf '%s' "$rjr" | grep -q '^    - bare reject$'; then
+  ok "status.py surfaces rejected titles + Rejection reasons (report + --json; empty reason ok)"
+else
+  bad "status.py did not surface rejected item titles/reasons"
+fi
+
 # --- Test STS7: graph block + final-point rendering from a fixture ----------------
 # Feed a known graph (3 nodes, 2 dirty) and a final point; pin the counts and the
 # report lines so a collect()/report() refactor cannot silently corrupt them.

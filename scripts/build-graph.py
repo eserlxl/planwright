@@ -1186,6 +1186,21 @@ def debug_digest(graph, out):
     out.flush()
 
 
+def to_dot(graph):
+    """Serialize the import graph as GraphViz DOT — one node line per tracked file and one
+    directed edge per resolved import. Interop/visualization output only; the JSON graph
+    stays the canonical form planwright itself consumes. Needs no graphviz to emit (text)."""
+    nodes = graph.get("nodes", {})
+    lines = ["digraph planwright {"]
+    for path in sorted(nodes):
+        lines.append('  "%s";' % path)
+    for path in sorted(nodes):
+        for target in sorted(nodes[path].get("imports", []) or []):
+            lines.append('  "%s" -> "%s";' % (path, target))
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
 def main():
     ap = argparse.ArgumentParser(description="Build planwright Stage 1.5 graph.json (prints to stdout).")
     ap.add_argument("--root", default=".", help="repo root (default: cwd)")
@@ -1198,6 +1213,9 @@ def main():
                     help="write a human-readable routing digest (ranking signal, top ranked/code/cold "
                          "nodes with pagerank/churn/articulation, dirty-set + cycles) to stderr; "
                          "stdout stays clean JSON")
+    ap.add_argument("--dot", action="store_true",
+                    help="emit the import graph as GraphViz DOT to stdout instead of JSON "
+                         "(visualization/interop; pipe to `dot -Tsvg`)")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:
@@ -1222,6 +1240,9 @@ def main():
         return 2
     if args.debug:
         debug_digest(graph, sys.stderr)
+    if args.dot:
+        sys.stdout.write(to_dot(graph))
+        return 0
     json.dump(graph, sys.stdout, indent=2)
     sys.stdout.write("\n")
     return 0

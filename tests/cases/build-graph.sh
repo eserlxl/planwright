@@ -330,6 +330,29 @@ assert fr[5] == CATALOG[0], fr[5]           # seed 6 wraps to the first framing
 PY
 then ok "build-graph contiguous seeds 1..N sweep the framing catalog in order (the rotation /codcycle drives)"; else bad "seed->framing is not a clean catalog rotation (codcycle's framing sweep would repeat or skip vantages)"; fi
 
+# --- Test 11c2h: --dot exports the import graph as GraphViz DOT (interop) ----------
+# build-graph emits JSON by default; --dot serializes the same import graph as DOT
+# (a node line per file, a directed edge per resolved import) for visualization/interop,
+# and must leave the default JSON output untouched.
+DOTREPO="$TMP/dotrepo"; mkdir -p "$DOTREPO"
+printf '#!/usr/bin/env bash\nsource b.sh\na() { if true; then echo a; fi; }\n' > "$DOTREPO/a.sh"
+printf '#!/usr/bin/env bash\nb() { if true; then echo b; fi; }\n' > "$DOTREPO/b.sh"
+git -C "$DOTREPO" init -q && git -C "$DOTREPO" add -A
+git -C "$DOTREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+dot_out="$(python3 "$ROOT/scripts/build-graph.py" --root "$DOTREPO" --dot 2>/dev/null)"
+json_out="$(python3 "$ROOT/scripts/build-graph.py" --root "$DOTREPO" 2>/dev/null)"
+if printf '%s' "$dot_out" | head -1 | grep -q '^digraph planwright {' \
+   && printf '%s' "$dot_out" | grep -q '"a.sh";' \
+   && printf '%s' "$dot_out" | grep -q '"a.sh" -> "b.sh";' \
+   && printf '%s' "$dot_out" | tail -1 | grep -q '^}' \
+   && ! printf '%s' "$dot_out" | grep -q '"nodes"' \
+   && printf '%s' "$json_out" | grep -q '"nodes"' \
+   && ! printf '%s' "$json_out" | grep -q 'digraph'; then
+  ok "build-graph --dot emits GraphViz DOT (nodes + import edge); default stays JSON"
+else
+  bad "build-graph --dot did not emit a correct DOT import graph or altered the default JSON output"
+fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.
