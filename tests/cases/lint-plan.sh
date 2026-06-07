@@ -529,6 +529,14 @@ if [ "$scb_rc" -ne 0 ] && [ -z "$scb_miss" ]; then ok "lint-plan.py --scope fail
 # No-op guarantees: same plan passes without --scope, and with a whole-repo (empty-focus) graph
 if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --quiet; then ok "lint-plan.py without --scope ignores Focus (default lint unchanged)"; else bad "lint-plan.py false-failed the scope plan without --scope"; fi
 if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --scope "$SCG_WHOLE" --quiet; then ok "lint-plan.py --scope is a no-op on a whole-repo (empty-focus) graph"; else bad "lint-plan.py --scope wrongly enforced on an empty-focus graph"; fi
+# A corrupt (non-object / wrong-shape) --scope graph must no-op (no scope active), not crash:
+# the same SCP_BAD plan (clean without scope) still passes, and the linter exits cleanly.
+scp_corrupt_ok=1
+for sg in '[]' '42' '{"focus": 5}'; do
+  SCG_BAD="$TMP/scope_corrupt.json"; printf '%s\n' "$sg" > "$SCG_BAD"
+  python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --scope "$SCG_BAD" --quiet || scp_corrupt_ok=0
+done
+if [ "$scp_corrupt_ok" -eq 1 ]; then ok "lint-plan.py --scope no-ops on a corrupt scope graph (not a crash)"; else bad "lint-plan.py --scope crashed or enforced on a corrupt scope graph"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a completed item"; then ok "lint-plan.py notes a re-proposed completed item (advisory)"; else bad "lint-plan.py missed the completed-item advisory"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a rejected item"; then ok "lint-plan.py notes a re-proposed rejected item (advisory)"; else bad "lint-plan.py missed the rejected-item advisory"; fi
 # Advisory matches alone (no structural violation) must NOT fail the gate.

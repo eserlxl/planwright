@@ -257,9 +257,12 @@ def load_focus(scope_path):
     try:
         with open(scope_path, encoding="utf-8") as fh:
             g = json.load(fh)
-    except (ValueError, OSError):
+        return set(g.get("focus") or []), set(g.get("context") or [])
+    except (ValueError, OSError, AttributeError, TypeError):
+        # Unreadable, not JSON, or valid JSON of the wrong shape (not an object, or a
+        # non-list focus/context) — e.g. a truncated or hand-edited scope graph. Treat
+        # as 'no scope active' so the gate no-ops rather than crashing the linter.
         return set(), set()
-    return set(g.get("focus") or []), set(g.get("context") or [])
 
 
 def scope_check(item, focus, context):
