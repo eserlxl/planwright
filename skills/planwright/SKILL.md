@@ -536,6 +536,13 @@ the emitted `graph.json` `dirty` block** (`is_first_run`, `whole_graph`, `reason
 steps below are the **specification** the script implements — follow them by hand only as a fallback when
 the script cannot run (no `python3`, etc.).
 
+The builder also exposes read-only **inspection/interop** flags that are *not* part of the plan build:
+`--dot` emits the graph as GraphViz DOT (solid = imports, dashed = change-coupling, bold boxes =
+articulation points; honors `--scope` for a one-component subgraph), `--select EXPR` prints the paths of
+nodes matching one signal predicate (e.g. `is_articulation`, `no-covered_by_test`, `lang=NAME`), and
+`--debug` writes a routing digest to stderr. These are for a human/power user inspecting the graph (see
+`docs/usage.md`); they never feed Evidence.
+
 **Seeded invent framing** — when this run is an `invent` run **and** a `seed <S>` was given (Inputs),
 also append `--seed <S>`: the builder then emits `explore_seed`, `ranked_explore`, and `explore_framing`
 (a vantage key from a fixed catalog). Consume **only `explore_framing`** — it focuses Stage 5's invent

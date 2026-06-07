@@ -207,6 +207,26 @@ To keep audits affordable on large codebases, the plan path builds a structural 
 
 See [Graph memory](graph-memory-schema.md) for the full `graph.json` schema and the per-stage build procedure.
 
+### Inspecting & visualizing the graph (power-user CLI)
+
+`build-graph.py` is normally invoked by the plan path, but it exposes read-only flags for inspecting the graph directly:
+
+- **`--dot`** — emit the graph as GraphViz DOT instead of JSON, for visualization/interop. Solid directed edges are **imports**; dashed arrowless edges are **change-coupling** pairs (the hidden dependencies a reader cannot see in the code); **articulation points** (fragile chokepoints) render as bold boxes. It honors `--scope` to render a single component's Focus+Context subgraph instead of the whole repo:
+
+  ```bash
+  python3 <scripts>/build-graph.py --dot | dot -Tsvg > graph.svg
+  python3 <scripts>/build-graph.py --scope src/ --dot | dot -Tsvg > src.svg
+  ```
+
+- **`--select EXPR`** — print the repo-relative paths of nodes matching one predicate (one per line, sorted) for scripting without `jq`. EXPR is one of `is_articulation`, `covered_by_test`, `is_test`, a `no-` negation of those, `code` (`branch_count > 0`), `never-audited` (no recorded audit sha), or `lang=NAME`. It takes precedence over `--dot`:
+
+  ```bash
+  python3 <scripts>/build-graph.py --select is_articulation    # the fragile chokepoints
+  python3 <scripts>/build-graph.py --select no-covered_by_test # uncovered code nodes
+  ```
+
+(`--debug` writes a human-readable routing digest to stderr — see [Troubleshooting](#the-audit-looked-at-the-wrong-files).)
+
 ## Output Format
 
 Items are generated in a precise 8-field checkbox format within `.planwright/plan.md`. This format is strict so that it can be parsed and executed cleanly.
