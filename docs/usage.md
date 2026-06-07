@@ -128,17 +128,18 @@ skills/instructions elsewhere.
 ```
 
 `/codcycle` is a Claude Code orchestration command (not a single-invocation alias): per *outer cycle*
-it drives the planwright skill through three phases back-to-back — `cycle 3 depth 10 explore`, then
-`cycle 3 depth 10 invent`, then `cycle 3 depth 10 explore` — a **harden → grow → harden** rhythm. With
-no argument it runs 10 outer cycles; one integer sets the outer-cycle count, and a negative count runs
-forever. It stops early on a hard blocker, a failing broad verify, or a full outer cycle that produces
-no new committed work (a stable meta-final-point). Because every outer cycle includes an `invent` phase,
-that phase may make rare, small committed edits to repo files, including `MISSION.md`.
+it drives the planwright skill through two phases back-to-back — `cycle 3 depth 10 explore`, then
+`cycle 3 depth 10 invent` — a **harden → grow** rhythm, and closes the whole run with a single final
+`cycle 3 depth 10 explore` phase. With no argument it runs 10 outer cycles; one integer sets the
+outer-cycle count, and a negative count runs forever. It stops early on a hard blocker, a failing broad
+verify, or a full outer cycle that produces no new committed work (a stable meta-final-point) — and runs
+the final explore afterward unless it stopped on a broken tree. Because every outer cycle includes an
+`invent` phase, that phase may make rare, small committed edits to repo files, including `MISSION.md`.
 
 ```bash
-/codcycle                  10 outer cycles (explore → invent → explore, cycle 3 depth 10 each)
-/codcycle 3                3 outer cycles
-/codcycle -1               run the explore → invent → explore rhythm until stopped (negative = infinite)
+/codcycle                  10 outer cycles (explore → invent, cycle 3 depth 10 each) + a final explore
+/codcycle 3                3 outer cycles + a final explore
+/codcycle -1               run the explore → invent rhythm until stopped (negative = infinite), then a final explore
 ```
 
 After any `invent` run finishes, planwright closes its report with a one-line suggestion to run

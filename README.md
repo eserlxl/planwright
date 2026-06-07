@@ -294,10 +294,10 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codinventor 15            # cycle 15 depth 10 invent (one number = cycles; depth defaults to 10)
 /codinventor 5 8           # cycle 5 depth 8 invent (cycles, depth)
 
-# /codcycle — alternate hardening and growth: explore → invent → explore per outer cycle
-/codcycle                  # 10 outer cycles, each: cycle 3 depth 10 explore, then invent, then explore
-/codcycle 3                # 3 outer cycles (one integer = outer-cycle count)
-/codcycle -1               # run the explore→invent→explore rhythm forever (negative = infinite)
+# /codcycle — alternate hardening and growth: explore → invent per outer cycle, one final explore closes the run
+/codcycle                  # 10 outer cycles, each: cycle 3 depth 10 explore then invent; then one closing explore
+/codcycle 3                # 3 outer cycles (one integer = outer-cycle count) + a final closing explore
+/codcycle -1               # run the explore→invent rhythm forever (negative = infinite), closing with a final explore
 
 # Maintenance
 /planwright doctor     # preflight: check git/rg/python3 + bundled-script resolution
