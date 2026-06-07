@@ -91,11 +91,11 @@ done
 if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates preserve scoped codvisor/codinventor resolution"; else bad "host instruction templates lost scoped codvisor/codinventor resolution"; fi
 
 # --- Test 15: commands/codcycle.md is a well-formed planwright orchestration command ---
-# /codcycle drives planwright across an explore→invent rhythm per outer cycle (the invent cycle count
-# is adaptive: base 3, ramping to the 4x cap of 12 as verified commits decline), then closes the whole
-# run with a single final explore; guard its contract so an edit can't drop the planwright delegation,
-# the two per-cycle phases, the adaptive invent count, the closing explore, the 10-outer-cycle default,
-# or the negative=infinite rule.
+# /codcycle drives planwright across an explore→invent rhythm per outer cycle (both phases fixed at
+# cycle 3 depth 10; the invent phase rotates its generative framing via a per-outer-cycle seed), then
+# closes the whole run with a single final explore; guard its contract so an edit can't drop the
+# planwright delegation, the two per-cycle phases, the framing rotation (seed), the full-rotation
+# meta-final-point, the closing explore, the 10-outer-cycle default, or the negative=infinite rule.
 CMD="$ROOT/commands/codcycle.md"
 if [ -f "$CMD" ]; then ok "commands/codcycle.md exists"; else bad "commands/codcycle.md missing"; fi
 if python3 - "$CMD" <<'PY' 2>/dev/null
@@ -119,15 +119,20 @@ assert "cycle 3 depth 10 explore" in body[:ei], "no explore phase before invent 
 assert "cycle 3 depth 10 explore" in body[ei:], "no closing explore phase after invent"
 # the closing explore must be explicitly framed as the final phase of the whole run
 assert "final explore" in body.lower(), "no final/closing explore phase stated"
-# the invent phase's cycle count is adaptive: base 3 (above), ramping to the 4x cap (12)
-assert "adaptive" in body.lower(), "invent cycle count not described as adaptive"
-assert "cycle 12 depth 10 invent" in body, "4x invent cap (cycle 12 depth 10 invent) not stated"
-# the adaptation is driven by the verified-commit trend between outer cycles
-assert "commit" in body.lower(), "adaptive control signal (verified commits) not described"
-# the per-cycle explore stays fixed at 3 while invent adapts (explore count is not adaptive)
-assert "cycle 3 depth 10 explore" in body, "fixed explore cycle count (3) missing"
+# the invent phase rotates its generative framing via a per-outer-cycle seed (the lever is
+# framing rotation, NOT an adaptive cycle count — the cycle count is fixed at 3)
+assert "seed <i>" in body, "invent phase does not pass the per-outer-cycle framing seed"
+assert "framing rotation" in body.lower(), "framing rotation not described as the rotation lever"
+# the fixed catalog the rotation sweeps, in order
+for vantage in ("power-user", "integration", "onboarding", "reliability", "automation"):
+    assert vantage in body, f"framing catalog vantage '{vantage}' missing"
+# the meta-final-point is breadth-earned: a full framing rotation must come up dry (not one cycle)
+assert "full framing rotation" in body.lower(), "meta-final-point not gated on a full framing rotation"
+assert "dry_streak" in body or "dry streak" in body.lower(), "no consecutive-dry-cycle rotation counter"
+# the old adaptive cycle-count knob must be gone (cycle count is fixed, not ramped to a 12 cap)
+assert "cycle 12 depth 10 invent" not in body, "stale adaptive 4x invent cap still present"
 # the no-arg default (10 outer cycles) and the negative=infinite rule
 assert "10 outer cycles" in body, "no-arg default of 10 outer cycles not stated"
 assert "negative" in body.lower(), "negative=infinite rule not stated"
 PY
-then ok "commands/codcycle.md orchestrates the explore→invent rhythm with an adaptive invent count and a closing explore"; else bad "commands/codcycle.md malformed or lost its rhythm/adaptive-invent/closing-explore/delegation/default contract"; fi
+then ok "commands/codcycle.md orchestrates the explore→invent rhythm with a rotating invent framing and a closing explore"; else bad "commands/codcycle.md malformed or lost its rhythm/framing-rotation/closing-explore/delegation/default contract"; fi

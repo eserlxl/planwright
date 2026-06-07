@@ -1,5 +1,5 @@
 ---
-description: Run planwright in an alternating explore → invent rhythm. Each outer cycle runs two planwright phases back-to-back (cycle 3 depth 10 explore, then an adaptive cycle 3..12 depth 10 invent), and a single final explore phase closes the whole run. The invent phase's cycle count is adaptive — it ramps from the base 3 up to 4x (12) when the verified-commit count declines between outer cycles, and relaxes back toward the base as commits recover. With no arguments it runs 10 outer cycles, and a negative count runs forever. Use it to harden the tree then grow net-new, seam-bound capability (the invent phase) on repeat, with one closing explore to harden whatever the last invent landed.
+description: Run planwright in an alternating explore → invent rhythm. Each outer cycle runs two planwright phases back-to-back (cycle 3 depth 10 explore, then cycle 3 depth 10 invent under a rotating framing seed), and a single final explore phase closes the whole run. Successive outer cycles rotate the invent framing through the fixed catalog (power-user → integration → onboarding → reliability → automation) so each cycle surveys a genuinely different region instead of re-deriving the same comprehensive ranking; the meta-final-point is declared only when a full framing rotation comes up dry. With no arguments it runs 10 outer cycles, and a negative count runs forever. Use it to harden the tree then grow net-new, seam-bound capability (the invent phase) on repeat, with one closing explore to harden whatever the last invent landed.
 argument-hint: "[N] | <N> (negative = infinite) | (empty = 10 outer cycles)"
 ---
 
@@ -17,10 +17,11 @@ The rhythm is **harden → grow** per outer cycle: an `explore` phase first (col
 over the current tree), then an `invent` phase (propose net-new, seam-bound capability). One pass through
 those two phases is a single **codcycle**. After the outer loop ends, a **single final `explore` phase**
 closes the whole run — hardening whatever the last invent landed and re-converging the tree. The two
-`explore` phases (per-cycle and final) are fixed at `cycle 3 depth 10`; the `invent` phase's cycle count
-is **adaptive** between `cycle 3` and `cycle 12 depth 10` (see **Adaptive invent cycle count** below).
-Each round is at maximum analysis depth (`depth 10`), so one outer cycle is ≈`3 + invent_n` planwright
-cycles (≈6 at the base invent count, up to ≈15 at the 4× cap) plus the final explore's 3.
+`explore` phases (per-cycle and final) are fixed at `cycle 3 depth 10`, and the `invent` phase is fixed
+at `cycle 3 depth 10` too; what changes across outer cycles is the invent survey's **framing** — the
+generative vantage it reasons under, rotated through a fixed catalog (see **Framing rotation** below).
+Each round is at maximum analysis depth (`depth 10`), so one outer cycle is ≈6 planwright cycles plus the
+final explore's 3.
 
 Raw arguments: `$ARGUMENTS`
 
@@ -36,46 +37,44 @@ Resolve them in this order:
 2. **`<rest>` is a single integer `N`** (nothing else): run `N` outer cycles. `N` may be **negative**,
    which runs **forever** (until a stop condition fires or the user interrupts). `N` must be non-zero.
 3. **`<rest>` is `help` / `--help` / `-h` / `?`**: print
-   `Usage: /codcycle [N]   (N != 0; negative = infinite; default 10). Each outer cycle = explore (cycle 3 depth 10) → invent (adaptive cycle 3..12 depth 10); one final explore closes the whole run.`
+   `Usage: /codcycle [N]   (N != 0; negative = infinite; default 10). Each outer cycle = explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed; the meta-final-point needs a full framing rotation to come up dry; one final explore closes the whole run.`
    and STOP — do not run anything.
 4. **Anything else** (including `N == 0` or a non-integer): print that same `Usage:` line and STOP.
 
 For cases 1 and 2, **first print exactly one cost-banner line** so this heavy run is never silent (it
 also doubles as the `invent` awareness notice — the invent phase may make rare, small, committed edits
 to repo files, including `MISSION.md`):
-`codcycle: max-intensity adaptive sweep — <N or ∞> outer cycle(s), each running explore (cycle 3 depth 10) → invent (adaptive cycle 3..12 depth 10, ramping up as verified commits decline between cycles), then one final explore phase to close the run. Note: the invent phase may make rare, small committed edits to repo files, including MISSION.md.`
+`codcycle: max-intensity framing-rotated sweep — <N or ∞> outer cycle(s), each running explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed that sweeps the vantage catalog (power-user → integration → onboarding → reliability → automation), then one final explore phase to close the run. Note: the invent phase may make rare, small committed edits to repo files, including MISSION.md.`
 
 Then run the loop. For each outer cycle `i` (from 1 to `N`, or unbounded when `N` is negative):
 
 - Print a header line `=== codcycle i/N ===` (use `i/∞` when `N` is negative).
 - **Phase A (harden):** invoke planwright with `cycle 3 depth 10 explore <scope>`. Wait for it to finish.
-- **Phase B (grow):** invoke planwright with `cycle <invent_n> depth 10 invent <scope>`, where `invent_n`
-  is the **adaptive** invent cycle count (see **Adaptive invent cycle count** below; the first outer cycle
-  uses the base, so Phase B of cycle 1 is `cycle 3 depth 10 invent`). Wait for it to finish.
+- **Phase B (grow):** invoke planwright with `cycle 3 depth 10 invent seed <i> <scope>` — a fixed 3-cycle
+  invent burst under the **framing seed `<i>`** (the outer-cycle index), which rotates the invent
+  survey's vantage (see **Framing rotation** below). Wait for it to finish.
 - Record `commits_i` = the number of **verified (committed) items** produced this outer cycle across
-  Phase A + Phase B (planwright reports the committed SHAs per phase; count them). This feeds the next
-  cycle's `invent_n`.
+  Phase A + Phase B (planwright reports the committed SHAs per phase; count them). This drives the
+  meta-final-point's dry-rotation counter.
 
-**Adaptive invent cycle count.** The `explore` phases stay fixed at `cycle 3 depth 10`, but the `invent`
-phase's cycle count **adapts** to how much net-new work the run is still landing — a drying project gets
-more invent effort before it converges, and a productive one is not over-spent. Keep an `invent_n`
-initialised to the base **3** and capped at **4× the base = 12**. The adjustment is made **after** each
-outer cycle completes (once `commits_i` is known) and applied to the **next** cycle's Phase B — you
-cannot know a cycle's commit count before running it, so the controller always steers off the most recent
-*completed* cycle:
+**Framing rotation.** The `invent` phase's cycle *count* is **not** adaptive — cycle count is the wrong
+lever, because invent is **seam-bound**: re-running it more times only re-surveys the same seam set, so a
+drying project gains nothing from extra cycles. What rotates instead is the invent survey's **framing** —
+the generative vantage it reasons under. Outer cycle `i` passes `seed <i>` to its invent phase;
+planwright's builder maps that seed to one key in the fixed catalog by a clean modulo rotation, so
+successive outer cycles sweep every vantage in order with no repeat or gap before wrapping:
 
-- **Growth declining** — `commits_i < commits_{i-1}` (this cycle landed fewer verified commits than the
-  previous one): the well is drying, so dig harder next time — `invent_n = min(12, invent_n + 3)` (the
-  ramp 3 → 6 → 9 → 12, i.e. 1× → 4× of the base).
-- **Growth acceptable / recovered** — `commits_i ≥ commits_{i-1}` (the commit count held or rose to an
-  acceptable level): relax back toward the baseline — `invent_n = max(3, invent_n − 3)`.
-- Cycles **1 and 2 run at the base** `invent_n = 3` (cycle 1 has no prior, and after cycle 1 only one
-  commit count exists — a trend needs two). The first ramp can therefore land on **cycle 3** at the
-  earliest, once `commits_2` and `commits_1` can be compared.
+`power-user → integration → onboarding → reliability → automation` (then wraps to power-user).
 
-So a sustained decline ramps Phase B from `cycle 3 depth 10 invent` up to `cycle 12 depth 10 invent` (the
-4× cap, never beyond), and a recovery walks it back down to the base. The base (3), cap (12 = 4×), and
-step (3) are fixed; only `invent_n` moves. This is the only adaptive knob — depth, the explore counts,
+Why rotate the framing rather than the cycle count: a **seeded** invent phase deliberately *focuses* one
+vantage and does **not** self-rotate. (An *unseeded* invent already auto-rotates the catalog internally,
+but only reactively — on an empty survey — and a productive comprehensive pass that finds any candidate
+never rotates at all, so one high-value vantage can starve the others.) Driving the rotation from
+codcycle forces each outer cycle into a genuinely different region, so the run surveys all vantages with
+per-vantage depth instead of re-deriving the same comprehensive ranking every cycle. Each round still
+runs at maximum depth (`depth 10`); the framing only scopes *which* net-new candidates are generated,
+never the grounding bar — every item still clears planwright's Stage 10 gate and carries a runnable
+verification. The catalog (5 vantages, fixed order) is the only rotation knob; depth, the explore counts,
 and the final explore are unaffected.
 
 After the outer loop ends — whether it completed `N` cycles, was interrupted, or stopped at the stable
@@ -92,15 +91,21 @@ Between and after phases, honour planwright's own stop conditions — do not pap
 - If any phase stops on a **hard blocker** (an item needing an unresolved design decision or undeclared
   surfaces) or a **failing broad final verification**, STOP the whole codcycle loop immediately and
   report — do not start the next phase, the next outer cycle, **or the final explore** on a broken tree.
-- If a **full outer cycle produces no new committed items across both phases** (explore dry, and invent
-  reached a genuine no-groundable-seam empty), the project is at a stable meta-final-point — STOP the
-  outer loop and report it rather than spinning further (this is the honest convergence point of the
-  rhythm). The tree is healthy, so the **final explore still runs once** afterward as the closing harden.
+- A single **dry outer cycle** (0 new committed items across both phases) is **not** convergence — under
+  a focused framing it only means *that vantage* is dry. Keep rotating. Declare the stable
+  **meta-final-point** only when a **full framing rotation comes up dry** — i.e. `5` (the catalog length)
+  **consecutive** outer cycles each produce 0 committed items, so every vantage surveyed in the last
+  sweep is dry. Track a `dry_streak`: increment it on a 0-commit outer cycle, reset it to 0 on any
+  committed item; when it reaches 5, STOP the outer loop and report the meta-final-point (this is the
+  honest, breadth-earned convergence point of the rhythm). The tree is healthy, so the **final explore
+  still runs once** afterward as the closing harden. (On a finite `N` shorter than a full rotation the
+  loop may end first; that is an `N`-budget stop, not a meta-final-point.)
 
 After the loop and the final explore (or an early stop), print a short cumulative summary: outer cycles
 completed (out of `N`, or `∞`), whether the final explore ran, total items implemented across all phases,
-the **per-cycle verified-commit counts and the `invent_n` trajectory** they drove (e.g.
-`commits 4 → 2 → 3` drove `invent_n 3 → 6 → 3`), and the stop reason.
+the **per-cycle verified-commit counts and the framing each cycle surveyed** (e.g.
+`commits 2 → 0 → 0 across framings power-user → integration → onboarding`), and the stop reason
+(`meta-final-point — full framing rotation dry`, `N-budget`, `hard blocker`, or `broad-verify failed`).
 
 Print nothing of your own except the cost banner (cases 1–2), the per-outer-cycle headers, the final
 explore header, and the final summary; each planwright phase prints its own per-cycle output, which

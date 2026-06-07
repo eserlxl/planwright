@@ -290,7 +290,7 @@ git -C "$SDREPO" -c user.name=t -c user.email=t@e.com commit -qm init
 sd_a="$TMP/seed_a.json"; sd_b="$TMP/seed_b.json"; sd_c="$TMP/seed_c.json"; sd_none="$TMP/seed_none.json"
 python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --seed 1337 > "$sd_a" 2>/dev/null
 python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --seed 1337 > "$sd_b" 2>/dev/null
-python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --seed 42 > "$sd_c" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --seed 43 > "$sd_c" 2>/dev/null
 python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" > "$sd_none" 2>/dev/null
 if python3 - "$sd_a" "$sd_b" "$sd_c" "$sd_none" <<'PY' 2>/dev/null
 import json, sys
@@ -313,6 +313,22 @@ assert "explore_seed" not in none and "ranked_explore" not in none, list(none.ke
 assert "explore_framing" not in none, list(none.keys())
 PY
 then ok "--seed emits a reproducible ranked_explore + framing that a different seed varies (same members)"; else bad "--seed ordering/framing not reproducible/varied or leaked without --seed"; fi
+
+# --- Test 11c2g: contiguous seeds sweep the framing catalog in order (codcycle rotation)
+# explore_framing is a clean modulo rotation — seed N selects the Nth framing (1-indexed) —
+# so /codcycle driving seeds 1, 2, 3, … sweeps every vantage with no repeat/gap before
+# wrapping. This is the contract codcycle's "rotate framings, stop when all dry" relies on.
+for s in 1 2 3 4 5 6; do
+  python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --seed "$s" > "$TMP/seed_rot_$s.json" 2>/dev/null
+done
+if python3 - "$TMP/seed_rot_1.json" "$TMP/seed_rot_2.json" "$TMP/seed_rot_3.json" "$TMP/seed_rot_4.json" "$TMP/seed_rot_5.json" "$TMP/seed_rot_6.json" <<'PY' 2>/dev/null
+import json, sys
+fr = [json.load(open(p))["explore_framing"] for p in sys.argv[1:7]]
+CATALOG = ["power-user", "integration", "onboarding", "reliability", "automation"]
+assert fr[:5] == CATALOG, fr[:5]            # seeds 1..5 cover all five vantages in order
+assert fr[5] == CATALOG[0], fr[5]           # seed 6 wraps to the first framing
+PY
+then ok "build-graph contiguous seeds 1..N sweep the framing catalog in order (the rotation /codcycle drives)"; else bad "seed->framing is not a clean catalog rotation (codcycle's framing sweep would repeat or skip vantages)"; fi
 
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
