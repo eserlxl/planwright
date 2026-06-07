@@ -26,6 +26,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 
 FIFO_CAP = 100
 CHECKBOX = re.compile(r"^- \[([ xX])\]")
@@ -87,8 +88,26 @@ def read_blocks(path):
 
 
 def write(path, preamble, blocks):
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(render(preamble, blocks))
+    """Write atomically: render to a temp file in the target's own directory, then
+    os.replace() it onto the target. A plain open(path, "w") truncates the file before
+    the new content is written, so a housekeep interrupted (Ctrl-C / crash / OOM) between
+    the truncate and the completed write would leave plan.md/completed.md/rejected.md
+    truncated, silently losing tracked items. A same-directory temp keeps the rename on
+    one filesystem (so os.replace is atomic); on any failure the temp is removed and the
+    error re-raised, leaving the original target untouched."""
+    data = render(preamble, blocks)
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".lifecycle-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def append_capped(path, new_blocks):

@@ -209,3 +209,31 @@ if [ -z "$qjout" ]; then
 else
   bad "lifecycle.py --quiet did not suppress --json output (out='$qjout')"
 fi
+
+# --- Test L8: writes are atomic — content is correct and no temp file is left ------
+# lifecycle.write() renders to a same-dir temp then os.replace()s it, so an interrupted
+# housekeep can never truncate plan/completed/rejected. The observable signatures: the
+# drained content is correct AND no leftover .lifecycle-*.tmp remains in the dir.
+LCA="$TMP/lc8/.planwright"; mkdir -p "$LCA"
+cat > "$LCA/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [x] done one
+      Mode: docs
+      Surfaces: README.md
+      Verification: true
+
+- [ ] still pending
+      Mode: docs
+      Surfaces: README.md
+      Verification: true
+EOF
+python3 "$LC" housekeep --root "$LCA" >/dev/null
+tmpleft="$(find "$LCA" -name '.lifecycle-*.tmp' 2>/dev/null | wc -l | tr -d ' ')"
+comp_done="$(grep -c '^- \[x\] done one' "$LCA/completed.md" 2>/dev/null || echo 0)"
+plan_pending="$(grep -c '^- \[ \] still pending' "$LCA/plan.md" 2>/dev/null || echo 0)"
+if [ "$tmpleft" = "0" ] && [ "$comp_done" = "1" ] && [ "$plan_pending" = "1" ]; then
+  ok "lifecycle.py write is atomic: correct drained content and no leftover temp file"
+else
+  bad "lifecycle.py atomic write wrong (tmpleft=$tmpleft comp_done=$comp_done plan_pending=$plan_pending)"
+fi
