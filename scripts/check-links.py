@@ -30,6 +30,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
@@ -147,6 +148,10 @@ def check_file(root, relpath, anchor_cache):
             if not target or EXTERNAL_RE.match(target):
                 continue
             path, _, anchor = target.partition("#")
+            # A real file target may carry a `?query` (drop it) and percent-encoding
+            # like `%20` (decode it) before it is matched against disk, or a valid link
+            # such as `docs/core%20concepts.md` / `usage.md?v=1` false-fails as broken.
+            path = urllib.parse.unquote(path.split("?", 1)[0])
             if path == "":
                 # same-file anchor
                 slugs = resolve_anchors(relpath)

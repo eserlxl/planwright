@@ -108,3 +108,18 @@ if [ "$ns_rc" = "1" ] && printf '%s' "$ns_out" | grep -q '#heading-2' && [ "$dup
 else
   bad "check-links.py numeric-suffix anchor handling wrong (single_rc=$ns_rc dup_rc=$dup_rc)"
 fi
+
+# --- Test CL7: link targets are URL-decoded and query-stripped before the disk check
+# A valid link with a %20-encoded space or a ?query suffix must resolve to the real
+# file, not false-fail as broken.
+NM="$TMP/cl-normalize"; mkdir -p "$NM"; git -C "$NM" init -q
+printf '# Concepts\n' > "$NM/core concepts.md"
+printf '# Home\n\n[spaced](core%%20concepts.md)\n[queried](index.md?v=1)\n' > "$NM/index.md"
+git -C "$NM" add -A
+nm_rc=0
+nm_out="$(python3 "$CL" --root "$NM" 2>&1)" || nm_rc=$?
+if [ "$nm_rc" = "0" ]; then
+  ok "check-links.py URL-decodes %20 and strips ?query before the existence check"
+else
+  bad "check-links.py false-failed a %20 / ?query link (rc=$nm_rc): $nm_out"
+fi
