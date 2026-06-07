@@ -1259,11 +1259,17 @@ def to_select(graph, expr):
     build-graph already computes (not a general query language): a boolean field name
     (is_articulation | covered_by_test | is_test) selects nodes where it is true; a `no-` prefix
     on one selects where it is false; `code` selects branch_count>0; `never-audited` selects
-    nodes whose last_audited_sha is null; `lang=NAME` selects nodes of that language. Raises
-    ValueError on an unknown predicate so the caller can report it and exit non-zero."""
+    nodes whose last_audited_sha is null; `lang=NAME` (NAME non-empty) selects nodes of that
+    language. Under a --scope build the result is restricted to the Context node set, matching
+    --dot so the two non-JSON output modes agree on scope. Raises ValueError on an unknown or
+    malformed predicate (including a bare `lang=`) so the caller can report it and exit non-zero."""
     nodes = graph.get("nodes", {})
+    # Mirror to_dot: a --scope build carries a "context" node list; restrict the result to it so
+    # `--scope X --select ...` answers about that component, not the whole repo. Absent => all.
+    context = graph.get("context")
+    visible = set(context) if context is not None else set(nodes)
     e = (expr or "").strip()
-    if e.startswith("lang="):
+    if e.startswith("lang=") and e[len("lang="):]:
         want = e[len("lang="):]
         pred = lambda n: n.get("lang") == want
     elif e == "code":
@@ -1280,7 +1286,7 @@ def to_select(graph, expr):
                             + ["no-" + b for b in _SELECT_BOOL_FIELDS]
                             + ["code", "never-audited", "lang=NAME"])
         raise ValueError(f"unknown --select predicate '{expr}'; allowed: {allowed}")
-    return sorted(p for p, n in nodes.items() if pred(n))
+    return sorted(p for p, n in nodes.items() if p in visible and pred(n))
 
 
 def main():

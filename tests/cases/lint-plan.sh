@@ -788,3 +788,14 @@ if [ "$ev_def" = 0 ] && [ "$ev_strict" = 1 ] && [ "$ev_real" = 0 ] && [ "$ev_pro
 else
   bad "lint-plan.py evidence-anchor advisory wrong (def=$ev_def strict=$ev_strict real=$ev_real prose=$ev_prose)"
 fi
+# 12g regressions: a glued abbreviation prefix must NOT absorb a real path (no false positive),
+# and a leading ./ anchor IS still checked.
+mk_ev "see e.g.scripts/lint-plan.py:461 for the swallowed-prefix case"   # scripts/lint-plan.py exists
+ev_glue=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_glue=$?
+mk_ev "the dot-slash form ./scripts/nope_missing.py:7 should still be flagged"
+ev_ds=0; ev_ds_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" 2>&1)" || ev_ds=$?
+if [ "$ev_glue" = 0 ] && [ "$ev_ds" = 0 ] && printf '%s' "$ev_ds_out" | grep -qF "Evidence cites './scripts/nope_missing.py'"; then
+  ok "lint-plan.py evidence-anchor: glued 'e.g.path' is no false positive; './path' is checked"
+else
+  bad "lint-plan.py evidence-anchor regression (glue=$ev_glue dotslash=$ev_ds)"
+fi

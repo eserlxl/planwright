@@ -460,6 +460,20 @@ else
   bad "build-graph --select wrong (art=[$sel_art] py=[$sel_py] badrc=$sel_bad_rc)"
 fi
 
+# --- Test 11c2j2: --select honors --scope (Context-restricted, like --dot) + lang= guard --
+# (a) Under --scope, --select restricts to the Context node set (Focus + 1-hop), matching --dot
+# so the two non-JSON modes agree on scope. Scope to z.py: Context = z.py + hub.py (hub imports
+# z), so the python nodes are exactly hub.py + z.py — never x.py/y.py/test_hub.py.
+# (b) a bare `lang=` (missing NAME) is malformed and must exit 2 like any unknown predicate,
+# not silently exit 0 with empty output.
+sel_scoped="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --scope z.py --select lang=python 2>/dev/null | sort | tr '\n' ' ')"
+sel_le_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select 'lang=' >/dev/null 2>"$TMP/sel_le_err" || sel_le_rc=$?
+if [ "$sel_scoped" = "hub.py z.py " ] && [ "$sel_le_rc" = 2 ] && grep -q "unknown --select predicate" "$TMP/sel_le_err"; then
+  ok "build-graph --select honors --scope (Context-restricted) and rejects a bare lang= (exit 2)"
+else
+  bad "build-graph --select scope/lang= regression (scoped=[$sel_scoped] le_rc=$sel_le_rc)"
+fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.

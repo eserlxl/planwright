@@ -460,29 +460,34 @@ def verification_missing_script(verif, root):
     return None
 
 
-# An Evidence file:line anchor: a repo-relative path (with a "/" and an extension) followed by
-# a line reference (":N", ":N-M", or " (line N)"). Requiring the slash + extension + line ref
-# keeps a prose mention, a bare filename shorthand, or a version string ("3.10") from matching.
+# An Evidence file:line anchor: a repo-relative path (one or more "/"-separated directory segments
+# then a filename with an extension) followed by a line reference (":N", ":N-M", or " (line N)").
+# Directory segments are DOTLESS so a glued abbreviation prefix ("e.g.scripts/x.py") cannot be
+# absorbed into the path; an optional "./"/"../" prefix and a single leading-dot dir (".github")
+# are allowed. Requiring >=1 "/" + a filename extension + a line ref keeps a prose mention, a bare
+# filename, or a version string ("3.10") from matching. Because the path can only start with a
+# "./"/"../" prefix or an alphanumeric/'.' char (never a bare "/" and never containing "://"), an
+# absolute or URL target cannot match — no explicit guard is needed.
 _EVIDENCE_ANCHOR_RE = re.compile(
     r"(?<![\w./-])"
-    r"([A-Za-z0-9_][A-Za-z0-9_./-]*/[A-Za-z0-9_./-]*\.[A-Za-z0-9]+)"
+    r"((?:\.{1,2}/)?"                          # optional ./ or ../ prefix
+    r"(?:\.?[A-Za-z0-9_][A-Za-z0-9_-]*/)+"     # >=1 dotless dir segments (leading-dot dir ok)
+    r"[A-Za-z0-9_][A-Za-z0-9_.-]*\.[A-Za-z0-9]+)"  # filename with an extension
     r"(?::\d+(?:-\d+)?|\s*\(line\s+\d+\))")
 
 
 def evidence_missing_anchor(ev, root):
-    """If the Evidence cites a repo-relative `path:N` (or `path (line N)`) anchor whose file
-    does not exist under root, return that path; else None. Deliberately conservative — only a
-    token that is clearly a repo-relative path (has a '/' and a file extension) AND carries a
-    line reference is treated as an anchor, and absolute/URL targets are skipped, so a prose
-    sentence, a bare filename, or a version string never false-flags. Advisory-only (non-failing),
-    so a missed anchor is harmless and a false positive is avoided by construction — it catches a
-    fabricated or stale Evidence path, the single most important grounding signal."""
+    """If the Evidence cites a repo-relative `path:N` (or `path (line N)`) anchor whose file does
+    not exist under root, return that path; else None. Deliberately conservative — only a token
+    that is clearly a repo-relative path (>=1 dotless dir segment + a filename with an extension)
+    AND carries a line reference is treated as an anchor, so a prose sentence, a bare filename, a
+    glued abbreviation ("e.g.scripts/x.py"), or a version string never false-flags. Advisory-only
+    (non-failing), so a missed anchor is harmless and a false positive is avoided by construction —
+    it catches a fabricated or stale Evidence path, the single most important grounding signal."""
     if not ev:
         return None
     for m in _EVIDENCE_ANCHOR_RE.finditer(ev):
         cand = m.group(1)
-        if cand.startswith("/") or "://" in cand:
-            continue
         if not os.path.exists(os.path.join(root, cand)):
             return cand
     return None

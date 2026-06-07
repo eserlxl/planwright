@@ -149,6 +149,18 @@ for bad_graph in '[]' '42' '{"nodes": 5}' '{"nodes": {}, "dirty": [1, 2]}'; do
   fi
   rm -rf "$CGX"
 done
+# A dict graph with a numeric (non-str) graph_built_at_sha must not crash report()'s sha slice:
+# the sha degrades to "?" while the node/dirty counts still render (the shape guard only protects
+# collect()'s own .get()/len(), so the value is coerced to str in collect()).
+NGX="$TMP/status-numsha"; mkdir -p "$NGX/.planwright"
+printf '{"graph_built_at_sha": 42, "nodes": {"a":{},"b":{}}, "dirty": {"nodes":["a"]}}\n' > "$NGX/.planwright/graph.json"
+if nrep="$(python3 "$STAT" --root "$NGX" 2>/dev/null)" \
+   && printf '%s' "$nrep" | grep -qE '^  graph: 2 nodes, 1 dirty, built at \?$' \
+   && python3 "$STAT" --root "$NGX" --json >/dev/null 2>&1; then
+  ok "status.py tolerates a numeric graph_built_at_sha (sha -> '?', counts still render)"
+else
+  bad "status.py crashed or mis-rendered on a numeric graph_built_at_sha: $nrep"
+fi
 
 # --- Test STS4: final-point staleness is HEAD-relative in a git fixture -----------
 # A final.md whose sha != HEAD is STALE; rewriting it to the real HEAD clears it.
