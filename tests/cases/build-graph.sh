@@ -353,6 +353,127 @@ else
   bad "build-graph --dot did not emit a correct DOT import graph or altered the default JSON output"
 fi
 
+# --- Test 11c2h2: --dot also renders change-coupling edges (hidden-dependency view) -
+# build-graph computes change-coupling pairs (files that co-change in history) but they were
+# invisible in the import-only DOT export; --dot now emits each coupling pair as a dashed,
+# arrowless (dir=none) edge — distinct from the solid directed import edges — while leaving
+# the default JSON output free of any DOT styling.
+CDOTREPO="$TMP/cdotrepo"; mkdir -p "$CDOTREPO"
+git -C "$CDOTREPO" init -q
+printf 'x\n' > "$CDOTREPO/cup_a.md"; printf 'y\n' > "$CDOTREPO/cup_b.md"
+git -C "$CDOTREPO" add -A && git -C "$CDOTREPO" -c user.name=t -c user.email=t@e.com commit -qm c0
+# Co-commit the pair three more times so their cooccur clears coupling_min_cooccurrence (3).
+for i in 1 2 3; do
+  printf 'x%s\n' "$i" >> "$CDOTREPO/cup_a.md"; printf 'y%s\n' "$i" >> "$CDOTREPO/cup_b.md"
+  git -C "$CDOTREPO" add -A && git -C "$CDOTREPO" -c user.name=t -c user.email=t@e.com commit -qm "c$i"
+done
+cdot_out="$(python3 "$ROOT/scripts/build-graph.py" --root "$CDOTREPO" --dot 2>/dev/null)"
+cjson_out="$(python3 "$ROOT/scripts/build-graph.py" --root "$CDOTREPO" 2>/dev/null)"
+if printf '%s' "$cdot_out" | grep -qE '"cup_a.md" -> "cup_b.md" \[style=dashed, dir=none\];' \
+   && printf '%s' "$cjson_out" | grep -q '"coupling_edges"' \
+   && ! printf '%s' "$cjson_out" | grep -q 'style=dashed'; then
+  ok "build-graph --dot renders change-coupling edges (dashed, dir=none); default stays JSON"
+else
+  bad "build-graph --dot did not render the change-coupling edge: $cdot_out"
+fi
+
+# --- Test 11c2h3: --dot honors --scope (render only the Focus+Context subgraph) -----
+# A power user visualizing a real repo wants one component's subgraph, not the whole tree.
+# When built with --scope, --dot restricts the render to the Context set (Focus + 1-hop);
+# a 2-hop node and an unrelated orphan must NOT appear, while an unscoped --dot renders all.
+# Fixture: src/api -> src/auth -> lib/crypto -> lib/deep, plus an orphan; scope to src/.
+SDOTREPO="$TMP/sdotrepo"; mkdir -p "$SDOTREPO/src" "$SDOTREPO/lib" "$SDOTREPO/other"
+git -C "$SDOTREPO" init -q
+printf '#!/usr/bin/env bash\nsource auth.sh\napi() { echo p; }\n' > "$SDOTREPO/src/api.sh"
+printf '#!/usr/bin/env bash\nsource ../lib/crypto.sh\nauth() { echo a; }\n' > "$SDOTREPO/src/auth.sh"
+printf '#!/usr/bin/env bash\nsource deep.sh\ncrypto() { echo c; }\n' > "$SDOTREPO/lib/crypto.sh"
+printf '#!/usr/bin/env bash\ndeep() { echo d; }\n' > "$SDOTREPO/lib/deep.sh"
+printf '#!/usr/bin/env bash\norphan() { echo o; }\n' > "$SDOTREPO/other/orphan.sh"
+git -C "$SDOTREPO" add -A && git -C "$SDOTREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+sdot_scoped="$(python3 "$ROOT/scripts/build-graph.py" --root "$SDOTREPO" --scope src/ --dot 2>/dev/null)"
+sdot_full="$(python3 "$ROOT/scripts/build-graph.py" --root "$SDOTREPO" --dot 2>/dev/null)"
+if printf '%s' "$sdot_scoped" | grep -q '"src/api.sh" -> "src/auth.sh";' \
+   && printf '%s' "$sdot_scoped" | grep -q '"src/auth.sh" -> "lib/crypto.sh";' \
+   && printf '%s' "$sdot_scoped" | grep -qE '^  "lib/crypto.sh"( \[|;)' \
+   && ! printf '%s' "$sdot_scoped" | grep -q 'lib/deep.sh' \
+   && ! printf '%s' "$sdot_scoped" | grep -q 'other/orphan.sh' \
+   && printf '%s' "$sdot_full" | grep -q '"lib/deep.sh";' \
+   && printf '%s' "$sdot_full" | grep -q '"other/orphan.sh";'; then
+  ok "build-graph --dot honors --scope (renders Focus+Context only; unscoped renders all)"
+else
+  bad "build-graph --dot did not scope the render: $sdot_scoped"
+fi
+
+# --- Test 11c2h4: --dot marks articulation points (the fragile chokepoints) ---------
+# build-graph computes is_articulation (cut-vertices whose removal disconnects the graph
+# = wide-blast-radius chokepoints); --dot now renders those nodes as bold boxes so an
+# expert can spot the structural risks visually, leaving leaf nodes as plain ellipses.
+# Fixture: a chain mid -> leaf with a second importer of mid, making mid a cut vertex.
+ARTREPO="$TMP/artrepo"; mkdir -p "$ARTREPO"
+git -C "$ARTREPO" init -q
+printf '#!/usr/bin/env bash\nsource mid.sh\nleft() { echo l; }\n' > "$ARTREPO/left.sh"
+printf '#!/usr/bin/env bash\nsource mid.sh\nright() { echo r; }\n' > "$ARTREPO/right.sh"
+printf '#!/usr/bin/env bash\nsource leaf.sh\nmid() { echo m; }\n' > "$ARTREPO/mid.sh"
+printf '#!/usr/bin/env bash\nleaf() { echo f; }\n' > "$ARTREPO/leaf.sh"
+git -C "$ARTREPO" add -A && git -C "$ARTREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+art_out="$(python3 "$ROOT/scripts/build-graph.py" --root "$ARTREPO" --dot 2>/dev/null)"
+art_json="$(python3 "$ROOT/scripts/build-graph.py" --root "$ARTREPO" 2>/dev/null)"
+# Confirm the graph actually flags mid.sh as an articulation point (else the test is vacuous).
+mid_is_art="$(printf '%s' "$art_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["nodes"]["mid.sh"]["is_articulation"])')"
+if [ "$mid_is_art" = "True" ] \
+   && printf '%s' "$art_out" | grep -qE '^  "mid.sh" \[shape=box, style=bold\];$' \
+   && printf '%s' "$art_out" | grep -qE '^  "leaf.sh";$' \
+   && ! printf '%s' "$art_out" | grep -qE '^  "leaf.sh" \['; then
+  ok "build-graph --dot marks articulation points as bold boxes; leaf nodes stay plain"
+else
+  bad "build-graph --dot did not mark the articulation point: $art_out"
+fi
+
+# --- Test 11c2j: --select queries the computed per-node signals (scriptable slices) -
+# --select EXPR prints the repo-relative paths of nodes matching one closed predicate over
+# the signals build-graph computes, one per line, sorted — so an expert can ask "which are
+# the chokepoints / the python files / the test files" without piping the full JSON through
+# jq. An unknown predicate errors to stderr (exit 2); --select takes precedence over --dot.
+# Fixture: x,y -> hub -> z plus test_hub -> hub, making hub the single articulation point.
+SELREPO="$TMP/selrepo"; mkdir -p "$SELREPO"
+git -C "$SELREPO" init -q
+printf 'import hub\n' > "$SELREPO/x.py"
+printf 'import hub\n' > "$SELREPO/y.py"
+printf 'import z\ndef h():\n    if True:\n        return 1\n' > "$SELREPO/hub.py"
+printf 'def z():\n    return 0\n' > "$SELREPO/z.py"
+printf 'import hub\ndef test_h():\n    assert True\n' > "$SELREPO/test_hub.py"
+git -C "$SELREPO" add -A && git -C "$SELREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+sel_art="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select is_articulation 2>/dev/null)"
+sel_test="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select is_test 2>/dev/null)"
+sel_py="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select lang=python 2>/dev/null | sort | tr '\n' ' ')"
+sel_notest="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select no-is_test 2>/dev/null)"
+sel_prec="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select is_articulation --dot 2>/dev/null)"
+sel_bad_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select bogus >/dev/null 2>"$TMP/sel_err" || sel_bad_rc=$?
+if [ "$sel_art" = "hub.py" ] \
+   && printf '%s' "$sel_test" | grep -qx "test_hub.py" \
+   && [ "$sel_py" = "hub.py test_hub.py x.py y.py z.py " ] \
+   && ! printf '%s' "$sel_notest" | grep -qx "test_hub.py" \
+   && [ "$sel_bad_rc" = 2 ] && grep -q "unknown --select predicate" "$TMP/sel_err" \
+   && printf '%s' "$sel_prec" | grep -qx "hub.py" && ! printf '%s' "$sel_prec" | grep -q "digraph"; then
+  ok "build-graph --select filters nodes by predicate (bool/code/lang); bad predicate exits 2; precedes --dot"
+else
+  bad "build-graph --select wrong (art=[$sel_art] py=[$sel_py] badrc=$sel_bad_rc)"
+fi
+
+# --- Test 11c2j2: --select honors --scope (Context-restricted, like --dot) + lang= guard --
+# (a) Under --scope, --select restricts to the Context node set (Focus + 1-hop), matching --dot
+# so the two non-JSON modes agree on scope. Scope to z.py: Context = z.py + hub.py (hub imports
+# z), so the python nodes are exactly hub.py + z.py — never x.py/y.py/test_hub.py.
+# (b) a bare `lang=` (missing NAME) is malformed and must exit 2 like any unknown predicate,
+# not silently exit 0 with empty output.
+sel_scoped="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --scope z.py --select lang=python 2>/dev/null | sort | tr '\n' ' ')"
+sel_le_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select 'lang=' >/dev/null 2>"$TMP/sel_le_err" || sel_le_rc=$?
+if [ "$sel_scoped" = "hub.py z.py " ] && [ "$sel_le_rc" = 2 ] && grep -q "unknown --select predicate" "$TMP/sel_le_err"; then
+  ok "build-graph --select honors --scope (Context-restricted) and rejects a bare lang= (exit 2)"
+else
+  bad "build-graph --select scope/lang= regression (scoped=[$sel_scoped] le_rc=$sel_le_rc)"
+fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.
@@ -746,6 +867,35 @@ d = json.load(open(sys.argv[1]))["dirty"]
 assert d["whole_graph"] is True and "build-config" in d["reason"] and "CMakeLists.txt" in d["reason"], d
 PY
 then ok "whole-graph invalidation when a build-config file is deleted"; else bad "deleted build-config did not force whole-graph re-audit"; fi
+# (c) deleted SOURCE file (not build-config): a surviving importer must go dirty via the
+# incremental impacted-seeding path, NOT whole_graph — exercising build()->compute_dirty
+# end-to-end. The unit test pins compute_dirty directly with hand-built dicts; the shell
+# tests above only cover the build-config deletion that short-circuits to whole_graph, so
+# the full-pipeline source-deletion wiring was never integration-tested.
+SDREPO="$TMP/srcdel"; mkdir -p "$SDREPO"
+git -C "$SDREPO" init -q
+sdgc() { git -C "$SDREPO" -c user.name=t -c user.email=t@e.com commit -q "$@"; }
+printf '# a\n[see b](b.md)\n' > "$SDREPO/a.md"   # a.md imports b.md (markdown link edge)
+printf '# b\n' > "$SDREPO/b.md"
+printf '# c\n' > "$SDREPO/c.md"                  # unrelated, must stay clean
+git -C "$SDREPO" add -A; sdgc -m init
+sd_prior="$TMP/sd_prior.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" > "$sd_prior" 2>/dev/null
+git -C "$SDREPO" rm -q b.md; sdgc -m "drop b"
+sd_del="$TMP/sd_del.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SDREPO" --prior "$sd_prior" > "$sd_del" 2>/dev/null
+if python3 - "$sd_prior" "$sd_del" <<'PY' 2>/dev/null
+import json, sys
+prior = json.load(open(sys.argv[1]))
+assert prior["nodes"]["a.md"]["imports"] == ["b.md"], prior["nodes"]["a.md"]  # edge must exist
+d = json.load(open(sys.argv[2]))["dirty"]
+assert d["whole_graph"] is False, d                 # incremental path, not whole-graph
+assert d["reason"] == "incremental", d
+assert d["changed"] == [], d                        # a.md/c.md bytes unchanged
+assert "a.md" in d["nodes"], d                       # importer of deleted b.md re-audited
+assert "c.md" not in d["nodes"], d                   # unrelated file stays clean
+PY
+then ok "source-file deletion marks its surviving importer dirty end-to-end (incremental, not whole-graph)"; else bad "deleted source file did not seed its importer into the incremental dirty set"; fi
 
 # --- Test 11i2: whole-graph invalidation when HEAD diverges beyond the window -
 # The third whole-graph trigger (build-graph.py compute_dirty): re-audit everything

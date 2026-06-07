@@ -190,12 +190,21 @@ def collect(root):
             graph = json.load(fh)
         nodes = graph.get("nodes", {})
         dirty = graph.get("dirty", {}) or {}
+        built = graph.get("graph_built_at_sha", "")
         graph_rec = {
-            "built_at_sha": graph.get("graph_built_at_sha", ""),
+            # Coerce to str: report() slices built_at_sha ([:10]), so a corrupt graph with a
+            # numeric graph_built_at_sha would otherwise crash the human report despite the
+            # shape guard below (which only protects collect()'s own .get()/len() calls).
+            "built_at_sha": built if isinstance(built, str) else "",
             "node_count": len(nodes),
             "dirty_node_count": len(dirty.get("nodes", []) or []),
         }
     except (OSError, ValueError):
+        graph_rec = None
+    except (AttributeError, TypeError):
+        # A graph file that is valid JSON but the wrong shape (not an object, or a
+        # non-dict "nodes"/"dirty") — e.g. a truncated or hand-edited write — would make
+        # .get()/len() raise. Degrade to "graph: none" rather than crash a read-only tool.
         graph_rec = None
 
     return {

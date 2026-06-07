@@ -189,53 +189,62 @@ def iter_defines(lang, text):
     defines_of (names), defines_at_of (name -> line), and branch_at_of (span) — the
     blanking keeps each yielded offset valid against the original text those use."""
     text = blank_comments(lang, text)
+    matches = []
     if lang == "bash":
         for m in re.finditer(r"(?m)^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)\s*\{?", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
     elif lang == "python":
         for m in re.finditer(r"(?m)^\s*(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
     elif lang == "js":
         for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s+([A-Za-z_$][\w$]*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # arrow/function expressions bound to a name: `export const f = (x) => ...`
         for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
     elif lang == "c":
         # gtest group/fixture names — SKILL.md routing tracks TEST/TEST_F groups.
         for m in re.finditer(r"(?m)\b(?:TEST|TEST_F|TEST_P|TYPED_TEST)\s*\(\s*([A-Za-z_]\w*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # class / struct / enum type names.
         for m in re.finditer(r"(?m)\b(?:class|struct|enum)\s+([A-Za-z_]\w*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # function / method definitions: the `(...)` is followed by a `{` body, not
         # a `;` prototype; params hold no `;`/`{` so a match stays on one definition,
         # and control-flow keywords (which also read as `name (...) {`) are filtered.
         kw = {"if", "for", "while", "switch", "return", "else", "do", "catch", "sizeof"}
         for m in re.finditer(r"(?m)^\s*[A-Za-z_][\w\s:\*&<>,~]*?\b([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:const\s*)?(?:noexcept\s*)?\{", text):
             if m.group(1) not in kw:
-                yield m.group(1), m.start()
+                matches.append((m.group(1), m.start()))
     elif lang == "rust":
         # functions (incl. methods inside impl blocks, which are indented).
         for m in re.finditer(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?(?:const\s+)?fn\s+([A-Za-z_]\w*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # nominal types: struct / enum / trait / union.
         for m in re.finditer(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait|union)\s+([A-Za-z_]\w*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # impl blocks — capture the implementing type (the ident before the `{`),
         # covering both `impl Foo {` and `impl Trait for Foo {`.
         for m in re.finditer(r"(?m)^\s*impl\b[^\n{]*?\b([A-Za-z_]\w*)\s*(?:<[^>\n]*>)?\s*\{", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
     elif lang == "go":
         # top-level funcs and methods: `func Name(` and `func (r Recv) Name(`.
         for m in re.finditer(r"(?m)^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*[\(\[]", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # nominal types: `type Name struct|interface` (grouped `type (...)` blocks
         # are best-effort skipped — recall over precision, like the other arms).
         for m in re.finditer(r"(?m)^\s*type\s+([A-Za-z_]\w*)\s+(?:struct|interface)\b", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
+    # Several language arms run one regex pass per definition CATEGORY (e.g. C class vs.
+    # function); concatenated, those come out grouped by pattern, not by file position. Sort
+    # by start offset (Python's sort is stable, so same-offset ties keep category order) so the
+    # documented source-order contract holds for *every* consumer — defines_of and defines_at_of
+    # consume this directly and assume it, not just branch_at_of which used to re-sort itself.
+    matches.sort(key=lambda np: np[1])
+    for name, pos in matches:
+        yield name, pos
 
 
 def defines_of(lang, text):
@@ -267,7 +276,7 @@ def branch_at_of(lang, text):
     pat = BRANCH_KW.get(lang)
     if not pat:
         return {}
-    defs = sorted(iter_defines(lang, text), key=lambda np: np[1])
+    defs = list(iter_defines(lang, text))  # iter_defines now yields in source order
     out = {}
     for i, (name, start) in enumerate(defs):
         end = defs[i + 1][1] if i + 1 < len(defs) else len(text)
@@ -1187,18 +1196,97 @@ def debug_digest(graph, out):
 
 
 def to_dot(graph):
-    """Serialize the import graph as GraphViz DOT — one node line per tracked file and one
-    directed edge per resolved import. Interop/visualization output only; the JSON graph
-    stays the canonical form planwright itself consumes. Needs no graphviz to emit (text)."""
+    """Serialize the graph as GraphViz DOT — one node line per tracked file, one solid
+    directed edge per resolved import, and one dashed arrowless edge per change-coupling
+    pair (the hidden dependencies a reader cannot see by reading code). When the graph was
+    built with --scope, the render is restricted to the Context node set (Focus + its 1-hop
+    blast radius) so one component's subgraph is visualizable instead of the whole repo; an
+    unscoped graph renders every node. Interop/visualization output only; the JSON graph stays
+    the canonical form planwright itself consumes. Needs no graphviz to emit (text)."""
     nodes = graph.get("nodes", {})
+    # A --scope build carries a "context" node list (Focus + 1-hop blast radius); restrict the
+    # render to it so a scoped --dot shows that component's subgraph, not the whole repo. Absent
+    # (an unscoped build) => render every node, exactly as before.
+    context = graph.get("context")
+    visible = set(context) if context is not None else set(nodes)
     lines = ["digraph planwright {"]
     for path in sorted(nodes):
-        lines.append('  "%s";' % path)
+        if path not in visible:
+            continue
+        if nodes[path].get("is_articulation"):
+            # Cut-vertices are wide-blast-radius chokepoints (the #1 structural-risk signal);
+            # render them as bold boxes so they read distinctly from the plain ellipse nodes.
+            lines.append('  "%s" [shape=box, style=bold];' % path)
+        else:
+            lines.append('  "%s";' % path)
     for path in sorted(nodes):
+        if path not in visible:
+            continue
         for target in sorted(nodes[path].get("imports", []) or []):
-            lines.append('  "%s" -> "%s";' % (path, target))
+            if target in visible:
+                lines.append('  "%s" -> "%s";' % (path, target))
+    # Change-coupling edges: undirected pairs that co-change in history, rendered dashed and
+    # arrowless (dir=none) so they read distinctly from the solid directed import edges. Dedupe
+    # by unordered pair (and sort) so each coupling relationship renders once, deterministically;
+    # under a scope, only pairs with both endpoints in the visible set render.
+    seen = set()
+    coupling = []
+    for edge in graph.get("coupling_edges", []) or []:
+        a, b = edge.get("a"), edge.get("b")
+        if a is None or b is None:
+            continue
+        if a not in visible or b not in visible:
+            continue
+        key = tuple(sorted((a, b)))
+        if key in seen:
+            continue
+        seen.add(key)
+        coupling.append(key)
+    for a, b in sorted(coupling):
+        lines.append('  "%s" -> "%s" [style=dashed, dir=none];' % (a, b))
     lines.append("}")
     return "\n".join(lines) + "\n"
+
+
+# The closed predicate vocabulary --select understands — boolean node fields whose true/false
+# value selects a slice of the graph the audit already routes on.
+_SELECT_BOOL_FIELDS = ("is_articulation", "covered_by_test", "is_test")
+
+
+def to_select(graph, expr):
+    """Resolve a --select predicate against the per-node signals and return the matching
+    repo-relative paths, sorted. EXPR is ONE predicate from a closed vocabulary over the keys
+    build-graph already computes (not a general query language): a boolean field name
+    (is_articulation | covered_by_test | is_test) selects nodes where it is true; a `no-` prefix
+    on one selects where it is false; `code` selects branch_count>0; `never-audited` selects
+    nodes whose last_audited_sha is null; `lang=NAME` (NAME non-empty) selects nodes of that
+    language. Under a --scope build the result is restricted to the Context node set, matching
+    --dot so the two non-JSON output modes agree on scope. Raises ValueError on an unknown or
+    malformed predicate (including a bare `lang=`) so the caller can report it and exit non-zero."""
+    nodes = graph.get("nodes", {})
+    # Mirror to_dot: a --scope build carries a "context" node list; restrict the result to it so
+    # `--scope X --select ...` answers about that component, not the whole repo. Absent => all.
+    context = graph.get("context")
+    visible = set(context) if context is not None else set(nodes)
+    e = (expr or "").strip()
+    if e.startswith("lang=") and e[len("lang="):]:
+        want = e[len("lang="):]
+        pred = lambda n: n.get("lang") == want
+    elif e == "code":
+        pred = lambda n: (n.get("branch_count") or 0) > 0
+    elif e == "never-audited":
+        pred = lambda n: n.get("last_audited_sha") is None
+    elif e.startswith("no-") and e[3:] in _SELECT_BOOL_FIELDS:
+        field = e[3:]
+        pred = lambda n: not n.get(field)
+    elif e in _SELECT_BOOL_FIELDS:
+        pred = lambda n: bool(n.get(e))
+    else:
+        allowed = ", ".join(list(_SELECT_BOOL_FIELDS)
+                            + ["no-" + b for b in _SELECT_BOOL_FIELDS]
+                            + ["code", "never-audited", "lang=NAME"])
+        raise ValueError(f"unknown --select predicate '{expr}'; allowed: {allowed}")
+    return sorted(p for p, n in nodes.items() if p in visible and pred(n))
 
 
 def main():
@@ -1216,6 +1304,11 @@ def main():
     ap.add_argument("--dot", action="store_true",
                     help="emit the import graph as GraphViz DOT to stdout instead of JSON "
                          "(visualization/interop; pipe to `dot -Tsvg`)")
+    ap.add_argument("--select", default=None, metavar="EXPR",
+                    help="print the repo-relative paths of nodes matching ONE predicate, one per "
+                         "line, instead of JSON: is_articulation | covered_by_test | is_test | "
+                         "no-<that> | code | never-audited | lang=NAME (scriptable access to the "
+                         "computed routing signals; takes precedence over --dot)")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:
@@ -1240,6 +1333,15 @@ def main():
         return 2
     if args.debug:
         debug_digest(graph, sys.stderr)
+    if args.select is not None:
+        try:
+            matches = to_select(graph, args.select)
+        except ValueError as e:
+            sys.stderr.write(f"build-graph: {e}\n")
+            return 2
+        for p in matches:
+            sys.stdout.write(p + "\n")
+        return 0
     if args.dot:
         sys.stdout.write(to_dot(graph))
         return 0

@@ -529,6 +529,14 @@ if [ "$scb_rc" -ne 0 ] && [ -z "$scb_miss" ]; then ok "lint-plan.py --scope fail
 # No-op guarantees: same plan passes without --scope, and with a whole-repo (empty-focus) graph
 if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --quiet; then ok "lint-plan.py without --scope ignores Focus (default lint unchanged)"; else bad "lint-plan.py false-failed the scope plan without --scope"; fi
 if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --scope "$SCG_WHOLE" --quiet; then ok "lint-plan.py --scope is a no-op on a whole-repo (empty-focus) graph"; else bad "lint-plan.py --scope wrongly enforced on an empty-focus graph"; fi
+# A corrupt (non-object / wrong-shape) --scope graph must no-op (no scope active), not crash:
+# the same SCP_BAD plan (clean without scope) still passes, and the linter exits cleanly.
+scp_corrupt_ok=1
+for sg in '[]' '42' '{"focus": 5}'; do
+  SCG_BAD="$TMP/scope_corrupt.json"; printf '%s\n' "$sg" > "$SCG_BAD"
+  python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --scope "$SCG_BAD" --quiet || scp_corrupt_ok=0
+done
+if [ "$scp_corrupt_ok" -eq 1 ]; then ok "lint-plan.py --scope no-ops on a corrupt scope graph (not a crash)"; else bad "lint-plan.py --scope crashed or enforced on a corrupt scope graph"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a completed item"; then ok "lint-plan.py notes a re-proposed completed item (advisory)"; else bad "lint-plan.py missed the completed-item advisory"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a rejected item"; then ok "lint-plan.py notes a re-proposed rejected item (advisory)"; else bad "lint-plan.py missed the rejected-item advisory"; fi
 # Advisory matches alone (no structural violation) must NOT fail the gate.
@@ -744,4 +752,50 @@ if [ "$vp_def" = 0 ] && [ "$vp_strict" = 1 ] && [ "$vp_ok" = 0 ] && [ "$vp_ctest
   ok "lint-plan.py flags a Verification that runs a missing repo script (advisory; --strict fails)"
 else
   bad "lint-plan.py verification-path advisory wrong (def=$vp_def strict=$vp_strict ok=$vp_ok ctest=$vp_ctest)"
+fi
+
+# --- Test 12g: an Evidence file:line anchor naming a nonexistent file is a (non-failing) advisory
+# Evidence is planwright's grounding signal; a fabricated or stale repo-relative path:N anchor is
+# flagged as an advisory (exit 0 by default, promoted under --strict). A real anchor, a bare
+# filename, a prose mention without a line ref, and a version string are never flagged.
+EVDIR="$TMP/evanchor"; mkdir -p "$EVDIR"
+mk_ev() { # $1 = Evidence string
+  cat > "$EVDIR/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] An item with some evidence
+      Mode: improve
+      Rationale: r.
+      Evidence: $1
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+}
+# fabricated repo-relative anchor -> advisory (default 0), --strict 1
+mk_ev "scripts/nope_missing.py:42 shows the bug"
+ev_def=0; ev_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" 2>&1)" || ev_def=$?
+ev_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_strict=$?
+# real anchor -> no advisory; bare filename + version string -> no false flag
+mk_ev "scripts/lint-plan.py:461 defines main()"
+ev_real=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_real=$?
+mk_ev "tested on python 3.10 and seen in build-graph.py behavior"
+ev_prose=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_prose=$?
+if [ "$ev_def" = 0 ] && [ "$ev_strict" = 1 ] && [ "$ev_real" = 0 ] && [ "$ev_prose" = 0 ] \
+   && printf '%s' "$ev_out" | grep -qF "Evidence cites 'scripts/nope_missing.py'"; then
+  ok "lint-plan.py flags an Evidence anchor that names a nonexistent file (advisory; --strict fails)"
+else
+  bad "lint-plan.py evidence-anchor advisory wrong (def=$ev_def strict=$ev_strict real=$ev_real prose=$ev_prose)"
+fi
+# 12g regressions: a glued abbreviation prefix must NOT absorb a real path (no false positive),
+# and a leading ./ anchor IS still checked.
+mk_ev "see e.g.scripts/lint-plan.py:461 for the swallowed-prefix case"   # scripts/lint-plan.py exists
+ev_glue=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_glue=$?
+mk_ev "the dot-slash form ./scripts/nope_missing.py:7 should still be flagged"
+ev_ds=0; ev_ds_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" 2>&1)" || ev_ds=$?
+if [ "$ev_glue" = 0 ] && [ "$ev_ds" = 0 ] && printf '%s' "$ev_ds_out" | grep -qF "Evidence cites './scripts/nope_missing.py'"; then
+  ok "lint-plan.py evidence-anchor: glued 'e.g.path' is no false positive; './path' is checked"
+else
+  bad "lint-plan.py evidence-anchor regression (glue=$ev_glue dotslash=$ev_ds)"
 fi

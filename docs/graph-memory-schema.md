@@ -24,6 +24,8 @@ the ctx sandbox; only a ~20-line ranked node list surfaces into context.
 | `.planwright/graph.json` | structural, safe to trust | Stage 1.5 (mechanical) | hashes, edges, metrics |
 | `.planwright/digest.md` | `UNVERIFIED — routing only` | Stage 11 (Phase 2) | per-cluster prose summary |
 
+The same `graph.json` also drives two **derived, read-only views** for a human/power user (interop only — never Evidence): `build-graph.py --dot` renders it as GraphViz DOT (imports, change-coupling, articulation points; scope-aware), and `--select EXPR` prints the node paths matching one signal predicate. See [Usage → Inspecting & visualizing the graph](usage.md#inspecting--visualizing-the-graph-power-user-cli).
+
 ## `graph.json` schema (v1)
 
 ```jsonc

@@ -78,6 +78,22 @@ else
   bad "status.py emitted a spurious mode breakdown on an empty plan"
 fi
 
+# --- Test STS6c: the "other" bucket — absent + unrecognized Mode lines --------------
+# Items with no Mode line or an unrecognized Mode are tallied under "other" (placed
+# last) so the per-mode counts always reconcile with the pending total. Exercise all
+# three "other" branches at once: an unrecognized mode (b), a no-Mode item followed by
+# another item (c), and a trailing no-Mode item (d).
+OFX="$TMP/status-modes-other"; mkdir -p "$OFX/.planwright"
+printf -- '- [ ] a\n      Mode: repair\n- [ ] b\n      Mode: bogus\n- [ ] c\n- [ ] d\n' > "$OFX/.planwright/plan.md"
+orep="$(python3 "$STAT" --root "$OFX")"
+ojson="$(python3 "$STAT" --root "$OFX" --json)"
+if printf '%s' "$orep" | grep -qE '^  pending:   4  \(repair 1, other 3\)$' \
+   && printf '%s' "$ojson" | python3 -c 'import json,sys; m=json.load(sys.stdin)["pending_modes"]; assert m=={"repair":1,"other":3}, m; assert sum(m.values())==4, m; assert list(m)[-1]=="other", m'; then
+  ok "status.py tallies absent/unrecognized modes under \"other\" (last) and reconciles with pending"
+else
+  bad "status.py \"other\" mode bucket wrong: $orep"
+fi
+
 # --- Test STS11: rejected items surface their titles + Rejection reasons ----------
 # status lists pending titles; for the feedback loop a power user also needs to see
 # what was rejected and why without cat'ing rejected.md. The readable report lists the
@@ -115,6 +131,35 @@ if printf '%s' "$gj" | grep -q '"node_count": 3' \
   ok "status.py renders graph node/dirty counts and the final-point line from a fixture"
 else
   bad "status.py graph block or final-point rendering is wrong"
+fi
+
+# --- Test STS7b: a corrupt (non-object / wrong-shape) graph file degrades, not crashes ---
+# A graph file that is valid JSON but not an object (truncated or hand-edited write) must
+# not crash status — the read-only command a wrapper/CI calls to check convergence. Each
+# malformed shape should render "graph: none" and exit 0.
+for bad_graph in '[]' '42' '{"nodes": 5}' '{"nodes": {}, "dirty": [1, 2]}'; do
+  CGX="$TMP/status-corrupt"; mkdir -p "$CGX/.planwright"
+  printf '%s\n' "$bad_graph" > "$CGX/.planwright/graph.json"
+  if creport="$(python3 "$STAT" --root "$CGX" 2>/dev/null)" \
+     && printf '%s' "$creport" | grep -q '^  graph: none' \
+     && python3 "$STAT" --root "$CGX" --json >/dev/null 2>&1; then
+    ok "status.py tolerates a corrupt graph file ($bad_graph) -> graph: none"
+  else
+    bad "status.py crashed or mis-rendered on a corrupt graph file: $bad_graph"
+  fi
+  rm -rf "$CGX"
+done
+# A dict graph with a numeric (non-str) graph_built_at_sha must not crash report()'s sha slice:
+# the sha degrades to "?" while the node/dirty counts still render (the shape guard only protects
+# collect()'s own .get()/len(), so the value is coerced to str in collect()).
+NGX="$TMP/status-numsha"; mkdir -p "$NGX/.planwright"
+printf '{"graph_built_at_sha": 42, "nodes": {"a":{},"b":{}}, "dirty": {"nodes":["a"]}}\n' > "$NGX/.planwright/graph.json"
+if nrep="$(python3 "$STAT" --root "$NGX" 2>/dev/null)" \
+   && printf '%s' "$nrep" | grep -qE '^  graph: 2 nodes, 1 dirty, built at \?$' \
+   && python3 "$STAT" --root "$NGX" --json >/dev/null 2>&1; then
+  ok "status.py tolerates a numeric graph_built_at_sha (sha -> '?', counts still render)"
+else
+  bad "status.py crashed or mis-rendered on a numeric graph_built_at_sha: $nrep"
 fi
 
 # --- Test STS4: final-point staleness is HEAD-relative in a git fixture -----------
