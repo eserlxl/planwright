@@ -197,6 +197,11 @@ def collect(root):
         }
     except (OSError, ValueError):
         graph_rec = None
+    except (AttributeError, TypeError):
+        # A graph file that is valid JSON but the wrong shape (not an object, or a
+        # non-dict "nodes"/"dirty") — e.g. a truncated or hand-edited write — would make
+        # .get()/len() raise. Degrade to "graph: none" rather than crash a read-only tool.
+        graph_rec = None
 
     return {
         "root": os.path.abspath(root),

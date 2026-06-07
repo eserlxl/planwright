@@ -133,6 +133,23 @@ else
   bad "status.py graph block or final-point rendering is wrong"
 fi
 
+# --- Test STS7b: a corrupt (non-object / wrong-shape) graph file degrades, not crashes ---
+# A graph file that is valid JSON but not an object (truncated or hand-edited write) must
+# not crash status — the read-only command a wrapper/CI calls to check convergence. Each
+# malformed shape should render "graph: none" and exit 0.
+for bad_graph in '[]' '42' '{"nodes": 5}' '{"nodes": {}, "dirty": [1, 2]}'; do
+  CGX="$TMP/status-corrupt"; mkdir -p "$CGX/.planwright"
+  printf '%s\n' "$bad_graph" > "$CGX/.planwright/graph.json"
+  if creport="$(python3 "$STAT" --root "$CGX" 2>/dev/null)" \
+     && printf '%s' "$creport" | grep -q '^  graph: none' \
+     && python3 "$STAT" --root "$CGX" --json >/dev/null 2>&1; then
+    ok "status.py tolerates a corrupt graph file ($bad_graph) -> graph: none"
+  else
+    bad "status.py crashed or mis-rendered on a corrupt graph file: $bad_graph"
+  fi
+  rm -rf "$CGX"
+done
+
 # --- Test STS4: final-point staleness is HEAD-relative in a git fixture -----------
 # A final.md whose sha != HEAD is STALE; rewriting it to the real HEAD clears it.
 GFIX="$TMP/status-git"; mkdir -p "$GFIX/.planwright"
