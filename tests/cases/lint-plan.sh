@@ -753,3 +753,38 @@ if [ "$vp_def" = 0 ] && [ "$vp_strict" = 1 ] && [ "$vp_ok" = 0 ] && [ "$vp_ctest
 else
   bad "lint-plan.py verification-path advisory wrong (def=$vp_def strict=$vp_strict ok=$vp_ok ctest=$vp_ctest)"
 fi
+
+# --- Test 12g: an Evidence file:line anchor naming a nonexistent file is a (non-failing) advisory
+# Evidence is planwright's grounding signal; a fabricated or stale repo-relative path:N anchor is
+# flagged as an advisory (exit 0 by default, promoted under --strict). A real anchor, a bare
+# filename, a prose mention without a line ref, and a version string are never flagged.
+EVDIR="$TMP/evanchor"; mkdir -p "$EVDIR"
+mk_ev() { # $1 = Evidence string
+  cat > "$EVDIR/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] An item with some evidence
+      Mode: improve
+      Rationale: r.
+      Evidence: $1
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+}
+# fabricated repo-relative anchor -> advisory (default 0), --strict 1
+mk_ev "scripts/nope_missing.py:42 shows the bug"
+ev_def=0; ev_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" 2>&1)" || ev_def=$?
+ev_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_strict=$?
+# real anchor -> no advisory; bare filename + version string -> no false flag
+mk_ev "scripts/lint-plan.py:461 defines main()"
+ev_real=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_real=$?
+mk_ev "tested on python 3.10 and seen in build-graph.py behavior"
+ev_prose=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_prose=$?
+if [ "$ev_def" = 0 ] && [ "$ev_strict" = 1 ] && [ "$ev_real" = 0 ] && [ "$ev_prose" = 0 ] \
+   && printf '%s' "$ev_out" | grep -qF "Evidence cites 'scripts/nope_missing.py'"; then
+  ok "lint-plan.py flags an Evidence anchor that names a nonexistent file (advisory; --strict fails)"
+else
+  bad "lint-plan.py evidence-anchor advisory wrong (def=$ev_def strict=$ev_strict real=$ev_real prose=$ev_prose)"
+fi

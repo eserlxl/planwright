@@ -23,8 +23,10 @@
 #   * no two pending items share a title (the maturity ladder's monotonic-drain
 #     guard). As a non-failing advisory it also notes pending titles that match a
 #     completed.md / rejected.md item, for the active agent to confirm a regression or a
-#     resolved rejection rather than blocking it, and notes a Verification that runs a
-#     repo script which does not exist (the item would be unverifiable at execute).
+#     resolved rejection rather than blocking it, notes a Verification that runs a
+#     repo script which does not exist (the item would be unverifiable at execute), and
+#     notes an Evidence `path:N` anchor whose file does not exist (a fabricated or stale
+#     grounding citation — the plan's single most important signal).
 #
 # Semantic checks that need code understanding (is the Evidence a *real* defect?
 # does Development name a real call site?) stay the active agent's job — this linter is
@@ -458,6 +460,34 @@ def verification_missing_script(verif, root):
     return None
 
 
+# An Evidence file:line anchor: a repo-relative path (with a "/" and an extension) followed by
+# a line reference (":N", ":N-M", or " (line N)"). Requiring the slash + extension + line ref
+# keeps a prose mention, a bare filename shorthand, or a version string ("3.10") from matching.
+_EVIDENCE_ANCHOR_RE = re.compile(
+    r"(?<![\w./-])"
+    r"([A-Za-z0-9_][A-Za-z0-9_./-]*/[A-Za-z0-9_./-]*\.[A-Za-z0-9]+)"
+    r"(?::\d+(?:-\d+)?|\s*\(line\s+\d+\))")
+
+
+def evidence_missing_anchor(ev, root):
+    """If the Evidence cites a repo-relative `path:N` (or `path (line N)`) anchor whose file
+    does not exist under root, return that path; else None. Deliberately conservative — only a
+    token that is clearly a repo-relative path (has a '/' and a file extension) AND carries a
+    line reference is treated as an anchor, and absolute/URL targets are skipped, so a prose
+    sentence, a bare filename, or a version string never false-flags. Advisory-only (non-failing),
+    so a missed anchor is harmless and a false positive is avoided by construction — it catches a
+    fabricated or stale Evidence path, the single most important grounding signal."""
+    if not ev:
+        return None
+    for m in _EVIDENCE_ANCHOR_RE.finditer(ev):
+        cand = m.group(1)
+        if cand.startswith("/") or "://" in cand:
+            continue
+        if not os.path.exists(os.path.join(root, cand)):
+            return cand
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser(description="Lint planwright plan items against the Stage 10 structural gate.")
     ap.add_argument("--root", default=".", help="repo root for Surfaces existence checks (default: cwd)")
@@ -537,6 +567,13 @@ def main():
         if missing:
             advisories = list(advisories) + [
                 f"Verification runs '{missing}', which does not exist (item will be unverifiable)"]
+        # Advisory: an Evidence file:line anchor pointing at a file that does not exist is a
+        # fabricated or stale grounding citation — surface it (non-failing; --strict promotes)
+        # so the plan's single most important grounding signal stays honest.
+        ghost = evidence_missing_anchor(item["fields"].get("Evidence", ""), root)
+        if ghost:
+            advisories = list(advisories) + [
+                f"Evidence cites '{ghost}', which does not exist (re-read the cited surface)"]
         records.append({"idx": idx, "item": item, "violations": violations,
                         "advisories": list(advisories)})
         if violations:
