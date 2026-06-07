@@ -86,9 +86,11 @@ host trigger above while keeping the arguments unchanged.
 
 `codcycle` is a different kind of adapter — an **orchestration** command, not a single-invocation alias.
 Per *outer cycle* it drives this skill through two back-to-back phases — `cycle 3 depth 10 explore`,
-then `cycle 3 depth 10 invent` (a harden → grow rhythm) — and closes the whole run with a single final
-`cycle 3 depth 10 explore` phase, defaulting to 10 outer cycles (a negative count runs forever). Each
-phase is an ordinary cycle run of this `SKILL.md`; `codcycle` only sequences them.
+then an **adaptive** `cycle 3..12 depth 10 invent` (a harden → grow rhythm) — and closes the whole run
+with a single final `cycle 3 depth 10 explore` phase, defaulting to 10 outer cycles (a negative count
+runs forever). The invent cycle count ramps from the base 3 up to 4× (12) when the verified-commit count
+declines between outer cycles and relaxes back as it recovers; the explore counts stay fixed. Each phase
+is an ordinary cycle run of this `SKILL.md`; `codcycle` only sequences them.
 
 ## Invocation & help
 

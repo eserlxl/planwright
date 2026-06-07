@@ -295,7 +295,8 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codinventor 5 8           # cycle 5 depth 8 invent (cycles, depth)
 
 # /codcycle — alternate hardening and growth: explore → invent per outer cycle, one final explore closes the run
-/codcycle                  # 10 outer cycles, each: cycle 3 depth 10 explore then invent; then one closing explore
+# (the invent cycle count is adaptive: base 3, ramping to 4x = 12 as verified commits decline, then relaxing back)
+/codcycle                  # 10 outer cycles, each: cycle 3 depth 10 explore then adaptive invent; then one closing explore
 /codcycle 3                # 3 outer cycles (one integer = outer-cycle count) + a final closing explore
 /codcycle -1               # run the explore→invent rhythm forever (negative = infinite), closing with a final explore
 

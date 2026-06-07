@@ -128,13 +128,16 @@ skills/instructions elsewhere.
 ```
 
 `/codcycle` is a Claude Code orchestration command (not a single-invocation alias): per *outer cycle*
-it drives the planwright skill through two phases back-to-back — `cycle 3 depth 10 explore`, then
-`cycle 3 depth 10 invent` — a **harden → grow** rhythm, and closes the whole run with a single final
-`cycle 3 depth 10 explore` phase. With no argument it runs 10 outer cycles; one integer sets the
-outer-cycle count, and a negative count runs forever. It stops early on a hard blocker, a failing broad
-verify, or a full outer cycle that produces no new committed work (a stable meta-final-point) — and runs
-the final explore afterward unless it stopped on a broken tree. Because every outer cycle includes an
-`invent` phase, that phase may make rare, small committed edits to repo files, including `MISSION.md`.
+it drives the planwright skill through two phases back-to-back — `cycle 3 depth 10 explore`, then an
+**adaptive** `cycle 3..12 depth 10 invent` — a **harden → grow** rhythm, and closes the whole run with a
+single final `cycle 3 depth 10 explore` phase. The invent cycle count is adaptive: it ramps from the base
+3 up to 4× (12) when the verified-commit count declines between outer cycles (dig harder as the well
+dries) and relaxes back toward the base as commits recover; the explore counts stay fixed. With no
+argument it runs 10 outer cycles; one integer sets the outer-cycle count, and a negative count runs
+forever. It stops early on a hard blocker, a failing broad verify, or a full outer cycle that produces no
+new committed work (a stable meta-final-point) — and runs the final explore afterward unless it stopped on
+a broken tree. Because every outer cycle includes an `invent` phase, that phase may make rare, small
+committed edits to repo files, including `MISSION.md`.
 
 ```bash
 /codcycle                  10 outer cycles (explore → invent, cycle 3 depth 10 each) + a final explore
