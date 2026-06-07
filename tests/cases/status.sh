@@ -78,6 +78,22 @@ else
   bad "status.py emitted a spurious mode breakdown on an empty plan"
 fi
 
+# --- Test STS6c: the "other" bucket — absent + unrecognized Mode lines --------------
+# Items with no Mode line or an unrecognized Mode are tallied under "other" (placed
+# last) so the per-mode counts always reconcile with the pending total. Exercise all
+# three "other" branches at once: an unrecognized mode (b), a no-Mode item followed by
+# another item (c), and a trailing no-Mode item (d).
+OFX="$TMP/status-modes-other"; mkdir -p "$OFX/.planwright"
+printf -- '- [ ] a\n      Mode: repair\n- [ ] b\n      Mode: bogus\n- [ ] c\n- [ ] d\n' > "$OFX/.planwright/plan.md"
+orep="$(python3 "$STAT" --root "$OFX")"
+ojson="$(python3 "$STAT" --root "$OFX" --json)"
+if printf '%s' "$orep" | grep -qE '^  pending:   4  \(repair 1, other 3\)$' \
+   && printf '%s' "$ojson" | python3 -c 'import json,sys; m=json.load(sys.stdin)["pending_modes"]; assert m=={"repair":1,"other":3}, m; assert sum(m.values())==4, m; assert list(m)[-1]=="other", m'; then
+  ok "status.py tallies absent/unrecognized modes under \"other\" (last) and reconciles with pending"
+else
+  bad "status.py \"other\" mode bucket wrong: $orep"
+fi
+
 # --- Test STS11: rejected items surface their titles + Rejection reasons ----------
 # status lists pending titles; for the feedback loop a power user also needs to see
 # what was rejected and why without cat'ing rejected.md. The readable report lists the
