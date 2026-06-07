@@ -451,7 +451,8 @@ def verification_missing_script(verif, root):
 def main():
     ap = argparse.ArgumentParser(description="Lint planwright plan items against the Stage 10 structural gate.")
     ap.add_argument("--root", default=".", help="repo root for Surfaces existence checks (default: cwd)")
-    ap.add_argument("--plan", default=".planwright/plan.md", help="plan file to lint")
+    ap.add_argument("--plan", default=None,
+                    help="plan file to lint (default: <root>/.planwright/plan.md)")
     ap.add_argument("--all", action="store_true", help="lint completed (- [x]) items too, not just pending")
     ap.add_argument("--quiet", action="store_true", help="print nothing; only set the exit code")
     ap.add_argument("--json", action="store_true", help="output structured JSON instead of plain text")
@@ -467,6 +468,12 @@ def main():
                          "Focus surfaces) to failures, so a CI gate can enforce monotonic-drain")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
+    # Resolve the default plan path UNDER --root, not the caller's cwd: an adapter
+    # invoking the linter from a foreign cwd with only --root must lint that root's
+    # plan, not a (possibly absent) plan beside wherever it was launched — otherwise a
+    # missing-here plan exits clean and silently bypasses the Stage 10 gate.
+    if args.plan is None:
+        args.plan = os.path.join(root, ".planwright", "plan.md")
 
     focus, context = (set(), set())
     if args.scope:

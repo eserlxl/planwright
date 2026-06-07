@@ -117,6 +117,27 @@ if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$DONE_PLAN" --all
 # An absent plan file is not an error (nothing to lint).
 if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$TMP/nope.md" --quiet; then ok "lint-plan.py treats an absent plan as clean"; else bad "lint-plan.py errored on an absent plan file"; fi
 
+# --- Test 12b: --root resolves the DEFAULT plan path under root, not the caller's cwd
+# Regression: an adapter run from a foreign cwd with only --root must lint THAT root's
+# plan. The old default '.planwright/plan.md' was cwd-relative, so a missing-here plan
+# exited clean (0) and silently bypassed the gate while the target plan was invalid.
+FR="$TMP/foreign-root"; mkdir -p "$FR/.planwright"
+cat > "$FR/.planwright/plan.md" <<'EOF'
+# planwright Plan — foreign
+
+- [ ] An item missing its Verification field
+      Mode: improve
+      Rationale: a real reason.
+      Evidence: scripts/build-graph.py exists.
+      Surfaces: scripts/build-graph.py
+      Development: edit build().
+      Acceptance: stays green.
+EOF
+CWD_NOPLAN="$TMP/cwd-without-plan"; mkdir -p "$CWD_NOPLAN"
+fr_rc=0
+( cd "$CWD_NOPLAN" && python3 "$ROOT/scripts/lint-plan.py" --root "$FR" --quiet ) || fr_rc=$?
+if [ "$fr_rc" -ne 0 ]; then ok "lint-plan.py --root resolves the default plan under root from a foreign cwd"; else bad "lint-plan.py --root linted nothing from a foreign cwd (default plan not resolved under root)"; fi
+
 # --- Test 12c: lint-plan.py rejects a placeholder Verification value ---------
 # Verification must be a runnable command; a bare "TODO"/"manual"/"n/a" passes the
 # non-empty check but is unverifiable, so lint-plan flags it before execute wastes a
