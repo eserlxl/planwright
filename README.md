@@ -17,6 +17,8 @@ Every item it proposes must point back to real code (a `file:line` reference) an
 command that proves it works. That's what **"grounded"** means: no vague advice, no invented
 features floating free of your actual repository.
 
+No new subscription. No cloud lock-in. Use Planwright with the AI coding agent you already have.
+
 ## Start here: the three commands
 
 Most people only need these three. Run them with no arguments and planwright does the rest — it prints
