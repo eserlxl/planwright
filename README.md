@@ -5,7 +5,8 @@
 > Invoke it with your host's `planwright` trigger — for example `/planwright` on Claude Code,
 > `@planwright` on Cursor, or `planwright` in Codex/Antigravity/Gemini project instructions. The
 > `codvisor` shortcut resolves to `cycle 10 depth 10 explore`; `codinventor` resolves to
-> `cycle 10 depth 10 invent`.
+> `cycle 10 depth 10 invent`; and `codcycle` loops the two together — explore then an adaptive
+> invent each outer cycle, with one closing explore.
 
 Planwright is a planning-first skill for codebase work. It reads your project, finds work worth
 doing, and writes it down as a checklist of concrete, verifiable steps in `.planwright/plan.md`. It
@@ -16,9 +17,9 @@ Every item it proposes must point back to real code (a `file:line` reference) an
 command that proves it works. That's what **"grounded"** means: no vague advice, no invented
 features floating free of your actual repository.
 
-## Start here: the two commands
+## Start here: the three commands
 
-Most people only need these two. Run them with no arguments and planwright does the rest — it prints
+Most people only need these three. Run them with no arguments and planwright does the rest — it prints
 the cost first, then works autonomously through plan→build→verify rounds until it runs out of
 worthwhile work.
 
@@ -26,13 +27,16 @@ worthwhile work.
 |---|---|---|
 | **`/codvisor`** | Finds and fixes real work already in your codebase — bugs, gaps, rough edges — round after round, then stops when the tree is clean. | You want your project polished and hardened without micromanaging. |
 | **`/codinventor`** | Everything `/codvisor` does, **plus** proposes genuinely new features (anchored to existing code) once the cleanup is done. | You want planwright to also *grow* the project, not just tidy it. |
+| **`/codcycle`** | Alternates the two on repeat — an explore (harden) then invent (grow) each outer cycle, with the invent effort *adapting* to how much new work is left, and one final hardening pass to close. | You want a long, hands-off run that keeps both polishing **and** growing until the project truly converges. |
 
-Both are safe by default: planning never touches your source, and when planwright does start editing
+All three are safe by default: planning never touches your source, and when planwright does start editing
 (building items, committing), your normal edit/commit approval prompts still apply.
 
 > Under the hood, `/codvisor` is shorthand for `cycle 10 depth 10 explore` and `/codinventor` for
 > `cycle 10 depth 10 invent`. You can pass numbers to tune them (`/codvisor 5 8` = 5 rounds at
-> depth 8) — see [Quick Start](#quick-start). The full vocabulary lives in [Concepts](docs/concepts.md).
+> depth 8) — see [Quick Start](#quick-start). `/codcycle` *orchestrates* many such runs — an explore
+> then an adaptive invent per outer cycle, with one closing explore — so reach for it when you want
+> codvisor and codinventor on a loop. The full vocabulary lives in [Concepts](docs/concepts.md).
 
 ## How it works: three paths
 
