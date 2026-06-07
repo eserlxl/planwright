@@ -23,11 +23,11 @@ Most people only need these three. Run them with no arguments and planwright doe
 the cost first, then works autonomously through plan→build→verify rounds until it runs out of
 worthwhile work.
 
-| Command | What it does | Reach for it when… |
-|---|---|---|
-| `/codvisor` | Finds and fixes real work in your code, then stops when it's clean. | You want it polished and hardened, hands-off. |
-| `/codinventor` | Fixes real work **and** proposes net-new features, anchored to real code. | You want it to also *grow*, not just tidy. |
-| `/codcycle` | Loops the two — harden then grow each cycle (invent effort *adapts*), with a final harden. | You want a long run that keeps polishing **and** growing. |
+| Command        | What it does                       | Best for           |
+|----------------|------------------------------------|--------------------|
+| `/codvisor`    | Fixes real work, stops when clean. | Analyze and repair |
+| `/codinventor` | Fixes work, adds net-new features. | Innovation         |
+| `/codcycle`    | Loops both adaptively, hardens.    | Autonomous coding  |
 
 All three are safe by default: planning never touches your source, and when planwright does start editing
 (building items, committing), your normal edit/commit approval prompts still apply.
