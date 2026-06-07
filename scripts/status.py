@@ -60,6 +60,32 @@ def _pending_titles(path):
     return titles
 
 
+def _rejected_items(path):
+    """Return rejected items as {"title","reason"} dicts, in file order. Each rejected
+    entry is a `- [ ] <title>` (or `- [x]`) line followed by indented continuation lines;
+    its reason is taken from the item's `Rejection:` continuation line ("" when absent, as
+    a freshly value-gated reject may carry only `Status: Rejected`). A missing file yields
+    an empty list — an absent rejected log is a valid state."""
+    items = []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return []
+    cur = None
+    for line in lines:
+        if line.startswith("- ["):
+            idx = line.find("] ")
+            title = line[idx + 2:].strip() if idx != -1 else line[2:].strip()
+            cur = {"title": title, "reason": ""}
+            items.append(cur)
+        elif cur is not None and not cur["reason"]:
+            stripped = line.strip()
+            if stripped.startswith("Rejection:"):
+                cur["reason"] = stripped[len("Rejection:"):].strip()
+    return items
+
+
 def _head_sha(root):
     """The target's current HEAD sha, or '' when git is unavailable / not a work tree."""
     try:
@@ -103,6 +129,7 @@ def collect(root):
     pending = len(pending_titles)
     completed = _count_checkbox(os.path.join(pw, "completed.md"), "- [x]")
     rejected = _count_checkbox(os.path.join(pw, "rejected.md"), "- [")
+    rejected_items = _rejected_items(os.path.join(pw, "rejected.md"))
     head = _head_sha(root)
 
     final = _parse_final(os.path.join(pw, "final.md"))
@@ -137,6 +164,7 @@ def collect(root):
         "pending_titles": pending_titles,
         "completed": completed,
         "rejected": rejected,
+        "rejected_items": rejected_items,
         "final_point": final_rec,
         "graph": graph_rec,
     }
@@ -152,6 +180,9 @@ def report(state, quiet):
         print("    - " + title)
     print("  completed: %d" % state["completed"])
     print("  rejected:  %d" % state["rejected"])
+    for item in state["rejected_items"]:
+        suffix = " — " + item["reason"] if item["reason"] else ""
+        print("    - " + item["title"] + suffix)
 
     fp = state["final_point"]
     if fp is None:
