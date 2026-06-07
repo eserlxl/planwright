@@ -799,3 +799,21 @@ if [ "$ev_glue" = 0 ] && [ "$ev_ds" = 0 ] && printf '%s' "$ev_ds_out" | grep -qF
 else
   bad "lint-plan.py evidence-anchor regression (glue=$ev_glue dotslash=$ev_ds)"
 fi
+
+# 12h: a ROOT-LEVEL anchor (no directory segment) is checked too — a stale/fabricated root file
+# is as important a grounding miss as a nested one. A fabricated root anchor is flagged; an
+# existing root file (README.md, present at $ROOT) is not; a version string with a trailing :N
+# ("3.10:5") still never matches (the extension must be letter-led).
+mk_ev "the root file NOPE_missing.md:50 no longer exists"
+ev_root=0; ev_root_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" 2>&1)" || ev_root=$?
+ev_root_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_root_strict=$?
+mk_ev "see README.md:1 at the repo root"
+ev_root_real=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_root_real=$?
+mk_ev "pinned at 3.10:5 in the changelog"
+ev_ver=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_ver=$?
+if [ "$ev_root" = 0 ] && [ "$ev_root_strict" = 1 ] && [ "$ev_root_real" = 0 ] && [ "$ev_ver" = 0 ] \
+   && printf '%s' "$ev_root_out" | grep -qF "Evidence cites 'NOPE_missing.md'"; then
+  ok "lint-plan.py evidence-anchor: a stale root-level anchor is flagged; an existing root file and a version string are not"
+else
+  bad "lint-plan.py root-level evidence-anchor regression (root=$ev_root strict=$ev_root_strict real=$ev_root_real ver=$ev_ver)"
+fi
