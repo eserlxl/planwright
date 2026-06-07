@@ -377,6 +377,33 @@ else
   bad "build-graph --dot did not render the change-coupling edge: $cdot_out"
 fi
 
+# --- Test 11c2h3: --dot honors --scope (render only the Focus+Context subgraph) -----
+# A power user visualizing a real repo wants one component's subgraph, not the whole tree.
+# When built with --scope, --dot restricts the render to the Context set (Focus + 1-hop);
+# a 2-hop node and an unrelated orphan must NOT appear, while an unscoped --dot renders all.
+# Fixture: src/api -> src/auth -> lib/crypto -> lib/deep, plus an orphan; scope to src/.
+SDOTREPO="$TMP/sdotrepo"; mkdir -p "$SDOTREPO/src" "$SDOTREPO/lib" "$SDOTREPO/other"
+git -C "$SDOTREPO" init -q
+printf '#!/usr/bin/env bash\nsource auth.sh\napi() { echo p; }\n' > "$SDOTREPO/src/api.sh"
+printf '#!/usr/bin/env bash\nsource ../lib/crypto.sh\nauth() { echo a; }\n' > "$SDOTREPO/src/auth.sh"
+printf '#!/usr/bin/env bash\nsource deep.sh\ncrypto() { echo c; }\n' > "$SDOTREPO/lib/crypto.sh"
+printf '#!/usr/bin/env bash\ndeep() { echo d; }\n' > "$SDOTREPO/lib/deep.sh"
+printf '#!/usr/bin/env bash\norphan() { echo o; }\n' > "$SDOTREPO/other/orphan.sh"
+git -C "$SDOTREPO" add -A && git -C "$SDOTREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+sdot_scoped="$(python3 "$ROOT/scripts/build-graph.py" --root "$SDOTREPO" --scope src/ --dot 2>/dev/null)"
+sdot_full="$(python3 "$ROOT/scripts/build-graph.py" --root "$SDOTREPO" --dot 2>/dev/null)"
+if printf '%s' "$sdot_scoped" | grep -q '"src/api.sh" -> "src/auth.sh";' \
+   && printf '%s' "$sdot_scoped" | grep -q '"src/auth.sh" -> "lib/crypto.sh";' \
+   && printf '%s' "$sdot_scoped" | grep -q '"lib/crypto.sh";' \
+   && ! printf '%s' "$sdot_scoped" | grep -q 'lib/deep.sh' \
+   && ! printf '%s' "$sdot_scoped" | grep -q 'other/orphan.sh' \
+   && printf '%s' "$sdot_full" | grep -q '"lib/deep.sh";' \
+   && printf '%s' "$sdot_full" | grep -q '"other/orphan.sh";'; then
+  ok "build-graph --dot honors --scope (renders Focus+Context only; unscoped renders all)"
+else
+  bad "build-graph --dot did not scope the render: $sdot_scoped"
+fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.

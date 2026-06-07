@@ -1189,24 +1189,38 @@ def debug_digest(graph, out):
 def to_dot(graph):
     """Serialize the graph as GraphViz DOT — one node line per tracked file, one solid
     directed edge per resolved import, and one dashed arrowless edge per change-coupling
-    pair (the hidden dependencies a reader cannot see by reading code). Interop/visualization
-    output only; the JSON graph stays the canonical form planwright itself consumes. Needs no
-    graphviz to emit (text)."""
+    pair (the hidden dependencies a reader cannot see by reading code). When the graph was
+    built with --scope, the render is restricted to the Context node set (Focus + its 1-hop
+    blast radius) so one component's subgraph is visualizable instead of the whole repo; an
+    unscoped graph renders every node. Interop/visualization output only; the JSON graph stays
+    the canonical form planwright itself consumes. Needs no graphviz to emit (text)."""
     nodes = graph.get("nodes", {})
+    # A --scope build carries a "context" node list (Focus + 1-hop blast radius); restrict the
+    # render to it so a scoped --dot shows that component's subgraph, not the whole repo. Absent
+    # (an unscoped build) => render every node, exactly as before.
+    context = graph.get("context")
+    visible = set(context) if context is not None else set(nodes)
     lines = ["digraph planwright {"]
     for path in sorted(nodes):
-        lines.append('  "%s";' % path)
+        if path in visible:
+            lines.append('  "%s";' % path)
     for path in sorted(nodes):
+        if path not in visible:
+            continue
         for target in sorted(nodes[path].get("imports", []) or []):
-            lines.append('  "%s" -> "%s";' % (path, target))
+            if target in visible:
+                lines.append('  "%s" -> "%s";' % (path, target))
     # Change-coupling edges: undirected pairs that co-change in history, rendered dashed and
     # arrowless (dir=none) so they read distinctly from the solid directed import edges. Dedupe
-    # by unordered pair (and sort) so each coupling relationship renders once, deterministically.
+    # by unordered pair (and sort) so each coupling relationship renders once, deterministically;
+    # under a scope, only pairs with both endpoints in the visible set render.
     seen = set()
     coupling = []
     for edge in graph.get("coupling_edges", []) or []:
         a, b = edge.get("a"), edge.get("b")
         if a is None or b is None:
+            continue
+        if a not in visible or b not in visible:
             continue
         key = tuple(sorted((a, b)))
         if key in seen:
