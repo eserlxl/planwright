@@ -111,6 +111,25 @@ class TestImportResolvers(unittest.TestCase):
         )
         self.assertEqual(bg.defines_of("c", c), ["real_fn"])
 
+    def test_iter_defines_yields_in_source_order_across_categories(self):
+        # iter_defines runs one regex pass per definition CATEGORY (C struct vs function);
+        # their matches must be merged in source order so defines_of/defines_at_of are correct,
+        # not just branch_at_of (which used to re-sort on its own). Interleave categories by line:
+        c = (
+            "struct First { int a; };\n"    # line 1 (type)
+            "int second() { return 0; }\n"  # line 2 (function)
+            "struct Third { int b; };\n"    # line 3 (type)
+        )
+        self.assertEqual(bg.defines_of("c", c), ["First", "second", "Third"])
+        at = bg.defines_at_of("c", c)
+        self.assertEqual((at["First"], at["second"], at["Third"]), (1, 2, 3))
+
+    def test_defines_at_of_picks_first_line_on_cross_category_collision(self):
+        # A name defined as both a function (earlier) and a type (later): defines_at must point
+        # at the FIRST definition by line, regardless of which category regex matched it first.
+        c = "int Widget(int x) { return x; }\nstruct Widget { int n; };\n"
+        self.assertEqual(bg.defines_at_of("c", c)["Widget"], 1)
+
     def test_resolve_python_absolute(self):
         self.assertEqual(
             bg.resolve_python_import("pkg.b", "x.py", {"pkg/b.py"}), "pkg/b.py")

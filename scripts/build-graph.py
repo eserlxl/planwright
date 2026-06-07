@@ -189,53 +189,62 @@ def iter_defines(lang, text):
     defines_of (names), defines_at_of (name -> line), and branch_at_of (span) — the
     blanking keeps each yielded offset valid against the original text those use."""
     text = blank_comments(lang, text)
+    matches = []
     if lang == "bash":
         for m in re.finditer(r"(?m)^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)\s*\{?", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
     elif lang == "python":
         for m in re.finditer(r"(?m)^\s*(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
     elif lang == "js":
         for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s+([A-Za-z_$][\w$]*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # arrow/function expressions bound to a name: `export const f = (x) => ...`
         for m in re.finditer(r"(?m)^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
     elif lang == "c":
         # gtest group/fixture names — SKILL.md routing tracks TEST/TEST_F groups.
         for m in re.finditer(r"(?m)\b(?:TEST|TEST_F|TEST_P|TYPED_TEST)\s*\(\s*([A-Za-z_]\w*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # class / struct / enum type names.
         for m in re.finditer(r"(?m)\b(?:class|struct|enum)\s+([A-Za-z_]\w*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # function / method definitions: the `(...)` is followed by a `{` body, not
         # a `;` prototype; params hold no `;`/`{` so a match stays on one definition,
         # and control-flow keywords (which also read as `name (...) {`) are filtered.
         kw = {"if", "for", "while", "switch", "return", "else", "do", "catch", "sizeof"}
         for m in re.finditer(r"(?m)^\s*[A-Za-z_][\w\s:\*&<>,~]*?\b([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:const\s*)?(?:noexcept\s*)?\{", text):
             if m.group(1) not in kw:
-                yield m.group(1), m.start()
+                matches.append((m.group(1), m.start()))
     elif lang == "rust":
         # functions (incl. methods inside impl blocks, which are indented).
         for m in re.finditer(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?(?:const\s+)?fn\s+([A-Za-z_]\w*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # nominal types: struct / enum / trait / union.
         for m in re.finditer(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait|union)\s+([A-Za-z_]\w*)", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # impl blocks — capture the implementing type (the ident before the `{`),
         # covering both `impl Foo {` and `impl Trait for Foo {`.
         for m in re.finditer(r"(?m)^\s*impl\b[^\n{]*?\b([A-Za-z_]\w*)\s*(?:<[^>\n]*>)?\s*\{", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
     elif lang == "go":
         # top-level funcs and methods: `func Name(` and `func (r Recv) Name(`.
         for m in re.finditer(r"(?m)^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*[\(\[]", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
         # nominal types: `type Name struct|interface` (grouped `type (...)` blocks
         # are best-effort skipped — recall over precision, like the other arms).
         for m in re.finditer(r"(?m)^\s*type\s+([A-Za-z_]\w*)\s+(?:struct|interface)\b", text):
-            yield m.group(1), m.start()
+            matches.append((m.group(1), m.start()))
+    # Several language arms run one regex pass per definition CATEGORY (e.g. C class vs.
+    # function); concatenated, those come out grouped by pattern, not by file position. Sort
+    # by start offset (Python's sort is stable, so same-offset ties keep category order) so the
+    # documented source-order contract holds for *every* consumer — defines_of and defines_at_of
+    # consume this directly and assume it, not just branch_at_of which used to re-sort itself.
+    matches.sort(key=lambda np: np[1])
+    for name, pos in matches:
+        yield name, pos
 
 
 def defines_of(lang, text):
@@ -267,7 +276,7 @@ def branch_at_of(lang, text):
     pat = BRANCH_KW.get(lang)
     if not pat:
         return {}
-    defs = sorted(iter_defines(lang, text), key=lambda np: np[1])
+    defs = list(iter_defines(lang, text))  # iter_defines now yields in source order
     out = {}
     for i, (name, start) in enumerate(defs):
         end = defs[i + 1][1] if i + 1 < len(defs) else len(text)
