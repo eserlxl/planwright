@@ -138,3 +138,22 @@ if [ "$ml_rc" = "0" ]; then
 else
   bad "check-links.py false-flagged a link inside a multi-line code span (rc=$ml_rc): $ml_out"
 fi
+
+# --- Test CL9: --json emits a structured broken-link array and preserves the exit code
+# Parity with status/doctor/lint-plan --json: a CI consumer parses file/line/target/reason
+# instead of scraping the text format. Reuse the broken fixture from CL2 ($LK): --json must
+# emit a JSON array carrying the broken targets and still exit 1; on a clean tree it emits
+# `[]` and exits 0.
+jrc=0; jout="$(python3 "$CL" --root "$LK" --json)" || jrc=$?
+if [ "$jrc" = "1" ] \
+   && printf '%s' "$jout" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert isinstance(d,list) and any(e["target"]=="sub/missing.md" and "file" in e and "line" in e and "reason" in e for e in d)' 2>/dev/null; then
+  ok "check-links.py --json emits a parseable broken-link array and exits 1 on a broken tree"
+else
+  bad "check-links.py --json wrong on a broken tree (rc=$jrc out='$jout')"
+fi
+crc=0; cout="$(python3 "$CL" --root "$CLN" --json)" || crc=$?
+if [ "$crc" = "0" ] && [ "$cout" = "[]" ]; then
+  ok "check-links.py --json emits [] and exits 0 on a clean tree"
+else
+  bad "check-links.py --json wrong on a clean tree (rc=$crc out='$cout')"
+fi

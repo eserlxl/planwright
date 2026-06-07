@@ -26,6 +26,7 @@
 # printed as `file:line: broken link -> target (reason)`), 2 on a usage/enumeration error.
 # --quiet suppresses all output and sets only the exit code (parity with the siblings).
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -188,8 +189,17 @@ def main():
     ap.add_argument("--root", default=".", help="repo root to check (default: cwd)")
     ap.add_argument("--quiet", action="store_true",
                     help="print nothing; only set the exit code (parity with the sibling scripts)")
+    ap.add_argument("--json", action="store_true",
+                    help="emit the broken links as a JSON array of {file,line,target,reason} for CI "
+                         "(parity with the sibling scripts); --quiet still suppresses all output")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
+
+    def emit(text):
+        """Human report line — suppressed by --quiet and by --json (which prints once)."""
+        if not args.quiet and not args.json:
+            print(text)
+
     try:
         files = list_markdown(root)
     except (OSError, subprocess.SubprocessError) as exc:
@@ -197,18 +207,17 @@ def main():
             sys.stderr.write("check-links: could not enumerate markdown files (%s)\n" % exc)
         return 2
 
-    anchor_cache, total = {}, 0
+    anchor_cache, broken = {}, []
     for relpath in files:
         for lineno, target, reason in check_file(root, relpath, anchor_cache):
-            total += 1
-            if not args.quiet:
-                print("%s:%d: broken link -> %s (%s)" % (relpath, lineno, target, reason))
-    if total:
-        if not args.quiet:
-            print("check-links: %d broken link(s) across %d file(s)" % (total, len(files)))
+            broken.append({"file": relpath, "line": lineno, "target": target, "reason": reason})
+            emit("%s:%d: broken link -> %s (%s)" % (relpath, lineno, target, reason))
+    if not args.quiet and args.json:
+        print(json.dumps(broken))
+    if broken:
+        emit("check-links: %d broken link(s) across %d file(s)" % (len(broken), len(files)))
         return 1
-    if not args.quiet:
-        print("check-links: %d markdown file(s) OK" % len(files))
+    emit("check-links: %d markdown file(s) OK" % len(files))
     return 0
 
 
