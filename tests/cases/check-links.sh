@@ -123,3 +123,18 @@ if [ "$nm_rc" = "0" ]; then
 else
   bad "check-links.py false-failed a %20 / ?query link (rc=$nm_rc): $nm_out"
 fi
+
+# --- Test CL8: a link inside a multi-line inline code span is not a real link ------
+# A single-backtick span may cross lines; a [text](target) inside it must not be parsed
+# as a link. Per-line blanking missed this and false-flagged the inner target.
+ML="$TMP/cl-multiline"; mkdir -p "$ML"; git -C "$ML" init -q
+# shellcheck disable=SC2016
+printf '# Doc\n\nHere is `a code span that opens\nand contains [fake](nope.md) inside it\nand closes` afterwards.\n' > "$ML/index.md"
+git -C "$ML" add -A
+ml_rc=0
+ml_out="$(python3 "$CL" --root "$ML" 2>&1)" || ml_rc=$?
+if [ "$ml_rc" = "0" ]; then
+  ok "check-links.py does not treat a link inside a multi-line inline code span as real"
+else
+  bad "check-links.py false-flagged a link inside a multi-line code span (rc=$ml_rc): $ml_out"
+fi

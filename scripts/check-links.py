@@ -131,7 +131,7 @@ def check_file(root, relpath, anchor_cache):
             anchor_cache[target_rel] = anchors_of(os.path.join(root, target_rel))
         return anchor_cache[target_rel]
 
-    broken, in_fence = [], False
+    broken, in_fence, code_open = [], False, False
     for lineno, raw in enumerate(lines, 1):
         s = raw.lstrip()
         if s.startswith("```") or s.startswith("~~~"):
@@ -141,8 +141,21 @@ def check_file(root, relpath, anchor_cache):
             continue
         # Blank inline-code spans before scanning so a `[..](X)` written as documentation
         # of the link syntax (not a real link) is never parsed as one. Line numbers are
-        # unaffected (same-line substitution).
-        scan = re.sub(r"`[^`]*`", "", raw)
+        # unaffected (same-line substitution). A single-backtick span may cross line
+        # boundaries (CommonMark), so carry the open state across lines: continue blanking
+        # an open span up to its closing backtick, then detect a span this line opens but
+        # does not close (an odd trailing backtick) and carry it to the next line.
+        line = raw
+        if code_open:
+            idx = line.find("`")
+            if idx == -1:
+                continue  # the whole line is still inside the open code span
+            line = " " * (idx + 1) + line[idx + 1:]
+            code_open = False
+        scan = re.sub(r"`[^`]*`", "", line)
+        if scan.count("`") % 2 == 1:
+            scan = scan[:scan.rfind("`")]
+            code_open = True
         for m in LINK_RE.finditer(scan):
             target = clean_target(m.group(1))
             if not target or EXTERNAL_RE.match(target):
