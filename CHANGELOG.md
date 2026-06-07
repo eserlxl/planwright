@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.41.0] - 2026-06-07
+
+### Changed
+- Add --json output modes to check-links and lifecycle; codcycle rotates invent framing
+
 ## [1.40.0] - 2026-06-07
 
 ### Changed
