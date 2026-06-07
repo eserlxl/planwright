@@ -1248,6 +1248,41 @@ def to_dot(graph):
     return "\n".join(lines) + "\n"
 
 
+# The closed predicate vocabulary --select understands — boolean node fields whose true/false
+# value selects a slice of the graph the audit already routes on.
+_SELECT_BOOL_FIELDS = ("is_articulation", "covered_by_test", "is_test")
+
+
+def to_select(graph, expr):
+    """Resolve a --select predicate against the per-node signals and return the matching
+    repo-relative paths, sorted. EXPR is ONE predicate from a closed vocabulary over the keys
+    build-graph already computes (not a general query language): a boolean field name
+    (is_articulation | covered_by_test | is_test) selects nodes where it is true; a `no-` prefix
+    on one selects where it is false; `code` selects branch_count>0; `never-audited` selects
+    nodes whose last_audited_sha is null; `lang=NAME` selects nodes of that language. Raises
+    ValueError on an unknown predicate so the caller can report it and exit non-zero."""
+    nodes = graph.get("nodes", {})
+    e = (expr or "").strip()
+    if e.startswith("lang="):
+        want = e[len("lang="):]
+        pred = lambda n: n.get("lang") == want
+    elif e == "code":
+        pred = lambda n: (n.get("branch_count") or 0) > 0
+    elif e == "never-audited":
+        pred = lambda n: n.get("last_audited_sha") is None
+    elif e.startswith("no-") and e[3:] in _SELECT_BOOL_FIELDS:
+        field = e[3:]
+        pred = lambda n: not n.get(field)
+    elif e in _SELECT_BOOL_FIELDS:
+        pred = lambda n: bool(n.get(e))
+    else:
+        allowed = ", ".join(list(_SELECT_BOOL_FIELDS)
+                            + ["no-" + b for b in _SELECT_BOOL_FIELDS]
+                            + ["code", "never-audited", "lang=NAME"])
+        raise ValueError(f"unknown --select predicate '{expr}'; allowed: {allowed}")
+    return sorted(p for p, n in nodes.items() if pred(n))
+
+
 def main():
     ap = argparse.ArgumentParser(description="Build planwright Stage 1.5 graph.json (prints to stdout).")
     ap.add_argument("--root", default=".", help="repo root (default: cwd)")
@@ -1263,6 +1298,11 @@ def main():
     ap.add_argument("--dot", action="store_true",
                     help="emit the import graph as GraphViz DOT to stdout instead of JSON "
                          "(visualization/interop; pipe to `dot -Tsvg`)")
+    ap.add_argument("--select", default=None, metavar="EXPR",
+                    help="print the repo-relative paths of nodes matching ONE predicate, one per "
+                         "line, instead of JSON: is_articulation | covered_by_test | is_test | "
+                         "no-<that> | code | never-audited | lang=NAME (scriptable access to the "
+                         "computed routing signals; takes precedence over --dot)")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:
@@ -1287,6 +1327,15 @@ def main():
         return 2
     if args.debug:
         debug_digest(graph, sys.stderr)
+    if args.select is not None:
+        try:
+            matches = to_select(graph, args.select)
+        except ValueError as e:
+            sys.stderr.write(f"build-graph: {e}\n")
+            return 2
+        for p in matches:
+            sys.stdout.write(p + "\n")
+        return 0
     if args.dot:
         sys.stdout.write(to_dot(graph))
         return 0

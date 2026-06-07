@@ -429,6 +429,37 @@ else
   bad "build-graph --dot did not mark the articulation point: $art_out"
 fi
 
+# --- Test 11c2j: --select queries the computed per-node signals (scriptable slices) -
+# --select EXPR prints the repo-relative paths of nodes matching one closed predicate over
+# the signals build-graph computes, one per line, sorted — so an expert can ask "which are
+# the chokepoints / the python files / the test files" without piping the full JSON through
+# jq. An unknown predicate errors to stderr (exit 2); --select takes precedence over --dot.
+# Fixture: x,y -> hub -> z plus test_hub -> hub, making hub the single articulation point.
+SELREPO="$TMP/selrepo"; mkdir -p "$SELREPO"
+git -C "$SELREPO" init -q
+printf 'import hub\n' > "$SELREPO/x.py"
+printf 'import hub\n' > "$SELREPO/y.py"
+printf 'import z\ndef h():\n    if True:\n        return 1\n' > "$SELREPO/hub.py"
+printf 'def z():\n    return 0\n' > "$SELREPO/z.py"
+printf 'import hub\ndef test_h():\n    assert True\n' > "$SELREPO/test_hub.py"
+git -C "$SELREPO" add -A && git -C "$SELREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+sel_art="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select is_articulation 2>/dev/null)"
+sel_test="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select is_test 2>/dev/null)"
+sel_py="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select lang=python 2>/dev/null | sort | tr '\n' ' ')"
+sel_notest="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select no-is_test 2>/dev/null)"
+sel_prec="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select is_articulation --dot 2>/dev/null)"
+sel_bad_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select bogus >/dev/null 2>"$TMP/sel_err" || sel_bad_rc=$?
+if [ "$sel_art" = "hub.py" ] \
+   && printf '%s' "$sel_test" | grep -qx "test_hub.py" \
+   && [ "$sel_py" = "hub.py test_hub.py x.py y.py z.py " ] \
+   && ! printf '%s' "$sel_notest" | grep -qx "test_hub.py" \
+   && [ "$sel_bad_rc" = 2 ] && grep -q "unknown --select predicate" "$TMP/sel_err" \
+   && printf '%s' "$sel_prec" | grep -qx "hub.py" && ! printf '%s' "$sel_prec" | grep -q "digraph"; then
+  ok "build-graph --select filters nodes by predicate (bool/code/lang); bad predicate exits 2; precedes --dot"
+else
+  bad "build-graph --select wrong (art=[$sel_art] py=[$sel_py] badrc=$sel_bad_rc)"
+fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.
