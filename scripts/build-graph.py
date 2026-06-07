@@ -550,6 +550,21 @@ def nearest_go_module(from_path, go_modules):
     return best
 
 
+def nearest_ts_config(from_path, ts_configs):
+    """Pick the deepest tsconfig/jsconfig whose directory encloses from_path, so each JS/TS
+    file resolves its `compilerOptions.paths` aliases against its own (possibly nested-package)
+    config — the same nearest-enclosing rule as nearest_go_module. ts_configs is a list of
+    (cfg_dir, ts_aliases) pairs; cfg_dir '' is the repo root. Returns the chosen ts_aliases
+    ((base_dir, patterns)) or None when no enclosing config carries paths."""
+    d = os.path.dirname(from_path)
+    best = None
+    for cfg_dir, aliases in ts_configs:
+        if cfg_dir == "" or d == cfg_dir or d.startswith(cfg_dir + "/"):
+            if best is None or len(cfg_dir) > len(best[0]):
+                best = (cfg_dir, aliases)
+    return best[1] if best else None
+
+
 def strip_comments(lang, text):
     """Best-effort removal of comments and Python docstrings before import extraction,
     so an import-looking line inside a comment or a multi-line string does not produce a
@@ -582,6 +597,12 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
     if lang == "go":
         mods = [("", go_module)] if isinstance(go_module, str) else (go_module or [])
         go_pick = nearest_go_module(from_path, mods)
+    # ts_aliases may be a list of (cfg_dir, aliases) pairs (multi-config, nested-package aware)
+    # or a single (base_dir, patterns) tuple / None (legacy). For the list form, resolve this
+    # file's nearest-enclosing config; otherwise pass it through unchanged.
+    ts_pick = ts_aliases
+    if lang == "js" and isinstance(ts_aliases, list):
+        ts_pick = nearest_ts_config(from_path, ts_aliases)
     raw = []
     c_angles = []
     if lang == "bash":
@@ -628,7 +649,7 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
         if lang == "python":
             r = resolve_python_import(t, from_path, fileset)
         elif lang == "js":
-            r = resolve_js_import(t, from_path, fileset, ts_aliases)
+            r = resolve_js_import(t, from_path, fileset, ts_pick)
         elif lang == "rust":
             r = resolve_rust_import(t, from_path, fileset)
         else:
@@ -951,15 +972,27 @@ def build(root, prior_path, scope=None, seed=None):
     pair_co = coupling_pairs(commits)
 
     # tsconfig/jsconfig compilerOptions.paths aliases, so `@app/x` style imports resolve.
-    # Include the common non-default names (tsconfig.base.json / tsconfig.app.json) used in
-    # mono-repos; first config that actually carries `paths` wins — a name with no paths
-    # returns None and falls through (the usual `tsconfig.json extends tsconfig.base.json`).
-    ts_aliases = None
-    for cfg in ("tsconfig.json", "tsconfig.base.json", "tsconfig.app.json", "jsconfig.json"):
-        if cfg in fileset:
-            ts_aliases = parse_tsconfig(os.path.join(root, cfg), os.path.dirname(cfg))
-            if ts_aliases:
-                break
+    # Discover EVERY tsconfig/jsconfig in the tree, not just the root: a nested-package
+    # monorepo (e.g. packages/app/tsconfig.json) carries its own `paths`, and each JS/TS file
+    # resolves against its nearest-enclosing config (nearest_ts_config below), mirroring the
+    # go.mod nearest-module rule. Within one directory the common names keep their historical
+    # priority (tsconfig.json > .base.json > .app.json > jsconfig.json — the first with `paths`
+    # wins, e.g. `tsconfig.json extends tsconfig.base.json`); a name with no usable `paths`
+    # parses to None and is skipped. ts_aliases is then the per-config list imports_of consumes.
+    TS_CONFIG_NAMES = ("tsconfig.json", "tsconfig.base.json", "tsconfig.app.json", "jsconfig.json")
+    ts_priority = {name: i for i, name in enumerate(TS_CONFIG_NAMES)}
+    ts_by_dir = {}  # cfg_dir -> (priority_index, aliases)
+    for cfg in fileset:
+        prio = ts_priority.get(os.path.basename(cfg))
+        if prio is None:
+            continue
+        aliases = parse_tsconfig(os.path.join(root, cfg), os.path.dirname(cfg))
+        if not aliases:
+            continue
+        cfg_dir = os.path.dirname(cfg)
+        if cfg_dir not in ts_by_dir or prio < ts_by_dir[cfg_dir][0]:
+            ts_by_dir[cfg_dir] = (prio, aliases)
+    ts_aliases = [(cfg_dir, aliases) for cfg_dir, (_prio, aliases) in sorted(ts_by_dir.items())]
 
     # Every go.mod's (dir, module path), so Go intra-module imports resolve to repo files,
     # nested sub-modules included (each .go file uses its nearest enclosing module).

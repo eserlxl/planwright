@@ -460,28 +460,31 @@ def verification_missing_script(verif, root):
     return None
 
 
-# An Evidence file:line anchor: a repo-relative path (one or more "/"-separated directory segments
-# then a filename with an extension) followed by a line reference (":N", ":N-M", or " (line N)").
-# Directory segments are DOTLESS so a glued abbreviation prefix ("e.g.scripts/x.py") cannot be
-# absorbed into the path; an optional "./"/"../" prefix and a single leading-dot dir (".github")
-# are allowed. Requiring >=1 "/" + a filename extension + a line ref keeps a prose mention, a bare
-# filename, or a version string ("3.10") from matching. Because the path can only start with a
-# "./"/"../" prefix or an alphanumeric/'.' char (never a bare "/" and never containing "://"), an
-# absolute or URL target cannot match — no explicit guard is needed.
+# An Evidence file:line anchor: a repo-relative path (zero or more "/"-separated directory
+# segments then a filename with an extension) followed by a line reference (":N", ":N-M", or
+# " (line N)"). Zero dir segments lets a ROOT-level file (README.md:50, MISSION.md:50) match, so a
+# stale/fabricated root citation is caught too; directory segments are DOTLESS so a glued
+# abbreviation prefix ("e.g.scripts/x.py") cannot be absorbed into the path; an optional "./"/"../"
+# prefix and a single leading-dot dir (".github") are allowed. The line ref stays mandatory and the
+# extension must be LETTER-LED so a prose mention, a bare filename without a line ref, or a version
+# string ("3.10:5") never matches. Because the path can only start with a "./"/"../" prefix or an
+# alphanumeric/'.' char (never a bare "/" and never containing "://"), an absolute or URL target
+# cannot match — no explicit guard is needed.
 _EVIDENCE_ANCHOR_RE = re.compile(
     r"(?<![\w./-])"
     r"((?:\.{1,2}/)?"                          # optional ./ or ../ prefix
-    r"(?:\.?[A-Za-z0-9_][A-Za-z0-9_-]*/)+"     # >=1 dotless dir segments (leading-dot dir ok)
-    r"[A-Za-z0-9_][A-Za-z0-9_.-]*\.[A-Za-z0-9]+)"  # filename with an extension
+    r"(?:\.?[A-Za-z0-9_][A-Za-z0-9_-]*/)*"     # >=0 dotless dir segments (root file ok; leading-dot dir ok)
+    r"[A-Za-z0-9_][A-Za-z0-9_.-]*\.[A-Za-z][A-Za-z0-9]*)"  # filename with a letter-led extension
     r"(?::\d+(?:-\d+)?|\s*\(line\s+\d+\))")
 
 
 def evidence_missing_anchor(ev, root):
     """If the Evidence cites a repo-relative `path:N` (or `path (line N)`) anchor whose file does
     not exist under root, return that path; else None. Deliberately conservative — only a token
-    that is clearly a repo-relative path (>=1 dotless dir segment + a filename with an extension)
-    AND carries a line reference is treated as an anchor, so a prose sentence, a bare filename, a
-    glued abbreviation ("e.g.scripts/x.py"), or a version string never false-flags. Advisory-only
+    that is clearly a path (a filename with a letter-led extension, optionally under >=1 dotless dir
+    segment) AND carries a line reference is treated as an anchor, so a prose sentence, a bare
+    filename, a glued abbreviation ("e.g.scripts/x.py"), or a version string never false-flags. A
+    root-level file (README.md:50) is now caught too — its stale citation matters as much. Advisory-only
     (non-failing), so a missed anchor is harmless and a false positive is avoided by construction —
     it catches a fabricated or stale Evidence path, the single most important grounding signal."""
     if not ev:
