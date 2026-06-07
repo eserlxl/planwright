@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.43.0] - 2026-06-07
+
+### Changed
+- build-graph --select + --dot enrichments (coupling/articulation/subgraph); path-safety hardening in lint-plan/check-links; corrupt-graph resilience; status by-mode + rejected detail; CI Python 3.9-3.12 matrix; atomic lifecycle writes; --json modes
+
 ## [1.42.0] - 2026-06-07
 
 ### Changed
