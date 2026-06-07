@@ -156,6 +156,41 @@ PY
 then ok "lint-plan.py unsafe_surface containment is safe at a filesystem root"
 else bad "lint-plan.py unsafe_surface mishandles a filesystem-root repo"; fi
 
+# --- Test 12e: lint-plan.py --fix is idempotent on a double-violation item ----------
+# An item carrying BOTH mechanical violations (a 'CMakeLists' Surface to respell AND an
+# existing New Surface to move) must reach a fixed point: a second --fix is a no-op and
+# the result lints clean. Guards against one auto-correction reintroducing the other.
+FX="$TMP/fix-idem"; mkdir -p "$FX"
+: > "$FX/CMakeLists.txt"
+: > "$FX/existing.py"
+FXP="$FX/plan.md"
+cat > "$FXP" <<'EOF'
+# planwright Plan — fix-idem
+
+- [ ] Double-violation item
+      Mode: improve
+      Rationale: a real reason.
+      Evidence: CMakeLists.txt configures the build.
+      Surfaces: CMakeLists
+      New Surfaces: existing.py
+      Development: edit the build wiring.
+      Acceptance: stays green.
+      Verification: bash tests/run.sh
+EOF
+python3 "$ROOT/scripts/lint-plan.py" --root "$FX" --plan "$FXP" --fix --quiet >/dev/null 2>&1 || true
+after1="$(cat "$FXP")"
+fx2_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$FX" --plan "$FXP" --fix 2>&1)" || true
+after2="$(cat "$FXP")"
+if [ "$after1" = "$after2" ] \
+   && printf '%s' "$after1" | grep -q 'Surfaces: CMakeLists.txt, existing.py' \
+   && ! printf '%s' "$after1" | grep -q 'New Surfaces:' \
+   && ! printf '%s' "$fx2_out" | grep -qi 'applied' \
+   && python3 "$ROOT/scripts/lint-plan.py" --root "$FX" --plan "$FXP" --quiet; then
+  ok "lint-plan.py --fix is idempotent on a double-violation item (second pass is a no-op)"
+else
+  bad "lint-plan.py --fix not idempotent on a double-violation item: $fx2_out"
+fi
+
 # --- Test 12c: lint-plan.py rejects a placeholder Verification value ---------
 # Verification must be a runnable command; a bare "TODO"/"manual"/"n/a" passes the
 # non-empty check but is unverifiable, so lint-plan flags it before execute wastes a
