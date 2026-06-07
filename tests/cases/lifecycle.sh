@@ -173,3 +173,39 @@ if [ "$trav_rc" -ne 0 ] && printf '%s' "$trav_out" | grep -qF "parent-directory 
 else
   bad "lifecycle.py accepted a traversal --root (rc=$trav_rc)"
 fi
+
+# --- Test L7: housekeep --json emits a structured report (parity with the siblings) -
+# A CI/wrapper consumes {command,compacted,rejected_drained,plan_deleted} instead of
+# parsing the "lifecycle: ..." text line. One completed + one rejected + one pending ->
+# compacted 1, rejected_drained 1, plan_deleted false. --quiet still wins (no output).
+LCJ="$TMP/lc7/.planwright"; mkdir -p "$LCJ"
+cat > "$LCJ/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [x] done
+      Mode: improve
+      Verification: true
+
+- [ ] keep
+      Mode: docs
+      Surfaces: README.md
+      Verification: true
+
+- [ ] drop
+      Mode: repair
+      Status: Rejected
+      Rejection: verification planwright_x failed: boom
+      Verification: true
+EOF
+jout="$(python3 "$LC" housekeep --root "$LCJ" --json)"
+if printf '%s' "$jout" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"]=="housekeep" and d["compacted"]==1 and d["rejected_drained"]==1 and d["plan_deleted"] is False' 2>/dev/null; then
+  ok "lifecycle.py housekeep --json emits a structured compacted/rejected_drained/plan_deleted report"
+else
+  bad "lifecycle.py housekeep --json wrong (out='$jout')"
+fi
+qjout="$(python3 "$LC" reset-if-empty --root "$LCJ" --json --quiet)"
+if [ -z "$qjout" ]; then
+  ok "lifecycle.py --quiet suppresses output even with --json"
+else
+  bad "lifecycle.py --quiet did not suppress --json output (out='$qjout')"
+fi

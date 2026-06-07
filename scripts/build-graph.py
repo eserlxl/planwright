@@ -1133,13 +1133,14 @@ def build(root, prior_path, scope=None, seed=None):
             (f for f in files if nodes[f]["branch_count"] > 0),
             key=lambda f: hashlib.sha256(f"{seed}:{f}".encode()).hexdigest(),
         )
-        # Rotating generative framing (lever 2): a seeded pick from the fixed catalog,
-        # deterministic per seed and stable across Python versions (digest, not RNG).
-        # Routing only — never Evidence. SKILL.md maps the key to a vantage question.
-        graph["explore_framing"] = EXPLORE_FRAMINGS[
-            int(hashlib.sha256(f"{seed}:framing".encode()).hexdigest(), 16)
-            % len(EXPLORE_FRAMINGS)
-        ]
+        # Rotating generative framing (lever 2): a seeded pick from the fixed catalog by
+        # a clean modulo rotation — seed N selects the Nth framing (1-indexed), so a
+        # contiguous seed run (1, 2, 3, …, as /codcycle drives) sweeps every framing in
+        # catalog order with no repeats or gaps before wrapping. Deterministic and stable
+        # (arithmetic, not RNG); seeds congruent mod len(catalog) share a framing, the
+        # natural consequence of a fixed rotation. Routing only — never Evidence. SKILL.md
+        # maps the key to a vantage question.
+        graph["explore_framing"] = EXPLORE_FRAMINGS[(seed - 1) % len(EXPLORE_FRAMINGS)]
 
     return graph
 

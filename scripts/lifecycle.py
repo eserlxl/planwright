@@ -22,6 +22,7 @@
 #   python3 scripts/lifecycle.py {drain-completed|drain-rejected|reset-if-empty} --root DIR
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -137,6 +138,10 @@ def main():
     ap.add_argument("--root", default=".planwright",
                     help="the .planwright/ directory to operate on (default: .planwright)")
     ap.add_argument("--quiet", action="store_true", help="suppress the report line")
+    ap.add_argument("--json", action="store_true",
+                    help="emit the report as a JSON object (command/compacted/rejected_drained/"
+                         "plan_deleted) for CI (parity with the sibling scripts); --quiet still "
+                         "suppresses all output")
     args = ap.parse_args()
     # Validate the deletion boundary at the argument edge: reset_if_empty()
     # os.remove()s <root>/plan.md, so a --root carrying parent-directory traversal
@@ -161,7 +166,16 @@ def main():
     if args.command in ("reset-if-empty", "housekeep"):
         deleted = reset_if_empty(plan)
 
-    if not args.quiet:
+    if not args.quiet and args.json:
+        report = {"command": args.command}
+        if args.command in ("drain-completed", "housekeep"):
+            report["compacted"] = compacted
+        if args.command in ("drain-rejected", "housekeep"):
+            report["rejected_drained"] = rdrained
+        if args.command in ("reset-if-empty", "housekeep"):
+            report["plan_deleted"] = deleted
+        print(json.dumps(report))
+    elif not args.quiet:
         bits = []
         if args.command in ("drain-completed", "housekeep"):
             bits.append(f"compacted {compacted}")

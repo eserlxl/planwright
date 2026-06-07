@@ -5,8 +5,8 @@
 > Invoke it with your host's `planwright` trigger — for example `/planwright` on Claude Code,
 > `@planwright` on Cursor, or `planwright` in Codex/Antigravity/Gemini project instructions. The
 > `codvisor` shortcut resolves to `cycle 10 depth 10 explore`; `codinventor` resolves to
-> `cycle 10 depth 10 invent`; and `codcycle` loops the two together — explore then an adaptive
-> invent each outer cycle, with one closing explore.
+> `cycle 10 depth 10 invent`; and `codcycle` loops the two together — explore then a
+> framing-rotated invent each outer cycle, with one closing explore.
 
 Planwright is a planning-first skill for codebase work. It reads your project, finds work worth
 doing, and writes it down as a checklist of concrete, verifiable steps in `.planwright/plan.md`. It
@@ -27,7 +27,7 @@ worthwhile work.
 |----------------|------------------------------------|--------------------|
 | `/codvisor`    | Fixes real work, stops when clean. | Analyze and repair |
 | `/codinventor` | Fixes work, adds net-new features. | Innovation         |
-| `/codcycle`    | Loops both adaptively, hardens.    | Autonomous coding  |
+| `/codcycle`    | Loops explore+invent, hardens.     | Autonomous coding  |
 
 All three are safe by default: planning never touches your source, and when planwright does start editing
 (building items, committing), your normal edit/commit approval prompts still apply.
@@ -35,7 +35,7 @@ All three are safe by default: planning never touches your source, and when plan
 > Under the hood, `/codvisor` is shorthand for `cycle 10 depth 10 explore` and `/codinventor` for
 > `cycle 10 depth 10 invent`. You can pass numbers to tune them (`/codvisor 5 8` = 5 rounds at
 > depth 8) — see [Quick Start](#quick-start). `/codcycle` *orchestrates* many such runs — an explore
-> then an adaptive invent per outer cycle, with one closing explore — so reach for it when you want
+> then a framing-rotated invent per outer cycle, with one closing explore — so reach for it when you want
 > codvisor and codinventor on a loop. The full vocabulary lives in [Concepts](docs/concepts.md).
 
 ## How it works: three paths
@@ -299,8 +299,8 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codinventor 5 8           # cycle 5 depth 8 invent (cycles, depth)
 
 # /codcycle — alternate hardening and growth: explore → invent per outer cycle, one final explore closes the run
-# (the invent cycle count is adaptive: base 3, ramping to 4x = 12 as verified commits decline, then relaxing back)
-/codcycle                  # 10 outer cycles, each: cycle 3 depth 10 explore then adaptive invent; then one closing explore
+# (both phases fixed at cycle 3 depth 10; successive cycles rotate the invent framing: power-user → integration → onboarding → reliability → automation)
+/codcycle                  # 10 outer cycles, each: cycle 3 depth 10 explore then a framing-rotated invent; then one closing explore
 /codcycle 3                # 3 outer cycles (one integer = outer-cycle count) + a final closing explore
 /codcycle -1               # run the explore→invent rhythm forever (negative = infinite), closing with a final explore
 
