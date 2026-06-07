@@ -79,6 +79,9 @@ if [ -f "$GEN/.github/workflows/ci.yml" ]; then ok "generated ci.yml exists"; el
 if grep -q "shellcheck" "$GEN/.github/workflows/ci.yml" 2>/dev/null; then ok "generated ci.yml includes shellcheck step"; else bad "generated ci.yml missing shellcheck step"; fi
 if grep -q "bash tests/run.sh" "$GEN/.github/workflows/ci.yml" 2>/dev/null; then ok "generated ci.yml includes smoke-test step"; else bad "generated ci.yml missing smoke-test step"; fi
 if [ -f "$GEN/.gitignore" ]; then ok "generated .gitignore exists"; else bad "generated .gitignore missing"; fi
+# A generated plugin must ignore .planwright/ so its tool state is never committed as
+# noise (else doctor immediately warns on the fresh plugin).
+if grep -qx '.planwright/' "$GEN/.gitignore"; then ok "generated .gitignore ignores .planwright/"; else bad "generated .gitignore omits .planwright/ (doctor would warn)"; fi
 if bash "$GEN/tests/run.sh" >/dev/null 2>&1; then ok "generated tests/run.sh runs"; else bad "generated tests/run.sh failed"; fi
 # The generated suite must also catch a syntactically broken bundled script
 # locally (not just in CI shellcheck) — corrupt a copy and expect a non-zero exit.
