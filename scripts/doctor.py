@@ -262,6 +262,20 @@ def apply_gitignore_fix(root):
     return gi
 
 
+def collect(root):
+    """Build the full preflight payload (READ-ONLY): every check record plus the
+    fail/warn/total tally and an overall `ok` flag. This is the single source the
+    `--json` CLI path and the dashboard's read-only /doctor.json endpoint both render.
+    It never writes — the one remediating write lives in apply_gitignore_fix(), reached
+    only via `--fix`, never from here."""
+    records = (check_tools() + check_scripts() + check_target(root)
+               + check_gitignore(root) + check_git_identity(root))
+    fails = sum(1 for r in records if r["status"] == "fail")
+    warns = sum(1 for r in records if r["status"] == "warn")
+    return {"ok": fails == 0, "fail": fails, "warn": warns,
+            "total": len(records), "checks": records}
+
+
 def main():
     ap = argparse.ArgumentParser(description="planwright environment preflight (doctor).")
     ap.add_argument("--root", default=".",
@@ -280,23 +294,15 @@ def main():
 
     fixed = apply_gitignore_fix(args.root) if args.fix else None
 
-    records = (check_tools() + check_scripts() + check_target(args.root)
-               + check_gitignore(args.root) + check_git_identity(args.root))
-    fails = sum(1 for r in records if r["status"] == "fail")
+    payload = collect(args.root)
+    records = payload["checks"]
+    fails = payload["fail"]
 
     if args.json:
-        warns = sum(1 for r in records if r["status"] == "warn")
-        payload = {
-            "ok": fails == 0,
-            "fail": fails,
-            "warn": warns,
-            "total": len(records),
-            "checks": records,
-        }
         if args.fix:
             payload["fixed"] = fixed
         print(json.dumps(payload, indent=2))
-        return 1 if (fails or (args.strict and warns)) else 0
+        return 1 if (fails or (args.strict and payload["warn"])) else 0
 
     if fixed and not args.quiet:
         print("doctor: fixed — added `.planwright/` to " + fixed)

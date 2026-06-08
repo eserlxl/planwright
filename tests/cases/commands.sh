@@ -136,3 +136,26 @@ assert "10 outer cycles" in body, "no-arg default of 10 outer cycles not stated"
 assert "negative" in body.lower(), "negative=infinite rule not stated"
 PY
 then ok "commands/codcycle.md orchestrates the explore→invent rhythm with a rotating invent framing and a closing explore"; else bad "commands/codcycle.md malformed or lost its rhythm/framing-rotation/closing-explore/delegation/default contract"; fi
+
+# --- commands/dashboard.md launches the bundled read-only dashboard server ---
+# /dashboard wraps `dashboard.py --open`; guard that it resolves the bundled <scripts>
+# path, launches non-blocking (background) so the turn does not hang, opens the browser,
+# and keeps the read-only contract (it must NOT reimplement or mutate anything).
+CMD="$ROOT/commands/dashboard.md"
+if [ -f "$CMD" ]; then ok "commands/dashboard.md exists"; else bad "commands/dashboard.md missing"; fi
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+assert m, "no YAML frontmatter"
+fm = m.group(1)
+assert re.search(r"(?m)^description:\s*\S", fm), "missing description"
+assert re.search(r"(?m)^argument-hint:\s*\S", fm), "missing argument-hint"
+body = t[m.end():]
+assert "<scripts>/dashboard.py" in body, "does not invoke the bundled dashboard.py"
+assert "${CLAUDE_PLUGIN_ROOT}/scripts" in body, "scripts path not resolved like the other commands"
+assert "--open" in body, "does not open the browser"
+assert "background" in body.lower(), "does not launch in the background (would block the turn)"
+assert "read-only" in body.lower(), "read-only contract not stated"
+PY
+then ok "commands/dashboard.md launches the bundled read-only dashboard (resolved <scripts>, --open, non-blocking)"; else bad "commands/dashboard.md malformed or lost its dashboard-launch contract"; fi

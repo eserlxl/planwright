@@ -218,3 +218,23 @@ if [ "$fx_warn" = 1 ] && [ "$fx_now_ok" = 1 ] && [ "$fx_rule" = 1 ] && [ "$fx_id
 else
   bad "doctor.py --fix wrong (warn=$fx_warn nowok=$fx_now_ok rule=$fx_rule idem=$fx_idem)"
 fi
+
+# collect() is the read-only payload builder the dashboard's /doctor.json endpoint reuses;
+# it must carry the same shape as --json and never report a write (no `fixed`).
+col_ok=0
+ROOT="$ROOT" python3 -c '
+import os, sys
+sys.path.insert(0, os.path.join(os.environ["ROOT"], "scripts"))
+import doctor
+p = doctor.collect(os.environ["ROOT"])
+assert set(p) >= {"ok", "fail", "warn", "total", "checks"}, p
+assert isinstance(p["checks"], list) and p["checks"], p
+assert p["total"] == len(p["checks"]), p
+assert all({"name", "status", "detail", "degrades"} <= set(c) for c in p["checks"]), p
+assert "fixed" not in p, "collect() must not write or report a fix"
+' && col_ok=1
+if [ "$col_ok" = 1 ]; then
+  ok "doctor.collect() returns the read-only {ok,fail,warn,total,checks} payload (dashboard data source)"
+else
+  bad "doctor.collect() payload shape wrong"
+fi

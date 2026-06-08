@@ -1,0 +1,631 @@
+// SPDX-FileCopyrightText: 2026 Eser KUBALI
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// planwright dashboard shell. Read-only: it fetches /state.json + /graph.json, derives
+// the metrics cache (PW_DERIVE), renders the at-a-glance overview strip, routes between
+// five tab views, and re-fetches whenever the /events SSE stream reports a change. It
+// never mutates anything — there are no action controls, by design.
+//
+// Beyond routing it owns the chrome that makes the page feel live: the reactive aurora
+// tokens (hue = convergence, drift speed = workload), a one-shot ripple on every change,
+// a "since you looked away" catch-up banner, a command palette, light/dark theme, glance
+// mode, a shortcuts sheet, and full keyboard navigation. All of it is view-state only.
+//
+// View modules (views/*.js) register a render(container, state, ctx) function into the
+// global window.PW_VIEWS registry; ctx = { graphText, metrics, builtSha, stale, head }.
+
+(function () {
+  "use strict";
+
+  window.PW_VIEWS = window.PW_VIEWS || {};
+  window.PW_UI = window.PW_UI || { planMode: "all" };
+
+  var VIEWS = [
+    { key: "console", container: "view-console" },
+    { key: "commands", container: "view-commands" },
+    { key: "plan", container: "view-plan" },
+    { key: "timeline", container: "view-timeline" },
+    { key: "graph", container: "view-graph" },
+    { key: "insights", container: "view-insights" },
+    { key: "doctor", container: "view-doctor" },
+  ];
+  var KEYS = VIEWS.map(function (v) { return v.key; });
+  var TITLE_BASE = "planwright dashboard";
+
+  var state = null;
+  var ctx = { graphText: null, metrics: null, builtSha: "", stale: false, head: "" };
+  var active = "console";
+  var fetching = false;   // a fetch is in flight
+  var refetch = false;    // a change arrived mid-fetch — coalesce into one trailing fetch
+  var trend = [];         // client-timestamped count history for the session sparkline
+
+  function elt(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function byId(id) { return document.getElementById(id); }
+
+  function setStatus(text, cls) {
+    var el = byId("pw-status");
+    if (!el) return;
+    el.textContent = text;
+    el.className = "pw-status" + (cls ? " " + cls : "");
+  }
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function clockNow() {
+    var d = new Date();
+    return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+  }
+
+  function chip(label, value, cls) {
+    var c = elt("span", "pw-chip" + (cls ? " " + cls : ""));
+    c.appendChild(elt("span", "pw-chip-k", label));
+    c.appendChild(elt("span", "pw-chip-v", value));
+    return c;
+  }
+
+  // ---- derived context -----------------------------------------------------------------
+
+  function buildCtx(s, graphText) {
+    var metrics = (graphText != null && window.PW_DERIVE)
+      ? window.PW_DERIVE.metrics(graphText) : null;
+    var builtSha = metrics ? metrics.builtSha
+      : ((s && s.graph && s.graph.built_at_sha) || "");
+    var head = (s && s.head) || "";
+    var stale = !!(builtSha && head && builtSha !== head);
+    return { graphText: graphText, metrics: metrics, builtSha: builtSha, stale: stale, head: head };
+  }
+
+  // ---- reactive aurora + stale cast ----------------------------------------------------
+
+  function lengthsOf(s) {
+    return {
+      done: (s.completed || []).length,
+      pend: (s.pending || []).length,
+      kill: (s.rejected || []).length,
+    };
+  }
+
+  function writeAura(s) {
+    var L = lengthsOf(s), total = L.done + L.pend + L.kill;
+    var ratio = total ? L.done / total : 0;
+    var root = document.documentElement;
+    root.style.setProperty("--pw-converge-hue", String(Math.round(40 + 100 * ratio)));
+    var workload = Math.max(8, Math.min(60, 60 - L.pend * 4));
+    root.style.setProperty("--pw-workload", workload + "s");
+    var stale = ctx.stale ||
+      (ctx.metrics && ctx.metrics.cycles.length > 0) ||
+      (s.final_point && s.final_point.stale);
+    document.body.classList.toggle("pw-stale", !!stale);
+  }
+
+  function pulse() {
+    var el = byId("pw-pulse-ripple");
+    if (!el) return;
+    el.classList.remove("is-active");
+    void el.offsetWidth;   // restart the one-shot keyframe
+    el.classList.add("is-active");
+  }
+
+  // The dashboard has no per-item timestamps (the logs are FIFO-only), so we stamp the
+  // client clock as snapshots arrive to build a real time-series of the counts for the
+  // session. Consecutive identical snapshots extend the last segment instead of bloating
+  // the series, so flat stretches stay cheap.
+  function captureTrend(s) {
+    var L = lengthsOf(s), last = trend[trend.length - 1];
+    if (last && last.pend === L.pend && last.done === L.done && last.kill === L.kill) {
+      last.t = Date.now();
+      return;
+    }
+    trend.push({ t: Date.now(), pend: L.pend, done: L.done, kill: L.kill });
+    if (trend.length > 240) trend.shift();
+  }
+
+  // A canvas-drawn favicon that tracks convergence (amber→green) and, when the tab is
+  // backgrounded with unread changes, shows the count — so a parked tab is glanceable.
+  // Pure client-side (data URL); no network, works offline.
+  function updateFavicon(s) {
+    if (!s) return;
+    var canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 32;
+    var g = canvas.getContext && canvas.getContext("2d");
+    if (!g) return;
+    var L = lengthsOf(s), total = L.done + L.pend + L.kill;
+    var ratio = total ? L.done / total : 0, hue = Math.round(40 + 100 * ratio);
+    g.clearRect(0, 0, 32, 32);
+    g.beginPath(); g.arc(16, 16, 15, 0, 2 * Math.PI);
+    g.fillStyle = "hsl(" + hue + ",70%,48%)"; g.fill();
+    var n = unreadTotal();
+    if (n > 0 && document.hidden) {
+      g.beginPath(); g.arc(16, 16, 11, 0, 2 * Math.PI); g.fillStyle = "rgba(0,0,0,0.82)"; g.fill();
+      g.fillStyle = "#fff"; g.font = "bold 17px system-ui, sans-serif";
+      g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(n > 9 ? "9+" : String(n), 16, 17);
+    }
+    var link = byId("pw-favicon");
+    if (!link) {
+      link = document.createElement("link"); link.id = "pw-favicon"; link.rel = "icon";
+      if (document.head) document.head.appendChild(link);
+    }
+    link.type = "image/png";
+    try { link.href = canvas.toDataURL("image/png"); } catch (e) {}
+  }
+
+  // ---- overview strip ------------------------------------------------------------------
+
+  function shaChip(c) {
+    var s = elt("span", "pw-sha" + (c.stale ? " pw-sha--stale" : ""));
+    s.textContent = "graph " + (c.builtSha ? c.builtSha.slice(0, 7) : "—") + (c.stale ? " · stale" : "");
+    return s;
+  }
+
+  function renderOverview(s) {
+    var bar = byId("pw-overview");
+    if (!bar) return;
+    bar.textContent = "";
+    if (!s) { bar.hidden = true; return; }
+    bar.hidden = false;
+
+    var L = lengthsOf(s);
+    bar.appendChild(s.converged ? chip("status", "converged", "ok") : chip("status", "in progress", "warn"));
+    bar.appendChild(chip("pending", String(L.pend)));
+    bar.appendChild(chip("accepted", String(L.done)));
+    bar.appendChild(chip("rejected", String(L.kill)));
+    if (s.head) bar.appendChild(chip("HEAD", String(s.head).slice(0, 7)));
+
+    var fp = s.final_point;
+    if (fp) {
+      bar.appendChild(chip("final point",
+        (fp.deepest_tier || "?") + (fp.date ? " · " + fp.date : ""), fp.stale ? "warn" : null));
+    }
+    var g = s.graph;
+    if (g) {
+      bar.appendChild(chip("graph",
+        g.node_count + " nodes" + (g.dirty_node_count ? " · " + g.dirty_node_count + " dirty" : ""),
+        g.dirty_node_count ? "warn" : null));
+    }
+    if (ctx.builtSha) bar.appendChild(shaChip(ctx));
+    bar.appendChild(elt("span", "pw-updated", "updated " + clockNow()));
+  }
+
+  // ---- since-you-looked-away catch-up banner -------------------------------------------
+
+  var prev = null;             // { done:Set, kill:Set, pend:int, dirty:[] }
+  var unread = { accepted: 0, killed: 0, dirty: 0, pendFrom: null, pendTo: null };
+  var lastPing = 0;
+
+  function titleSet(arr) {
+    var s = {};
+    (arr || []).forEach(function (it) { if (it && it.title) s[it.title] = true; });
+    return s;
+  }
+  function notIn(arr, set) {
+    return (arr || []).filter(function (it) { return it && it.title && !set[it.title]; });
+  }
+
+  function catchUp(s) {
+    var doneSet = titleSet(s.completed), killSet = titleSet(s.rejected);
+    var L = lengthsOf(s);
+    var changed = (ctx.metrics && ctx.metrics.dirtyChanged) || [];
+
+    if (!prev) {
+      prev = { done: doneSet, kill: killSet, pend: L.pend, dirty: changed.slice() };
+      return;
+    }
+    var newAccepted = notIn(s.completed, prev.done).length;
+    var newKilled = notIn(s.rejected, prev.kill).length;
+    var prevDirty = {}; prev.dirty.forEach(function (p) { prevDirty[p] = true; });
+    var newlyDirty = changed.filter(function (p) { return !prevDirty[p]; }).length;
+    var pendDelta = L.pend - prev.pend;
+
+    if (newAccepted || newKilled || newlyDirty || pendDelta !== 0) {
+      unread.accepted += newAccepted;
+      unread.killed += newKilled;
+      unread.dirty += newlyDirty;
+      if (unread.pendFrom == null) unread.pendFrom = prev.pend;
+      unread.pendTo = L.pend;
+      showBanner();
+      if (document.hidden) pingTitle();
+    }
+    prev = { done: doneSet, kill: killSet, pend: L.pend, dirty: changed.slice() };
+  }
+
+  function unreadTotal() { return unread.accepted + unread.killed + unread.dirty; }
+
+  function showBanner() {
+    var b = byId("pw-banner");
+    if (!b) return;
+    var parts = [];
+    if (unread.accepted) parts.push("+" + unread.accepted + " accepted");
+    if (unread.killed) parts.push("+" + unread.killed + " rejected");
+    if (unread.pendFrom != null && unread.pendFrom !== unread.pendTo) {
+      parts.push("pending " + unread.pendFrom + "→" + unread.pendTo);
+    }
+    if (unread.dirty) parts.push(unread.dirty + " newly dirty");
+    if (!parts.length) { hideBanner(); return; }
+    var msg = b.querySelector(".pw-banner-msg");
+    if (msg) msg.textContent = parts.join(" · ") + " since you looked away";
+    b.hidden = false;
+    var badge = byId("pw-console-unread");
+    if (badge) {
+      var n = unreadTotal();
+      badge.textContent = n > 99 ? "99+" : String(n);
+      badge.hidden = n === 0;
+    }
+  }
+
+  function hideBanner() {
+    var b = byId("pw-banner");
+    if (b) b.hidden = true;
+  }
+
+  function clearUnread() {
+    unread = { accepted: 0, killed: 0, dirty: 0, pendFrom: null, pendTo: null };
+    hideBanner();
+    var badge = byId("pw-console-unread");
+    if (badge) badge.hidden = true;
+    restoreTitle();
+    updateFavicon(state);
+  }
+
+  function pingTitle() {
+    var now = Date.now();
+    if (now - lastPing < 2000) return;   // throttle to ≤ 1 / 2s
+    lastPing = now;
+    document.title = "● " + TITLE_BASE + " (" + unreadTotal() + ")";
+  }
+  function restoreTitle() { document.title = TITLE_BASE; }
+
+  // ---- routing -------------------------------------------------------------------------
+
+  function renderActive() {
+    VIEWS.forEach(function (v) {
+      var section = byId(v.container);
+      if (!section) return;
+      var on = v.key === active;
+      section.hidden = !on;
+      if (!on) return;
+      var render = window.PW_VIEWS[v.key];
+      if (typeof render === "function" && state) {
+        try { render(section, state, ctx); }
+        catch (e) { section.textContent = "view error: " + e.message; }
+      } else if (!render) {
+        section.textContent = "(" + v.key + " view not loaded)";
+      }
+    });
+  }
+
+  function selectTab(key, fromHash) {
+    if (KEYS.indexOf(key) === -1) key = KEYS[0];
+    active = key;
+    document.body.setAttribute("data-active", key);
+    var buttons = document.querySelectorAll(".pw-tab");
+    Array.prototype.forEach.call(buttons, function (b) {
+      var on = b.getAttribute("data-view") === key;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      b.tabIndex = on ? 0 : -1;   // roving tabindex
+    });
+    if (!fromHash && location.hash !== "#" + key) location.hash = key;
+    renderActive();
+  }
+
+  // ---- fetch ---------------------------------------------------------------------------
+
+  function fetchState() {
+    if (fetching) { refetch = true; return Promise.resolve(); }
+    fetching = true;
+    return Promise.all([
+      fetch("/state.json").then(function (r) { return r.json(); }),
+      fetch("/graph.json").then(function (r) { return r.ok ? r.text() : null; })
+        .catch(function () { return null; }),
+    ]).then(function (res) {
+      state = res[0];
+      captureTrend(state);
+      ctx = buildCtx(state, res[1]);
+      ctx.trend = trend;
+      writeAura(state);
+      catchUp(state);
+      updateFavicon(state);
+      renderOverview(state);
+      renderActive();
+    }).catch(function (e) {
+      setStatus("state error", "err");
+      if (window.console && console.error) console.error("state fetch failed", e);
+    }).then(function () {
+      fetching = false;
+      if (refetch) { refetch = false; fetchState(); }
+    });
+  }
+
+  function connectEvents() {
+    if (typeof EventSource === "undefined") { setStatus("no live updates", "warn"); return; }
+    var es = new EventSource("/events");
+    es.addEventListener("change", function () { setStatus("live", "ok"); pulse(); fetchState(); });
+    es.onopen = function () { setStatus("live", "ok"); };
+    es.onerror = function () { setStatus("reconnecting…", "warn"); };
+  }
+
+  function hashKey() {
+    var h = (location.hash || "").replace(/^#/, "");
+    return KEYS.indexOf(h) !== -1 ? h : null;
+  }
+
+  // ---- theme + glance ------------------------------------------------------------------
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  function initTheme() {
+    var saved = lsGet("pw-theme");
+    var prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+    document.documentElement.setAttribute("data-theme", saved || (prefersLight ? "light" : "dark"));
+    updateThemeBtn();
+  }
+  function toggleTheme() {
+    var cur = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+    var next = cur === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+    lsSet("pw-theme", next);
+    updateThemeBtn();
+  }
+  function updateThemeBtn() {
+    var btn = byId("pw-theme-toggle");
+    if (!btn) return;
+    var light = document.documentElement.getAttribute("data-theme") === "light";
+    btn.setAttribute("aria-label", light ? "Switch to dark theme" : "Switch to light theme");
+    btn.title = light ? "Dark theme (d)" : "Light theme (d)";
+  }
+
+  function initGlance() { if (lsGet("pw-glance") === "1") document.body.classList.add("pw-glance"); }
+  function toggleGlance() {
+    var on = document.body.classList.toggle("pw-glance");
+    lsSet("pw-glance", on ? "1" : "0");
+  }
+
+  // ---- shortcuts sheet -----------------------------------------------------------------
+
+  function toggleShortcuts(force) {
+    var s = byId("pw-shortcuts");
+    if (!s) return;
+    var show = force != null ? force : s.hidden;
+    s.hidden = !show;
+  }
+
+  // ---- command palette -----------------------------------------------------------------
+
+  var paletteOpen = false, paletteItems = [], paletteIdx = 0, paletteReturn = null;
+
+  function buildCandidates() {
+    var c = [];
+    VIEWS.forEach(function (v) {
+      c.push({ label: v.key, kind: "view", hint: "view", run: function () { selectTab(v.key); } });
+    });
+    ["repair", "improve", "develop", "docs", "reorganize"].forEach(function (m) {
+      c.push({ label: "mode: " + m, kind: "mode", hint: "filter plan",
+        run: function () { window.PW_UI.planMode = m; selectTab("plan"); } });
+    });
+    if (state) {
+      [].concat(state.pending || [], state.completed || [], state.rejected || []).forEach(function (it) {
+        if (it && it.title) c.push({ label: it.title, kind: "item", hint: "plan item",
+          run: function () { selectTab("plan"); } });
+      });
+    }
+    if (ctx.metrics) {
+      ctx.metrics.nodesArr.forEach(function (n) {
+        c.push({ label: n.path, kind: "file", hint: n.lang,
+          run: function () { window.PW_BUS.focusNode(n.path, { view: "insights" }); } });
+      });
+    }
+    return c;
+  }
+
+  // Lightweight subsequence fuzzy score; lower is better, null = no match.
+  function fuzzy(q, s) {
+    if (!q) return 0;
+    s = s.toLowerCase();
+    var idx = s.indexOf(q);
+    if (idx !== -1) return idx;                 // contiguous beats scattered
+    var qi = 0, score = 0, last = -1;
+    for (var i = 0; i < s.length && qi < q.length; i++) {
+      if (s[i] === q[qi]) { score += (last === -1 ? i : i - last); last = i; qi++; }
+    }
+    return qi === q.length ? 1000 + score : null;
+  }
+
+  function openPalette() {
+    var p = byId("pw-palette");
+    var input = byId("pw-palette-input");
+    if (!p || !input) return;
+    paletteReturn = document.activeElement;
+    paletteOpen = true;
+    p.hidden = false;
+    input.value = "";
+    paintPalette();
+    input.focus();
+  }
+  function closePalette() {
+    var p = byId("pw-palette");
+    if (!p) return;
+    paletteOpen = false;
+    p.hidden = true;
+    if (paletteReturn && paletteReturn.focus) { try { paletteReturn.focus(); } catch (e) {} }
+  }
+  function paintPalette() {
+    var input = byId("pw-palette-input");
+    var list = byId("pw-palette-list");
+    if (!input || !list) return;
+    var q = input.value.trim().toLowerCase();
+    var all = buildCandidates();
+    var scored = [];
+    all.forEach(function (cand) {
+      var sc = fuzzy(q, cand.label);
+      if (sc !== null) scored.push({ cand: cand, sc: sc });
+    });
+    scored.sort(function (a, b) { return a.sc - b.sc; });
+    paletteItems = scored.slice(0, 40).map(function (x) { return x.cand; });
+    paletteIdx = 0;
+    list.textContent = "";
+    paletteItems.forEach(function (cand, i) {
+      var li = elt("li", "pw-palette-item" + (i === 0 ? " active" : ""));
+      li.setAttribute("role", "option");
+      var ic = elt("span", "pw-palette-kind is-" + cand.kind, cand.kind);
+      li.appendChild(ic);
+      li.appendChild(elt("span", "pw-palette-label", cand.label));
+      li.appendChild(elt("span", "pw-palette-hint", cand.hint));
+      li.addEventListener("click", function () { runPalette(i); });
+      li.addEventListener("mousemove", function () { setPaletteIdx(i); });
+      list.appendChild(li);
+    });
+  }
+  function setPaletteIdx(i) {
+    var list = byId("pw-palette-list");
+    if (!list) return;
+    var items = list.children;
+    if (i < 0) i = 0; if (i >= items.length) i = items.length - 1;
+    paletteIdx = i;
+    Array.prototype.forEach.call(items, function (el, j) { el.classList.toggle("active", j === i); });
+    if (items[i] && items[i].scrollIntoView) items[i].scrollIntoView({ block: "nearest" });
+  }
+  function runPalette(i) {
+    var cand = paletteItems[i != null ? i : paletteIdx];
+    closePalette();
+    if (cand && cand.run) cand.run();
+  }
+
+  // ---- keyboard ------------------------------------------------------------------------
+
+  var gPending = 0;   // timestamp of a pending 'g' chord
+
+  function isTyping(t) {
+    return t && (/^(input|textarea|select)$/i.test(t.tagName) || t.isContentEditable);
+  }
+
+  function onKeydown(ev) {
+    if (ev.defaultPrevented) return;
+    var k = ev.key;
+
+    if (paletteOpen) {
+      if (k === "Escape") { closePalette(); ev.preventDefault(); }
+      else if (k === "ArrowDown") { setPaletteIdx(paletteIdx + 1); ev.preventDefault(); }
+      else if (k === "ArrowUp") { setPaletteIdx(paletteIdx - 1); ev.preventDefault(); }
+      else if (k === "Enter") { runPalette(); ev.preventDefault(); }
+      return;
+    }
+
+    // Cmd/Ctrl-K opens the palette from anywhere (even while typing).
+    if ((ev.metaKey || ev.ctrlKey) && (k === "k" || k === "K")) { openPalette(); ev.preventDefault(); return; }
+
+    if (k === "Escape") {
+      toggleShortcuts(false);
+      window.PW_BUS.clearFocus();
+      clearUnread();
+      return;
+    }
+    if (isTyping(ev.target)) return;       // let inputs type freely
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+
+    // g-chord (g then a letter within 600ms)
+    if (gPending && Date.now() - gPending < 600) {
+      gPending = 0;
+      var map = { c: "console", m: "commands", p: "plan", i: "insights", w: "graph", t: "timeline", d: "doctor" };
+      if (map[k]) { selectTab(map[k]); ev.preventDefault(); return; }
+    }
+    if (k === "g") { gPending = Date.now(); return; }
+
+    if (k === "/") { openPalette(); ev.preventDefault(); return; }
+    if (k === "?") { toggleShortcuts(); ev.preventDefault(); return; }
+    if (k === ".") { toggleGlance(); ev.preventDefault(); return; }
+    if (k === "d") { toggleTheme(); ev.preventDefault(); return; }
+    if (k === "u") { var b = byId("pw-banner"); if (b && !b.hidden && b.focus) b.focus(); return; }
+
+    if (k >= "1" && k <= "7") {
+      var idx = (+k) - 1;
+      if (KEYS[idx]) { selectTab(KEYS[idx]); ev.preventDefault(); }
+      return;
+    }
+
+    // 3D Coupling Web controls (only meaningful on the graph tab; all view-state only)
+    if (active === "graph") {
+      var gc = byId("view-graph"), step = 0.18;
+      if (k === "ArrowLeft") { window.PW_GRAPH.rotate3D(gc, -step, 0); ev.preventDefault(); return; }
+      if (k === "ArrowRight") { window.PW_GRAPH.rotate3D(gc, step, 0); ev.preventDefault(); return; }
+      if (k === "ArrowUp") { window.PW_GRAPH.rotate3D(gc, 0, -step); ev.preventDefault(); return; }
+      if (k === "ArrowDown") { window.PW_GRAPH.rotate3D(gc, 0, step); ev.preventDefault(); return; }
+      if (k === "+" || k === "=") { window.PW_GRAPH.zoom3D(gc, 1.2); ev.preventDefault(); return; }
+      if (k === "-" || k === "_") { window.PW_GRAPH.zoom3D(gc, 1 / 1.2); ev.preventDefault(); return; }
+      if (k === "r") { window.PW_GRAPH.resetView(); ev.preventDefault(); return; }
+      if (k === "[" || k === "]") { window.PW_GRAPH.nudgeCoupling(gc, k === "]" ? 0.05 : -0.05); ev.preventDefault(); return; }
+      if (k === "i") { window.PW_GRAPH.toggleImports(gc); ev.preventDefault(); return; }
+    }
+  }
+
+  // Roving-tabindex arrow nav scoped to the tablist.
+  function onTabsKeydown(ev) {
+    var k = ev.key;
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].indexOf(k) === -1) return;
+    var i = KEYS.indexOf(active);
+    if (k === "Home") i = 0;
+    else if (k === "End") i = KEYS.length - 1;
+    else if (k === "ArrowRight" || k === "ArrowDown") i = (i + 1) % KEYS.length;
+    else i = (i - 1 + KEYS.length) % KEYS.length;
+    selectTab(KEYS[i]);
+    var btn = document.querySelector('.pw-tab[data-view="' + KEYS[i] + '"]');
+    if (btn) btn.focus();
+    ev.preventDefault();
+  }
+
+  // ---- init ----------------------------------------------------------------------------
+
+  function init() {
+    initTheme();
+    initGlance();
+    window.PW_BUS.setNavigator(function (view) { selectTab(view); });
+
+    var tabs = byId("pw-tabs");
+    if (tabs) {
+      tabs.addEventListener("click", function (ev) {
+        var btn = ev.target && ev.target.closest && ev.target.closest(".pw-tab");
+        var key = btn && btn.getAttribute("data-view");
+        if (key) selectTab(key);
+      });
+      tabs.addEventListener("keydown", onTabsKeydown);
+    }
+    window.addEventListener("hashchange", function () {
+      var key = hashKey();
+      if (key && key !== active) selectTab(key, true);
+    });
+
+    var themeBtn = byId("pw-theme-toggle");
+    if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+    var palBtn = byId("pw-palette-open");
+    if (palBtn) palBtn.addEventListener("click", openPalette);
+    var palInput = byId("pw-palette-input");
+    if (palInput) palInput.addEventListener("input", paintPalette);
+    var palBack = byId("pw-palette-backdrop");
+    if (palBack) palBack.addEventListener("click", closePalette);
+    var bdismiss = document.querySelector(".pw-banner-dismiss");
+    if (bdismiss) bdismiss.addEventListener("click", clearUnread);
+    var sclose = document.querySelector(".pw-shortcuts-close");
+    if (sclose) sclose.addEventListener("click", function () { toggleShortcuts(false); });
+    var sback = document.querySelector(".pw-shortcuts-backdrop");
+    if (sback) sback.addEventListener("click", function () { toggleShortcuts(false); });
+
+    document.addEventListener("keydown", onKeydown);
+    window.addEventListener("focus", function () { restoreTitle(); updateFavicon(state); });
+    document.addEventListener("visibilitychange", function () { updateFavicon(state); });
+
+    selectTab(hashKey() || active, true);
+    fetchState();
+    connectEvents();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();

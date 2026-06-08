@@ -115,6 +115,8 @@ Before doing anything else, inspect the argument the skill was invoked with:
   follow that preflight procedure instead of the planning Procedure.
 - If the first token is `status`, dispatch to the **Status** section at the end of this file and
   follow that read-only summary procedure instead of the planning Procedure.
+- If the first token is `dashboard`, dispatch to the **Dashboard** section at the end of this file
+  and follow that read-only server procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
   **option overrides** (see Options), then run the planning Procedure.
 
@@ -159,6 +161,7 @@ CYCLE (automated plan → execute loops)
 MAINTENANCE
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
 /planwright status               Read-only: summarize plan/final-point/graph state (--json)
+/planwright dashboard            Read-only: serve a live local web view of the planning state
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version
 /planwright update               Alias for upgrade
@@ -1373,3 +1376,45 @@ final-point markers).
 node/`dirty` counts in `graph.json` — and relay the same summary by hand.
 
 STOP after reporting.
+
+## Dashboard
+
+Reached via `planwright dashboard` (or the host equivalent such as `/planwright dashboard`), or the
+dedicated **`/planwright:dashboard`** command, which launches it in the background and opens the
+browser for you (`commands/dashboard.md`). A
+read-only **live web view** of the planning state, so you can *watch* the explore→invent process
+evolve in a browser instead of re-running `status`. Like Status, it reads only the gitignored
+`.planwright/` tool-state directory — it is a **mirror, never a remote control**: it launches no
+agent, edits nothing, and exposes no action buttons.
+
+**Canonical server.** Prefer the bundled, test-covered `<scripts>/dashboard.py` (resolve `<scripts>`
+per **Procedure → Bundled scripts**, beside `status.py`/`state.py`): run
+`python3 <scripts>/dashboard.py --root <target>` — it binds `127.0.0.1` on an ephemeral port (or
+`--port <N>`), prints the URL (add `--open` to also launch a browser), and serves until interrupted.
+Stdlib only (no Flask/websocket libs, no build step). It exposes:
+
+1. **`/state.json`** — the current snapshot built on demand by `<scripts>/state.py`
+   (`state.collect()`): full pending item bodies, the completed/rejected lists, the recorded final
+   point, the graph summary, and `converged`. See `docs/state-schema.md`.
+2. **`/graph.json`** — a passthrough of `.planwright/graph.json` (per-node centrality/coverage/churn,
+   coupling edges, clusters, import cycles) for the Graph (Coupling Web) and Insights views.
+3. **`/doctor.json`** — the read-only environment preflight (`doctor.collect()`: tool availability,
+   bundled-script presence, git work tree, `.planwright/` gitignored, commit identity) for the Doctor
+   view. It only probes — it never reaches doctor's `--fix` write path.
+4. **`/events`** — a one-directional Server-Sent Events stream that mtime-polls `.planwright/` ~every
+   second and pushes a `change` event whenever a file changes, so the browser re-fetches `/state.json`.
+5. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
+   reactive console with six views — **Console** (convergence reactor, health vitals, cadence, session
+   trend, dirty pulse), **Plan**, **Timeline**, **Graph** (3D coupling globe), **Insights** (risk
+   ledger, hotspot constellation, coverage, priorities, import cycles), and **Doctor** — plus a command
+   palette, light/dark themes, and full keyboard navigation.
+
+The view is **read-only and informational**, like Status: it is never valid Evidence, and it never
+mutates the tree. Stop it with Ctrl-C.
+
+**By-hand fallback** (no `python3`): there is no server — use `status` (or read `.planwright/` directly)
+for a one-shot summary instead.
+
+STOP after starting the server. Run directly it stays in the foreground until interrupted (Ctrl-C);
+the `/planwright:dashboard` command instead launches it in the background, reports the bound URL, and
+returns — the dashboard keeps serving on its own.

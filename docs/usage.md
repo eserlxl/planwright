@@ -197,6 +197,43 @@ Codex, reinstall the local plugin from the marketplace that points at this repo,
 after updating a direct `~/.codex/skills/planwright` symlink/copy. For Cursor, Antigravity, and Gemini,
 update the clone or copied skill and reload the host context if it caches instructions.
 
+## Dashboard (live read-only web view)
+
+```bash
+planwright dashboard            # bind 127.0.0.1 on an ephemeral port, print the URL
+planwright dashboard --port 8765
+planwright dashboard --open     # also open the printed URL in a browser
+```
+
+On Claude Code, the **`/planwright:dashboard`** command (`commands/dashboard.md`) does this for you:
+it launches the server in the background, opens your browser, reports the bound URL, and returns
+(accepts `--port N` / `--root DIR`). Stop it with Ctrl-C in its terminal or by killing the process.
+
+`planwright dashboard` (script: `scripts/dashboard.py`) serves a small local web UI that mirrors the
+planning state and refreshes **live** as a plan/cycle runs — so you can *watch* the explore→invent
+process instead of re-running `status`. It is a **mirror, never a remote control**: it launches no
+agent, edits nothing, and has no action buttons. Stdlib only (no Flask, no websocket library) and no
+npm/build toolchain; everything works offline.
+
+The static UI (`scripts/dashboard/`) is a vanilla, dependency-free `index.html` + `app.js` shell
+(no build step), re-rendered from `/state.json` whenever the server's `/events` SSE stream reports a
+change (the active tab survives a reload via the URL hash). It has a command palette (`Ctrl/⌘-K`),
+light/dark themes, full keyboard navigation, and six views:
+
+- **Console** — the glance-once landing: a convergence reactor, health vitals (coverage, hotspots,
+  cycles, coupling), a decision-cadence ribbon, a live session trend, and a dirty-files pulse.
+- **Plan** — pending / completed / rejected items (pending shown with all eight fields, filterable by Mode).
+- **Timeline** — items accepted / killed over the run, from the completed/rejected logs.
+- **Graph** — the temporal coupling network as a rotatable, zoomable **3D globe** (drag to rotate,
+  scroll to zoom; nodes coloured by language, import cycles flagged).
+- **Insights** — a risk ledger (churn × centrality), a hotspot constellation, coverage by language,
+  the planner's ranked "next up" surfaces, and import-cycle cards.
+- **Doctor** — the read-only environment preflight (`/doctor.json`).
+
+Endpoints: `/state.json` (the snapshot — see [`state-schema.md`](state-schema.md)), `/graph.json` (a
+passthrough of the graph), `/doctor.json` (the preflight), `/events` (the change stream). The view is
+read-only and informational — never valid Evidence. Stop it with Ctrl-C.
+
 ## Graph Memory (audit routing)
 
 To keep audits affordable on large codebases, the plan path builds a structural **graph memory** before auditing (Stage 1.5) and persists it under the gitignored `.planwright/`:
