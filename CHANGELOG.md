@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.44.0] - 2026-06-08
+
+### Changed
+- Add a read-only local dashboard: `planwright dashboard` / `/planwright:dashboard` serves a live, read-only web view of the `.planwright/` state (Console, Plan, Timeline, 3D coupling graph, Insights, Doctor) over an SSE stream; new `state.py` snapshot emitter and a shared `doctor.collect()` payload. Mirror only — launches no agent and edits nothing.
+
 ## [1.43.0] - 2026-06-07
 
 ### Changed
