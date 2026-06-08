@@ -175,6 +175,11 @@ body.pw-stale .aurora-bg { filter: blur(80px) saturate(0.5); }
   background: var(--pw-accent-grad); -webkit-background-clip: text;
   background-clip: text; -webkit-text-fill-color: transparent;
 }
+.pw-project {
+  margin: 0 0 var(--pw-s3); padding: 0 var(--pw-s2); font-size: var(--pw-fs-sm);
+  font-weight: 500; color: var(--pw-muted); letter-spacing: 0.2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .pw-brand-glow {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: 120px; height: 40px; background: var(--pw-accent-glow); filter: blur(24px);

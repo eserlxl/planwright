@@ -162,6 +162,22 @@
     return s;
   }
 
+  function projectName(s) {
+    var root = (s && s.root) || "";
+    var parts = root.replace(/[\/\\]+$/, "").split(/[\/\\]/);
+    return parts[parts.length - 1] || "";
+  }
+
+  function renderBrand(s) {
+    var el = byId("pw-project");
+    if (!el) return;
+    var name = projectName(s);
+    if (!name) { el.hidden = true; el.textContent = ""; return; }
+    el.hidden = false;
+    el.textContent = name;
+    el.title = (s && s.root) || name;
+  }
+
   function renderOverview(s) {
     var bar = byId("pw-overview");
     if (!bar) return;
@@ -330,6 +346,7 @@
       writeAura(state);
       catchUp(state);
       updateFavicon(state);
+      renderBrand(state);
       renderOverview(state);
       renderActive();
     }).catch(function (e) {
