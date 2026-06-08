@@ -32,6 +32,9 @@ Resolve them in this order:
    `<rest>` be the remaining tokens. Otherwise `<scope>` is empty and `<rest>` is all of `$ARGUMENTS`.
    `<scope>` is appended **after** each phase's mode so the subcommand (`cycle`) stays the first token
    planwright dispatches on — never let `path`/`lib` lead. Omit the trailing `<scope>` when empty.
+   Also recognise the `--`-prefixed aliases when peeling, normalising to the bare form first:
+   `--path <X>` → `path <X>`, `--lib <X>` → `lib <X>`, `--scope <X>` → `path <X>` (both `--opt <X>`
+   and `--opt=<X>` spellings).
 
 1. **`<rest>` empty**: run **10 outer cycles** (the default).
 2. **`<rest>` is a single integer `N`** (nothing else): run `N` outer cycles. `N` may be **negative**,

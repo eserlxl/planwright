@@ -21,7 +21,9 @@ Resolve them in this order:
    of `$ARGUMENTS`. Classify `<rest>` with the cases below to build a base command, then **append
    `<scope>`** to it (after a space) so the subcommand (`cycle` / `execute` / …) stays the first token
    planwright dispatches on — never let `path`/`lib` lead. With no scope this is exactly today's
-   behaviour; omit the trailing `<scope>` wherever it is empty.
+   behaviour; omit the trailing `<scope>` wherever it is empty. Also recognise the `--`-prefixed
+   aliases when peeling, normalising to the bare form first: `--path <X>` → `path <X>`, `--lib <X>` →
+   `lib <X>`, `--scope <X>` → `path <X>` (both `--opt <X>` and `--opt=<X>` spellings).
 
 1. **`<rest>` empty**: the flagship "advisor" run. First print exactly one
    cost-banner line so the heavy run is never silent:

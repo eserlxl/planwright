@@ -187,6 +187,13 @@ Plan options may be combined with an instruction, e.g.
 
 Precedence: **inline option > built-in default.** There is no settings file; options are per-run only.
 
+**Flag aliases.** The bare keywords above are the canonical form (the skill/command layer parses
+natural-language `$ARGUMENTS`, not a CLI). But tolerate the `--`-prefixed equivalents a user may type
+out of shell-CLI habit, normalising them before parsing: `--path <X>` ≡ `path <X>`, `--lib <X>` ≡
+`lib <X>`, and `--scope <X>` ≡ `path <X>` (the underlying `build-graph.py --scope` takes paths/globs,
+so the `--scope` alias maps to the path primitive). Both `--opt <X>` and `--opt=<X>` spellings are
+accepted. This is input leniency only — emit the canonical bare form in any echo/report.
+
 ### Depth
 
 `depth <D>` (1–10, default **6**) is a single dial that scales the whole planning pipeline: how hard
