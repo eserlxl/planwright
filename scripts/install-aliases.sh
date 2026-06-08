@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Eser KUBALI
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Install short, unprefixed personal aliases for planwright's plugin commands.
+#
+# Claude Code namespaces every plugin command by the plugin name, so the
+# commands ship as `/planwright:codcycle`, `/planwright:codvisor`, etc. A plugin
+# cannot register an unprefixed top-level command — those only exist in the user
+# (~/.claude/commands/) or project (.claude/commands/) scopes, which a plugin
+# can't write into. This script drops thin delegator commands into one of those
+# scopes so you can type `/codcycle`, `/codvisor`, `/codinventor`.
+#
+# Each alias only forwards its arguments to the real `/planwright:<name>` command
+# (it does NOT copy the logic), so the aliases never drift out of sync with the
+# plugin.
+#
+# Usage:
+#   scripts/install-aliases.sh [--project] [--dir <path>] [--uninstall]
+#
+# Scope (default: personal):
+#   (no flag)        install into ~/.claude/commands/        (all your projects)
+#   --project        install into ./.claude/commands/        (this repo only)
+#   --dir <path>     install into an explicit commands directory
+#
+# Other:
+#   --uninstall      remove the alias files from the target scope
+#   -h, --help       show this help
+set -euo pipefail
+
+ALIASES=(codcycle codvisor codinventor)
+
+usage() {
+  echo "Usage: $(basename "$0") [--project] [--dir <path>] [--uninstall]"
+  echo "Scope: default ~/.claude/commands/, --project ./.claude/commands/, --dir <path>"
+  echo "Other: --uninstall, -h/--help"
+}
+
+TARGET_DIR=""
+UNINSTALL=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --project)
+      TARGET_DIR=".claude/commands"
+      shift
+      ;;
+    --dir)
+      [ $# -ge 2 ] || { echo "error: --dir needs a path" >&2; exit 2; }
+      TARGET_DIR="$2"
+      shift 2
+      ;;
+    --uninstall)
+      UNINSTALL=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "error: unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+# Default scope: personal commands dir, honouring CLAUDE_CONFIG_DIR if set.
+if [ -z "$TARGET_DIR" ]; then
+  TARGET_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/commands"
+fi
+
+if [ "$UNINSTALL" -eq 1 ]; then
+  removed=0
+  for name in "${ALIASES[@]}"; do
+    f="$TARGET_DIR/$name.md"
+    if [ -f "$f" ]; then
+      rm -f "$f"
+      echo "removed $f"
+      removed=$((removed + 1))
+    fi
+  done
+  echo "Uninstalled $removed alias(es) from $TARGET_DIR"
+  exit 0
+fi
+
+mkdir -p "$TARGET_DIR"
+
+# Per-alias frontmatter (description + argument-hint) mirrors the plugin commands.
+declare -A DESC ARGHINT
+DESC[codcycle]="Personal alias for /planwright:codcycle — runs planwright's explore→invent cycle orchestrator without the plugin prefix."
+ARGHINT[codcycle]="[N] | <N> (negative = infinite) | (empty = 10 outer cycles)"
+DESC[codvisor]="Personal alias for /planwright:codvisor — planwright advisor shorthand (explore) without the plugin prefix."
+ARGHINT[codvisor]="[planwright args] | <N> [D] | (empty = cycle 10 depth 10 explore)"
+DESC[codinventor]="Personal alias for /planwright:codinventor — planwright inventor shorthand (invent) without the plugin prefix."
+ARGHINT[codinventor]="[planwright args] | <N> [D] | (empty = cycle 10 depth 10 invent)"
+
+for name in "${ALIASES[@]}"; do
+  f="$TARGET_DIR/$name.md"
+  cat > "$f" <<EOF
+---
+description: ${DESC[$name]}
+argument-hint: "${ARGHINT[$name]}"
+---
+
+This is a thin personal alias for the planwright plugin command **\`/planwright:$name\`**.
+Do not re-implement any logic here. Dispatch to that plugin command now, forwarding the
+arguments below verbatim, and let it own all of its behaviour.
+
+ARGUMENTS: \$ARGUMENTS
+EOF
+  echo "wrote $f"
+done
+
+echo
+echo "Installed ${#ALIASES[@]} aliases into $TARGET_DIR"
+echo "Restart Claude Code (or /clear), then use: /codcycle  /codvisor  /codinventor"

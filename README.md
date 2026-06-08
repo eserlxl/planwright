@@ -178,6 +178,20 @@ To use it without the plugin system, copy `skills/planwright/` into `~/.claude/s
 
 Then invoke with `/planwright`, `/codvisor`, or `/codinventor`. Upgrade with `/planwright upgrade`.
 
+#### Local shortcut aliases (drop the `planwright:` prefix)
+
+Claude Code namespaces every plugin command by the plugin name, so planwright's commands are invoked as `/planwright:codvisor`, `/planwright:codcycle`, and so on. That prefix is mandatory for plugin-provided commands — it prevents collisions between plugins, and a plugin has no way to register an unprefixed top-level command. Only the **user** (`~/.claude/commands/`) and **project** (`.claude/commands/`) scopes can hold unprefixed commands, and a plugin can't write into either.
+
+If you'd rather type the bare `/codvisor`, `/codinventor`, and `/codcycle`, install thin personal aliases that just forward to the real plugin commands:
+
+```bash
+scripts/install-aliases.sh              # → ~/.claude/commands/ (all your projects)
+scripts/install-aliases.sh --project    # → ./.claude/commands/ (this repo only)
+scripts/install-aliases.sh --uninstall  # remove them again
+```
+
+Each alias only forwards its arguments to `/planwright:<name>`, so they never duplicate or drift from the plugin's logic. Restart Claude Code (or `/clear`) after installing. These aliases are per-machine — they aren't (and can't be) shipped inside the plugin itself.
+
 ### Cursor
 
 Planwright runs as a Cursor Agent Skill — the same agent-neutral `SKILL.md` workflow, without a plugin marketplace. See [`AGENTS.example.md`](AGENTS.example.md) for the full setup guide.
