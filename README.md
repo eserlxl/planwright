@@ -6,6 +6,10 @@
 > or `/codcycle` to alternate both. Planwright works through the AI coding agent you already use:
 > Claude Code, Codex, Cursor, Antigravity, Gemini, or any AGENTS.md-aware agent.
 
+![planwright's read-only dashboard — the Console view: a convergence reactor (56/66, 85%), accepted/pending/rejected tallies, coverage/hotspot/cycle/coupling vitals, a decision-cadence strip, and a live dirty-pulse of changed files](docs/images/dashboard-console.png)
+
+> The read-only [dashboard](docs/usage.md#dashboard-live-read-only-web-view) (`planwright dashboard`) — a live mirror of the `.planwright/` planning state. It watches; it never drives.
+
 Planwright is a planning-first control loop for codebase work. It reads your project, finds work worth
 doing, and writes it down as a checklist of concrete, verifiable steps in `.planwright/plan.md`. It
 can then work through that checklist for you — implementing each item, testing it, and committing
