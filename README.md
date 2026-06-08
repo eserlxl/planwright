@@ -85,6 +85,13 @@ On larger codebases it keeps audits efficient with a **graph memory** under the 
 matters most and re-audits only what changed between runs. See
 [Graph memory](docs/graph-memory-schema.md) for the schema and details.
 
+**Watch it work (optional).** `planwright dashboard` serves a **read-only** local web view of that
+`.planwright/` state — convergence, plan progress, the coupling graph, cadence, and environment
+preflight — so you can watch an unattended `cycle` evolve in a browser instead of re-running
+summaries. It is a mirror, never a remote control: it launches no agent and edits nothing. On Claude
+Code, the **`/planwright:dashboard`** command opens it for you. See
+[Usage → Dashboard](docs/usage.md#dashboard-live-read-only-web-view).
+
 > **Note on safety:** Planning never edits your application source — only `execute` and `cycle` do,
 > and your normal edit/commit approval prompts still apply. Protected paths (`.git/`,
 > `.planwright/` internals, `LICENSE`, secrets) are never touched. (The one rare exception —
@@ -131,7 +138,7 @@ For deep dives into how `planwright` operates, refer to the documentation:
 
 - [Concepts](docs/concepts.md): How planwright thinks — `cycle`, `explore`, `invent`, `seed`, and scoping, in plain language. **Start here if the flags above are new to you.**
 - [Mission](MISSION.md): Purpose, scope, and non-goals — the charter the maturity ladder aligns to.
-- [Usage](docs/usage.md): Detailed CLI reference, options, execute modes, and a troubleshooting guide (reading `final.md`, why a run wrote 0 items, scope no-match, and `build-graph.py --debug` for routing surprises).
+- [Usage](docs/usage.md): Detailed CLI reference, options, execute modes, the read-only `status`/`dashboard` views, and a troubleshooting guide (reading `final.md`, why a run wrote 0 items, scope no-match, and `build-graph.py --debug` for routing surprises).
 - [Architecture](docs/architecture.md): Explanation of the 11-stage planning pipeline and execute loop.
 - [Development](docs/development.md): How to develop this plugin and use the provided helper scripts.
 - [Graph memory](docs/graph-memory-schema.md): The `.planwright/graph.json` / `digest.md` schema and how Stage 1.5 routes audit attention.
