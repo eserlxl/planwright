@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.44.1] - 2026-06-08
+
+### Changed
+- Harden the dashboard server (reject foreign Host headers / DNS-rebind defense atop the path-traversal guard) and extract the Commands-coach heuristic into the shared PW_DERIVE engine. Test coverage: PW_DERIVE metrics unit tests, install-aliases.sh behavioral tests, an /events live-update assertion, and a node --check JS syntax gate matched to CI. Tests 302 -> 313.
+
 ## [1.44.0] - 2026-06-08
 
 ### Changed
