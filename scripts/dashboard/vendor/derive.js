@@ -190,7 +190,60 @@
     return result;
   }
 
-  window.PW_DERIVE = { metrics: metrics, pctRank: pctRank, quantile: quantile };
+  // ---- coach: the Commands view's "which sweep fits right now" heuristic ----------------
+  // Pure (DOM-free) decision logic, kept here next to metrics (which it reads) so it can be
+  // unit-tested rather than living trapped in the view's IIFE. The Commands view renders
+  // these results; the truth table itself is pinned by tests/cases/derive.sh.
+
+  // Distil the live state + graph metrics into the signals the recommendation reads.
+  function coachSignals(state, metrics) {
+    var pending = state.pending || [];
+    var cov = metrics ? metrics.coverage : null;
+    return {
+      hasGraph: !!metrics,
+      pending: pending.length,
+      pendRepairImprove: pending.filter(function (p) {
+        return p.mode === "repair" || p.mode === "improve";
+      }).length,
+      completed: (state.completed || []).length,
+      rejected: (state.rejected || []).length,
+      converged: !!state.converged,
+      cycles: metrics ? metrics.cycles.length : 0,
+      hotUncovered: metrics ? metrics.hotUncovered.length : 0,
+      articulation: metrics ? metrics.nodesArr.filter(function (n) { return n.articulation; }).length : 0,
+      coveragePct: cov && cov.total ? Math.round((cov.covered / cov.total) * 100) : null,
+    };
+  }
+
+  // The heuristic: debt → harden (codvisor); dry → grow (codinventor); else keep the rhythm.
+  function coachRecommend(s) {
+    var hasDebt = s.cycles > 0 || s.hotUncovered >= 3 || s.articulation > 0 || s.pendRepairImprove > 0;
+    if (hasDebt) {
+      return { key: "codvisor", why: "There's structural debt to harden before growing — clear it first." };
+    }
+    if (s.pending === 0) {
+      return { key: "codinventor", why: "Nothing's queued and the tree is clean — latent capability looks complete, so grow net-new." };
+    }
+    return { key: "codcycle", why: "A healthy mix — planned work to finish and room to grow. Keep the harden→grow rhythm." };
+  }
+
+  // The numbers shown beneath the recommendation, per recommended command.
+  function coachEvidence(key, s) {
+    if (!s.hasGraph) return [s.pending + " pending", s.completed + " accepted", s.rejected + " rejected"];
+    if (key === "codvisor") {
+      return [s.cycles + " import cycles", s.hotUncovered + " untested hotspots",
+              s.articulation + " articulation risks", s.pendRepairImprove + " repair/improve pending"];
+    }
+    if (key === "codinventor") {
+      return [s.pending + " pending", s.cycles + " cycles", s.converged ? "converged" : "no open debt"];
+    }
+    return [s.pending + " pending", s.completed + " accepted so far"];
+  }
+
+  window.PW_DERIVE = {
+    metrics: metrics, pctRank: pctRank, quantile: quantile,
+    coach: { signals: coachSignals, recommend: coachRecommend, evidence: coachEvidence },
+  };
 
   // ---- PW_BUS: cross-view selection (view-state only) ----------------------------------
   // A single current-focus plus a small subscriber list. Views re-subscribe on every

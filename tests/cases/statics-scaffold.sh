@@ -5,29 +5,45 @@
 # Static analysis + bump-version.sh / make-plugin.sh scaffolding.
 # Sourced by tests/run.sh after tests/lib.sh — NOT standalone (uses ROOT/TMP/ok/bad/ver).
 
-# --- Test 0: shellcheck main repo scripts ----------------------------------
-# The case files under tests/cases/ are sourced fragments (they reference the
-# harness's ROOT/TMP/ok/bad), so they cannot be shellchecked standalone; the
-# entrypoint run.sh and the sourced harness lib.sh are standalone-clean and ARE
-# checked here alongside the helper scripts.
+# --- Test 0: shellcheck the repo's shell scripts ---------------------------
+# Gate exactly the set ci.yml lints (scripts/*.sh tests/*.sh tests/cases/*.sh), so a lint
+# regression in any of them fails `bash tests/run.sh` locally instead of only in CI. The
+# tests/cases/*.sh fragments reference the harness's ROOT/TMP/ok/bad yet lint cleanly on
+# their own (each carries a shell=bash directive), which is why CI already checks them.
 if command -v shellcheck >/dev/null 2>&1; then
-  if shellcheck "$ROOT/scripts/bump-version.sh" "$ROOT/scripts/make-plugin.sh" "$ROOT/tests/run.sh" "$ROOT/tests/lib.sh" >/dev/null 2>&1; then ok "main repo scripts pass shellcheck"; else bad "main repo scripts fail shellcheck"; fi
+  if shellcheck "$ROOT"/scripts/*.sh "$ROOT"/tests/*.sh "$ROOT"/tests/cases/*.sh >/dev/null 2>&1; then ok "all repo shell scripts pass shellcheck (CI parity)"; else bad "repo shell scripts fail shellcheck"; fi
 else
-  ok "main scripts shellcheck skipped (shellcheck not installed)"
+  ok "shellcheck skipped (shellcheck not installed)"
 fi
 
-# --- Test 0b: the Python helper scripts pass static analysis ---------------
-# build-graph.py (Stage 1.5 graph), lint-plan.py (Stage 10 plan gate), and
-# lifecycle.py (Stage 0 housekeeping) are the non-shell scripts; gate all three.
-# ast.parse checks syntax without writing __pycache__ into the real tree.
-for py in build-graph.py lint-plan.py lifecycle.py; do
-  if python3 -c "import ast,sys;ast.parse(open(sys.argv[1]).read())" "$ROOT/scripts/$py" 2>/dev/null; then ok "$py parses (no syntax error)"; else bad "$py has a syntax error"; fi
-  if command -v pyflakes >/dev/null 2>&1; then
-    if pyflakes "$ROOT/scripts/$py" >/dev/null 2>&1; then ok "$py passes pyflakes"; else bad "$py fails pyflakes"; fi
-  else
-    ok "$py pyflakes skipped (pyflakes not installed)"
-  fi
+# --- Test 0b: the Python scripts pass static analysis ----------------------
+# Gate every scripts/*.py, matching ci.yml's `pyflakes scripts/*.py`. ast.parse checks
+# syntax per file without writing __pycache__ into the real tree; pyflakes runs once over
+# the whole glob (skip-if-absent).
+for py in "$ROOT"/scripts/*.py; do
+  if python3 -c "import ast,sys;ast.parse(open(sys.argv[1]).read())" "$py" 2>/dev/null; then ok "$(basename "$py") parses (no syntax error)"; else bad "$(basename "$py") has a syntax error"; fi
 done
+if command -v pyflakes >/dev/null 2>&1; then
+  if pyflakes "$ROOT"/scripts/*.py >/dev/null 2>&1; then ok "scripts/*.py pass pyflakes (CI parity)"; else bad "scripts/*.py fail pyflakes"; fi
+else
+  ok "scripts/*.py pyflakes skipped (pyflakes not installed)"
+fi
+
+# --- Test 0c: the dashboard's JS assets are syntactically valid ------------
+# The dashboard ships vanilla JS with no build step; dashboard.sh only checks each file
+# is served and registers its view, never that it parses. node --check gives the whole
+# JS layer a syntax gate, gated on node and skipped cleanly when absent (CI installs no
+# JS runtime), matching the skip-if-absent gates above.
+if command -v node >/dev/null 2>&1; then
+  js_bad=""
+  for js in "$ROOT"/scripts/dashboard/*.js "$ROOT"/scripts/dashboard/views/*.js "$ROOT"/scripts/dashboard/vendor/*.js; do
+    [ -e "$js" ] || continue
+    node --check "$js" 2>/dev/null || js_bad="$js_bad ${js#"$ROOT"/}"
+  done
+  if [ -z "$js_bad" ]; then ok "dashboard JS assets are syntactically valid (node --check)"; else bad "dashboard JS syntax errors:$js_bad"; fi
+else
+  ok "dashboard JS syntax check skipped (node not installed)"
+fi
 
 # --- Test 1: bump-version.sh syncs version across all three files ----------
 WORK="$TMP/repo"

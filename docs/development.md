@@ -28,6 +28,20 @@ single commit), pass `ALLOW_DIRTY=1` to skip the guard:
 ALLOW_DIRTY=1 scripts/bump-version.sh patch -m "Your change note"
 ```
 
+## Tests
+
+The whole suite runs in one process via `bash tests/run.sh`, which sources `tests/lib.sh` and
+then each topic fragment under `tests/cases/`. The suite is intentionally Python + Bash only (the
+CI matrix installs neither Node nor a browser), so any check that needs another toolchain is
+**gated on its tool and skips cleanly when absent** — exactly how `statics-scaffold.sh` gates its
+`shellcheck` checks.
+
+The one JS check follows this rule: `tests/cases/derive.sh` exercises the dashboard's pure-metrics
+engine (`scripts/dashboard/vendor/derive.js`) under `node`. It shims `window`, runs the file, and
+asserts `PW_DERIVE.pctRank`/`quantile`/`metrics` behave as documented. Where `node` is present it
+really executes the engine; where it is absent (e.g. CI) it reports a clean skip, so the suite
+stays green everywhere.
+
 ## Helper Scripts
 
 ### `bump-version.sh`

@@ -67,7 +67,36 @@ try:
         traversal_blocked = True
     assert traversal_blocked, "path traversal was not refused"
 
+    # DNS-rebinding guard: a request carrying a foreign Host is refused (403) before any
+    # endpoint dispatch, so a rebound malicious origin cannot read the planning state.
+    req = urllib.request.Request(base + "/state.json", headers={"Host": "attacker.example"})
+    try:
+        urllib.request.urlopen(req, timeout=5)
+        host_blocked = False
+    except urllib.error.HTTPError as e:
+        host_blocked = e.code == 403
+    assert host_blocked, "foreign Host header was not refused"
+
     print("DASH-OK")
+
+    # SSE live-update path: after subscribing to /events, mutating a .planwright/ file
+    # must push a fresh `change` event — the dashboard's whole reason to exist. (The
+    # block above only checked the initial event + content-type, never a real change.)
+    ev2 = urllib.request.urlopen(base + "/events", timeout=8)
+    assert ev2.readline().startswith(b"event: change"), "no initial change event"
+    with open(os.path.join(root, ".planwright", "plan.md"), "a") as fh:
+        fh.write("\n      Rationale: live-touch\n")
+    saw_push = False
+    for _ in range(64):                      # bounded; socket timeout (8s) is the backstop
+        line = ev2.readline()
+        if not line:
+            break
+        if line.startswith(b"event: change"):
+            saw_push = True
+            break
+    ev2.close()
+    assert saw_push, "no change event after mutating .planwright/"
+    print("SSE-CHANGE-OK")
 
     # GET / serves the static UI shell (from scripts/dashboard/, resolved off the
     # script location, not the fixture root): 200 text/html that references app.js
@@ -129,9 +158,14 @@ PY
 PW_TEST_VIEWS="console commands plan timeline graph insights doctor" \
   python3 "$TMP/dash_client.py" "$DFX" "$DASH" >"$TMP/dash.out" 2>"$TMP/dash.err" || true
 if grep -q DASH-OK "$TMP/dash.out"; then
-  ok "dashboard.py serves /state.json (JSON) + /events (text/event-stream) and refuses traversal"
+  ok "dashboard.py serves /state.json (JSON) + /events (text/event-stream), refuses traversal + foreign Host"
 else
   bad "dashboard.py endpoint check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q SSE-CHANGE-OK "$TMP/dash.out"; then
+  ok "dashboard.py /events pushes a change event when .planwright/ mutates (live update)"
+else
+  bad "dashboard.py SSE change-event check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
 if grep -q SHELL-OK "$TMP/dash.out"; then
   ok "dashboard.py serves the UI shell (GET / 200, references app.js, three view containers)"

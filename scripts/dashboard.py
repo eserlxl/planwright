@@ -126,7 +126,26 @@ class Handler(BaseHTTPRequestHandler):
         if body is not None:
             self.wfile.write(body)
 
+    # Hosts a loopback request may legitimately carry. Pinning the Host header defeats
+    # DNS rebinding: a malicious page that rebinds its hostname to 127.0.0.1 would reach
+    # this server with its own Host (e.g. attacker.example), and reading the planning
+    # state cross-origin is exactly what we refuse. An absent Host (HTTP/1.0 / non-browser
+    # clients) cannot be rebound through, so it is allowed.
+    _ALLOWED_HOSTS = ("127.0.0.1", "localhost", "::1")
+
+    def _host_allowed(self):
+        host = self.headers.get("Host", "")
+        if not host:
+            return True
+        if host.startswith("["):            # [ipv6] or [ipv6]:port
+            hostname = host[1:].split("]", 1)[0]
+        else:
+            hostname = host.rsplit(":", 1)[0] if ":" in host else host
+        return hostname in self._ALLOWED_HOSTS
+
     def do_GET(self):
+        if not self._host_allowed():
+            return self._send(403, "text/plain; charset=utf-8", "forbidden host")
         path = self.path.split("?", 1)[0]
         if path == "/state.json":
             return self._serve_state()

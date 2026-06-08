@@ -46,49 +46,9 @@
     return e;
   }
 
-  // Distil the live state into the signals the recommendation reads.
-  function signals(state, metrics) {
-    var pending = state.pending || [];
-    var cov = metrics ? metrics.coverage : null;
-    return {
-      hasGraph: !!metrics,
-      pending: pending.length,
-      pendRepairImprove: pending.filter(function (p) {
-        return p.mode === "repair" || p.mode === "improve";
-      }).length,
-      completed: (state.completed || []).length,
-      rejected: (state.rejected || []).length,
-      converged: !!state.converged,
-      cycles: metrics ? metrics.cycles.length : 0,
-      hotUncovered: metrics ? metrics.hotUncovered.length : 0,
-      articulation: metrics ? metrics.nodesArr.filter(function (n) { return n.articulation; }).length : 0,
-      coveragePct: cov && cov.total ? Math.round((cov.covered / cov.total) * 100) : null,
-    };
-  }
-
-  // The heuristic: debt → harden (codvisor); dry → grow (codinventor); else keep the rhythm.
-  function recommend(s) {
-    var hasDebt = s.cycles > 0 || s.hotUncovered >= 3 || s.articulation > 0 || s.pendRepairImprove > 0;
-    if (hasDebt) {
-      return { key: "codvisor", why: "There's structural debt to harden before growing — clear it first." };
-    }
-    if (s.pending === 0) {
-      return { key: "codinventor", why: "Nothing's queued and the tree is clean — latent capability looks complete, so grow net-new." };
-    }
-    return { key: "codcycle", why: "A healthy mix — planned work to finish and room to grow. Keep the harden→grow rhythm." };
-  }
-
-  function evidenceFor(key, s) {
-    if (!s.hasGraph) return [s.pending + " pending", s.completed + " accepted", s.rejected + " rejected"];
-    if (key === "codvisor") {
-      return [s.cycles + " import cycles", s.hotUncovered + " untested hotspots",
-              s.articulation + " articulation risks", s.pendRepairImprove + " repair/improve pending"];
-    }
-    if (key === "codinventor") {
-      return [s.pending + " pending", s.cycles + " cycles", s.converged ? "converged" : "no open debt"];
-    }
-    return [s.pending + " pending", s.completed + " accepted so far"];
-  }
+  // The coach heuristic (signals / recommend / evidence) is pure, DOM-free logic that lives
+  // in PW_DERIVE so it can be unit-tested; this view only renders its results.
+  var COACH = window.PW_DERIVE.coach;
 
   function pulseChip(label, cls) {
     return elt("span", "pw-coach-pulse-chip" + (cls ? " " + cls : ""), label);
@@ -117,8 +77,8 @@
     container.textContent = "";
     ctx = ctx || {};
     var metrics = ctx.metrics || null;
-    var s = signals(state, metrics);
-    var rec = recommend(s);
+    var s = COACH.signals(state, metrics);
+    var rec = COACH.recommend(s);
     var picked = COMMANDS[rec.key];
 
     var head = elt("div", "pw-coach-head");
@@ -145,7 +105,7 @@
     hero.appendChild(elt("span", "pw-coach-pick", picked.name));
     hero.appendChild(elt("p", "pw-coach-why", rec.why));
     var ev = elt("div", "pw-coach-evidence");
-    evidenceFor(rec.key, s).forEach(function (e) { ev.appendChild(elt("span", "pw-coach-ev", e)); });
+    COACH.evidence(rec.key, s).forEach(function (e) { ev.appendChild(elt("span", "pw-coach-ev", e)); });
     hero.appendChild(ev);
     hero.appendChild(invoke(picked.cmd));
     container.appendChild(hero);
