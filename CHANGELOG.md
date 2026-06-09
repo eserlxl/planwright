@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.45.0] - 2026-06-09
+
+### Changed
+- Add `planwright reset` (fresh/clean) cold-start clear that keeps rejected.md; extract PW_DERIVE.graph.adapt and add the dashboard cold-start coach; resolve setext-heading anchors in check-links; keep transient checked items out of state.py's pending array; reject an empty --dir in install-aliases.sh. Test coverage 313 -> 325.
+
 ## [1.44.1] - 2026-06-08
 
 ### Changed
