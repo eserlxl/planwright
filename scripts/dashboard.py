@@ -244,6 +244,13 @@ def serve(root, port, open_browser=False):
     address (so a caller/test can discover an ephemeral port) and blocks serving. With
     open_browser, best-effort opens the URL in a browser once the socket is listening.
     Returns a process exit code: 0 on a clean shutdown, 2 when the port cannot be bound."""
+    # socket.bind raises OverflowError (not OSError) for a port outside 0-65535, which
+    # would escape the handler below as a traceback — pre-validate so an invalid --port
+    # honors the same exit-2 contract as a busy one.
+    if not 0 <= port <= 65535:
+        sys.stderr.write(
+            "planwright dashboard: invalid port %d (must be 0-65535; 0 = ephemeral)\n" % port)
+        return 2
     try:
         httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     except OSError as e:

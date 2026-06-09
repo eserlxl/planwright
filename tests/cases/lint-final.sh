@@ -140,3 +140,36 @@ if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q '"ok": true'; then
 else
   bad "lint-final.py wrongly flagged scope: (whole-repo) (rc=$rc): $out"
 fi
+
+
+# --- Test LF-INVENT: deepest_tier invent requires the earned-empty audits ----------
+# SKILL.md Stage 11 makes invent_framings_tried (earned by breadth) and
+# invent_seams_examined (earned by rigor) unconditional on a `deepest_tier: invent`.
+# lint-final accepted a bare invent point, letting an ASSERTED empty certify the
+# system's strongest convergence claim.
+LFI="$TMP/lf-invent/.planwright"; mkdir -p "$LFI"
+_lfi_base() {
+  printf 'sha: abc1234567\ndate: 2026-06-09\ndeepest_tier: invent\nrepair: dry\ncoverage: dry\nopportunity: dry\nvision: dry\n'
+}
+# bare invent point -> both audits flagged by name
+_lfi_base > "$LFI/final.md"
+lfi_rc=0
+lfi_out="$(python3 "$ROOT/scripts/lint-final.py" --root "$TMP/lf-invent" 2>&1)" || lfi_rc=$?
+# audits present (framings inline; seams as an indented block) -> OK
+{ _lfi_base
+  printf 'invent_framings_tried: [comprehensive, power-user, integration, onboarding, reliability, automation]\n'
+  printf 'invent_seams_examined:\n  - scripts/status.py --json — ceiling: every extension is a new subsystem\n'
+} > "$LFI/final.md"
+lfo_rc=0
+python3 "$ROOT/scripts/lint-final.py" --root "$TMP/lf-invent" --quiet || lfo_rc=$?
+# a non-invent tier never requires the audits
+_lfi_base | sed 's/deepest_tier: invent/deepest_tier: expand/' > "$LFI/final.md"
+lfe_rc=0
+python3 "$ROOT/scripts/lint-final.py" --root "$TMP/lf-invent" --quiet || lfe_rc=$?
+if [ "$lfi_rc" = 1 ] && [ "$lfo_rc" = 0 ] && [ "$lfe_rc" = 0 ] \
+   && printf '%s' "$lfi_out" | grep -q 'invent_framings_tried' \
+   && printf '%s' "$lfi_out" | grep -q 'invent_seams_examined'; then
+  ok "lint-final requires the earned-empty audits on a deepest_tier invent point"
+else
+  bad "lint-final invent earned-empty gate wrong (bare=$lfi_rc with=$lfo_rc expand=$lfe_rc)"
+fi

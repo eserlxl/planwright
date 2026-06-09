@@ -50,6 +50,50 @@ class TestParseItems(unittest.TestCase):
             "- [ ] t\n      Rationale: kept\n\n      orphan trailing\n")
         self.assertEqual(items[0]["fields"]["Rationale"], "kept")
 
+    def test_post_blank_field_lines_stay_attached_to_the_item(self):
+        # The load-bearing cross-parser contract (lifecycle.py aligns to it): an
+        # indented KNOWN `Field:` line after an internal blank still belongs to the
+        # same item — a blank line ends the active FIELD, never the ITEM. A
+        # blank-ends-item mutant (cur = None on blank) must fail this test.
+        items = plan_parse.parse_items(
+            "- [x] t\n"
+            "      Mode: improve\n"
+            "      Development: none.\n"
+            "\n"
+            "      Acceptance: tail fields survive\n"
+            "      Verification: bash tests/run.sh\n")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["fields"]["Acceptance"], "tail fields survive")
+        self.assertEqual(items[0]["fields"]["Verification"], "bash tests/run.sh")
+
+    def test_span_is_the_verbatim_block_boundary(self):
+        # span is the boundary primitive lifecycle slices on: it covers the head,
+        # fields, wrapped continuations (column-0 included), post-blank attached
+        # fields, and indented orphans — but a column-0 interstitial line closes it
+        # so a later indented line cannot swallow the interstitial into the item.
+        lines = [
+            "# header",                      # 0 (preamble)
+            "- [ ] a",                       # 1
+            "      Mode: docs",              # 2
+            "      Verification: true",      # 3
+            "wrapped tail at column zero",   # 4 (joins Verification, extends span)
+            "",                              # 5
+            "      Acceptance: post-blank",  # 6 (attached field, extends span)
+            "",                              # 7
+            "- [x] b",                       # 8
+            "      Mode: improve",           # 9
+            "",                              # 10 (ends the active field)
+            "## interstitial",               # 11 (no active field: closes b's span)
+            "      Rationale: late",         # 12 (field captured, span unchanged)
+        ]
+        items = plan_parse.parse_items(lines)
+        self.assertEqual(items[0]["span"], (1, 6))
+        self.assertEqual(items[0]["fields"]["Verification"],
+                         "true wrapped tail at column zero")
+        self.assertEqual(items[0]["fields"]["Acceptance"], "post-blank")
+        self.assertEqual(items[1]["span"], (8, 9))
+        self.assertEqual(items[1]["fields"]["Rationale"], "late")
+
     def test_unknown_field_shaped_line_joins_into_current_field(self):
         # A `Note:`-shaped line is not a known field, so it wraps into the prior value
         # rather than starting a new key (the KNOWN_FIELDS gate).

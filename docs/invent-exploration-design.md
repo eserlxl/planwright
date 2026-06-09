@@ -149,8 +149,10 @@ non-inertness where lever 1 had none.
 
 **Substrate (shipped).** `build-graph.py --seed` now also emits `explore_framing`: a seeded pick from a
 fixed, append-only catalog of vantage *keys* — `power-user`, `integration`, `onboarding`, `reliability`,
-`automation` — chosen by `sha256("<seed>:framing") % len(catalog)`. Deterministic per seed, stable
-across Python versions, varies across seeds, absent without `--seed` (default build byte-for-byte
+`automation` — chosen by `(seed - 1) % len(catalog)`: seed N selects the Nth framing (1-indexed), so a
+contiguous seed run sweeps the catalog in order before wrapping (seeds congruent mod 5 share a
+framing). Deterministic per seed, stable
+across Python versions, absent without `--seed` (default build byte-for-byte
 unchanged). The builder owns only the *selection* (deterministic + tested); **SKILL.md owns the
 semantics** (key → vantage question), keeping English prompt text out of the structural builder. Routing
 only — never Evidence (Stage 10 bars graph memory), exactly like every other ranked/seeded field.

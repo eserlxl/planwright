@@ -91,20 +91,30 @@ fi
 mkdir -p "$TARGET_DIR"
 
 # Per-alias frontmatter (description + argument-hint) mirrors the plugin commands.
-declare -A DESC ARGHINT
-DESC[codcycle]="Personal alias for /planwright:codcycle — runs planwright's explore→invent cycle orchestrator without the plugin prefix."
-ARGHINT[codcycle]="[N] | <N> (negative = infinite) | (empty = 10 outer cycles)"
-DESC[codvisor]="Personal alias for /planwright:codvisor — planwright advisor shorthand (explore) without the plugin prefix."
-ARGHINT[codvisor]="[planwright args] | <N> [D] | (empty = cycle 10 depth 10 explore)"
-DESC[codinventor]="Personal alias for /planwright:codinventor — planwright inventor shorthand (invent) without the plugin prefix."
-ARGHINT[codinventor]="[planwright args] | <N> [D] | (empty = cycle 10 depth 10 invent)"
+# Case-statement lookups, not `declare -A`: associative arrays need bash >= 4.0, and
+# stock macOS ships /bin/bash 3.2 — `declare -A` there aborts the install (set -e)
+# AFTER mkdir created the target dir, leaving zero aliases written.
+desc_for() {
+  case "$1" in
+    codcycle)   echo "Personal alias for /planwright:codcycle — runs planwright's explore→invent cycle orchestrator without the plugin prefix." ;;
+    codvisor)   echo "Personal alias for /planwright:codvisor — planwright advisor shorthand (explore) without the plugin prefix." ;;
+    codinventor) echo "Personal alias for /planwright:codinventor — planwright inventor shorthand (invent) without the plugin prefix." ;;
+  esac
+}
+arghint_for() {
+  case "$1" in
+    codcycle)   echo "[N] | <N> (negative = infinite) | (empty = 10 outer cycles)" ;;
+    codvisor)   echo "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 explore)" ;;
+    codinventor) echo "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 invent)" ;;
+  esac
+}
 
 for name in "${ALIASES[@]}"; do
   f="$TARGET_DIR/$name.md"
   cat > "$f" <<EOF
 ---
-description: ${DESC[$name]}
-argument-hint: "${ARGHINT[$name]}"
+description: $(desc_for "$name")
+argument-hint: "$(arghint_for "$name")"
 ---
 
 This is a thin personal alias for the planwright plugin command **\`/planwright:$name\`**.

@@ -79,7 +79,10 @@ for hf in AGENTS.example.md GEMINI.example_context-mode.md GEMINI.example.md; do
 import sys
 t = open(sys.argv[1]).read()
 need = []
-for tok in ["path <X>", "lib <X>", "peel", "append"]:
+for tok in ["path <X>", "lib <X>", "peel", "append",
+            # the CLI-habit flag aliases the command adapters tolerate must resolve
+            # identically on AGENTS.md/Gemini hosts (commands/*.md step-0 parity)
+            "--path <X>", "--lib <X>", "--scope <X>", "--opt=<X>"]:
     if tok not in t:
         need.append(tok)
 for resolved in ["cycle 10 depth 10 explore path", "cycle 5 depth 8 invent lib"]:

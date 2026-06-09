@@ -58,10 +58,13 @@
 
     var fp = state.final_point;
     if (fp && (fp.date || fp.deepest_tier)) {
+      var fpFlag = window.PW_DERIVE.finalFlag(fp);
       var note = "Final point" +
         (fp.date ? " " + fp.date : "") +
         (fp.deepest_tier ? " (deepest tier: " + fp.deepest_tier + ")" : "") +
-        (fp.stale ? " — STALE, HEAD has moved" : "");
+        (fpFlag === "stale" ? " — STALE, HEAD has moved"
+          : fpFlag === "invalid" ? " — INVALID, fails lint-final's contract"
+            : fpFlag === "scoped" ? " — scoped to " + fp.scope + ", not whole-repo" : "");
       container.appendChild(elt("div", "pw-section-title", note));
     }
   }

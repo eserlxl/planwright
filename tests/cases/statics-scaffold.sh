@@ -337,3 +337,59 @@ rskill="$(grep -m1 '  version:' "$ROOT/skills/planwright/SKILL.md" | sed -E 's/.
 if [ "$rv" = "$rmeta" ] && [ "$rv" = "$rentry" ] && [ "$rv" = "$rcodex" ] && [ "$rv" = "$rskill" ]; then ok "repo version sources agree at rest ($rv)"; else bad "repo version drift: plugin=$rv meta=$rmeta entry=$rentry codex=$rcodex skill=$rskill"; fi
 if grep -q "## \[$rv\]" "$ROOT/CHANGELOG.md"; then ok "CHANGELOG.md has a section for the current version [$rv]"; else bad "CHANGELOG.md missing a section for the current version [$rv]"; fi
 
+
+
+# --- Test 1d: bump-version aborts BEFORE any write on a non-UTF-8 CHANGELOG/SKILL ----
+# The JSON manifests were rewritten before the strict-UTF-8 reads of SKILL.md and
+# CHANGELOG.md, so one bad byte there aborted mid-run with the manifests already
+# bumped — the exact drift Test 9 forbids — and --dry-run died with the same
+# traceback. The preflight must abort all-or-nothing with a clean diagnostic.
+for nu_target in CHANGELOG.md skills/planwright/SKILL.md; do
+  NUWORK="$TMP/repo-nonutf8-$(basename "$nu_target" .md)"
+  mkdir -p "$NUWORK"
+  ( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$NUWORK" && tar -xf - )
+  printf '\n<!-- caf\xe9 -->\n' >> "$NUWORK/$nu_target"
+  nu_before="$(ver "$NUWORK/.claude-plugin/plugin.json" "['version']")"
+  nu_rc=0
+  nu_out="$("$NUWORK/scripts/bump-version.sh" patch 2>&1)" || nu_rc=$?
+  nud_rc=0
+  nud_out="$("$NUWORK/scripts/bump-version.sh" patch --dry-run 2>&1)" || nud_rc=$?
+  nu_after="$(ver "$NUWORK/.claude-plugin/plugin.json" "['version']")"
+  if [ "$nu_rc" -ne 0 ] && [ "$nud_rc" -ne 0 ] && [ "$nu_after" = "$nu_before" ] \
+     && printf '%s' "$nu_out" | grep -q 'is not valid UTF-8; aborting before any edits' \
+     && ! printf '%s%s' "$nu_out" "$nud_out" | grep -q 'Traceback'; then
+    ok "bump-version aborts cleanly before any edit on a non-UTF-8 $nu_target"
+  else
+    bad "bump-version half-bumped or crashed on a non-UTF-8 $nu_target (rc=$nu_rc dry=$nud_rc before=$nu_before after=$nu_after)"
+  fi
+done
+
+
+# --- Test 2c: a leading/trailing-whitespace PLUGIN_DESC scaffolds parseable YAML ----
+# PLUGIN_DESC_ONELINE only translated \r\n\t to spaces and never trimmed, so a leading
+# space produced a 3-space content line under the 2-space `description: >` folded
+# block — frontmatter no YAML parser accepts, while the scaffold exited 0.
+GEN_WS="$TMP/gen-ws"
+NO_GIT=1 PLUGIN_DESC=' leading space desc ' "$ROOT/scripts/make-plugin.sh" demo "$GEN_WS" >/dev/null
+ws_skill="$GEN_WS/skills/demo/SKILL.md"
+if grep -q '^  leading space desc$' "$ws_skill" \
+   && python3 - "$ws_skill" <<'PY' 2>/dev/null
+import sys
+text = open(sys.argv[1], encoding="utf-8").read()
+assert text.startswith("---\n"), "no frontmatter"
+fm = text.split("---\n")[1]
+# structural YAML check without a yaml dependency: every non-key line in the folded
+# description block must indent exactly two spaces (a deeper first line is the defect)
+lines = fm.splitlines()
+i = next(n for n, ln in enumerate(lines) if ln.startswith("description:"))
+block = []
+for ln in lines[i + 1:]:
+    if ln and not ln.startswith(" "):
+        break
+    if ln.strip():
+        block.append(ln)
+assert block, "empty description block"
+assert all(len(ln) - len(ln.lstrip(" ")) == 2 for ln in block), block
+print("WSDESC-OK")
+PY
+then ok "make-plugin trims PLUGIN_DESC so the folded description block stays 2-space indented"; else bad "make-plugin emitted a misindented description block for a whitespace-padded PLUGIN_DESC"; fi

@@ -20,7 +20,9 @@ if [ "$rc" = "0" ] \
    && printf '%s' "$out" | grep -q '"<scripts>/lifecycle.py"' \
    && printf '%s' "$out" | grep -q '"<scripts>/status.py"' \
    && printf '%s' "$out" | grep -q '"<scripts>/check-links.py"' \
-   && printf '%s' "$out" | grep -q '"<scripts>/lint-final.py"'; then
+   && printf '%s' "$out" | grep -q '"<scripts>/lint-final.py"' \
+   && printf '%s' "$out" | grep -q '"<scripts>/dashboard.py"' \
+   && printf '%s' "$out" | grep -q '"<scripts>/dashboard/index.html"'; then
   ok "doctor.py reports ok=true (exit 0) in a healthy env with all bundled scripts"
 else
   bad "doctor.py did not pass in a healthy env (rc=$rc)"
@@ -38,13 +40,13 @@ fi
 
 # --- Test DR3: a broken install (no sibling scripts) FAILs with exit 1 -----------
 # Copy doctor.py ALONE into an isolated dir; check_scripts resolves siblings from
-# __file__, so all eight bundled scripts are missing -> 8 fails -> ok=false, exit 1.
+# __file__, so all ten bundled entries are missing -> 10 fails -> ok=false, exit 1.
 ISO="$TMP/doctor-iso"; mkdir -p "$ISO"
 cp "$DOC" "$ISO/doctor.py"
 rc=0; out="$(python3 "$ISO/doctor.py" --root "$ROOT" --json)" || rc=$?
 if [ "$rc" = "1" ] \
    && printf '%s' "$out" | grep -q '"ok": false' \
-   && printf '%s' "$out" | grep -q '"fail": 8' \
+   && printf '%s' "$out" | grep -q '"fail": 10' \
    && printf '%s' "$out" | grep -q '"status": "fail"'; then
   ok "doctor.py FAILs (exit 1) when the bundled scripts cannot be resolved beside it"
 else
@@ -257,4 +259,24 @@ if [ "$col_ok" = 1 ]; then
   ok "doctor.collect() returns the read-only {ok,fail,warn,total,checks} payload (dashboard data source)"
 else
   bad "doctor.collect() payload shape wrong"
+fi
+
+
+# --- Test DR11: --fix degrades on a non-UTF-8 .gitignore (appends, no traceback) ----
+# apply_gitignore_fix read .gitignore with strict UTF-8 catching only OSError, so a
+# latin-1 byte made the whole preflight abort with a UnicodeDecodeError traceback
+# before any report — and the requested fix was never applied. The read only feeds
+# the membership/trailing-newline checks, so it now decodes with errors="replace"
+# and the ASCII append proceeds.
+DRNU="$TMP/doctor-nonutf8"; mkdir -p "$DRNU"
+git -C "$DRNU" init -q
+printf 'node_modules/\n# caf\xe9 comment\n' > "$DRNU/.gitignore"
+dnu_rc=0
+dnu_out="$(python3 "$ROOT/scripts/doctor.py" --root "$DRNU" --fix 2>&1)" || dnu_rc=$?
+if ! printf '%s' "$dnu_out" | grep -q 'Traceback' \
+   && grep -q '^\.planwright/$' "$DRNU/.gitignore" \
+   && grep -q 'caf' "$DRNU/.gitignore"; then
+  ok "doctor.py --fix appends to a non-UTF-8 .gitignore without a traceback"
+else
+  bad "doctor.py --fix crashed or skipped a non-UTF-8 .gitignore (rc=$dnu_rc): $(printf '%s' "$dnu_out" | tail -2)"
 fi

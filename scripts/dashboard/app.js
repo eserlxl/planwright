@@ -75,7 +75,13 @@
     var builtSha = metrics ? metrics.builtSha
       : ((s && s.graph && s.graph.built_at_sha) || "");
     var head = (s && s.head) || "";
-    var stale = !!(builtSha && head && builtSha !== head);
+    // Prefer the canonical state.json verdict (status.py's predicate: an
+    // unverifiable HEAD reads STALE, sha matching tolerates prefix forms) —
+    // mirroring how final_point.stale is consumed straight from state.json. The
+    // local compare is only a fallback for a degraded snapshot without the key.
+    var stale = (s && s.graph && typeof s.graph.stale === "boolean")
+      ? s.graph.stale
+      : !!(builtSha && head && builtSha !== head);
     return { graphText: graphText, metrics: metrics, builtSha: builtSha, stale: stale, head: head };
   }
 
@@ -96,9 +102,12 @@
     root.style.setProperty("--pw-converge-hue", String(Math.round(40 + 100 * ratio)));
     var workload = Math.max(8, Math.min(60, 60 - L.pend * 4));
     root.style.setProperty("--pw-workload", workload + "s");
-    var stale = ctx.stale ||
-      (ctx.metrics && ctx.metrics.cycles.length > 0) ||
-      (s.final_point && s.final_point.stale);
+    // Stale strictly means "sha lags HEAD" — import cycles are structural debt the
+    // Insights view renders as such, never grounds for the stale cast (PW_DERIVE
+    // owns the predicate so the suite can pin it under node).
+    var stale = window.PW_DERIVE
+      ? window.PW_DERIVE.staleCast(ctx, s.final_point)
+      : (ctx.stale || (s.final_point && s.final_point.stale));
     document.body.classList.toggle("pw-stale", !!stale);
   }
 

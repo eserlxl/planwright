@@ -1511,15 +1511,29 @@ git -C "$MALREPO" add -A
 git -C "$MALREPO" -c user.name=t -c user.email=t@e.com commit -qm init
 mal_prior="$TMP/mal_prior.json"
 python3 "$ROOT/scripts/build-graph.py" --root "$MALREPO" > "$mal_prior" 2>/dev/null
-python3 -c "import json;p=json.load(open('$mal_prior'));p['coupling_edges']='garbage';p['graph_built_at_sha']=123;json.dump(p,open('$mal_prior','w'))"
+python3 -c "import json;p=json.load(open('$mal_prior'));p['coupling_edges']='garbage';p['graph_built_at_sha']=123;p['nodes']['b.py']='garbage';json.dump(p,open('$mal_prior','w'))"
 git -C "$MALREPO" rm -q a.py
 git -C "$MALREPO" -c user.name=t -c user.email=t@e.com commit -qm "del a"
 mal_rc=0
 python3 "$ROOT/scripts/build-graph.py" --root "$MALREPO" --prior "$mal_prior" > "$TMP/mal_out.json" 2>/dev/null || mal_rc=$?
-if [ "$mal_rc" = 0 ] && python3 -c "import json,sys;sys.exit(0 if json.load(open('$TMP/mal_out.json'))['nodes'] else 1)"; then
-  ok "build-graph.py type-sanitizes a malformed prior graph and rebuilds (no crash)"
+# The coerced-to-None graph_built_at_sha means unknown provenance: the dirty block
+# must take the documented "unreachable -> whole rebuild" path, not report a clean
+# zero-divergence incremental (which would keep stale incremental state alive).
+if [ "$mal_rc" = 0 ] && python3 - "$TMP/mal_out.json" <<'PY'
+import json, sys
+g = json.load(open(sys.argv[1]))
+assert g["nodes"], "no nodes"
+d = g["dirty"]
+assert d["whole_graph"] is True, d
+assert "unreachable" in d["reason"], d["reason"]
+# the string-valued prior node entry was dropped (degraded), not crashed on:
+# with no usable baseline its rebuilt last_audited_sha is null
+assert g["nodes"]["b.py"]["last_audited_sha"] is None, g["nodes"]["b.py"]
+PY
+then
+  ok "build-graph.py type-sanitizes a malformed prior graph and rebuilds whole-graph (unreachable sha)"
 else
-  bad "build-graph.py crashed on a malformed prior graph (rc=$mal_rc)"
+  bad "build-graph.py malformed-prior rebuild wrong (rc=$mal_rc; expected whole_graph + unreachable reason)"
 fi
 
 
@@ -1614,3 +1628,65 @@ assert any(abs(one[f] - conv[f]) > 1e-6 for f in nodes), "converged in a single 
 print("PAGERANK-CONVERGE-OK")
 PY
 then ok "pagerank converges to the fixed-iteration fixpoint and stops early (stable ranking)"; else bad "pagerank convergence changed the result or did not converge"; fi
+
+
+# --- Test 11q: a non-ASCII tracked filename builds, not aborts ----------------
+# With git's default core.quotepath=true, `git ls-files` C-quotes non-ASCII paths
+# ("na\303\257ve.md"); consuming that quoted name verbatim made every later stat
+# on it raise FileNotFoundError, which the OSError handler converted into a
+# misleading "is git installed?" abort for the WHOLE build. Enumeration now runs
+# NUL-delimited with core.quotepath=off, so the node is graphed verbatim.
+NAREPO="$TMP/nonascii_repo"
+mkdir -p "$NAREPO"
+git -C "$NAREPO" init -q
+printf '# doc\n' > "$NAREPO/naïve.md"
+printf 'def f():\n    return 1\n' > "$NAREPO/a.py"
+git -C "$NAREPO" add -A
+git -C "$NAREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+printf 'more\n' >> "$NAREPO/naïve.md"
+git -C "$NAREPO" add -A
+git -C "$NAREPO" -c user.name=t -c user.email=t@e.com commit -qm second
+na_out="$TMP/nonascii_graph.json"
+if python3 "$ROOT/scripts/build-graph.py" --root "$NAREPO" > "$na_out" 2>"$TMP/nonascii_err" \
+   && python3 - "$na_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+n = g["nodes"]["naïve.md"]
+assert n["lang"] == "markdown", n["lang"]
+assert n["loc"] >= 1, n["loc"]
+# churn from the second commit proves git-log paths also arrive unquoted
+assert n["git_churn"] >= 2, n["git_churn"]
+PY
+then ok "build-graph graphs a non-ASCII tracked filename (no quotepath abort)"; else bad "build-graph aborts or misgraphs a non-ASCII tracked filename: $(head -c 200 "$TMP/nonascii_err" 2>/dev/null)"; fi
+
+
+# --- Test 11c2f: a leading ./ in --scope resolves like the bare spec --------------
+# git ls-files paths carry no "./" prefix, so `--scope ./src/` used to be a silent
+# false no-match (empty Focus for an existing directory). resolve_scope now strips
+# the prefix; a genuinely missing path must still come back empty.
+sc_dot="$TMP/scope_dot.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SCREPO" --scope ./src/ > "$sc_dot" 2>/dev/null
+if python3 - "$sc_dot" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+assert g["focus"] == ["src/api.sh", "src/auth.sh"], g["focus"]
+PY
+then ok "--scope ./src/ resolves identically to --scope src/ (leading ./ normalized)"; else bad "--scope with a leading ./ still yields a false no-match"; fi
+
+
+# --- Test 11c2g: --scope . is the whole-repo Focus; .//src/ equals src/ -------------
+# "." and "./" (the most habitual whole-tree specs, cf. `git add .`) reduced to a
+# spec that matched nothing, surfacing as a hard "matched no files" error for the
+# repo root; ".//src" normalized into a leading-slash miss. normpath collapses all
+# the habitual spellings; a genuinely missing path must still come back empty.
+sc_dotall="$TMP/scope_dotall.json"; sc_dslash="$TMP/scope_dslash.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SCREPO" --scope . > "$sc_dotall" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$SCREPO" --scope .//src/ > "$sc_dslash" 2>/dev/null
+if python3 - "$sc_dotall" "$sc_dslash" <<'PY' 2>/dev/null
+import json, sys
+whole = json.load(open(sys.argv[1]))
+assert sorted(whole["focus"]) == sorted(whole["nodes"].keys()), whole["focus"]
+dslash = json.load(open(sys.argv[2]))
+assert dslash["focus"] == ["src/api.sh", "src/auth.sh"], dslash["focus"]
+PY
+then ok "--scope . yields the whole-repo Focus and .//src/ resolves like src/"; else bad "--scope . or .//src/ still false no-matches"; fi

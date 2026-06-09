@@ -24,8 +24,10 @@
 #      already-rejected, known-bad work. Everything else (graph/digest/plan/final/completed/
 #      state…) is regenerable or recorded in git, so it is removed.
 #
-# Item parsing mirrors lint-plan.py: a checkbox line plus its indented continuation
-# lines, with blocks separated by a blank line. It only edits files under --root.
+# Item parsing ROUTES THROUGH plan_parse.parse_items (its `span` field is the block
+# boundary), so this file shares the one canonical recognizer with lint-plan.py,
+# state.py, and status.py instead of keeping a lockstep copy. It only edits files
+# under --root.
 #
 #   python3 scripts/lifecycle.py housekeep --root .planwright
 #   python3 scripts/lifecycle.py {drain-completed|drain-rejected|reset-if-empty} --root DIR
@@ -34,45 +36,68 @@
 import argparse
 import json
 import os
-import re
 import shutil
 import sys
 import tempfile
 
+# plan_parse.py sits beside this script and owns the plan format (the single
+# recognizer lint-plan/state/status already route through).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from plan_parse import parse_items  # noqa: E402
+
 FIFO_CAP = 100
-CHECKBOX = re.compile(r"^- \[([ xX])\]")
-REJECTED = re.compile(r"(?mi)^\s*Status:\s*Rejected\b")
 
 
 def parse(text):
     """Split plan text into (preamble_lines, blocks). preamble = the lines before the
     first checkbox (the `# planwright Plan` header + Session comment). Each block is
     {checked, rejected, lines}, where lines is the verbatim checkbox line plus its
-    indented continuation lines; blank lines separate blocks and are not kept inside one."""
+    attached continuation lines (interior blanks intact, so parse()->render()
+    round-trips). Block boundaries come from the canonical parser's `span`
+    (plan_parse.parse_items) — the format is recognised in exactly one place, so this
+    file can no longer silently diverge from what lint-plan accepted. Lines no item
+    claims (a header, note, or separator between blocks) are kept as `interstitial`
+    blocks; interstitials never count as pending and are never drained (see
+    reset_if_empty / drain)."""
     lines = text.splitlines()
-    first = next((i for i, ln in enumerate(lines) if CHECKBOX.match(ln)), len(lines))
+    items = parse_items(lines)
+    first = items[0]["span"][0] if items else len(lines)
     preamble = lines[:first]
-    blocks, cur = [], None
-    for ln in lines[first:]:
-        if CHECKBOX.match(ln):
-            cur = {"checked": ln[3:4].lower() == "x", "lines": [ln]}
-            blocks.append(cur)
-        elif cur is not None and ln.startswith((" ", "\t")):
-            cur["lines"].append(ln)
-        elif ln.strip() == "":
-            cur = None  # a blank line ends the current block
+    blocks = []
+    span_by_start = {it["span"][0]: it for it in items}
+    cur_inter = None
+    i = first
+    while i < len(lines):
+        it = span_by_start.get(i)
+        if it is not None:
+            s, e = it["span"]
+            # Rejection comes from the canonical parser's FIELD capture re-run over
+            # THE SLICE ITSELF, so the flag can only ever reflect bytes the drain
+            # actually moves. Classifying from the whole-document parse was wrong
+            # twice over: a raw-text regex mis-drained column-0 prose wraps, and the
+            # document-level fields can include a Status captured BEYOND the span
+            # (plan_parse keeps capturing after a column-0 interstitial closes the
+            # boundary) — which drained a live item the marker line never belonged to.
+            slice_items = parse_items(lines[s:e + 1])
+            rejected = bool(slice_items) and (
+                slice_items[0]["fields"].get("Status", "").strip().lower() == "rejected")
+            blocks.append({"checked": it["checked"], "rejected": rejected,
+                           "lines": lines[s:e + 1]})
+            cur_inter = None
+            i = e + 1
+            continue
+        ln = lines[i]
+        if ln.strip() == "":
+            cur_inter = None  # a blank line ends an interstitial run
         else:
-            # Non-indented, non-checkbox text between blocks (a header, note, or
-            # separator) is kept as an `interstitial` block so parse()->render()
-            # round-trips it instead of silently dropping it. Interstitials never
-            # count as pending and are never drained (see reset_if_empty / drain).
-            if cur is not None and cur.get("interstitial"):
-                cur["lines"].append(ln)
-            else:
-                cur = {"interstitial": True, "checked": False, "lines": [ln]}
-                blocks.append(cur)
-    for b in blocks:
-        b["rejected"] = bool(REJECTED.search("\n".join(b["lines"])))
+            if cur_inter is None:
+                # Interstitials are never pending and never drained — rejected is
+                # structurally False (they carry no fields).
+                cur_inter = {"interstitial": True, "checked": False,
+                             "rejected": False, "lines": []}
+                blocks.append(cur_inter)
+            cur_inter["lines"].append(ln)
+        i += 1
     return preamble, blocks
 
 
@@ -141,8 +166,13 @@ def drain(plan_path, target_path, pred):
 
 
 def reset_if_empty(plan_path):
-    """Delete plan.md when it holds no pending (- [ ], non-rejected) item. Returns True
-    if it was deleted. Pending items are left untouched (the next run merges into them)."""
+    """Delete plan.md when it holds no pending (- [ ], non-rejected) item AND no
+    undrained rejected item. Returns True if it was deleted. Pending items are left
+    untouched (the next run merges into them). An undrained Status: Rejected block —
+    the intermediate state execute creates before drain_rejected runs — also blocks
+    deletion: its Rejection: reason is the irreplaceable feedback memory, and deleting
+    the plan here would destroy it before it ever reaches rejected.md. (A no-op for
+    housekeep, which drains rejected blocks before calling this.)"""
     # open()/remove() with FileNotFoundError handling rather than exists()-then-act,
     # which races if the file is removed concurrently between check and use.
     try:
@@ -150,9 +180,9 @@ def reset_if_empty(plan_path):
             _, blocks = parse(fh.read())
     except FileNotFoundError:
         return False
-    pending = [b for b in blocks
-               if not b.get("interstitial") and not b["checked"] and not b["rejected"]]
-    if not pending:
+    blocking = [b for b in blocks
+                if not b.get("interstitial") and (not b["checked"] or b["rejected"])]
+    if not blocking:
         try:
             os.remove(plan_path)
         except FileNotFoundError:
@@ -232,12 +262,20 @@ def main():
 
     compacted = rdrained = 0
     deleted = False
-    if args.command in ("drain-completed", "housekeep"):
-        compacted = drain(plan, completed, lambda b: b["checked"])
-    if args.command in ("drain-rejected", "housekeep"):
-        rdrained = drain(plan, rejected, lambda b: b["rejected"])
-    if args.command in ("reset-if-empty", "housekeep"):
-        deleted = reset_if_empty(plan)
+    try:
+        if args.command in ("drain-completed", "housekeep"):
+            compacted = drain(plan, completed, lambda b: b["checked"])
+        if args.command in ("drain-rejected", "housekeep"):
+            rdrained = drain(plan, rejected, lambda b: b["rejected"])
+        if args.command in ("reset-if-empty", "housekeep"):
+            deleted = reset_if_empty(plan)
+    except (UnicodeDecodeError, NotADirectoryError, IsADirectoryError, PermissionError) as e:
+        # Fail CLOSED, cleanly: a plan we cannot read (non-UTF-8 bytes, a file passed
+        # as --root, permissions) must never be rewritten or deleted — swallowing to
+        # "no blocks" would let housekeep destroy state it could not even parse.
+        sys.stderr.write(f"lifecycle: cannot read {plan} ({e.__class__.__name__}: {e}); "
+                         "nothing was modified\n")
+        return 2
 
     if not args.quiet and args.json:
         report = {"command": args.command}

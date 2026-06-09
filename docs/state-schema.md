@@ -26,9 +26,9 @@ straight from `status`, and `state.py` adds the full pending/completed item bodi
 | `pending` | array | `state.py` | Full pending item bodies — see **Item shape**. |
 | `completed` | array | `state.py` | Completed items: `{title, mode}`. |
 | `rejected` | array | `status` | Rejected items: `{title, reason}` (reason `""` when absent). |
-| `final_point` | object\|null | `status` | Recorded final point (`{sha, date, deepest_tier, stale}`) or `null`. |
-| `graph` | object\|null | `status` | Graph summary (`{built_at_sha, node_count, dirty_node_count}`) or `null`. |
-| `converged` | bool | `status` | True at a current final point with nothing pending. |
+| `final_point` | object\|null | `status` | Recorded final point (`{sha, date, deepest_tier, stale, scope, valid, invent_seed, invent_framing}`) or `null`. `valid` = `final.md` passes lint-final's contract; `scope` = the recorded component scope (`"path:<X>"`/`"lib:<X>"`) or `null` for whole-repo; `invent_seed`/`invent_framing` = the seeded-invent replay record or `null` when unseeded. |
+| `graph` | object\|null | `status` | Graph summary (`{built_at_sha, node_count, dirty_node_count, stale}`) or `null`. `stale` = the build sha lags `HEAD` (the same sha-lag predicate as `final_point.stale`). |
+| `converged` | bool | `status` | True at a current, **valid**, **whole-repo** final point with nothing pending (an invalid `final.md` never converges; a component-scoped point asserts dryness only for its component). |
 
 ## Item shape (`pending[]`)
 

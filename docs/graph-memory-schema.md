@@ -112,7 +112,8 @@ The same `graph.json` also drives two **derived, read-only views** for a human/p
   (falling back to `ranked`) so doc/data nodes that link-centrality floats to the top of
   `ranked` do not displace the engine code Stage 2b is meant to deep-read. Routing only.
 - **`ranked_cold`** is the **audit/coverage frontier** — the inverse of `ranked_code`,
-  read only by the opt-in `explore` escalation (SKILL.md "Explore escalation"). It orders
+  read by the opt-in `explore` escalation (SKILL.md "Explore escalation") and surfaced
+  read-only by the dashboard's Insights "Cold frontier" card (`PW_DERIVE.metrics.rankedCold`). It orders
   the `branch_count > 0` code nodes the default hot-core routing neglects: never-audited
   (`last_audited_sha` is `null`) first, then uncovered (`covered_by_test` false), then the
   least-central (ascending `pagerank`), tiebroken by least churn then path. Deterministic
@@ -145,8 +146,9 @@ The same `graph.json` also drives two **derived, read-only views** for a human/p
   recorded `explore_seed`. Routing only — never Evidence.
 - **`explore_framing`** is emitted **only** under `--seed <N>` (lever 2) — a seeded pick of a vantage
   *key* from the fixed catalog (`power-user`, `integration`, `onboarding`, `reliability`, `automation`),
-  chosen by `sha256("<seed>:framing") % len(catalog)`: deterministic per seed, stable across Python
-  versions, and varies across seeds. The builder makes only the *selection*; SKILL.md owns the key →
+  chosen by `(seed - 1) % len(catalog)`: seed N selects the Nth framing (1-indexed), so a contiguous
+  seed run sweeps the catalog in order before wrapping (seeds congruent mod 5 share a framing) —
+  deterministic per seed and stable across Python versions. The builder makes only the *selection*; SKILL.md owns the key →
   vantage-question semantics. Unlike `ranked_explore` (an ordering the exhaustive survey makes inert),
   a framing is a prior over *which candidates the invent lens generates at all*, so it changes pool
   membership. Routing only — never Evidence; the chosen key is recorded as `invent_framing` in `final.md`.

@@ -1323,9 +1323,10 @@ seams and the target:
 1. **Host tools** — `python3` (the bundled-script runtime), `git` (graph file enumeration,
    change-coupling edges, Execute's per-item commits), `rg`/`fd` (fast Stage 1 scanning). Each is
    reported present/absent with its version and exactly what degrades when missing.
-2. **Bundled-script resolution** — that the bundled scripts (`build-graph.py`, `lint-plan.py`,
-   `lifecycle.py`, `status.py`, and `check-links.py`) resolve beside `doctor.py` (the `<scripts>`
-   seam). A miss here means a broken/partial install.
+2. **Bundled-script resolution** — that the bundled scripts (the whole planning pipeline plus
+   `dashboard.py` and the dashboard UI shell — the full set `doctor.py`'s
+   `BUNDLED` list names) resolve beside `doctor.py` (the `<scripts>` seam). A miss here means a
+   broken/partial install.
 3. **Target** — whether `--root` is a git work tree (the graph build needs one), whether that
    tree gitignores `.planwright/` (the tool-state directory; a repo that forgets to ignore it commits
    plan/graph/digest as noise), and whether a git commit identity (`user.name`/`user.email`) is set
@@ -1367,8 +1368,10 @@ in the sandbox and relay its report (`--json` for machine output, `--quiet` for 
 
 By default the exit code is always `0` — status is informational, and "no plan / no final point" is a
 valid state, not an error (unlike Doctor, which fails on a broken environment). The opt-in
-`--exit-code` flag is the one exception: it exits `0` only when the project is at a *current* final
-point (a final point is recorded, its sha is HEAD, and nothing is pending) and `1` otherwise, so a
+`--exit-code` flag is the one exception: it exits `0` only when the project is at a *current,*
+*valid*, **whole-repo** final point (a valid final point is recorded — `final.md` passes lint-final's
+contract — its sha is HEAD, no component `scope:` is recorded, and nothing is pending; a scoped point
+asserts dryness only for its component) and `1` otherwise, so a
 wrapper or CI gate can check convergence machine-readably (it composes with `--json`/`--quiet`). The
 report itself is **never** valid Evidence (it summarizes routing/status state, like the graph and
 final-point markers).
@@ -1448,10 +1451,12 @@ Stdlib only (no Flask/websocket libs, no build step). It exposes:
 4. **`/events`** — a one-directional Server-Sent Events stream that mtime-polls `.planwright/` ~every
    second and pushes a `change` event whenever a file changes, so the browser re-fetches `/state.json`.
 5. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
-   reactive console with six views — **Console** (convergence reactor, health vitals, cadence, session
-   trend, dirty pulse), **Plan**, **Timeline**, **Graph** (3D coupling globe), **Insights** (risk
-   ledger, hotspot constellation, coverage, priorities, import cycles), and **Doctor** — plus a command
-   palette, light/dark themes, and full keyboard navigation.
+   reactive console with seven views — **Console** (convergence reactor, health vitals, cadence,
+   session trend, dirty pulse), **Commands** (the recommended next sweep for the current state —
+   codvisor / codinventor / codcycle — with a cold-start reset nudge once converged), **Plan**,
+   **Timeline**, **Graph** (3D coupling globe), **Insights** (risk ledger, hotspot constellation,
+   coverage, priorities, the explore escalation's cold-frontier sweep order, import cycles), and
+   **Doctor** — plus a command palette, light/dark themes, and full keyboard navigation.
 
 The view is **read-only and informational**, like Status: it is never valid Evidence, and it never
 mutates the tree. Stop it with Ctrl-C.

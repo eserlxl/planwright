@@ -163,13 +163,18 @@ def _head_sha(root):
 
 def _parse_final(path):
     """Parse the recorded final point (final.md). Returns a dict with sha/date/
-    deepest_tier (each '' when absent) or None when there is no final-point file."""
+    deepest_tier/scope/invent_seed/invent_framing (each '' when absent) or None when
+    there is no final-point file. `scope` matters: a component-scoped final point
+    asserts dryness only for that component (SKILL.md Stage 11), so consumers must
+    see it to avoid certifying whole-repo convergence from it; the invent pair is
+    the seeded-run replay record."""
     try:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
     except (OSError, ValueError):  # also degrade (not crash) on a non-UTF-8/undecodable file
         return None
-    fields = {"sha": "", "date": "", "deepest_tier": ""}
+    fields = {"sha": "", "date": "", "deepest_tier": "", "scope": "",
+              "invent_seed": "", "invent_framing": ""}
     for line in text.splitlines():
         for key in fields:
             prefix = key + ":"
@@ -208,11 +213,24 @@ def collect(root: str) -> dict:
         # than silently "fresh", so _converged / --exit-code never claim a convergence they
         # cannot actually verify (the north-star contract _converged documents).
         stale = (not head) or not _shas_match(final["sha"], head)
+        # "(whole-repo)" is the explicit whole-repo sentinel; absent means whole-repo
+        # too. Case-insensitive to match lint-final's deliberate leniency — the
+        # validator and the convergence gate must agree on the same final.md bytes.
+        scope = (final["scope"]
+                 if final["scope"].strip().lower() not in ("", "(whole-repo)") else None)
         final_rec = {
             "sha": final["sha"],
             "date": final["date"],
             "deepest_tier": final["deepest_tier"],
             "stale": stale,
+            # A component-scoped final point asserts dryness ONLY for that component —
+            # surfaced so _converged never certifies whole-repo convergence from it.
+            "scope": scope,
+            # The seeded-invent replay record (SKILL.md Stage 11; lint-final validates
+            # the pairing): surfaced so the run is replayable from the status surface,
+            # not just the raw file. None when unseeded/non-invent.
+            "invent_seed": final["invent_seed"] or None,
+            "invent_framing": final["invent_framing"] or None,
             # A recorded final point that fails lint-final's contract (blank/typo'd/rungless)
             # is not a trustworthy terminal state — surface it so _converged can refuse to
             # certify it (the north star: a final-point claim must mean it).
@@ -226,13 +244,19 @@ def collect(root: str) -> dict:
         nodes = graph.get("nodes", {})
         dirty = graph.get("dirty", {}) or {}
         built = graph.get("graph_built_at_sha", "")
+        built_str = built if isinstance(built, str) else ""
         graph_rec = {
             # Coerce to str: report() slices built_at_sha ([:10]), so a corrupt graph with a
             # numeric graph_built_at_sha would otherwise crash the human report despite the
             # shape guard below (which only protects collect()'s own .get()/len() calls).
-            "built_at_sha": built if isinstance(built, str) else "",
+            "built_at_sha": built_str,
             "node_count": len(nodes),
             "dirty_node_count": len(dirty.get("nodes", []) or []),
+            # Same sha-lag predicate as the final point: a graph built before HEAD is
+            # routing memory that predates the tree (an unverifiable HEAD reads stale,
+            # never silently fresh). This is the CANONICAL verdict — the dashboard's
+            # buildCtx consumes it from state.json rather than re-deriving it.
+            "stale": (not head) or not _shas_match(built_str, head),
         }
     except (OSError, ValueError):
         graph_rec = None
@@ -284,17 +308,24 @@ def report(state, quiet):
             flag = "STALE — HEAD has moved; a fresh run re-opens the ladder"
         elif not fp.get("valid", True):
             flag = "INVALID — final.md fails lint-final's contract (not a trusted final point)"
+        elif fp.get("scope"):
+            flag = ("current, scoped to %s — asserts dryness only for that component"
+                    % fp["scope"])
         else:
             flag = "current"
-        print("  final point: %s (%s) deepest_tier=%s — %s"
-              % (fp["sha"] or "?", fp["date"] or "?", tier, flag))
+        seedbit = ""
+        if fp.get("invent_seed") and fp.get("invent_framing"):
+            seedbit = " (framing %s, seed %s)" % (fp["invent_framing"], fp["invent_seed"])
+        print("  final point: %s (%s) deepest_tier=%s%s — %s"
+              % (fp["sha"] or "?", fp["date"] or "?", tier, seedbit, flag))
 
     g = state["graph"]
     if g is None:
         print("  graph: none (run a plan to build .planwright/graph.json)")
     else:
-        print("  graph: %d nodes, %d dirty, built at %s"
-              % (g["node_count"], g["dirty_node_count"], (g["built_at_sha"] or "?")[:10]))
+        gflag = " (STALE — HEAD has moved since the build)" if g.get("stale") else ""
+        print("  graph: %d nodes, %d dirty, built at %s%s"
+              % (g["node_count"], g["dirty_node_count"], (g["built_at_sha"] or "?")[:10], gflag))
     return 0
 
 
@@ -306,7 +337,11 @@ def _converged(state):
     planwright says final point, it means it" — that the opt-in --exit-code flag maps to a
     0/1 exit status."""
     fp = state["final_point"]
-    return bool(fp) and not fp["stale"] and fp.get("valid", True) and state["pending"] == 0
+    # A component-scoped final point asserts dryness only for its component — it can
+    # never certify whole-repo convergence (SKILL.md: "never suppresses a
+    # differently-scoped or whole-repo run").
+    return (bool(fp) and not fp["stale"] and fp.get("valid", True)
+            and not fp.get("scope") and state["pending"] == 0)
 
 
 def main():

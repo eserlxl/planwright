@@ -461,3 +461,26 @@ if python3 "$TMP/dash_portbusy.py" "$DASH" >"$TMP/dash_pb.out" 2>"$TMP/dash_pb.e
 else
   bad "dashboard.py mishandled a busy --port: $(cat "$TMP/dash_pb.err" 2>/dev/null)"
 fi
+
+
+# --- Test DASH-PORTRANGE: an out-of-range --port exits 2 cleanly, not OverflowError ---
+# socket.bind raises OverflowError (not OSError) for a port outside 0-65535, which
+# escaped serve()'s bind guard as a traceback with exit 1 — off the documented
+# exit-2 contract the DASH-PORT case pins for the busy-port sibling. serve() now
+# pre-validates the range.
+cat > "$TMP/dash_portrange.py" <<'PY'
+import subprocess, sys
+dash = sys.argv[1]
+for bad_port in ("70000", "-1"):
+    p = subprocess.run([sys.executable, dash, "--root", ".", "--port", bad_port],
+                       capture_output=True, text=True, timeout=15)
+    assert p.returncode == 2, "port %s: expected exit 2, got %r (stderr=%r)" % (bad_port, p.returncode, p.stderr)
+    assert "invalid port" in p.stderr, p.stderr
+    assert "Traceback" not in p.stderr, "leaked a traceback: " + p.stderr
+print("PORTRANGE-OK")
+PY
+if python3 "$TMP/dash_portrange.py" "$DASH" >"$TMP/dash_pr.out" 2>"$TMP/dash_pr.err" && grep -q PORTRANGE-OK "$TMP/dash_pr.out"; then
+  ok "dashboard.py exits 2 with a clear message on an out-of-range --port (no traceback)"
+else
+  bad "dashboard.py mishandled an out-of-range --port: $(cat "$TMP/dash_pr.err" 2>/dev/null)"
+fi

@@ -55,6 +55,24 @@ for f in "$PLUGIN_JSON" "$MARKET_JSON" "$CHANGELOG"; do
   [ -f "$f" ] || { echo "Missing required file: $f" >&2; exit 1; }
 done
 
+# All-or-nothing preflight: the JSON manifests are rewritten BEFORE the strict-UTF-8
+# reads of SKILL.md/CHANGELOG.md below, so one bad byte there used to abort mid-run
+# with the manifests already bumped — exactly the version drift the lockstep contract
+# (and statics-scaffold Test 9) forbids. Decode-check every text file we will read
+# before any write; a failure aborts with the tree untouched.
+python3 - "$ROOT" "$CHANGELOG" <<'PY' || exit 1
+import glob, os, sys
+root, changelog = sys.argv[1], sys.argv[2]
+for path in [changelog] + sorted(glob.glob(os.path.join(root, "skills", "*", "SKILL.md"))):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            fh.read()
+    except UnicodeDecodeError:
+        rel = os.path.relpath(path, root)
+        sys.stderr.write(f"bump-version: {rel} is not valid UTF-8; aborting before any edits\n")
+        sys.exit(1)
+PY
+
 # Refuse to mutate a dirty tree so the bump's edits stay isolated and revertible.
 # Skipped when not inside a git work tree (e.g. the test harness) or ALLOW_DIRTY=1.
 if [ "${ALLOW_DIRTY:-0}" != "1" ] && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then

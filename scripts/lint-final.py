@@ -79,6 +79,37 @@ def collect(root: str) -> dict:
         viols.append("deepest_tier '%s' is not one of {%s}"
                      % (tier, ", ".join(sorted(DEEPEST_TIERS))))
 
+    if tier == "invent":
+        # The strongest convergence claim must be EARNED, not asserted: SKILL.md
+        # Stage 11 makes both audits unconditional on a `deepest_tier: invent` —
+        # the framing rotation that was exhausted (earned by breadth) and the
+        # per-seam justification (earned by rigor).
+        if not _field(lines, "invent_framings_tried"):
+            viols.append("deepest_tier 'invent' requires a non-empty `invent_framings_tried:` "
+                         "line (the earned-by-breadth audit: the framing rotation exhausted)")
+        seams = _field(lines, "invent_seams_examined")
+        if not seams:
+            # An empty inline value is still valid when the per-seam audit follows as
+            # an indented `- ` block (the multi-line shape SKILL.md Stage 11 records).
+            # Scan only the indented continuation directly under the key — the first
+            # non-indented line ends the block.
+            idx = [i for i, ln in enumerate(lines)
+                   if ln.startswith("invent_seams_examined:")]
+            has_block = False
+            if idx:
+                for ln in lines[idx[-1] + 1:]:
+                    if not ln.strip():
+                        continue
+                    if not ln.startswith((" ", "\t")):
+                        break
+                    if ln.strip().startswith("- "):
+                        has_block = True
+                        break
+            if not has_block:
+                viols.append("deepest_tier 'invent' requires `invent_seams_examined:` with a "
+                             "per-seam reason (inline or an indented `- ` block — the "
+                             "earned-by-rigor audit)")
+
     for a, b in PAIRED:
         av, bv = _field(lines, a), _field(lines, b)
         # The contract (SKILL.md Stage 11) blesses `scope: (whole-repo)` as a whole-repo

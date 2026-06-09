@@ -198,9 +198,9 @@ done
 NGX="$TMP/status-numsha"; mkdir -p "$NGX/.planwright"
 printf '{"graph_built_at_sha": 42, "nodes": {"a":{},"b":{}}, "dirty": {"nodes":["a"]}}\n' > "$NGX/.planwright/graph.json"
 if nrep="$(python3 "$STAT" --root "$NGX" 2>/dev/null)" \
-   && printf '%s' "$nrep" | grep -qE '^  graph: 2 nodes, 1 dirty, built at \?$' \
+   && printf '%s' "$nrep" | grep -qE '^  graph: 2 nodes, 1 dirty, built at \? \(STALE — HEAD has moved since the build\)$' \
    && python3 "$STAT" --root "$NGX" --json >/dev/null 2>&1; then
-  ok "status.py tolerates a numeric graph_built_at_sha (sha -> '?', counts still render)"
+  ok "status.py tolerates a numeric graph_built_at_sha (sha -> '?', flagged stale, counts still render)"
 else
   bad "status.py crashed or mis-rendered on a numeric graph_built_at_sha: $nrep"
 fi
@@ -380,3 +380,122 @@ print("CONSOLIDATE-OK")
 PY
 then ok "status.py + state.py agree on one plan via the shared canonical parser (incl. wrapped fields)"
 else bad "status.py/state.py disagree — the consolidated parser drifted"; fi
+
+
+# --- Test STS11: a component-scoped final point never certifies whole-repo convergence
+# SKILL.md Stage 11: a scoped final point asserts dryness ONLY for that component.
+# status dropped the scope: field on parse, so --exit-code certified the whole repo
+# converged from a `scope: path:src/auth` point. The scope must be surfaced in --json,
+# flagged in the report, and excluded from convergence; a whole-repo point still converges.
+SCX="$TMP/status-scoped"; mkdir -p "$SCX/.planwright"
+if ( cd "$SCX" && git init -q && git config user.email t@t && git config user.name t \
+    && git commit -q --allow-empty -m init ) 2>/dev/null; then
+  scx_sha="$(git -C "$SCX" rev-parse HEAD)"
+  { _wf_final "$scx_sha"; printf 'scope: path:src/auth\nscope_focus_sha: abc123def456\n'; } \
+    > "$SCX/.planwright/final.md"
+  scx_json="$(python3 "$STAT" --root "$SCX" --json)"
+  scx_rc=0; python3 "$STAT" --root "$SCX" --exit-code --quiet || scx_rc=$?
+  scx_rep="$(python3 "$STAT" --root "$SCX")"
+  # whole-repo control: same point without the scope lines must converge
+  _wf_final "$scx_sha" > "$SCX/.planwright/final.md"
+  scw_rc=0; python3 "$STAT" --root "$SCX" --exit-code --quiet || scw_rc=$?
+  if printf '%s' "$scx_json" | python3 -c '
+import json, sys
+s = json.load(sys.stdin)
+fp = s["final_point"]
+assert fp["scope"] == "path:src/auth", fp
+assert s["converged"] is False, s["converged"]
+' && [ "$scx_rc" = 1 ] && [ "$scw_rc" = 0 ] \
+     && printf '%s' "$scx_rep" | grep -q 'scoped to path:src/auth'; then
+    ok "status.py surfaces a scoped final point and refuses whole-repo convergence on it"
+  else
+    bad "status.py scoped final point wrong (scoped_rc=$scx_rc whole_rc=$scw_rc)"
+  fi
+else
+  ok "status.py scoped-final-point check skipped (git unavailable)"
+fi
+
+
+# --- Test STS12: the whole-repo sentinel is case-insensitive, matching lint-final ---
+# lint-final lowercases before the sentinel test, so `scope: (Whole-Repo)` is a
+# blessed whole-repo point — but status compared case-sensitively and treated it as
+# a component scope, reporting a validator-clean point permanently unconverged.
+SCS="$TMP/status-sentinel"; mkdir -p "$SCS/.planwright"
+if ( cd "$SCS" && git init -q && git config user.email t@t && git config user.name t \
+    && git commit -q --allow-empty -m init ) 2>/dev/null; then
+  scs_sha="$(git -C "$SCS" rev-parse HEAD)"
+  { _wf_final "$scs_sha"; printf 'scope: (Whole-Repo)\n'; } > "$SCS/.planwright/final.md"
+  scs_rc=0; python3 "$STAT" --root "$SCS" --exit-code --quiet || scs_rc=$?
+  scs_scope="$(python3 "$STAT" --root "$SCS" --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["final_point"]["scope"])')"
+  if [ "$scs_rc" = 0 ] && [ "$scs_scope" = "None" ]; then
+    ok "status.py treats a case-variant (Whole-Repo) sentinel as whole-repo (converged, scope null)"
+  else
+    bad "status.py sentinel case handling diverges from lint-final (rc=$scs_rc scope=$scs_scope)"
+  fi
+else
+  ok "status.py sentinel-case check skipped (git unavailable)"
+fi
+
+
+# --- Test STS13: the seeded-invent replay record reaches the status surface ---------
+# final.md records invent_seed/invent_framing "so the run is replayable" and
+# lint-final validates the pairing, but _parse_final dropped both — the
+# replayability promise terminated at the raw file.
+SIV="$TMP/status-inventseed"; mkdir -p "$SIV/.planwright"
+if ( cd "$SIV" && git init -q && git config user.email t@t && git config user.name t \
+    && git commit -q --allow-empty -m init ) 2>/dev/null; then
+  siv_sha="$(git -C "$SIV" rev-parse HEAD)"
+  { _wf_final "$siv_sha"; printf 'invent_seed: 7\ninvent_framing: integration\n'; } \
+    > "$SIV/.planwright/final.md"
+  siv_json="$(python3 "$STAT" --root "$SIV" --json)"
+  siv_rep="$(python3 "$STAT" --root "$SIV")"
+  if printf '%s' "$siv_json" | python3 -c '
+import json, sys
+fp = json.load(sys.stdin)["final_point"]
+assert fp["invent_seed"] == "7", fp
+assert fp["invent_framing"] == "integration", fp
+' && printf '%s' "$siv_rep" | grep -q '(framing integration, seed 7)'; then
+    ok "status.py surfaces invent_seed/invent_framing in --json and the report line"
+  else
+    bad "status.py dropped the seeded-invent replay record"
+  fi
+  # unseeded final points carry null, and the report omits the framing bit
+  _wf_final "$siv_sha" > "$SIV/.planwright/final.md"
+  if python3 "$STAT" --root "$SIV" --json | python3 -c '
+import json, sys
+fp = json.load(sys.stdin)["final_point"]
+assert fp["invent_seed"] is None and fp["invent_framing"] is None, fp
+'; then
+    ok "status.py reports null invent_seed/invent_framing on an unseeded final point"
+  else
+    bad "status.py unseeded final point carries a non-null seed/framing"
+  fi
+else
+  ok "status.py invent-seed check skipped (git unavailable)"
+fi
+
+
+# --- Test STS14: graph staleness surfaces on the status graph line ------------------
+# status computed sha-lag staleness for the final point but hid the same signal for
+# the graph — a maintainer could not see that the audit memory predates HEAD, the one
+# staleness the dashboard already renders.
+SGS="$TMP/status-graphstale"; mkdir -p "$SGS/.planwright"
+if ( cd "$SGS" && git init -q && git config user.email t@t && git config user.name t \
+    && git commit -q --allow-empty -m init ) 2>/dev/null; then
+  sgs_sha="$(git -C "$SGS" rev-parse HEAD)"
+  printf '{"graph_built_at_sha": "%s", "nodes": {"a.py": {}}, "dirty": {"nodes": []}}' "$sgs_sha" \
+    > "$SGS/.planwright/graph.json"
+  fresh_json="$(python3 "$STAT" --root "$SGS" --json)"
+  ( cd "$SGS" && git commit -q --allow-empty -m move ) 2>/dev/null
+  stale_json="$(python3 "$STAT" --root "$SGS" --json)"
+  stale_rep="$(python3 "$STAT" --root "$SGS")"
+  if printf '%s' "$fresh_json" | python3 -c 'import json,sys;assert json.load(sys.stdin)["graph"]["stale"] is False' \
+     && printf '%s' "$stale_json" | python3 -c 'import json,sys;assert json.load(sys.stdin)["graph"]["stale"] is True' \
+     && printf '%s' "$stale_rep" | grep -q 'STALE — HEAD has moved since the build'; then
+    ok "status.py surfaces graph staleness in --json and flags it on the report line"
+  else
+    bad "status.py graph staleness wrong"
+  fi
+else
+  ok "status.py graph-staleness check skipped (git unavailable)"
+fi

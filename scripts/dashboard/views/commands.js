@@ -168,9 +168,12 @@
 
     var fp = state.final_point;
     if (fp && (fp.date || fp.deepest_tier)) {
+      var fpFlag = window.PW_DERIVE.finalFlag(fp);
       contrib.appendChild(elt("div", "pw-coach-final",
         "Final point: " + (fp.deepest_tier || "?") + (fp.date ? " · " + fp.date : "") +
-        (fp.stale ? " · stale (HEAD moved)" : "")));
+        (fpFlag === "stale" ? " · stale (HEAD moved)"
+          : fpFlag === "invalid" ? " · INVALID (fails lint-final's contract)"
+            : fpFlag === "scoped" ? " · scoped to " + fp.scope + " (not whole-repo)" : "")));
     }
     container.appendChild(contrib);
   }

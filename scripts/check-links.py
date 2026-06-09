@@ -56,16 +56,21 @@ def list_markdown(root):
     return files
 
 
-def slugify(heading):
+def slugify(heading, keep_underscores=False):
     """GitHub-style heading slug: drop inline code/emphasis markers, lowercase, keep
     [a-z0-9 -], turn spaces into hyphens, collapse repeats, trim. Conservative — used
-    only to CONFIRM an anchor resolves, so an over-strip can at worst skip a flag."""
+    only to CONFIRM an anchor resolves, so an over-strip can at worst skip a flag.
+    GitHub's slugger keeps '_' in the anchor when the underscore is literal text
+    ("## plan_parse contracts" -> #plan_parse-contracts) but drops it when it is an
+    emphasis marker ("## _italics_" -> #italics); markdown-source slugging cannot
+    tell the two apart, so callers register BOTH variants (keep_underscores
+    True/False) additively — never-false-fail holds either way."""
     text = heading.replace("`", "")
-    text = re.sub(r"[*_~]", "", text)
+    text = re.sub(r"[*~]" if keep_underscores else r"[*_~]", "", text)
     # strip any leftover markdown link syntax in the heading, keeping the visible text
     text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
     text = text.lower()
-    text = re.sub(r"[^a-z0-9 \-]", "", text)
+    text = re.sub(r"[^a-z0-9_ \-]" if keep_underscores else r"[^a-z0-9 \-]", "", text)
     # GitHub replaces each space with a hyphen and does NOT collapse the runs that
     # punctuation removal leaves behind, so "Invocation & help" -> "invocation--help".
     # Do the same — collapsing would mismatch every such double-hyphen anchor.
@@ -78,14 +83,20 @@ def anchors_of(path):
     try:
         with open(path, encoding="utf-8") as fh:
             lines = fh.read().splitlines()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # Non-UTF-8 bytes are as unreadable as a permission error: skip the anchor
+        # check (skip-when-unsure) rather than crash the whole run.
         return None
     slugs, counts, in_fence = set(), {}, False
     prev = None  # previous non-fenced line's text — a candidate setext heading
 
     def register(text):
-        slug = slugify(text)
-        if slug:
+        # Both underscore variants (see slugify): GitHub keeps a literal '_' in the
+        # anchor but drops an emphasis-marker '_'; registering both additively means
+        # the GitHub-minted anchor resolves in either case. dict.fromkeys dedupes so
+        # an underscore-free heading registers (and counts) once.
+        for slug in dict.fromkeys(
+                s for s in (slugify(text, keep_underscores=True), slugify(text)) if s):
             # GitHub disambiguates a REPEATED heading by appending -1, -2, … in order
             # of occurrence: the 1st `slug`, the 2nd `slug-1`, the 3rd `slug-2`. Emit
             # exactly those anchors so a bogus `slug-999` on a single heading does not
@@ -145,7 +156,10 @@ def check_file(root, relpath, anchor_cache):
     try:
         with open(full, encoding="utf-8") as fh:
             lines = fh.read().splitlines()
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
+        # UnicodeDecodeError too: a non-UTF-8 .md must surface as this clean
+        # per-file report, not a traceback whose exit 1 masquerades as "broken
+        # links found".
         return [(0, relpath, "unreadable (%s)" % exc)]
 
     def resolve_anchors(target_rel):

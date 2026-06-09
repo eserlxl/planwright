@@ -28,7 +28,9 @@ golden_check() {
   git -C "$work" -c user.name=t -c user.email=t@t commit -qm init >/dev/null 2>&1
   cp "$fx/golden-plan.md" "$work/golden-plan.md"   # untracked; only lint reads it
 
-  python3 "$ROOT/scripts/build-graph.py" --root "$work" > "$work/graph.json" 2>/dev/null
+  # set -e-safe: a build-graph failure must land in this case's own FAIL accounting
+  # (the empty graph fails the python check below), not silently abort the suite.
+  python3 "$ROOT/scripts/build-graph.py" --root "$work" > "$work/graph.json" 2>/dev/null || true
   if python3 - "$work/graph.json" "$entry" "$tgt" "$rcode" "$elang" <<'PY'
 import json, sys
 g = json.load(open(sys.argv[1], encoding="utf-8"))

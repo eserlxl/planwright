@@ -204,6 +204,57 @@
     return panel;
   }
 
+  // ---- Cold frontier ---------------------------------------------------------------------
+  // The explore escalation's tier-① sweep list (graph.json ranked_cold: never-audited,
+  // then uncovered, then least-central). When the hot core runs dry, these are exactly
+  // the files the escalation reads next — the live view of "what a dry round does".
+
+  function coldFrontier(metrics, ctx) {
+    var panel = elt("section", "pw-priorities pw-panel");
+    panel.appendChild(panelHead("Cold frontier", ctx));
+    var cold = metrics.rankedCold || [];
+    // The framing chip must render on BOTH branches — a seeded graph whose cold
+    // list happens to be empty otherwise has no surface naming its active framing.
+    var framingBit = "";
+    if (metrics.exploreFraming) {
+      // a seeded build: show which generative vantage the invent lens surveys through
+      framingBit = " Invent framing: " + metrics.exploreFraming +
+        (metrics.exploreSeed == null ? "" : " (seed " + metrics.exploreSeed + ")") + ".";
+    }
+    if (!cold.length) {
+      if (framingBit) panel.appendChild(elt("p", "pw-panel-sub", framingBit.trim()));
+      panel.appendChild(elt("div", "pw-empty", "No cold-frontier list recorded yet."));
+      return panel;
+    }
+    panel.appendChild(elt("p", "pw-panel-sub",
+      "The explore escalation sweeps these when the hot core runs dry — least-audited first." + framingBit));
+    var list = elt("ol", "pw-prio-list");
+    cold.slice(0, 8).forEach(function (p, i) {
+      var n = metrics.byPath[p];
+      var row = elt("li", "pw-prio-row");
+      var btn = elt("button", "pw-prio-btn");
+      btn.type = "button";
+      btn.appendChild(elt("span", "pw-prio-rank", String(i + 1)));
+      if (n) btn.appendChild(elt("span", "pw-prio-dot " + langClass(n.lang)));
+      var nm = elt("span", "pw-prio-name");
+      var dir = p.lastIndexOf("/") === -1 ? "" : p.slice(0, p.lastIndexOf("/") + 1);
+      if (dir) nm.appendChild(elt("span", "pw-prio-dir", dir));
+      nm.appendChild(elt("span", null, p.split("/").pop()));
+      btn.appendChild(nm);
+      var flags = elt("span", "pw-prio-flags");
+      if (n && !n.covered && !n.isTest) flags.appendChild(prioFlag("uncovered", "uncovered"));
+      if (n && n.isTest) flags.appendChild(prioFlag("cycle", "test"));
+      btn.appendChild(flags);
+      btn.title = p;
+      btn.addEventListener("click", function () { window.PW_BUS.focusNode(p, { view: "insights" }); });
+      refs[p] = refs[p] || {};
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+    panel.appendChild(list);
+    return panel;
+  }
+
   // ---- Hotspot Constellation -----------------------------------------------------------
 
   function constellation(metrics, ctx) {
@@ -411,6 +462,7 @@
 
     var grid = elt("div", "pw-insights-grid");
     grid.appendChild(priorities(metrics, ctx));
+    grid.appendChild(coldFrontier(metrics, ctx));
     grid.appendChild(ledger(metrics, ctx));
     grid.appendChild(constellation(metrics, ctx));
     grid.appendChild(coverage(metrics, ctx));

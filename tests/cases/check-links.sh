@@ -215,3 +215,44 @@ if [ "$sxb_rc" = "1" ] && printf '%s' "$sxb_out" | grep -q '#no-such-heading'; t
 else
   bad "check-links.py setext support over-resolved a bogus anchor (rc=$sxb_rc): $sxb_out"
 fi
+
+
+# --- Test CL13: underscores in headings keep their GitHub anchor -------------------
+# GitHub's slugger keeps a literal '_' in the anchor (## plan_parse contracts ->
+# #plan_parse-contracts) but drops an emphasis-marker '_' (## _italics_ -> #italics).
+# slugify() stripped '_' unconditionally, so the only GitHub-correct link to an
+# underscore-bearing heading was reported broken. Both variants now register
+# additively; bogus anchors must still flag.
+US="$TMP/cl-underscore"; mkdir -p "$US"; git -C "$US" init -q
+printf '## plan_parse contracts\n\n## _italics_\n\n[a](#plan_parse-contracts)\n[b](#planparse-contracts)\n[c](#italics)\n' > "$US/index.md"
+git -C "$US" add -A
+us_rc=0
+us_out="$(python3 "$CL" --root "$US" 2>&1)" || us_rc=$?
+printf '[bogus](#plan_parse-nope)\n' >> "$US/index.md"
+git -C "$US" add -A
+usb_rc=0
+usb_out="$(python3 "$CL" --root "$US" 2>&1)" || usb_rc=$?
+if [ "$us_rc" = "0" ] && [ "$usb_rc" = "1" ] && printf '%s' "$usb_out" | grep -q '#plan_parse-nope'; then
+  ok "check-links.py keeps underscores in heading anchors (both variants resolve; bogus still flags)"
+else
+  bad "check-links.py underscore anchors wrong (good_rc=$us_rc bogus_rc=$usb_rc): $us_out | $usb_out"
+fi
+
+
+# --- Test CL14: a non-UTF-8 .md degrades to a clean per-file report, never a traceback
+# check_file()/anchors_of() caught only OSError, so one non-UTF-8 byte in any tracked
+# .md raised UnicodeDecodeError with a raw traceback and exit 1 — the code documented
+# as "broken links found". It must surface as the existing "unreadable (...)" report
+# (and the rest of the tree must still be checked), matching the OSError path.
+NU="$TMP/cl-nonutf8"; mkdir -p "$NU"; git -C "$NU" init -q
+printf '# T\xe9st heading\n' > "$NU/bad.md"
+printf '# Fine\n\n[ok](#fine)\n' > "$NU/good.md"
+git -C "$NU" add -A
+nu_rc=0
+nu_out="$(python3 "$CL" --root "$NU" 2>&1)" || nu_rc=$?
+if [ "$nu_rc" = "1" ] && ! printf '%s' "$nu_out" | grep -q 'Traceback' \
+   && printf '%s' "$nu_out" | grep -q 'unreadable'; then
+  ok "check-links.py degrades on a non-UTF-8 .md (clean unreadable report, no traceback)"
+else
+  bad "check-links.py crashed or misreported a non-UTF-8 .md (rc=$nu_rc): $nu_out"
+fi

@@ -49,6 +49,13 @@ BUNDLED = [
     ("plan_parse.py", "the canonical plan.md parser (status.py / lint-plan.py import it)"),
     ("state.py", "the dashboard /state.json snapshot source (state.collect)"),
     ("lint-final.py", "the Stage 11 final.md / final-point validator"),
+    # Dispatched through the same <scripts> seam by their commands — a partial
+    # install missing either previously passed doctor clean and failed at launch.
+    ("dashboard.py", "the read-only live dashboard server (`planwright dashboard`)"),
+    # The server resolves its whole UI from <scripts>/dashboard/; without the asset
+    # tree it launches, prints a healthy URL, and serves 404s — a SILENT partial
+    # install the dashboard.py check alone cannot catch.
+    ("dashboard/index.html", "the dashboard static UI shell (served by dashboard.py)"),
 ]
 
 
@@ -250,7 +257,11 @@ def apply_gitignore_fix(root):
         return None
     gi = os.path.join(root, ".gitignore")
     try:
-        with open(gi, encoding="utf-8") as fh:
+        # errors="replace": the read only feeds the line-membership check and the
+        # trailing-newline probe, both safe under replacement chars — a non-UTF-8
+        # byte elsewhere in the file must not abort the whole preflight (the append
+        # below writes pure ASCII regardless).
+        with open(gi, encoding="utf-8", errors="replace") as fh:
             existing = fh.read()
     except OSError:
         existing = ""

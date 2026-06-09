@@ -178,6 +178,14 @@
       clusters: clusters2,
       ranked: g.ranked || [],
       rankedCode: g.ranked_code || [],
+      // The explore escalation's first tier sweeps this list (never-audited, then
+      // uncovered, then least-central) when the hot core runs dry — the one
+      // escalation input the dashboard previously had no surface for.
+      rankedCold: g.ranked_cold || [],
+      // The seeded-invent framing record (--seed builds only): which generative
+      // vantage the invent lens surveys through. null/"" on an unseeded graph.
+      exploreSeed: (g.explore_seed == null ? null : g.explore_seed),
+      exploreFraming: g.explore_framing || "",
       dirty: dirty,
       dirtyChanged: dirty.changed || [],
       dirtySet: dirtySet,
@@ -208,6 +216,10 @@
       completed: (state.completed || []).length,
       rejected: (state.rejected || []).length,
       converged: !!state.converged,
+      // Final-point trust ("stale" | "invalid" | "scoped" | ""): a stale or invalid
+      // point means HEAD was never (validly) audited — the coach must not advise
+      // growing net-new over it.
+      fpFlag: finalFlag(state.final_point),
       cycles: metrics ? metrics.cycles.length : 0,
       hotUncovered: metrics ? metrics.hotUncovered.length : 0,
       articulation: metrics ? metrics.nodesArr.filter(function (n) { return n.articulation; }).length : 0,
@@ -220,6 +232,12 @@
     var hasDebt = s.cycles > 0 || s.hotUncovered >= 3 || s.articulation > 0 || s.pendRepairImprove > 0;
     if (hasDebt) {
       return { key: "codvisor", why: "There's structural debt to harden before growing — clear it first." };
+    }
+    // A stale/invalid final point means the clean-looking tree was never (validly)
+    // re-audited at HEAD — re-audit before inventing. A merely "scoped" point is
+    // not a trust failure (converged is already scope-aware) and does not trigger.
+    if (s.fpFlag === "stale" || s.fpFlag === "invalid") {
+      return { key: "codvisor", why: "The recorded final point no longer holds (" + s.fpFlag + ") — re-audit before growing net-new." };
     }
     if (s.pending === 0) {
       return { key: "codinventor", why: "Nothing's queued and the tree is clean — latent capability looks complete, so grow net-new." };
@@ -334,8 +352,31 @@
     };
   }
 
+  // Whether the body-level "stale data" cast applies. Stale strictly means "sha lags
+  // HEAD" (a stale graph ctx, or a recorded final point whose sha moved on) — never
+  // structural debt like import cycles, which Insights renders as such. Pure so the
+  // suite can pin it under node.
+  function staleCast(ctx, finalPoint) {
+    return !!((ctx && ctx.stale) || (finalPoint && finalPoint.stale));
+  }
+
+  // Trust flag for a recorded final point: "stale" (sha lags HEAD), "invalid"
+  // (final.md fails lint-final's contract), "scoped" (a component-scoped point —
+  // it asserts dryness only for its component, never whole-repo convergence), or
+  // "" (trusted whole-repo). Precedence stale > invalid > scoped mirrors
+  // status.py's report order. The views must never render an untrusted or scoped
+  // point as a whole-repo "set" — status itself refuses to certify it.
+  function finalFlag(fp) {
+    if (!fp) { return ""; }
+    if (fp.stale) { return "stale"; }
+    if (fp.valid === false) { return "invalid"; }
+    if (fp.scope) { return "scoped"; }
+    return "";
+  }
+
   window.PW_DERIVE = {
     metrics: metrics, pctRank: pctRank, quantile: quantile, pendingModes: pendingModes,
+    staleCast: staleCast, finalFlag: finalFlag,
     coach: { signals: coachSignals, recommend: coachRecommend, evidence: coachEvidence, reset: coachReset },
     graph: { adapt: graphAdapt, cycleMembers: cycleMembers },
   };

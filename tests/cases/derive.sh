@@ -289,3 +289,218 @@ JS
 else
   ok "PW_DERIVE metrics engine check skipped (node not installed)"
 fi
+
+
+# --- Test DRV2: staleCast fires only on sha-lag, never on mere import cycles ----
+# writeAura applied the body-level "stale data" cast whenever the graph had ANY
+# import cycle, so a repo with benign doc link cycles looked permanently stale even
+# with graph and final point both current. The predicate is now PW_DERIVE.staleCast:
+# stale strictly means "sha lags HEAD" (a stale ctx or a stale final point).
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/derive_stale_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+global.window = {};
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+const D = global.window.PW_DERIVE;
+assert(typeof D.staleCast === "function", "PW_DERIVE.staleCast missing");
+// cycles alone (current graph, current final point) -> NOT stale
+assert.strictEqual(D.staleCast({ stale: false, metrics: { cycles: [["a", "b"]] } },
+                               { stale: false }), false, "cycles alone must not cast stale");
+// a stale graph ctx -> stale, with or without cycles
+assert.strictEqual(D.staleCast({ stale: true, metrics: { cycles: [] } }, null), true);
+// a stale final point -> stale even with a current graph
+assert.strictEqual(D.staleCast({ stale: false, metrics: null }, { stale: true }), true);
+// degraded inputs never throw
+assert.strictEqual(D.staleCast(null, null), false);
+console.log("STALECAST-OK");
+JS
+  if node "$TMP/derive_stale_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive_sc.out" 2>"$TMP/derive_sc.err" && grep -q STALECAST-OK "$TMP/derive_sc.out"; then
+    ok "PW_DERIVE.staleCast: sha-lag only — import cycles never apply the stale cast"
+  else
+    bad "PW_DERIVE.staleCast wrong: $(cat "$TMP/derive_sc.err" 2>/dev/null)"
+  fi
+  # app.js must route writeAura through the shared predicate, not a local cycles check
+  if grep -q 'PW_DERIVE.staleCast(ctx, s.final_point)' "$ROOT/scripts/dashboard/app.js" \
+     && ! grep -q 'ctx.metrics.cycles.length > 0' "$ROOT/scripts/dashboard/app.js"; then
+    ok "app.js writeAura uses PW_DERIVE.staleCast (no cycles disjunct)"
+  else
+    bad "app.js writeAura does not route the stale cast through PW_DERIVE.staleCast"
+  fi
+else
+  ok "PW_DERIVE.staleCast check skipped (node not installed)"
+fi
+
+
+# --- Test DRV3: finalFlag — an invalid final point is never rendered as trusted ----
+# state.json's final_point.valid (lint-final's verdict) was read nowhere in the view
+# layer, so a rung-less final.md at HEAD displayed as a trusted "set" point. The trust
+# flag now lives in PW_DERIVE.finalFlag (stale wins, matching status.py's precedence).
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/derive_final_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+global.window = {};
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+const D = global.window.PW_DERIVE;
+assert(typeof D.finalFlag === "function", "PW_DERIVE.finalFlag missing");
+assert.strictEqual(D.finalFlag({ stale: true, valid: false }), "stale", "stale wins");
+assert.strictEqual(D.finalFlag({ stale: false, valid: false }), "invalid");
+assert.strictEqual(D.finalFlag({ stale: false, valid: true }), "");
+assert.strictEqual(D.finalFlag({ stale: false }), "", "absent valid defaults to trusted");
+assert.strictEqual(D.finalFlag(null), "");
+// a component-scoped point is never a whole-repo "set"; stale/invalid still win
+assert.strictEqual(D.finalFlag({ stale: false, valid: true, scope: "path:src/auth" }), "scoped");
+assert.strictEqual(D.finalFlag({ stale: true, valid: true, scope: "path:x" }), "stale", "stale wins over scoped");
+assert.strictEqual(D.finalFlag({ stale: false, valid: false, scope: "path:x" }), "invalid", "invalid wins over scoped");
+assert.strictEqual(D.finalFlag({ stale: false, valid: true, scope: null }), "", "null scope is whole-repo");
+console.log("FINALFLAG-OK");
+JS
+  if node "$TMP/derive_final_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive_ff.out" 2>"$TMP/derive_ff.err" && grep -q FINALFLAG-OK "$TMP/derive_ff.out"; then
+    ok "PW_DERIVE.finalFlag: stale wins, invalid surfaces, trusted is empty"
+  else
+    bad "PW_DERIVE.finalFlag wrong: $(cat "$TMP/derive_ff.err" 2>/dev/null)"
+  fi
+  if grep -q 'PW_DERIVE.finalFlag(fp)' "$ROOT/scripts/dashboard/views/console.js" \
+     && grep -q 'finalFlag' "$ROOT/scripts/dashboard/views/commands.js" \
+     && grep -q 'finalFlag' "$ROOT/scripts/dashboard/views/timeline.js"; then
+    ok "console/commands/timeline route final-point trust through PW_DERIVE.finalFlag"
+  else
+    bad "a view still renders final-point trust without PW_DERIVE.finalFlag"
+  fi
+else
+  ok "PW_DERIVE.finalFlag check skipped (node not installed)"
+fi
+
+
+# --- Test DRV4: the coach never recommends invention over a stale/invalid final point
+# With nothing pending and no debt, coachRecommend said "grow net-new" even when the
+# recorded final point was stale or invalid — states whose response is a re-audit.
+# A merely scoped point is not a trust failure and must not trigger the gate.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/derive_coachfp_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+global.window = {};
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+const D = global.window.PW_DERIVE;
+function rec(fp) {
+  const s = D.coach.signals({ pending: [], completed: [], rejected: [], converged: false,
+                              final_point: fp }, null);
+  return D.coach.recommend(s);
+}
+assert.strictEqual(rec({ stale: true, valid: true }).key, "codvisor", "stale -> re-audit");
+assert(/no longer holds \(stale\)/.test(rec({ stale: true, valid: true }).why));
+assert.strictEqual(rec({ stale: false, valid: false }).key, "codvisor", "invalid -> re-audit");
+assert.strictEqual(rec({ stale: false, valid: true, scope: "path:x" }).key, "codinventor",
+  "a scoped point is not a trust failure");
+assert.strictEqual(rec(null).key, "codinventor", "no final point: clean-tree advice unchanged");
+console.log("COACHFP-OK");
+JS
+  if node "$TMP/derive_coachfp_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive_cfp.out" 2>"$TMP/derive_cfp.err" && grep -q COACHFP-OK "$TMP/derive_cfp.out"; then
+    ok "coachRecommend gates invention on final-point trust (stale/invalid -> codvisor)"
+  else
+    bad "coachRecommend final-point trust gate wrong: $(cat "$TMP/derive_cfp.err" 2>/dev/null)"
+  fi
+else
+  ok "coach final-point trust check skipped (node not installed)"
+fi
+
+
+# --- Test DRV5: metrics passes ranked_cold through (the cold-frontier card's input) --
+# ranked_cold drives the explore escalation's first tier, yet it was the only
+# escalation input PW_DERIVE dropped — the dashboard could not show what a dry hot
+# core sweeps next. It must pass through verbatim and default to [] when absent.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/derive_cold_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+global.window = {};
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+const D = global.window.PW_DERIVE;
+const base = {
+  graph_built_at_sha: "deadbeef",
+  nodes: { "a.py": { git_churn: 1, pagerank: 0.5, covered_by_test: false, is_test: false, lang: "python", loc: 5, branch_count: 1 } },
+};
+const withCold = D.metrics(JSON.stringify(Object.assign({ ranked_cold: ["a.py"] }, base)));
+assert.deepStrictEqual(withCold.rankedCold, ["a.py"], "ranked_cold passthrough");
+const without = D.metrics(JSON.stringify(base));
+assert.deepStrictEqual(without.rankedCold, [], "absent ranked_cold defaults to []");
+console.log("RANKEDCOLD-OK");
+JS
+  if node "$TMP/derive_cold_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive_rc.out" 2>"$TMP/derive_rc.err" && grep -q RANKEDCOLD-OK "$TMP/derive_rc.out"; then
+    ok "PW_DERIVE.metrics exposes rankedCold (verbatim passthrough; [] when absent)"
+  else
+    bad "PW_DERIVE.metrics rankedCold wrong: $(cat "$TMP/derive_rc.err" 2>/dev/null)"
+  fi
+  if grep -q 'coldFrontier(metrics, ctx)' "$ROOT/scripts/dashboard/views/insights.js" \
+     && grep -q 'rankedCold' "$ROOT/scripts/dashboard/views/insights.js"; then
+    ok "insights view renders the Cold frontier card from metrics.rankedCold"
+  else
+    bad "insights view does not render the cold-frontier card"
+  fi
+else
+  ok "PW_DERIVE rankedCold check skipped (node not installed)"
+fi
+
+
+# --- Test DRV6: metrics passes the seeded-invent framing through ---------------------
+# Every codcycle invent phase runs under a rotating seeded framing, but the dashboard
+# had no surface for which framing is active. exploreSeed/exploreFraming now pass
+# through (null/"" on an unseeded graph).
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/derive_framing_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+global.window = {};
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+const D = global.window.PW_DERIVE;
+const base = {
+  graph_built_at_sha: "deadbeef",
+  nodes: { "a.py": { git_churn: 1, pagerank: 0.5, covered_by_test: false, is_test: false, lang: "python", loc: 5, branch_count: 1 } },
+};
+const seeded = D.metrics(JSON.stringify(Object.assign({ explore_seed: 7, explore_framing: "integration" }, base)));
+assert.strictEqual(seeded.exploreSeed, 7, "explore_seed passthrough");
+assert.strictEqual(seeded.exploreFraming, "integration", "explore_framing passthrough");
+const unseeded = D.metrics(JSON.stringify(base));
+assert.strictEqual(unseeded.exploreSeed, null, "absent seed -> null");
+assert.strictEqual(unseeded.exploreFraming, "", "absent framing -> empty string");
+// seed 0 is reachable (build-graph --seed 0) and is THE edge the == null
+// construction protects: a truthiness rewrite (g.explore_seed || null) nulls it.
+const zero = D.metrics(JSON.stringify(Object.assign({ explore_seed: 0, explore_framing: "automation" }, base)));
+assert.strictEqual(zero.exploreSeed, 0, "seed 0 passthrough (== null, not truthiness)");
+assert.strictEqual(zero.exploreFraming, "automation", "seed 0 framing passthrough");
+console.log("FRAMING-OK");
+JS
+  if node "$TMP/derive_framing_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive_fr.out" 2>"$TMP/derive_fr.err" && grep -q FRAMING-OK "$TMP/derive_fr.out"; then
+    ok "PW_DERIVE.metrics exposes exploreSeed/exploreFraming (null/empty when unseeded)"
+  else
+    bad "PW_DERIVE.metrics framing passthrough wrong: $(cat "$TMP/derive_fr.err" 2>/dev/null)"
+  fi
+  if grep -q 'metrics.exploreFraming' "$ROOT/scripts/dashboard/views/insights.js"; then
+    ok "insights cold-frontier card renders the invent framing chip when seeded"
+  else
+    bad "insights view does not consume the framing fields"
+  fi
+else
+  ok "PW_DERIVE framing check skipped (node not installed)"
+fi
+
+
+# --- Test DRV7: buildCtx consumes the canonical graph.stale from state.json ----------
+# status.py's graph.stale (unverifiable HEAD reads stale, prefix-tolerant match) is
+# the canonical verdict; the dashboard used to re-derive a DIVERGENT predicate (empty
+# head read fresh, strict equality), so the CLI and the rendered view could disagree
+# on the same bytes. buildCtx must prefer the state key, falling back only when a
+# degraded snapshot lacks it.
+if grep -q 'typeof s.graph.stale === "boolean"' "$ROOT/scripts/dashboard/app.js" \
+   && grep -q 's.graph.stale' "$ROOT/scripts/dashboard/app.js"; then
+  ok "app.js buildCtx prefers the canonical state.json graph.stale verdict"
+else
+  bad "app.js buildCtx still re-derives graph staleness instead of consuming graph.stale"
+fi

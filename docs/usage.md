@@ -167,7 +167,7 @@ inspect or revert flagged invent-tier items before hardening them.
 
 `doctor` is read-only **by default**: it reports which host tools (`python3`, `git`, `rg`, `fd`) and
 bundled scripts (`build-graph.py`, `lint-plan.py`, `lifecycle.py`, `status.py`, `check-links.py`,
-`plan_parse.py`, `state.py`, `lint-final.py`) are available, what degrades when one is missing, and whether the target
+`plan_parse.py`, `state.py`, `lint-final.py`, `dashboard.py`) are available, what degrades when one is missing, and whether the target
 is a git work tree — a preflight so a run's fallbacks surface up front rather than mid-pipeline. It
 exits non-zero when a core capability (`git` or a bundled script) is unavailable. Two opt-in flags
 change that default: `--fix` is the one **writing** exception — it adds `.planwright/` to the target's
@@ -177,16 +177,18 @@ code, for a pristine-environment CI gate.
 
 `status` is read-only: it summarizes the current planning state from `.planwright/` — pending /
 completed / rejected item counts (with the pending items' titles listed under the count, also exposed
-as a `pending_titles` array in `--json`), the recorded final point (its sha, date, `deepest_tier`, and
-whether it is **stale** relative to `HEAD`), and the graph memory (node and dirty-node counts) — so a
+as a `pending_titles` array in `--json`), the recorded final point (its sha, date, `deepest_tier`,
+whether it is **stale** relative to `HEAD`, and its recorded component **scope**, flagged
+`scoped to <X>` in the report), and the graph memory (node and dirty-node counts) — so a
 maintainer can see where a project stands without running a plan or cycle. `--json` emits the same
 state as a machine-readable object (including a canonical `converged` boolean). By default the exit
 code is always 0 (an empty state is valid, not an error); the opt-in `--exit-code` flag is the one
-exception — it exits 0 only at a *current, valid* final point with nothing pending, else 1 (composing
-with `--json`/`--quiet`), so a wrapper or CI gate can check convergence machine-readably. "Valid" means
-the recorded `final.md` passes `lint-final.py`'s contract (a non-empty sha, all four rungs marked dry,
-and a recognized `deepest_tier`); a blank or typo'd marker that merely matches HEAD does not certify
-convergence (`status` flags it `INVALID`).
+exception — it exits 0 only at a *current, valid, whole-repo* final point with nothing pending, else 1
+(composing with `--json`/`--quiet`), so a wrapper or CI gate can check convergence machine-readably.
+"Valid" means the recorded `final.md` passes `lint-final.py`'s contract (a non-empty sha, all four
+rungs marked dry, and a recognized `deepest_tier`); a blank or typo'd marker that merely matches HEAD
+does not certify convergence (`status` flags it `INVALID`), and a component-scoped final point asserts
+dryness only for its component — it never gates 0.
 
 `reset` (aliases `fresh` / `clean`) is the one lifecycle command that **mutates** `.planwright/`: it
 clears the tool state — graph, plan, digest, final-point marker, completed history, and state snapshot —
@@ -253,7 +255,9 @@ light/dark themes, full keyboard navigation, and seven views:
 - **Graph** — the temporal coupling network as a rotatable, zoomable **3D globe** (drag to rotate,
   scroll to zoom; nodes coloured by language, import cycles flagged).
 - **Insights** — a risk ledger (churn × centrality), a hotspot constellation, coverage by language,
-  the planner's ranked "next up" surfaces, and import-cycle cards.
+  the planner's ranked "next up" surfaces, a cold-frontier card (the explore escalation's
+  `ranked_cold` sweep order, with covered/test markers and the active invent framing when seeded),
+  and import-cycle cards.
 - **Doctor** — the read-only environment preflight (`/doctor.json`).
 
 Endpoints: `/state.json` (the snapshot — see [`state-schema.md`](state-schema.md)), `/graph.json` (a
@@ -389,4 +393,3 @@ Stage 2b uses `ranked_code`.
   the next run.
 - `.planwright/graph.json` / `digest.md` — audit routing memory. **Routing only — never valid Evidence.**
 - `.planwright/final.md` — the recorded final point.
-- `.planwright/plans/` — archived past plans.

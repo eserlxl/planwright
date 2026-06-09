@@ -922,3 +922,169 @@ if [ "$me_rc" = 0 ] && ! printf '%s' "$me_out" | grep -qi 'reads as prose'; then
 else
   bad "lint-plan.py wrongly rejected a docker/bazel Verification: $me_out"
 fi
+
+
+# --- Test 12r: repair anchors on extension-less files are legal --------------
+# _EVIDENCE_ANCHOR_RE required a dotted, letter-led extension, so the canonical
+# file:line citation on a Makefile/Dockerfile/dotfile surface ("Makefile:2 ...")
+# hard-failed the mandatory repair-anchor gate — a false failure the file header
+# forbids. The filename alternation now admits well-known extension-less build
+# files and >=3-char dotfiles, while version strings keep failing.
+EXTLESS="$TMP/extless_plan.md"
+cat > "$EXTLESS" <<'EOF'
+# planwright Plan — .
+
+- [ ] Fix the release recipe flags
+      Mode: repair
+      Rationale: wrong optimization level in the release recipe.
+      Evidence: Makefile:2 passes -O0 in the release recipe; expected -O2.
+      Surfaces: scripts/lint-plan.py
+      Development: change the flag at that line.
+      Acceptance: release builds use -O2.
+      Verification: bash tests/run.sh
+EOF
+exl_rc=0
+python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EXTLESS" --quiet || exl_rc=$?
+# dotfile anchor also satisfies the gate; a version string still does not
+DOTFILE="$TMP/dotfile_plan.md"
+sed 's|Makefile:2 passes -O0 in the release recipe; expected -O2|.gitignore:3 ignores build/ twice; expected one rule|' "$EXTLESS" > "$DOTFILE"
+dot_rc=0
+python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$DOTFILE" --quiet || dot_rc=$?
+VERSTR="$TMP/verstr_plan.md"
+sed 's|Makefile:2 passes -O0 in the release recipe; expected -O2|python 3.10:5 mishandles the flag|' "$EXTLESS" > "$VERSTR"
+ver_rc=0
+ver_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VERSTR" 2>&1)" || ver_rc=$?
+if [ "$exl_rc" -eq 0 ] && [ "$dot_rc" -eq 0 ] && [ "$ver_rc" -ne 0 ] \
+   && printf '%s' "$ver_out" | grep -qF "repair Evidence lacks a file:line anchor"; then
+  ok "lint-plan.py accepts extension-less/dotfile repair anchors; version strings still fail"
+else
+  bad "lint-plan.py extension-less anchor gate wrong (extless=$exl_rc dotfile=$dot_rc verstr=$ver_rc)"
+fi
+
+
+# --- Test 12s: a standalone trailing "." argument is a command, not prose ----
+# Normalization rstrip(".")-ed the whole value before the prose scan, so
+# "ruff check ." lost its only command-signal character and was misflagged as
+# prose. Only a GLUED sentence-final period is stripped now; dot-only tokens
+# survive, and common linters lead a Verification legally.
+PROSEDOT="$TMP/prosedot_plan.md"
+mk_verif_plan() {
+  cat > "$PROSEDOT" <<EOF
+# planwright Plan — .
+
+- [ ] Verification normalization probe
+      Mode: improve
+      Rationale: probe.
+      Evidence: probing the verification normalizer.
+      Surfaces: scripts/lint-plan.py
+      Development: none needed for the probe.
+      Acceptance: lint outcome matches the contract.
+      Verification: $1
+EOF
+}
+vd_fail=""
+for good in "ruff check ." "mypy scripts"; do
+  mk_verif_plan "$good"
+  python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PROSEDOT" --quiet || vd_fail="$vd_fail [pass:$good]"
+done
+for bad_v in "verify manually" "verify manually." "checks pending approval" "..."; do
+  mk_verif_plan "$bad_v"
+  if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PROSEDOT" --quiet 2>/dev/null; then
+    vd_fail="$vd_fail [fail:$bad_v]"
+  fi
+done
+if [ -z "$vd_fail" ]; then
+  ok "lint-plan.py keeps a standalone trailing '.' argument (ruff check .) while prose/placeholders still fail"
+else
+  bad "lint-plan.py verification normalization wrong:$vd_fail"
+fi
+
+
+# --- Test 12t: a string-valued focus in the scope graph degrades to no-scope ------
+# set() over a JSON string raises nothing — it yields the set of its CHARACTERS, so
+# {"focus": "scripts/foo.py"} silently activated scope mode with a garbage Focus
+# that failed every Surface. load_focus now requires list-shaped focus/context.
+SCG_STR="$TMP/scope_string.json"
+printf '{"focus": "scripts/foo.py", "context": []}' > "$SCG_STR"
+STRPLAN="$TMP/scope_string_plan.md"
+cat > "$STRPLAN" <<'EOF'
+# planwright Plan — .
+
+- [ ] Scope shape probe
+      Mode: improve
+      Rationale: probe.
+      Evidence: probing load_focus shape validation.
+      Surfaces: scripts/lint-plan.py
+      Development: none for the probe.
+      Acceptance: lints clean with the malformed scope graph.
+      Verification: bash tests/run.sh
+EOF
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$STRPLAN" --scope "$SCG_STR" --quiet; then
+  ok "lint-plan.py --scope degrades a string-valued focus to no-scope (no false Surface failures)"
+else
+  bad "lint-plan.py --scope treated a string-valued focus as an active character-set scope"
+fi
+
+
+# --- Test 12u: a non-UTF-8 plan fails closed cleanly (structured, no traceback) ----
+# The one .planwright reader the degrade-not-crash series missed: a stray byte in
+# plan.md crashed the gate with a raw UnicodeDecodeError and --json emitted nothing.
+# It must exit 1 with a single clean violation; --json stdout must parse; --fix must
+# not rewrite bytes it cannot decode.
+NUP="$TMP/nonutf8_plan/.planwright"; mkdir -p "$NUP"
+printf -- '- [ ] T\xff\xfe\n      Mode: repair\n' > "$NUP/plan.md"
+nup_rc=0
+nup_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$TMP/nonutf8_plan" 2>&1)" || nup_rc=$?
+nupj_rc=0
+nupj_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$TMP/nonutf8_plan" --json 2>/dev/null)" || nupj_rc=$?
+nupf_rc=0
+python3 "$ROOT/scripts/lint-plan.py" --root "$TMP/nonutf8_plan" --fix --quiet 2>/dev/null || nupf_rc=$?
+if [ "$nup_rc" = 1 ] && [ "$nupj_rc" = 1 ] && [ "$nupf_rc" = 1 ] \
+   && ! printf '%s' "$nup_out" | grep -q 'Traceback' \
+   && printf '%s' "$nup_out" | grep -q 'not valid UTF-8' \
+   && printf '%s' "$nupj_out" | python3 -c 'import json,sys;d=json.load(sys.stdin);assert d["general_violations"]' \
+   && grep -q $'\xff' "$NUP/plan.md"; then
+  ok "lint-plan.py fails closed on a non-UTF-8 plan (clean message, parseable --json, --fix untouched)"
+else
+  bad "lint-plan.py mishandled a non-UTF-8 plan (text=$nup_rc json=$nupj_rc fix=$nupf_rc): $nup_out"
+fi
+
+
+# --- Test 12v: a standalone trailing ellipsis cannot ride the '.' command signal --
+# The "ruff check ." fix preserved any dot-only last token, so prose ending in " ..."
+# kept a '.' command-signal character and evaded the prose gate. A 3+-dot token is an
+# ellipsis, never a path — it is dropped before the scan; '.' and '..' stay.
+ell_fail=""
+for bad_v in "Inspect the dashboard manually ..." "verify by hand ...."; do
+  mk_verif_plan "$bad_v"
+  if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PROSEDOT" --quiet 2>/dev/null; then
+    ell_fail="$ell_fail [passed:$bad_v]"
+  fi
+done
+for good in "ruff check ." "git add .."; do
+  mk_verif_plan "$good"
+  python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PROSEDOT" --quiet || ell_fail="$ell_fail [failed:$good]"
+done
+if [ -z "$ell_fail" ]; then
+  ok "lint-plan.py flags prose ending in an ellipsis while '.'/'..' arguments still pass"
+else
+  bad "lint-plan.py ellipsis handling wrong:$ell_fail"
+fi
+
+
+# --- Test 12w: --json emits the canonical empty document when no plan exists -------
+# The absent-plan branch printed a prose line even under --json, breaking the
+# single-clean-JSON-document contract for machine consumers.
+NOPLAN="$TMP/lint-noplan"; mkdir -p "$NOPLAN"
+np_rc=0
+np_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$NOPLAN" --json)" || np_rc=$?
+npq_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$NOPLAN" --json --quiet)"
+npt_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$NOPLAN")"
+if [ "$np_rc" = 0 ] \
+   && printf '%s' "$np_out" | python3 -c 'import json,sys;d=json.load(sys.stdin);assert d["total_items"]==0 and d["items"]==[]' \
+   && [ -z "$npq_out" ] \
+   && printf '%s' "$npt_out" | grep -q 'no plan file at'; then
+  ok "lint-plan.py --json emits the canonical empty document on a missing plan (text/quiet unchanged)"
+else
+  bad "lint-plan.py absent-plan --json contract wrong (rc=$np_rc): $np_out"
+fi

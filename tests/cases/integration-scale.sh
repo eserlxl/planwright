@@ -76,8 +76,11 @@ nfiles="$(git -C "$BIG" ls-files | wc -l | tr -d ' ')"
 TO=""
 command -v timeout >/dev/null 2>&1 && TO="timeout 120"
 BG="$TMP/biggraph.json"
-$TO python3 "$ROOT/scripts/build-graph.py" --root "$BIG" > "$BG" 2>/dev/null
-build_rc=$?
+# `|| build_rc=$?` keeps the failure inside this case: a bare command's non-zero
+# exit would kill the whole sourced suite under set -e BEFORE the rc check below —
+# the gate's failure branch was dead code at exactly the moment it exists for.
+build_rc=0
+$TO python3 "$ROOT/scripts/build-graph.py" --root "$BIG" > "$BG" 2>/dev/null || build_rc=$?
 
 if [ "$build_rc" -ne 0 ]; then
   bad "build-graph.py did not finish within the time budget on the $nfiles-file repo (rc=$build_rc)"

@@ -16,7 +16,7 @@ Maintains the `.planwright/` directory.
 - Drains completed items (`- [x]`) into `completed.md`.
 - Drains rejected items into `rejected.md`.
 - Both lists are capped at a FIFO limit of 100 items.
-- If all remaining items are completed, the active plan is archived into `plans/` and a fresh run starts.
+- If no pending items remain after draining, `plan.md` is deleted so the next run starts fresh (an empty plan is deleted, never archived).
 
 ### Stage 1: Scan
 Collects ground-truth data from the project to ensure plan items are actionable and exact:

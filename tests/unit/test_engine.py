@@ -181,6 +181,18 @@ class TestImportResolvers(unittest.TestCase):
             self.assertIn("@app/*", dict(patterns))
 
 
+
+class TestCommitsSince(unittest.TestCase):
+    def test_equal_shas_are_zero_divergence(self):
+        self.assertEqual(bg.commits_since("abc123", "abc123", "/nonexistent"), 0)
+
+    def test_missing_prior_sha_is_unreachable_not_zero(self):
+        # The prior-graph sanitizer coerces a non-string graph_built_at_sha to None:
+        # unknown provenance must read as "unreachable" (None -> whole-graph rebuild
+        # in compute_dirty), never as zero divergence.
+        self.assertIsNone(bg.commits_since(None, "abc123", "/nonexistent"))
+        self.assertIsNone(bg.commits_since("", "abc123", "/nonexistent"))
+
 class TestMalformedInput(unittest.TestCase):
     def test_defines_of_empty(self):
         self.assertEqual(bg.defines_of("python", ""), [])

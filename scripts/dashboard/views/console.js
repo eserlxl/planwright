@@ -120,8 +120,15 @@
     var fp = state.final_point;
     if (fp && (fp.deepest_tier || fp.date)) {
       var label = "final · " + (fp.deepest_tier || "?") + (fp.date ? " · " + fp.date : "");
-      var fsat = elt("div", "pw-sat" + (fp.stale ? " is-stale" : ""));
-      fsat.appendChild(elt("span", "pw-sat-v", fp.stale ? "stale" : "set"));
+      // PW_DERIVE.finalFlag: an invalid (fails lint-final) or component-scoped
+      // final point must never render as a trusted whole-repo "set" — status
+      // refuses to certify it, so do we.
+      var flag = window.PW_DERIVE.finalFlag(fp);
+      var fsat = elt("div", "pw-sat" +
+        (flag === "stale" ? " is-stale"
+          : flag === "invalid" ? " is-err"
+            : flag === "scoped" ? " is-muted" : ""));
+      fsat.appendChild(elt("span", "pw-sat-v", flag || "set"));
       fsat.appendChild(elt("span", "pw-sat-k", label));
       sats.appendChild(fsat);
     }
@@ -160,8 +167,10 @@
     // 1) coverage donut
     var cov = metrics.coverage;
     var covRatio = cov.total ? cov.covered / cov.total : 0;
+    // Plain goto: a sentinel focus payload had no consumer and would clobber the
+    // user's real cross-view focus (the one thing the bus exists to carry).
     var v1 = vitalCard("pw-vital--coverage", "Test coverage " + cov.covered + " of " + cov.total +
-      " files. Open Insights.", function () { window.PW_BUS.goto("insights", { focus: "__coverage" }); });
+      " files. Open Insights.", function () { window.PW_BUS.goto("insights"); });
     var donut = svg("svg", { "class": "pw-vital-svg", viewBox: "0 0 64 64", "aria-hidden": "true" });
     var DC = 2 * Math.PI * 26;
     donut.appendChild(svg("circle", { cx: 32, cy: 32, r: 26, fill: "none", "class": "pw-gauge-track", "stroke-width": 8 }));
@@ -184,7 +193,7 @@
     // 2) hotspots mini bar meter
     var hot = metrics.hotUncovered.length;
     var v2 = vitalCard("pw-vital--hotspots", hot + " untested hotspots (churn × centrality). Open Insights.",
-      function () { window.PW_BUS.goto("insights", { focus: "__hotspots" }); });
+      function () { window.PW_BUS.goto("insights"); });
     var bars = svg("svg", { "class": "pw-vital-svg", viewBox: "0 0 64 64", "aria-hidden": "true" });
     var top = metrics.hotspots.slice(0, 7);
     var maxRisk = top.length ? top[0].risk || 0.0001 : 1;
@@ -204,7 +213,7 @@
     var cyc = metrics.cycles.length;
     var v3 = vitalCard("pw-vital--cycles" + (cyc > 0 ? " is-alert" : ""),
       cyc + " import cycles. Open Insights.",
-      function () { window.PW_BUS.goto("insights", { focus: "__cycles" }); });
+      function () { window.PW_BUS.goto("insights"); });
     var badge = svg("svg", { "class": "pw-vital-svg", viewBox: "0 0 64 64", "aria-hidden": "true" });
     badge.appendChild(svg("circle", { cx: 32, cy: 32, r: 26, fill: "none", "class": "pw-gauge-track", "stroke-width": 6 }));
     if (cyc > 0) badge.appendChild(svg("circle", { cx: 32, cy: 32, r: 26, fill: "none", "class": "pw-gauge-fill err", "stroke-width": 6 }));

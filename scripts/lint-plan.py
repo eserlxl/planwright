@@ -94,6 +94,10 @@ _KNOWN_EXEC = {
     # PHP, Perl, JVM, and other common language toolchains a Verification may use.
     "php", "composer", "phpunit", "perl", "java", "javac", "scala", "mix",
     "swift", "dart", "flutter", "clang", "clang++", "gcc", "g++", "cc", "c++",
+    # Linters/type-checkers a Verification commonly leads with ("mypy scripts",
+    # "ruff check ." — real commands, not prose).
+    "mypy", "ruff", "flake8", "pylint", "black", "isort", "shellcheck",
+    "eslint", "tsc", "prettier",
 }
 
 
@@ -189,14 +193,29 @@ def lint_item(item, root):
     # cycle discovering the item cannot be verified.
     verif = f.get("Verification", "")
     if verif:
-        norm = verif.strip().strip("`").strip().rstrip(".").lower()
+        base = verif.strip().strip("`").strip().lower()
+        norm = base.rstrip(".").strip()
         # A value that normalizes to empty was all dots/backticks/whitespace
         # (e.g. the "..." ellipsis placeholder, which rstrip(".") collapses to ""):
         # never a runnable command, so it is a placeholder too.
         if norm in PLACEHOLDER_VERIFICATION or norm == "":
             v.append(f"Verification '{verif}' is a placeholder, not a runnable command")
-        elif is_prose_verification(norm):
-            v.append(f"Verification '{verif}' reads as prose, not a runnable command")
+        else:
+            # The prose scan must not run on the rstrip(".") value: a STANDALONE
+            # trailing "." token is the command's argument ("ruff check ."), and
+            # rstrip would eat the very command-signal character the scan looks
+            # for. Strip only a glued sentence-final period ("manually." ->
+            # "manually"). Dot-only tokens: "." and ".." are path arguments and
+            # stay; a 3+-dot token is an ellipsis, never a path — drop it so
+            # "inspect the dashboard manually ..." cannot ride the "." command
+            # signal past the gate.
+            tokens = base.split()
+            if tokens and any(c != "." for c in tokens[-1]):
+                tokens[-1] = tokens[-1].rstrip(".")
+            elif tokens and len(tokens[-1]) >= 3:
+                tokens.pop()
+            if is_prose_verification(" ".join(t for t in tokens if t)):
+                v.append(f"Verification '{verif}' reads as prose, not a runnable command")
 
     surfaces = split_paths(f.get("Surfaces", ""))
     new_surfaces = split_paths(f.get("New Surfaces", ""))
@@ -247,11 +266,17 @@ def load_focus(scope_path):
     try:
         with open(scope_path, encoding="utf-8") as fh:
             g = json.load(fh)
-        return set(g.get("focus") or []), set(g.get("context") or [])
+        focus, context = g.get("focus"), g.get("context")
+        # Explicit shape checks: set() over a JSON *string* raises nothing — it
+        # yields the set of its characters, silently activating scope mode with a
+        # garbage Focus that fails every Surface. Only list-shaped sets count.
+        if not isinstance(focus, list) or not isinstance(context, (list, type(None))):
+            return set(), set()
+        return set(focus), set(context or [])
     except (ValueError, OSError, AttributeError, TypeError):
-        # Unreadable, not JSON, or valid JSON of the wrong shape (not an object, or a
-        # non-list focus/context) — e.g. a truncated or hand-edited scope graph. Treat
-        # as 'no scope active' so the gate no-ops rather than crashing the linter.
+        # Unreadable, not JSON, or valid JSON of the wrong shape (not an object) —
+        # e.g. a truncated or hand-edited scope graph. Treat as 'no scope active'
+        # so the gate no-ops rather than crashing the linter.
         return set(), set()
 
 
@@ -460,20 +485,26 @@ def verification_missing_script(verif, root):
 
 
 # An Evidence file:line anchor: a repo-relative path (zero or more "/"-separated directory
-# segments then a filename with an extension) followed by a line reference (":N", ":N-M", or
-# " (line N)"). Zero dir segments lets a ROOT-level file (README.md:50, MISSION.md:50) match, so a
-# stale/fabricated root citation is caught too; directory segments are DOTLESS so a glued
-# abbreviation prefix ("e.g.scripts/x.py") cannot be absorbed into the path; an optional "./"/"../"
-# prefix and a single leading-dot dir (".github") are allowed. The line ref stays mandatory and the
-# extension must be LETTER-LED so a prose mention, a bare filename without a line ref, or a version
-# string ("3.10:5") never matches. Because the path can only start with a "./"/"../" prefix or an
+# segments then a filename) followed by a line reference (":N", ":N-M", or " (line N)"). Zero dir
+# segments lets a ROOT-level file (README.md:50, MISSION.md:50) match, so a stale/fabricated root
+# citation is caught too; directory segments are DOTLESS so a glued abbreviation prefix
+# ("e.g.scripts/x.py") cannot be absorbed into the path; an optional "./"/"../" prefix and a single
+# leading-dot dir (".github") are allowed. The filename is one of: a dotted name with a LETTER-LED
+# extension (so a version string "3.10:5" or a time "30:00" never matches); a well-known
+# extension-less build file (Makefile:12, Dockerfile:7 — the canonical repair surface of
+# Make/Docker repos, which the dotted rule alone would false-fail); or a dotfile with >=3 chars
+# after the dot (.gitignore:3 — but never a bare extension mention like ".py:3" in prose). The
+# line ref stays mandatory. Because the path can only start with a "./"/"../" prefix or an
 # alphanumeric/'.' char (never a bare "/" and never containing "://"), an absolute or URL target
 # cannot match — no explicit guard is needed.
 _EVIDENCE_ANCHOR_RE = re.compile(
     r"(?<![\w./-])"
     r"((?:\.{1,2}/)?"                          # optional ./ or ../ prefix
     r"(?:\.?[A-Za-z0-9_][A-Za-z0-9_-]*/)*"     # >=0 dotless dir segments (root file ok; leading-dot dir ok)
-    r"[A-Za-z0-9_][A-Za-z0-9_.-]*\.[A-Za-z][A-Za-z0-9]*)"  # filename with a letter-led extension
+    r"(?:[A-Za-z0-9_][A-Za-z0-9_.-]*\.[A-Za-z][A-Za-z0-9]*"  # filename with a letter-led extension
+    r"|(?:GNUmakefile|[Mm]akefile|Dockerfile|Containerfile|Jenkinsfile|Justfile"
+    r"|Vagrantfile|Gemfile|Rakefile|Procfile|Kconfig|BUILD|WORKSPACE)"  # well-known extension-less files
+    r"|\.[A-Za-z][A-Za-z0-9_.-]{2,}))"         # root dotfile (.gitignore, .env) — >=3 chars after the dot
     r"(?::\d+(?:-\d+)?|\s*\(line\s+\d+\))")
 
 
@@ -528,11 +559,32 @@ def main():
     scope_active = bool(focus)  # an empty focus (whole-repo graph) means no scope to enforce
 
     if not os.path.exists(args.plan):
-        if not args.quiet:
+        if args.json and not args.quiet:
+            # --json must keep stdout one parseable JSON document on EVERY path —
+            # the absent-plan prose line broke that contract for JSON consumers.
+            print(json.dumps({
+                "total_items": 0, "total_violations": 0, "total_advisories": 0,
+                "items": [], "general_violations": [],
+            }, indent=2))
+        elif not args.quiet:
             print(f"lint-plan: no plan file at {args.plan} (nothing to lint)")
         return 0
-    with open(args.plan, encoding="utf-8") as fh:
-        text = fh.read()
+    try:
+        with open(args.plan, encoding="utf-8") as fh:
+            text = fh.read()
+    except UnicodeDecodeError:
+        # The gate fails closed on an undecodable plan, but cleanly: one structured
+        # violation (a --json caller still gets parseable JSON), no traceback, and
+        # --fix is skipped entirely — never rewrite bytes we cannot decode.
+        msg = f"lint-plan: {args.plan} is not valid UTF-8 (cannot lint)"
+        if args.json:
+            print(json.dumps({
+                "total_items": 0, "total_violations": 1, "total_advisories": 0,
+                "items": [], "general_violations": [msg],
+            }, indent=2))
+        elif not args.quiet:
+            print(msg)
+        return 1
 
     fixes = []
     if args.fix:

@@ -83,9 +83,11 @@ PLUGIN_DESC_JSON="$(json_escape "$PLUGIN_DESC")"
 # (a leading quote or an embedded ": " would misparse) and the folded `description: >`
 # block breaks if the value spans lines. A JSON string is a valid YAML double-quoted
 # scalar, so reuse the JSON escaping for `author:`; collapse the description to one line
-# so multiline input cannot break the block's indentation.
+# AND trim outer whitespace — a leading space would change the folded block's measured
+# indentation (3 spaces under a 2-space block) and make the frontmatter unparseable
+# while the scaffold still exits 0.
 AUTHOR_NAME_YAML="$AUTHOR_NAME_JSON"
-PLUGIN_DESC_ONELINE="$(printf '%s' "$PLUGIN_DESC" | tr '\r\n\t' '   ')"
+PLUGIN_DESC_ONELINE="$(printf '%s' "$PLUGIN_DESC" | tr '\r\n\t' '   ' | sed -E 's/^ +//; s/ +$//')"
 
 mkdir -p "$DEST/.claude-plugin" "$DEST/.codex-plugin" "$DEST/skills/$NAME" "$DEST/scripts"
 

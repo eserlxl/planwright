@@ -17,6 +17,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -917,9 +918,15 @@ def cluster_label(members):
 
 def commits_since(prior_sha, head, root):
     """Number of commits on HEAD not reachable from prior_sha, or None if it
-    cannot be computed (rewritten history, unknown sha)."""
-    if not prior_sha or prior_sha == head:
+    cannot be computed (rewritten history, unknown or missing sha)."""
+    if prior_sha == head:
         return 0
+    if not prior_sha:
+        # A prior graph with no usable graph_built_at_sha (the sanitizer coerces a
+        # non-string to None) has unknown provenance: that is "unreachable" (-> a
+        # whole-graph rebuild in compute_dirty), NOT zero divergence — returning 0
+        # here would silently keep stale incremental state alive.
+        return None
     try:
         out = sh(["git", "rev-list", "--count", f"{prior_sha}..HEAD"], root).strip()
     except subprocess.SubprocessError:
@@ -959,6 +966,14 @@ def resolve_scope(spec, files):
     spec = spec.replace("\\", "/").strip().rstrip("/")
     if not spec:
         return []
+    # git ls-files paths are canonical, so the habitual spellings "./scripts",
+    # ".//scripts", and "././scripts" would all be silent false no-matches —
+    # posixpath.normpath collapses every "./" and "//" form in one pass.
+    spec = posixpath.normpath(spec)
+    if spec == ".":
+        # "--scope ." / "./" name the repo root: the whole tree is the Focus
+        # (cf. "git add ."), never a "matched no files" error.
+        return sorted(files)
     pref = spec + "/"
     focus = {f for f in files
              if f == spec or f.startswith(pref) or fnmatch.fnmatch(f, spec)}
@@ -1034,7 +1049,9 @@ def compute_dirty(files, nodes, prior, prior_graph, head, undirected, coupling_e
 
 def build(root, prior_path, scope=None, seed=None):
     head = sh(["git", "rev-parse", "HEAD"], root).strip()
-    files = [f for f in sh(["git", "ls-files"], root).split("\n") if f]
+    # NUL-delimited with quotepath off: a non-ASCII path must arrive verbatim, not
+    # C-quoted ("na\303\257ve.md"), or every later stat/open on it aborts the build.
+    files = [f for f in sh(["git", "-c", "core.quotepath=off", "ls-files", "-z"], root).split("\0") if f]
     fileset = set(files)
 
     prior_graph = {}
@@ -1056,6 +1073,11 @@ def build(root, prior_path, scope=None, seed=None):
     prior = prior_graph.get("nodes", {})
     if not isinstance(prior, dict):
         prior = {}
+    # Node VALUES too: every downstream consumer does prior.get(f, {}).get(...), so a
+    # single hand-edited non-dict value (a string, a number) would crash the rebuild
+    # with AttributeError — the very failure the sanitize contract above forbids.
+    # Dropping the bad entry degrades that one node to "no baseline" (fresh audit).
+    prior = {k: v for k, v in prior.items() if isinstance(v, dict)}
 
     # Type-sanitize the nested prior-graph fields compute_dirty later consumes, so a
     # hand-edited or truncated graph.json degrades to a clean rebuild instead of
@@ -1074,7 +1096,8 @@ def build(root, prior_path, scope=None, seed=None):
     # delimiter, not by "line is exactly 40 hex chars" — a tracked file whose path
     # is itself 40 hex chars (asset hashes, compiled artifacts) would otherwise be
     # misread as a commit boundary, corrupting churn and change-coupling counts.
-    log = sh(["git", "log", "--name-only", "--format=commit:%H", "-n", str(COUPLING_WINDOW_COMMITS)], root)
+    log = sh(["git", "-c", "core.quotepath=off", "log", "--name-only", "--format=commit:%H",
+              "-n", str(COUPLING_WINDOW_COMMITS)], root)
     churn, commits, cur = {}, [], None
     for ln in log.split("\n"):
         ln = ln.strip()

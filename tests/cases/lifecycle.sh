@@ -329,3 +329,216 @@ if [ "$o1" = "lifecycle: reset 1 entry" ] \
 else
   bad "lifecycle.py reset singular wording wrong (o1='$o1' o2='$o2')"
 fi
+
+
+# --- Test L12: an internal blank line does not split an item's trailing fields -----
+# The canonical parser (plan_parse.parse_items) keeps indented Field: lines attached
+# across a blank line, and lint-plan accepts such a plan (exit 0). lifecycle's parser
+# closed the block at the blank, so housekeep drained a checked item WITHOUT its
+# post-blank Acceptance/Verification lines and then destroyed them on rewrite.
+LBD="$TMP/lc12/.planwright"; mkdir -p "$LBD"
+cat > "$LBD/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [x] Item with a gap before its tail fields
+      Mode: improve
+      Rationale: gap probe.
+      Evidence: probing the blank-line parser.
+      Surfaces: README.md
+      Development: none.
+
+      Acceptance: tail fields survive the drain verbatim.
+      Verification: bash tests/run.sh
+
+- [ ] Untouched pending sibling
+      Mode: docs
+      Surfaces: README.md
+      Verification: true
+EOF
+python3 "$ROOT/scripts/lifecycle.py" housekeep --root "$LBD" >/dev/null
+if grep -q 'Acceptance: tail fields survive the drain verbatim.' "$LBD/completed.md" \
+   && grep -q 'Verification: bash tests/run.sh' "$LBD/completed.md" \
+   && ! grep -q 'Acceptance: tail fields survive' "$LBD/plan.md" \
+   && grep -q '^- \[ \] Untouched pending sibling' "$LBD/plan.md"; then
+  ok "lifecycle.py keeps post-blank-line fields attached when draining an item"
+else
+  bad "lifecycle.py split an item at an internal blank line (tail fields lost)"
+fi
+
+
+# --- Test L13: reset-if-empty keeps a plan holding undrained rejected items --------
+# A plan whose only unchecked block carries Status: Rejected is the intermediate
+# state execute creates before draining. reset-if-empty counted it as "empty" and
+# deleted the plan, destroying the Rejection: reason before it ever reached
+# rejected.md — the one memory reset deliberately preserves. It must keep the plan;
+# a follow-up housekeep still drains it and then deletes the empty plan.
+LRJ="$TMP/lc13/.planwright"; mkdir -p "$LRJ"
+cat > "$LRJ/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [ ] Doomed idea
+      Mode: repair
+      Status: Rejected
+      Rejection: value-gate: not worth it
+EOF
+ri_out="$(python3 "$ROOT/scripts/lifecycle.py" reset-if-empty --root "$LRJ")"
+keep_ok=0
+[ -f "$LRJ/plan.md" ] && printf '%s' "$ri_out" | grep -q 'plan kept' && keep_ok=1
+python3 "$ROOT/scripts/lifecycle.py" housekeep --root "$LRJ" >/dev/null
+if [ "$keep_ok" = 1 ] && [ ! -f "$LRJ/plan.md" ] \
+   && grep -q 'Rejection: value-gate: not worth it' "$LRJ/rejected.md"; then
+  ok "lifecycle.py reset-if-empty keeps undrained rejected items; housekeep then drains them"
+else
+  bad "lifecycle.py reset-if-empty destroyed (or housekeep lost) an undrained rejection (keep_ok=$keep_ok)"
+fi
+
+
+# --- Test L14: unreadable plan fails closed (exit 2, no traceback, nothing modified) ---
+# read_blocks/reset_if_empty caught only FileNotFoundError, so housekeep crashed with a
+# raw UnicodeDecodeError on a non-UTF-8 plan.md and a NotADirectoryError on a file
+# passed as --root. Both must exit 2 with a one-line diagnostic and touch nothing —
+# fail closed: never rewrite or delete state that could not be parsed.
+LNU="$TMP/lc14/.planwright"; mkdir -p "$LNU"
+printf -- '- [x] caf\xe9 item\n      Mode: docs\n      Verification: true\n' > "$LNU/plan.md"
+lnu_rc=0
+lnu_err="$(python3 "$ROOT/scripts/lifecycle.py" housekeep --root "$LNU" 2>&1 >/dev/null)" || lnu_rc=$?
+lnu_sum_before="$(cksum "$LNU/plan.md")"
+lfr_rc=0
+lfr_err="$(python3 "$ROOT/scripts/lifecycle.py" housekeep --root "$LNU/plan.md" 2>&1 >/dev/null)" || lfr_rc=$?
+if [ "$lnu_rc" = 2 ] && [ "$lfr_rc" = 2 ] \
+   && ! printf '%s%s' "$lnu_err" "$lfr_err" | grep -q 'Traceback' \
+   && printf '%s' "$lnu_err" | grep -q 'cannot read' \
+   && [ "$(cksum "$LNU/plan.md")" = "$lnu_sum_before" ] \
+   && [ ! -f "$LNU/completed.md" ]; then
+  ok "lifecycle.py fails closed on an unreadable plan (exit 2, no traceback, nothing modified)"
+else
+  bad "lifecycle.py mishandled an unreadable plan (nonutf8=$lnu_rc fileroot=$lfr_rc): $lnu_err | $lfr_err"
+fi
+
+
+# --- Test L15: a wrapped "Status: Rejected ..." prose line is not a rejection marker ---
+# REJECTED matched ^\s*Status:\s*Rejected\b anywhere, so a pending item whose field
+# value wrapped onto a line beginning "Status: Rejected ..." was silently drained to
+# rejected.md — destroying a live item. Only the exact marker line counts now.
+LWR="$TMP/lc15/.planwright"; mkdir -p "$LWR"
+cat > "$LWR/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [ ] Document the rejection drain
+      Mode: docs
+      Evidence: scripts/lifecycle.py:45: execute appends
+        Status: Rejected and a Rejection: reason before drain
+      Surfaces: README.md
+      Verification: true
+
+- [ ] Genuinely rejected sibling
+      Mode: repair
+      Status: Rejected
+      Rejection: verification failed: boom
+      Verification: true
+EOF
+python3 "$ROOT/scripts/lifecycle.py" housekeep --root "$LWR" >/dev/null
+if grep -q '^- \[ \] Document the rejection drain' "$LWR/plan.md" \
+   && ! grep -q 'Document the rejection drain' "$LWR/rejected.md" \
+   && grep -q '^- \[ \] Genuinely rejected sibling' "$LWR/rejected.md" \
+   && grep -q 'Rejection: verification failed: boom' "$LWR/rejected.md"; then
+  ok "lifecycle.py drains only an exact Status: Rejected marker line (wrapped prose survives)"
+else
+  bad "lifecycle.py rejected-marker matching wrong (wrapped prose drained or real rejection kept)"
+fi
+
+
+# --- Test L16: a column-0 wrapped field value drains with its item, verbatim --------
+# lifecycle's old recognizer treated any non-indented line as interstitial, so a
+# checked item whose Verification value wrapped onto a column-0 line drained WITHOUT
+# the wrapped tail and left an orphan interstitial in plan.md. Boundaries now come
+# from plan_parse's span, which joins a column-0 continuation of an active field.
+LCW="$TMP/lc16/.planwright"; mkdir -p "$LCW"
+cat > "$LCW/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [x] Wrapped at column zero
+      Mode: improve
+      Verification: bash tests/run.sh
+and the wrapped tail of verification at column 0
+
+- [ ] Pending sibling
+      Mode: docs
+      Verification: true
+EOF
+python3 "$ROOT/scripts/lifecycle.py" housekeep --root "$LCW" >/dev/null
+if grep -q '^and the wrapped tail of verification at column 0' "$LCW/completed.md" \
+   && ! grep -q 'wrapped tail' "$LCW/plan.md" \
+   && grep -q '^- \[ \] Pending sibling' "$LCW/plan.md"; then
+  ok "lifecycle.py drains a column-0 wrapped field value with its item (no orphan interstitial)"
+else
+  bad "lifecycle.py split a column-0 wrapped field value from its item"
+fi
+
+
+# --- Test L17: rejection comes from the Status FIELD, never a raw-slice grep --------
+# The span refactor kept a raw-text REJECTED grep over each verbatim slice, so a
+# lint-clean pending item whose Rationale wrapped onto a column-0 line exactly
+# "Status: Rejected" was drained whole to rejected.md (worse than pre-refactor) and a
+# bare interstitial "Status: Rejected" note was drained too, violating the
+# never-drained contract. Rejection now derives from plan_parse's field capture.
+LFD="$TMP/lc17/.planwright"; mkdir -p "$LFD"
+cat > "$LFD/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [ ] Discuss the rejection schema
+      Mode: docs
+      Rationale: execute appends the marker line
+Status: Rejected
+      Surfaces: README.md
+      Verification: true
+
+Status: Rejected
+
+- [ ] Genuinely rejected item
+      Mode: repair
+      Status: Rejected
+      Rejection: verification failed: kaput
+      Verification: true
+EOF
+python3 "$ROOT/scripts/lifecycle.py" housekeep --root "$LFD" >/dev/null
+if grep -q '^- \[ \] Discuss the rejection schema' "$LFD/plan.md" \
+   && ! grep -q 'Discuss the rejection schema' "$LFD/rejected.md" \
+   && grep -q '^- \[ \] Genuinely rejected item' "$LFD/rejected.md" \
+   && grep -q 'Rejection: verification failed: kaput' "$LFD/rejected.md"; then
+  ok "lifecycle.py rejection derives from the Status field (column-0 wrap and interstitial note survive)"
+else
+  bad "lifecycle.py raw-slice rejection grep still mis-drains (plan: $(grep -c '^- \[' "$LFD/plan.md" 2>/dev/null || true) items)"
+fi
+
+
+# --- Test L18: rejection classification never reads beyond the drained slice --------
+# plan_parse keeps capturing fields after a column-0 interstitial closes the span, so
+# classifying rejection from the document-level fields drained a live, lint-clean
+# pending item because of an indented "Status: Rejected" line the slice does not even
+# contain. Classification now re-parses the slice itself.
+LBS="$TMP/lc18/.planwright"; mkdir -p "$LBS"
+cat > "$LBS/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [ ] Live pending item
+      Mode: docs
+      Rationale: probe.
+      Evidence: probing the slice classification.
+      Surfaces: README.md
+      Development: none.
+      Acceptance: survives housekeep.
+      Verification: true
+
+note to self: revisit the marker below
+      Status: Rejected
+EOF
+before_sum="$(cksum "$LBS/plan.md")"
+python3 "$ROOT/scripts/lifecycle.py" housekeep --root "$LBS" >/dev/null
+if grep -q '^- \[ \] Live pending item' "$LBS/plan.md" \
+   && [ ! -f "$LBS/rejected.md" ] \
+   && [ "$(cksum "$LBS/plan.md")" = "$before_sum" ]; then
+  ok "lifecycle.py classifies rejection from the drained slice (out-of-span marker is inert)"
+else
+  bad "lifecycle.py drained a live item via an out-of-span Status field"
+fi
