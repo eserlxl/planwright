@@ -283,3 +283,158 @@ if python3 "$TMP/dash_nograph.py" "$DFX2" "$DASH" >"$TMP/dash_ng.out" 2>"$TMP/da
 else
   bad "dashboard.py /graph.json no-graph 404 failed: $(cat "$TMP/dash_ng.err" 2>/dev/null)"
 fi
+
+
+# --- Test DASH-FN: app.js is functionally exercised, not just node --check ----
+# statics-scaffold.sh only parse-checks app.js; this boots the real IIFE against a
+# hand-rolled DOM/fetch/EventSource shim (no jsdom — the dashboard is zero-npm) and
+# drives the documented contract: a view registered in window.PW_VIEWS must receive
+# the fetched /state.json, and an SSE 'change' must re-fetch and re-render the new
+# state. Node-gated with a clean skip, exactly like derive.sh.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/app_fn_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+const APP = process.argv[2];
+
+// ---- minimal universal DOM element (only what app.js touches at boot/render) ----
+function El(tag) {
+  this.tagName = (tag || "div").toUpperCase();
+  this.children = [];
+  this.style = { setProperty() {}, removeProperty() {}, getPropertyValue() { return ""; } };
+  this._attr = {};
+  this.dataset = {};
+  this.classList = {
+    _s: {},
+    add(c) { this._s[c] = true; },
+    remove(c) { delete this._s[c]; },
+    toggle(c, on) { if (on === undefined) { on = !this._s[c]; } if (on) { this._s[c] = true; } else { delete this._s[c]; } return !!on; },
+    contains(c) { return !!this._s[c]; },
+  };
+  this.textContent = ""; this.innerHTML = ""; this.hidden = false;
+  this.className = ""; this.tabIndex = 0; this.value = "";
+}
+El.prototype.appendChild = function (c) { this.children.push(c); return c; };
+El.prototype.removeChild = function (c) { this.children = this.children.filter(function (x) { return x !== c; }); return c; };
+El.prototype.insertBefore = function (c) { this.children.unshift(c); return c; };
+El.prototype.append = function (c) { this.children.push(c); };
+El.prototype.replaceChildren = function () { this.children = []; };
+El.prototype.remove = function () {};
+El.prototype.addEventListener = function () {};
+El.prototype.removeEventListener = function () {};
+El.prototype.setAttribute = function (k, v) { this._attr[k] = String(v); };
+El.prototype.getAttribute = function (k) { return (k in this._attr) ? this._attr[k] : null; };
+El.prototype.hasAttribute = function (k) { return k in this._attr; };
+El.prototype.removeAttribute = function (k) { delete this._attr[k]; };
+El.prototype.querySelector = function () { return null; };
+El.prototype.querySelectorAll = function () { return []; };
+El.prototype.getContext = function () { return null; };
+El.prototype.toDataURL = function () { return ""; };
+El.prototype.focus = function () {}; El.prototype.click = function () {};
+El.prototype.contains = function () { return false; };
+
+const _byId = {};
+const doc = {
+  readyState: "complete", hidden: false, visibilityState: "visible", title: "",
+  getElementById(id) { return _byId[id] || (_byId[id] = new El()); },
+  querySelector() { return null; },
+  querySelectorAll() { return []; },
+  createElement(t) { return new El(t); },
+  createElementNS(ns, t) { return new El(t); },
+  addEventListener() {}, removeEventListener() {},
+};
+doc.body = new El("body"); doc.documentElement = new El("html"); doc.head = new El("head");
+
+let _changeHandler = null;
+function FakeEventSource() {}
+FakeEventSource.prototype.addEventListener = function (type, fn) { if (type === "change") { _changeHandler = fn; } };
+Object.defineProperty(FakeEventSource.prototype, "onopen", { set() {} });
+Object.defineProperty(FakeEventSource.prototype, "onerror", { set() {} });
+FakeEventSource.prototype.close = function () {};
+
+let SERVED = null;
+function fakeFetch(url) {
+  if (url === "/state.json") { return Promise.resolve({ ok: true, json() { return Promise.resolve(SERVED); } }); }
+  return Promise.resolve({ ok: false, text() { return Promise.resolve(null); } });  // no graph
+}
+
+const seen = [];
+const win = {
+  PW_VIEWS: { console(container, state, ctx) { seen.push({ state: state, ctx: ctx }); } },
+  PW_UI: {},
+  PW_BUS: { setNavigator() {}, focusNode() {}, clearFocus() {} },
+  addEventListener() {}, removeEventListener() {},
+  matchMedia() { return { matches: false, addEventListener() {}, addListener() {} }; },
+  requestAnimationFrame() { return 0; },
+  location: { hash: "", href: "http://x/", reload() {} },
+  localStorage: { _d: {}, getItem(k) { return (k in this._d) ? this._d[k] : null; }, setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } },
+  console: console,
+};
+
+global.window = win;
+global.document = doc;
+global.location = win.location;
+global.localStorage = win.localStorage;
+global.fetch = fakeFetch;
+global.EventSource = FakeEventSource;
+global.requestAnimationFrame = win.requestAnimationFrame;
+global.matchMedia = win.matchMedia;
+
+SERVED = {
+  schema_version: 1, root: "/x", head: "abc1234def0000", converged: false,
+  counts: { pending: 2, completed: 1, rejected: 0 }, pending_modes: {},
+  pending: [], completed: [], rejected: [], final_point: null, graph: null,
+};
+
+vm.runInThisContext(fs.readFileSync(APP, "utf8"), { filename: "app.js" });
+
+(async function () {
+  await new Promise(function (r) { setTimeout(r, 50); });
+  assert(seen.length >= 1, "registered console view never rendered after fetchState()");
+  const last = seen[seen.length - 1];
+  assert(last.state && last.state.counts.pending === 2, "view did not receive the served /state.json (pending=2)");
+
+  assert(typeof _changeHandler === "function", "app.js never registered an SSE 'change' listener");
+  SERVED = Object.assign({}, SERVED, { converged: true, counts: { pending: 0, completed: 3, rejected: 0 } });
+  _changeHandler();
+  await new Promise(function (r) { setTimeout(r, 50); });
+  const last2 = seen[seen.length - 1];
+  assert(last2.state && last2.state.converged === true && last2.state.counts.pending === 0,
+    "SSE 'change' did not re-fetch + re-render the new state");
+
+  console.log("APP-FN-OK");
+})().catch(function (e) { console.error("APP-FN-FAIL", e && e.message); process.exit(1); });
+JS
+  if node "$TMP/app_fn_test.js" "$ROOT/scripts/dashboard/app.js" >"$TMP/app_fn.out" 2>"$TMP/app_fn.err" && grep -q APP-FN-OK "$TMP/app_fn.out"; then
+    ok "dashboard app.js boots + drives state/SSE render via PW_VIEWS contract (functional, not just node --check)"
+  else
+    bad "dashboard app.js functional check failed: $(cat "$TMP/app_fn.err" 2>/dev/null)"
+  fi
+else
+  ok "dashboard app.js functional check skipped (node not installed)"
+fi
+
+
+# --- Test DASH-PORT: a busy --port fails cleanly (errno 98), not a traceback ---
+# serve() bound ThreadingHTTPServer with no guard, so a busy explicit --port raised
+# an uncaught OSError. It must now exit 2 with a clear "already in use" message.
+cat > "$TMP/dash_portbusy.py" <<'PY'
+import socket, subprocess, sys
+dash = sys.argv[1]
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", 0)); s.listen()
+port = s.getsockname()[1]
+p = subprocess.run([sys.executable, dash, "--root", ".", "--port", str(port)],
+                   capture_output=True, text=True, timeout=15)
+assert p.returncode == 2, "expected exit 2, got %r (stderr=%r)" % (p.returncode, p.stderr)
+assert "already in use" in p.stderr, p.stderr
+assert "Traceback" not in p.stderr, "leaked a traceback: " + p.stderr
+print("PORTBUSY-OK")
+PY
+if python3 "$TMP/dash_portbusy.py" "$DASH" >"$TMP/dash_pb.out" 2>"$TMP/dash_pb.err" && grep -q PORTBUSY-OK "$TMP/dash_pb.out"; then
+  ok "dashboard.py exits 2 with a clear message on a busy --port (no traceback)"
+else
+  bad "dashboard.py mishandled a busy --port: $(cat "$TMP/dash_pb.err" 2>/dev/null)"
+fi

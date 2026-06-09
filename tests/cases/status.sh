@@ -265,3 +265,28 @@ if printf '%s' "$ucx" | grep -q '"completed": 2'; then
 else
   bad "status.py undercounted an uppercase '- [X]' completed item"
 fi
+
+# --- Test STS-CONSOLIDATE: status + state agree via the one canonical parser ----
+# All plan-format parsing now routes through plan_parse, so the two JSON consumers
+# (status.py summary, state.py snapshot) must agree on the same plan — including a
+# WRAPPED field, which the old separate parsers handled differently (state.py did
+# not join continuation lines). This pins the consolidation against future drift.
+CONS="$TMP/consolidate-fix"; mkdir -p "$CONS/.planwright"
+printf -- '- [ ] alpha\n      Mode: repair\n      Evidence: scripts/x.py:1\n        wrapped continuation\n- [ ] beta\n      Mode: improve\n' > "$CONS/.planwright/plan.md"
+if python3 - "$STAT" "$ROOT/scripts/state.py" "$CONS" <<'PY'
+import json, subprocess, sys
+stat, statepy, root = sys.argv[1], sys.argv[2], sys.argv[3]
+st = json.loads(subprocess.check_output(["python3", stat, "--root", root, "--json"]))
+sv = json.loads(subprocess.check_output(["python3", statepy, "--root", root, "--out", "-"]))
+assert st["pending"] == 2, st["pending"]
+assert st["pending_modes"] == {"repair": 1, "improve": 1}, st["pending_modes"]
+# state.py's pending titles + modes must match status's view of the same plan
+assert st["pending_titles"] == [p["title"] for p in sv["pending"]], (st["pending_titles"], sv["pending"])
+assert [p["mode"] for p in sv["pending"]] == ["repair", "improve"], sv["pending"]
+# the wrapped Evidence is joined by the shared parser (old state.py dropped it)
+ev = sv["pending"][0]["evidence"]
+assert ev == "scripts/x.py:1 wrapped continuation", repr(ev)
+print("CONSOLIDATE-OK")
+PY
+then ok "status.py + state.py agree on one plan via the shared canonical parser (incl. wrapped fields)"
+else bad "status.py/state.py disagree — the consolidated parser drifted"; fi

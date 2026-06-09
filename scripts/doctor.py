@@ -262,7 +262,7 @@ def apply_gitignore_fix(root):
     return gi
 
 
-def collect(root):
+def collect(root: str) -> dict:
     """Build the full preflight payload (READ-ONLY): every check record plus the
     fail/warn/total tally and an overall `ok` flag. This is the single source the
     `--json` CLI path and the dashboard's read-only /doctor.json endpoint both render.

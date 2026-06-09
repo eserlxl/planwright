@@ -1,0 +1,19 @@
+# Coverage configuration for the planwright engine scripts.
+#
+# The smoke suite (tests/run.sh) drives scripts/*.py as subprocesses, and the
+# unit suite (tests/unit/) imports the engine directly. parallel=true lets both
+# the directly-run process and every spawned subprocess (via
+# COVERAGE_PROCESS_START + a coverage_subprocess .pth, set up in CI) write its
+# own data file, which `coverage combine` then merges before `coverage report`.
+[run]
+source = scripts
+parallel = true
+
+[report]
+# A regression that drops engine coverage below this floor fails CI. Set below
+# the current ~87% (dashboard.py's signal-killed server subprocess reads 0%) so
+# normal variance across the Python matrix never flakes the gate.
+fail_under = 75
+exclude_also =
+    if __name__ == .__main__.:
+    raise NotImplementedError

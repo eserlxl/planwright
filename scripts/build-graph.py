@@ -33,7 +33,28 @@ COUPLING_MAX_FILES_PER_COMMIT = 100
 # Upper bound (seconds) on any git/subprocess call, so a wedged git (hung credential
 # prompt, lock contention) degrades instead of hanging the whole build. Generous: the
 # heaviest call (`git log -n 200`) is bounded, so no legitimate call approaches this.
-GIT_TIMEOUT_SECONDS = 120
+# Overridable via PW_GIT_TIMEOUT_SECONDS for massive monorepos or slow/networked
+# filesystems where the default would cut off the change-coupling pass; a missing,
+# non-integer, or non-positive value falls back to the 120s default.
+def _resolve_git_timeout():
+    raw = os.environ.get("PW_GIT_TIMEOUT_SECONDS")
+    if raw is not None:
+        try:
+            v = int(raw)
+            if v > 0:
+                return v
+        except ValueError:
+            pass
+    return 120
+
+
+GIT_TIMEOUT_SECONDS = _resolve_git_timeout()
+
+# Per-file read ceiling. Files larger than this are hashed and line-counted by
+# streaming (never held in memory whole) and their symbol/import parsing is
+# skipped, so a large tracked binary, DB snapshot, or generated blob cannot make
+# the build OOM/CPU-blow up on a big repo. The node still appears in the graph.
+MAX_FILE_BYTES = 5 * 1024 * 1024
 
 # Rotating generative framings (docs/invent-exploration-design.md, lever 2) — a
 # fixed catalog of vantage *keys* the invent generative lens can reason under. The
@@ -251,24 +272,51 @@ def iter_defines(lang, text):
         yield name, pos
 
 
-def defines_of(lang, text):
+# defines_of / defines_at_of / branch_at_of each derive from the same iter_defines
+# scan. The build() node loop runs iter_defines ONCE per file and calls the
+# `_from_defs` helpers below with the shared result, so blank_comments + the symbol
+# regexes run once per file instead of three times. The public functions remain thin
+# wrappers (each does its own scan) for direct callers and tests; output is identical.
+
+def _defines_from_defs(defs):
     # de-dup, preserve source order
     seen, uniq = set(), []
-    for name, _ in iter_defines(lang, text):
+    for name, _ in defs:
         if name not in seen:
             seen.add(name)
             uniq.append(name)
     return uniq
 
 
-def defines_at_of(lang, text):
-    """Map each defined symbol to the 1-based line of its first definition, so
-    Stage 2b can jump straight to a function body instead of re-scanning the file."""
+def _defines_at_from_defs(defs, text):
     at = {}
-    for name, pos in iter_defines(lang, text):
+    for name, pos in defs:
         if name not in at:
             at[name] = text.count("\n", 0, pos) + 1
     return at
+
+
+def _branch_at_from_defs(lang, defs, text):
+    pat = BRANCH_KW.get(lang)
+    if not pat:
+        return {}
+    out = {}
+    for i, (name, start) in enumerate(defs):
+        end = defs[i + 1][1] if i + 1 < len(defs) else len(text)
+        if name not in out:
+            out[name] = len(re.findall(pat, text[start:end]))
+    return out
+
+
+def defines_of(lang, text):
+    # de-dup, preserve source order
+    return _defines_from_defs(iter_defines(lang, text))
+
+
+def defines_at_of(lang, text):
+    """Map each defined symbol to the 1-based line of its first definition, so
+    Stage 2b can jump straight to a function body instead of re-scanning the file."""
+    return _defines_at_from_defs(list(iter_defines(lang, text)), text)
 
 
 def branch_at_of(lang, text):
@@ -277,16 +325,7 @@ def branch_at_of(lang, text):
     parser-free proxy for per-function complexity that lets Stage 2b rank functions
     *within* a centrality-ranked file (see docs/architecture.md design note). First
     definition of a repeated name wins, mirroring defines_of/defines_at_of."""
-    pat = BRANCH_KW.get(lang)
-    if not pat:
-        return {}
-    defs = list(iter_defines(lang, text))  # iter_defines now yields in source order
-    out = {}
-    for i, (name, start) in enumerate(defs):
-        end = defs[i + 1][1] if i + 1 < len(defs) else len(text)
-        if name not in out:
-            out[name] = len(re.findall(pat, text[start:end]))
-    return out
+    return _branch_at_from_defs(lang, list(iter_defines(lang, text)), text)
 
 
 _TEST_DIR_SEGMENTS = {"test", "tests", "spec", "specs", "__tests__"}
@@ -450,6 +489,42 @@ def _strip_jsonc(s):
     return "".join(out)
 
 
+def _strip_trailing_commas(s):
+    """Drop trailing commas (a comma whose next non-whitespace char is `}` or `]`)
+    from JSONC, skipping string literals so a comma inside a string value like
+    `"foo, ]"` is never rewritten. A blanket regex cannot tell a real trailing comma
+    from one inside a string, hence this small char walker (a sibling of _strip_jsonc)."""
+    out, i, n, in_str = [], 0, len(s), False
+    while i < n:
+        c = s[i]
+        if in_str:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(s[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_str = False
+            i += 1
+        elif c == '"':
+            in_str = True
+            out.append(c)
+            i += 1
+        elif c == ",":
+            j = i + 1
+            while j < n and s[j] in " \t\r\n":
+                j += 1
+            if j < n and s[j] in "}]":
+                i += 1  # drop this trailing comma; keep the whitespace + bracket
+            else:
+                out.append(c)
+                i += 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
 def parse_tsconfig(path, cfg_dir):
     """Best-effort parse of a tsconfig/jsconfig `compilerOptions.paths` map into
     (base_dir, [(pattern, [repls])]), or None. base_dir = the config's dir + baseUrl,
@@ -461,7 +536,7 @@ def parse_tsconfig(path, cfg_dir):
     except OSError:
         return None
     raw = _strip_jsonc(raw)
-    raw = re.sub(r",(\s*[}\]])", r"\1", raw)  # trailing commas
+    raw = _strip_trailing_commas(raw)  # string-aware: never touches a comma in a string
     try:
         cfg = json.loads(raw)
     except ValueError:
@@ -676,7 +751,7 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
     return out
 
 
-def pagerank(nodes, edges, damping=0.85, iters=50):
+def pagerank(nodes, edges, damping=0.85, iters=50, tol=1e-9):
     n = len(nodes)
     if n == 0:
         return {}
@@ -694,7 +769,15 @@ def pagerank(nodes, edges, damping=0.85, iters=50):
                 share = damping * pr[f] / len(outs)
                 for t in outs:
                     nxt[t] += share
+        # Stop once the rank vector settles (total absolute change below tol); `iters`
+        # stays a hard cap. A small graph converges in a few passes instead of always
+        # running the fixed 50, and a large one still terminates. tol is tight enough
+        # that the fixed point — hence the ranking order — matches the fixed-iteration
+        # result.
+        delta = sum(abs(nxt[f] - pr[f]) for f in nodes)
         pr = nxt
+        if delta < tol:
+            break
     return pr
 
 
@@ -962,6 +1045,18 @@ def build(root, prior_path, scope=None, seed=None):
     if not isinstance(prior, dict):
         prior = {}
 
+    # Type-sanitize the nested prior-graph fields compute_dirty later consumes, so a
+    # hand-edited or truncated graph.json degrades to a clean rebuild instead of
+    # crashing. coupling_edges is iterated and .get()-ed per element (build() line ~931),
+    # so a string/dict value would raise AttributeError; coerce it to a list of dicts.
+    # graph_built_at_sha is interpolated into a git revision, so coerce a non-string to
+    # None (treated as "unreachable" → a graceful whole rebuild).
+    ce = prior_graph.get("coupling_edges")
+    prior_graph["coupling_edges"] = (
+        [e for e in ce if isinstance(e, dict)] if isinstance(ce, list) else [])
+    if not isinstance(prior_graph.get("graph_built_at_sha"), str):
+        prior_graph["graph_built_at_sha"] = None
+
     # churn + change-coupling
     # Prefix the commit hash so a commit boundary is detected by an unambiguous
     # delimiter, not by "line is exactly 40 hex chars" — a tracked file whose path
@@ -1022,21 +1117,55 @@ def build(root, prior_path, scope=None, seed=None):
 
     nodes, import_edges = {}, {}
     for f in files:
-        with open(os.path.join(root, f), "rb") as fh:
+        fpath = os.path.join(root, f)
+        if os.path.getsize(fpath) > MAX_FILE_BYTES:
+            # Oversized/binary: hash + count lines by streaming so the blob never
+            # lands in memory whole, and skip the decode + symbol/import parse.
+            h = hashlib.sha256()
+            sniff, loc, last = b"", 0, b"\n"
+            with open(fpath, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    if not sniff:
+                        sniff = chunk[:256]
+                    h.update(chunk)
+                    loc += chunk.count(b"\n")
+                    last = chunk[-1:]
+            import_edges[f] = []
+            nodes[f] = {
+                "sha256": h.hexdigest(),
+                "loc": loc + (0 if last == b"\n" else 1),
+                "branch_count": 0,
+                "branch_at": {},
+                "lang": lang_of(f, sniff),
+                "git_churn": churn.get(f, 0),
+                "defines": [],
+                "defines_at": {},
+                "imports": [],
+                "is_test": is_test_node(f),
+                "covered_by_test": False,
+                "pagerank": 0.0,
+                "is_articulation": False,
+                "last_audited_sha": prior.get(f, {}).get("last_audited_sha"),
+            }
+            continue
+        with open(fpath, "rb") as fh:
             blob = fh.read()
         lang = lang_of(f, blob)
         text = blob.decode("utf-8", "replace")
         imps = imports_of(lang, text, f, fileset, go_modules, ts_aliases)
         import_edges[f] = imps
+        # One symbol scan per file: defines / defines_at / branch_at all derive from it,
+        # instead of re-running iter_defines (and blank_comments) three times per file.
+        defs = list(iter_defines(lang, text))
         nodes[f] = {
             "sha256": hashlib.sha256(blob).hexdigest(),
             "loc": loc_of(blob),
             "branch_count": branch_count_of(lang, text),
-            "branch_at": branch_at_of(lang, text),
+            "branch_at": _branch_at_from_defs(lang, defs, text),
             "lang": lang,
             "git_churn": churn.get(f, 0),
-            "defines": defines_of(lang, text),
-            "defines_at": defines_at_of(lang, text),
+            "defines": _defines_from_defs(defs),
+            "defines_at": _defines_at_from_defs(defs, text),
             "imports": imps,
             "is_test": is_test_node(f),
             "covered_by_test": False,
@@ -1083,8 +1212,8 @@ def build(root, prior_path, scope=None, seed=None):
     reached = set()
     for t in test_nodes:
         reached.update(s for s in import_edges.get(t, []) if s not in test_nodes)
-    for e in coupling_edges:
-        a, b = e["a"], e["b"]
+    for edge in coupling_edges:
+        a, b = edge["a"], edge["b"]
         if a in test_nodes and b not in test_nodes:
             reached.add(b)
         if b in test_nodes and a not in test_nodes:
@@ -1152,6 +1281,7 @@ def build(root, prior_path, scope=None, seed=None):
             "coupling_window_commits": COUPLING_WINDOW_COMMITS,
             "coupling_min_cooccurrence": COUPLING_MIN_COOCCURRENCE,
             "ranked_surface_limit": RANKED_SURFACE_LIMIT,
+            "git_timeout_seconds": GIT_TIMEOUT_SECONDS,
         },
         "nodes": nodes,
         "coupling_edges": coupling_edges,

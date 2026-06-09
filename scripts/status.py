@@ -31,6 +31,19 @@ import os
 import subprocess
 import sys
 
+# status.py lives in scripts/; when run as a script (or imported by state.py) that
+# directory is sys.path[0], so the canonical plan parser imports directly.
+import plan_parse
+
+
+def _parse(path):
+    """Parse a plan-style file through the one canonical parser, or [] when absent."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return plan_parse.parse_items(fh.read())
+    except OSError:
+        return []
+
 
 def _count_checkbox(path, marker):
     """Count lines beginning with the given checkbox marker (e.g. '- [ ] ' / '- [x] ')
@@ -48,16 +61,7 @@ def _count_checkbox(path, marker):
 def _pending_titles(path):
     """Return the titles of pending (`- [ ] <title>`) items in a plan file, in order.
     A missing file yields an empty list — an absent plan is a valid state."""
-    marker = "- [ ] "
-    titles = []
-    try:
-        with open(path, encoding="utf-8") as fh:
-            for line in fh:
-                if line.startswith(marker):
-                    titles.append(line[len(marker):].strip())
-    except OSError:
-        return []
-    return titles
+    return [it["title"] for it in _parse(path) if not it["checked"]]
 
 
 # Canonical mode order for the pending breakdown (matches the plan OUTPUT FORMAT mode
@@ -71,29 +75,13 @@ def _pending_modes(path):
     ordered dict {mode: count} following _MODE_ORDER (then "other" for any absent or
     unrecognised mode), with zero-count modes omitted. The counts sum to the pending
     total, so the breakdown always reconciles. A missing file yields an empty dict."""
-    try:
-        with open(path, encoding="utf-8") as fh:
-            lines = fh.readlines()
-    except OSError:
-        return {}
     raw = {}
-    in_pending = False
-    have_mode = False
-    for line in lines:
-        if line.startswith("- ["):
-            if in_pending and not have_mode:        # previous pending item had no Mode line
-                raw["other"] = raw.get("other", 0) + 1
-            in_pending = line.startswith("- [ ] ")
-            have_mode = False
-        elif in_pending and not have_mode:
-            stripped = line.strip()
-            if stripped.startswith("Mode:"):
-                mode = stripped[len("Mode:"):].strip().lower()
-                key = mode if mode in _MODE_ORDER else "other"
-                raw[key] = raw.get(key, 0) + 1
-                have_mode = True
-    if in_pending and not have_mode:                # trailing pending item with no Mode line
-        raw["other"] = raw.get("other", 0) + 1
+    for it in _parse(path):
+        if it["checked"]:
+            continue
+        mode = it["fields"].get("Mode", "").strip().lower()
+        key = mode if mode in _MODE_ORDER else "other"
+        raw[key] = raw.get(key, 0) + 1
     ordered = {m: raw[m] for m in _MODE_ORDER if raw.get(m)}
     if raw.get("other"):
         ordered["other"] = raw["other"]
@@ -106,24 +94,8 @@ def _rejected_items(path):
     its reason is taken from the item's `Rejection:` continuation line ("" when absent, as
     a freshly value-gated reject may carry only `Status: Rejected`). A missing file yields
     an empty list — an absent rejected log is a valid state."""
-    items = []
-    try:
-        with open(path, encoding="utf-8") as fh:
-            lines = fh.readlines()
-    except OSError:
-        return []
-    cur = None
-    for line in lines:
-        if line.startswith("- ["):
-            idx = line.find("] ")
-            title = line[idx + 2:].strip() if idx != -1 else line[2:].strip()
-            cur = {"title": title, "reason": ""}
-            items.append(cur)
-        elif cur is not None and not cur["reason"]:
-            stripped = line.strip()
-            if stripped.startswith("Rejection:"):
-                cur["reason"] = stripped[len("Rejection:"):].strip()
-    return items
+    return [{"title": it["title"], "reason": it["fields"].get("Rejection", "")}
+            for it in _parse(path)]
 
 
 def _head_sha(root):
@@ -162,7 +134,7 @@ def _shas_match(a, b):
     return a.startswith(b) or b.startswith(a)
 
 
-def collect(root):
+def collect(root: str) -> dict:
     """Build the read-only state record from <root>/.planwright/."""
     pw = os.path.join(root, ".planwright")
     pending_titles = _pending_titles(os.path.join(pw, "plan.md"))

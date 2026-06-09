@@ -849,3 +849,37 @@ if [ "$ev_root" = 0 ] && [ "$ev_root_strict" = 1 ] && [ "$ev_root_real" = 0 ] &&
 else
   bad "lint-plan.py root-level evidence-anchor regression (root=$ev_root strict=$ev_root_strict real=$ev_root_real ver=$ev_ver)"
 fi
+
+# --- Test 12n: lint-plan.py accepts modern tooling in a Verification ---------
+# A real Verification like `docker run my_test_container` is multi-word and carries
+# no command-signal char, so before docker/bazel/php joined _KNOWN_EXEC it was
+# rejected as prose, blocking otherwise-correct plan items. It must now pass.
+MOD_PLAN="$TMP/modern_exec_plan.md"
+cat > "$MOD_PLAN" <<'EOF'
+# planwright Plan — .
+<!-- Session: x -->
+
+- [ ] An item verified by a container run
+      Mode: improve
+      Rationale: a real reason.
+      Evidence: scripts/build-graph.py:1 does X.
+      Surfaces: scripts/build-graph.py
+      Development: edit build() at the node loop.
+      Acceptance: the suite stays green.
+      Verification: docker run my_test_container
+
+- [ ] An item verified by a bazel target
+      Mode: improve
+      Rationale: a real reason.
+      Evidence: scripts/lint-plan.py:1 does Y.
+      Surfaces: scripts/lint-plan.py
+      Development: edit the runner whitelist.
+      Acceptance: the suite stays green.
+      Verification: bazel test //pkg:all
+EOF
+me_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$MOD_PLAN" 2>&1)"; me_rc=$?
+if [ "$me_rc" = 0 ] && ! printf '%s' "$me_out" | grep -qi 'reads as prose'; then
+  ok "lint-plan.py accepts docker/bazel Verifications (not flagged as prose)"
+else
+  bad "lint-plan.py wrongly rejected a docker/bazel Verification: $me_out"
+fi

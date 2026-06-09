@@ -24,6 +24,7 @@
 # sent no-store so the live view never reads a stale snapshot from the browser cache.
 
 import argparse
+import errno
 import json
 import os
 import sys
@@ -240,8 +241,22 @@ class Handler(BaseHTTPRequestHandler):
 def serve(root, port, open_browser=False):
     """Start the dashboard server on 127.0.0.1:<port> (0 = ephemeral). Prints the bound
     address (so a caller/test can discover an ephemeral port) and blocks serving. With
-    open_browser, best-effort opens the URL in a browser once the socket is listening."""
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    open_browser, best-effort opens the URL in a browser once the socket is listening.
+    Returns a process exit code: 0 on a clean shutdown, 2 when the port cannot be bound."""
+    try:
+        httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    except OSError as e:
+        # A busy explicit --port (errno 98 = EADDRINUSE) must fail with a clear message,
+        # not an uncaught traceback. An ephemeral port (0) failing is some other bind
+        # error, so report it generically rather than suggesting --port.
+        if port and e.errno == errno.EADDRINUSE:
+            sys.stderr.write(
+                "planwright dashboard: port %d is already in use — pick another with "
+                "--port, or use --port 0 for an automatically-chosen free port\n" % port)
+        else:
+            sys.stderr.write(
+                "planwright dashboard: cannot bind 127.0.0.1:%d (%s)\n" % (port, e))
+        return 2
     httpd.daemon_threads = True            # don't let SSE threads block process exit
     httpd.planwright_root = os.path.abspath(root)
     bound = httpd.server_address[1]
@@ -260,6 +275,7 @@ def serve(root, port, open_browser=False):
         pass
     finally:
         httpd.server_close()
+    return 0
 
 
 def main():
@@ -272,8 +288,7 @@ def main():
     ap.add_argument("--open", action="store_true",
                     help="open the dashboard URL in a browser once the server is up")
     args = ap.parse_args()
-    serve(args.root, args.port, open_browser=args.open)
-    return 0
+    return serve(args.root, args.port, open_browser=args.open)
 
 
 if __name__ == "__main__":

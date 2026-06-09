@@ -28,6 +28,7 @@ import sys
 # state.py lives beside status.py in scripts/; when run as a script that directory is
 # sys.path[0], so a plain import resolves it without any package machinery.
 import status
+import plan_parse
 
 SCHEMA_VERSION = 1
 
@@ -58,27 +59,24 @@ def _parse_items(path):
     `- [ ]`/`- [x]` checkbox line followed by 6-space-indented `Field: value`
     continuation lines. Returns, per item: title, checked (bool), and the parsed
     fields keyed by _FIELD_KEYS (list fields as arrays, others as strings). Unknown
-    continuation lines are ignored. A missing file yields an empty list."""
+    continuation lines are ignored. A missing file yields an empty list.
+
+    Parsing of the shared plan format is delegated to plan_parse (the one canonical
+    parser, also used by lint-plan.py and status.py); this only re-keys the fields to
+    the dashboard's snake_case JSON identifiers and splits the path-list fields."""
     try:
         with open(path, encoding="utf-8") as fh:
-            lines = fh.readlines()
+            text = fh.read()
     except OSError:
         return []
     items = []
-    cur = None
-    for line in lines:
-        if line.startswith("- ["):
-            idx = line.find("] ")
-            title = line[idx + 2:].strip() if idx != -1 else line[2:].strip()
-            checked = line[:idx].lower().endswith("[x") if idx != -1 else False
-            cur = {"title": title, "checked": checked}
-            items.append(cur)
-        elif cur is not None and ":" in line and line[:1].isspace():
-            label, _, value = line.strip().partition(":")
-            key = _FIELD_KEYS.get(label.strip())
-            if key is not None and key not in cur:
-                value = value.strip()
-                cur[key] = _split_paths(value) if key in _LIST_FIELDS else value
+    for it in plan_parse.parse_items(text):
+        rec = {"title": it["title"], "checked": it["checked"]}
+        for label, key in _FIELD_KEYS.items():
+            if label in it["fields"]:
+                value = it["fields"][label]
+                rec[key] = _split_paths(value) if key in _LIST_FIELDS else value
+        items.append(rec)
     return items
 
 
@@ -98,7 +96,7 @@ def _completed_item(item):
     return {"title": item["title"], "mode": item.get("mode", "")}
 
 
-def collect(root):
+def collect(root: str) -> dict:
     """Build the full dashboard state record from <root>/.planwright/, reusing
     status.collect() for the summary and adding the full pending/completed bodies."""
     pw = os.path.join(root, ".planwright")

@@ -188,6 +188,38 @@ assert rc.index("orphan.sh") < rc.index("core.sh"), rc
 PY
 then ok "ranked_cold leads the explore frontier with uncovered code (inverse of ranked_code)"; else bad "ranked_cold did not surface the uncovered frontier node first"; fi
 
+
+# --- Test 11k: build-graph.py streams + skips parsing an oversized file ------
+# A tracked file above MAX_FILE_BYTES (5MB) must be hashed and line-counted by
+# streaming but never decoded/parsed, so its symbol/branch fields stay empty
+# even though it is full of `def` — proving the whole blob never loads. A normal
+# file in the same repo is still parsed, so the skip is scoped to the big one.
+BIGREPO="$TMP/bigrepo"
+mkdir -p "$BIGREPO"
+git -C "$BIGREPO" init -q
+echo "def small(): pass" > "$BIGREPO/small.py"
+python3 -c "open('$BIGREPO/big.py','w').write('def g(): return 1\n'*450000)"  # ~8MB
+git -C "$BIGREPO" add -A
+git -C "$BIGREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+big_out="$TMP/big_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$BIGREPO" > "$big_out" 2>/dev/null
+if python3 - "$big_out" "$BIGREPO/big.py" <<'PY' 2>/dev/null
+import json, sys, hashlib, os
+g = json.load(open(sys.argv[1]))
+big = g["nodes"]["big.py"]
+small = g["nodes"]["small.py"]
+assert os.path.getsize(sys.argv[2]) > 5 * 1024 * 1024, "fixture not oversized"
+# present and correctly hashed (streamed), but symbol/import parsing was skipped
+assert big["sha256"] == hashlib.sha256(open(sys.argv[2], "rb").read()).hexdigest(), "sha mismatch"
+assert big["defines"] == [] and big["defines_at"] == {}, big
+assert big["branch_count"] == 0 and big["branch_at"] == {}, big
+assert big["imports"] == [], big
+assert big["loc"] == 450000, big["loc"]
+# a normal file in the same repo is still parsed
+assert "small" in small["defines"], small
+PY
+then ok "build-graph.py streams + skips parsing an oversized file"; else bad "build-graph.py did not skip the oversized file"; fi
+
 # --- Test 11c2c: ranked_cold's never-audited primary key outranks the covered key
 # cold_key's FIRST element is `last_audited_sha is None` (never-audited first). Test
 # 11c2b ties on it (fresh repo => both null), so isolate it here: two uncovered code
@@ -1443,3 +1475,120 @@ sys.exit(0 if re.match(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\$', d.get('built_at',''
 else
   bad "build-graph.py still depends on the external date binary (rc=$db_rc)"
 fi
+
+
+# --- Test 11l: build-graph.py rebuilds (not crashes) from a malformed prior ---
+# A hand-edited/truncated graph.json whose coupling_edges is a string used to
+# crash the incremental rebuild with AttributeError ('str' has no .get) once a
+# tracked file was deleted. It must now type-sanitize the prior and rebuild.
+MALREPO="$TMP/malprior"
+mkdir -p "$MALREPO"
+git -C "$MALREPO" init -q
+echo "x=1" > "$MALREPO/a.py"; echo "y=2" > "$MALREPO/b.py"
+git -C "$MALREPO" add -A
+git -C "$MALREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+mal_prior="$TMP/mal_prior.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$MALREPO" > "$mal_prior" 2>/dev/null
+python3 -c "import json;p=json.load(open('$mal_prior'));p['coupling_edges']='garbage';p['graph_built_at_sha']=123;json.dump(p,open('$mal_prior','w'))"
+git -C "$MALREPO" rm -q a.py
+git -C "$MALREPO" -c user.name=t -c user.email=t@e.com commit -qm "del a"
+mal_rc=0
+python3 "$ROOT/scripts/build-graph.py" --root "$MALREPO" --prior "$mal_prior" > "$TMP/mal_out.json" 2>/dev/null || mal_rc=$?
+if [ "$mal_rc" = 0 ] && python3 -c "import json,sys;sys.exit(0 if json.load(open('$TMP/mal_out.json'))['nodes'] else 1)"; then
+  ok "build-graph.py type-sanitizes a malformed prior graph and rebuilds (no crash)"
+else
+  bad "build-graph.py crashed on a malformed prior graph (rc=$mal_rc)"
+fi
+
+
+# --- Test 11m: parse_tsconfig keeps a comma inside a string literal ----------
+# The trailing-comma strip used a blanket regex `,(\s*[}\]])`, which also rewrote a
+# comma inside a string value like "weird, ]/path" — silently corrupting the alias.
+# A string-aware strip must drop the real trailing comma but preserve the in-string one.
+TSDIR="$TMP/tsconfig_case"; mkdir -p "$TSDIR"
+cat > "$TSDIR/tsconfig.json" <<'JSON'
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@x/*": ["weird, ]/path/*"],
+    }
+  }
+}
+JSON
+if python3 - "$ROOT/scripts/build-graph.py" "$TSDIR/tsconfig.json" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+res = m.parse_tsconfig(sys.argv[2], "")
+assert res is not None, "tsconfig with a trailing comma did not parse"
+base, patterns = res
+repls = dict(patterns)["@x/*"]
+# the real trailing comma was stripped (parse succeeded) AND the in-string comma kept
+assert repls == ["weird, ]/path/*"], repls
+print("TSCONFIG-OK")
+PY
+then ok "parse_tsconfig strips the trailing comma but preserves a comma inside a string literal"; else bad "parse_tsconfig corrupted a string literal when stripping trailing commas"; fi
+
+
+# --- Test 11n: defines/defines_at/branch_at share one iter_defines scan -------
+# build() now runs iter_defines once per file and derives all three symbol fields
+# from it, instead of three separate scans. Pin that the shared-scan helpers return
+# exactly what the standalone public functions do (the refactor must be output-neutral).
+if python3 - "$ROOT/scripts/build-graph.py" "$ROOT/scripts/status.py" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+text = open(sys.argv[2], encoding="utf-8").read()
+lang = "python"
+defs = list(m.iter_defines(lang, text))
+assert m._defines_from_defs(defs) == m.defines_of(lang, text)
+assert m._defines_at_from_defs(defs, text) == m.defines_at_of(lang, text)
+assert m._branch_at_from_defs(lang, defs, text) == m.branch_at_of(lang, text)
+assert m.defines_of(lang, text), "fixture should define some symbols"
+print("DEFINES-SHARED-OK")
+PY
+then ok "build-graph defines/defines_at/branch_at share one iter_defines scan (output-neutral)"; else bad "build-graph shared-defs refactor changed symbol output"; fi
+
+
+# --- Test 11o: PW_GIT_TIMEOUT_SECONDS overrides the git-call timeout ----------
+# The git timeout was hardcoded at 120s; a huge monorepo / slow FS needs to raise it
+# without editing code. A valid override is honoured (and surfaced in params); a
+# missing/invalid/non-positive value falls back to 120.
+gt_ovr="$TMP/gt_override.json"; gt_bad="$TMP/gt_bad.json"; gt_def="$TMP/gt_default.json"
+PW_GIT_TIMEOUT_SECONDS=7   python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" > "$gt_ovr" 2>/dev/null
+PW_GIT_TIMEOUT_SECONDS=abc python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" > "$gt_bad" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" > "$gt_def" 2>/dev/null
+if [ "$(ver "$gt_ovr" "['params']['git_timeout_seconds']")" = 7 ] \
+   && [ "$(ver "$gt_bad" "['params']['git_timeout_seconds']")" = 120 ] \
+   && [ "$(ver "$gt_def" "['params']['git_timeout_seconds']")" = 120 ]; then
+  ok "build-graph honours PW_GIT_TIMEOUT_SECONDS (valid override; invalid/absent -> 120)"
+else
+  bad "build-graph PW_GIT_TIMEOUT_SECONDS override not honoured"
+fi
+
+
+# --- Test 11p: pagerank stops on convergence, not a fixed 50 iterations -------
+# pagerank ran a hardcoded 50 iterations; it now breaks once the rank vector settles
+# (L1 delta < tol), with iters as a safety cap. The early-exit must reach the SAME
+# fixpoint as a high iteration count (so ranking order is unchanged), and the default
+# must equal an explicit large-iters run.
+if python3 - "$ROOT/scripts/build-graph.py" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+# an asymmetric graph whose PR is non-uniform, so convergence is non-trivial
+nodes = ["a", "b", "c", "d"]
+edges = {"a": ["b", "c"], "b": ["c"], "c": ["a"], "d": ["c"]}
+conv = m.pagerank(nodes, edges)               # default: stops early on convergence
+big = m.pagerank(nodes, edges, iters=1000)    # effectively the fixpoint
+assert all(abs(conv[f] - big[f]) < 1e-9 for f in nodes), (conv, big)
+assert abs(sum(conv.values()) - 1.0) < 1e-6, sum(conv.values())
+# non-uniform: the converged ranks are not all equal (a real ranking signal)
+assert max(conv.values()) - min(conv.values()) > 1e-3, conv
+# a hard cap of 1 iteration must NOT yet equal the fixpoint (proves it iterates)
+one = m.pagerank(nodes, edges, iters=1)
+assert any(abs(one[f] - conv[f]) > 1e-6 for f in nodes), "converged in a single pass?"
+print("PAGERANK-CONVERGE-OK")
+PY
+then ok "pagerank converges to the fixed-iteration fixpoint and stops early (stable ranking)"; else bad "pagerank convergence changed the result or did not converge"; fi

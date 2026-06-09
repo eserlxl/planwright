@@ -53,6 +53,12 @@ import os
 import re
 import sys
 
+# lint-plan.py lives in scripts/ beside the shared canonical parser. Add its own
+# directory to sys.path so `import plan_parse` resolves both when run as a script and
+# when loaded by file path (importlib) from a foreign cwd (the suite does the latter).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from plan_parse import parse_items  # noqa: E402  (after the sys.path bootstrap above)
+
 VALID_MODES = {"develop", "improve", "repair", "docs", "reorganize"}
 REQUIRED_FIELDS = ("Mode", "Rationale", "Evidence", "Surfaces",
                    "Development", "Acceptance", "Verification")
@@ -81,6 +87,13 @@ _KNOWN_EXEC = {
     "pytest", "unittest", "npm", "npx", "yarn", "pnpm", "cargo", "go", "node",
     "grep", "rg", "git", "ninja", "gradle", "mvn", "dotnet", "ruby", "rake",
     "tox", "deno", "bun", "test", "./",
+    # Containers / orchestration / IaC.
+    "docker", "docker-compose", "podman", "kubectl", "helm", "terraform",
+    # Build systems / task runners beyond the originals.
+    "bazel", "buck", "just", "task", "sbt", "meson", "scons",
+    # PHP, Perl, JVM, and other common language toolchains a Verification may use.
+    "php", "composer", "phpunit", "perl", "java", "javac", "scala", "mix",
+    "swift", "dart", "flutter", "clang", "clang++", "gcc", "g++", "cc", "c++",
 }
 
 
@@ -95,34 +108,6 @@ def is_prose_verification(norm):
     if any(ch in _CMD_SIGNAL for ch in norm):
         return False
     return tokens[0] not in _KNOWN_EXEC
-
-
-def parse_items(text):
-    """Parse plan.md into a list of items: {checked, title, line, fields}.
-    fields maps a known field name to its (possibly multi-line) value string."""
-    items = []
-    cur = None
-    field = None
-    for i, raw in enumerate(text.splitlines(), 1):
-        head = re.match(r"^- \[([ xX])\]\s*(.*)$", raw)
-        if head:
-            cur = {"checked": head.group(1).lower() == "x",
-                   "title": head.group(2).strip(), "line": i, "fields": {}}
-            items.append(cur)
-            field = None
-            continue
-        if cur is None:
-            continue
-        m = re.match(r"^\s+([A-Z][A-Za-z ]*?):\s*(.*)$", raw)
-        if m and m.group(1) in KNOWN_FIELDS:
-            field = m.group(1)
-            cur["fields"][field] = m.group(2).strip()
-        elif field is not None and raw.strip():
-            # wrapped continuation of the current field's value
-            cur["fields"][field] = (cur["fields"][field] + " " + raw.strip()).strip()
-        elif not raw.strip():
-            field = None  # blank line ends a field block
-    return items
 
 
 def split_paths(value):
@@ -305,7 +290,7 @@ def past_titles(plan_path, fname):
     if not os.path.exists(path):
         return set()
     with open(path, encoding="utf-8") as fh:
-        return {it["title"] for it in parse_items(fh.read()) if it["title"]}
+        return {it["title"] for it in parse_items(fh.read(), KNOWN_FIELDS) if it["title"]}
 
 
 # --- Auto-fix (--fix) --------------------------------------------------------
@@ -553,7 +538,7 @@ def main():
             else:
                 print("lint-plan --fix: no auto-fixable violations")
 
-    items = [it for it in parse_items(text) if args.all or not it["checked"]]
+    items = [it for it in parse_items(text, KNOWN_FIELDS) if args.all or not it["checked"]]
 
     # Human-readable lines go to stdout only in text mode: --quiet suppresses them,
     # and --json must keep stdout a single clean JSON document (any leading text would
