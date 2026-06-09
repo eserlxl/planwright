@@ -81,6 +81,32 @@ class TestImportCyclesTarjan(unittest.TestCase):
         edges = {"A": ["A"]}
         self.assertEqual(bg.import_cycles(nodes, edges, 10), [])
 
+    def test_limit_truncates_lexicographically(self):
+        # Three disjoint 2-cycles: the limit caps the result to the lexicographically
+        # smallest cycles (sccs are sorted before the slice), and limit 0 yields none.
+        nodes = ["A", "B", "C", "D", "E", "F"]
+        edges = {"A": ["B"], "B": ["A"], "C": ["D"], "D": ["C"], "E": ["F"], "F": ["E"]}
+        self.assertEqual(len(bg.import_cycles(nodes, edges, 10)), 3)
+        self.assertEqual(bg.import_cycles(nodes, edges, 2), [["A", "B"], ["C", "D"]])
+        self.assertEqual(bg.import_cycles(nodes, edges, 0), [])
+
+
+class TestResolveScope(unittest.TestCase):
+    FILES = ["src/a.py", "src/b.js", "docs/x.md", "README.md"]
+
+    def test_glob_branch(self):
+        # The fnmatch glob branch — the documented `--scope <glob>` path no CLI test reaches.
+        self.assertEqual(bg.resolve_scope("src/*.py", self.FILES), ["src/a.py"])
+
+    def test_prefix_branch(self):
+        # A bare directory matches everything under it by prefix (sorted).
+        self.assertEqual(bg.resolve_scope("src", self.FILES), ["src/a.py", "src/b.js"])
+
+    def test_exact_and_no_match(self):
+        self.assertEqual(bg.resolve_scope("README.md", self.FILES), ["README.md"])
+        self.assertEqual(bg.resolve_scope("", self.FILES), [])
+        self.assertEqual(bg.resolve_scope("nope/x", self.FILES), [])
+
 
 class TestImportResolvers(unittest.TestCase):
     def test_defines_of_python(self):

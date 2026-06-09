@@ -7,6 +7,10 @@
 __pycache__/
 *.pyc
 
+# Coverage artifacts (the CI coverage gate writes these; parallel mode suffixes them)
+.coverage
+.coverage.*
+
 # Local Claude state
 .claude/
 

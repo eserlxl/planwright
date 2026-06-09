@@ -528,6 +528,26 @@ sco_strict=0
 python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_OK" --scope "$SCG" --strict --quiet || sco_strict=$?
 if [ "$sco_strict" -eq 1 ]; then ok "lint-plan.py --strict promotes the --scope upstream-repair advisory to a failure"; else bad "lint-plan.py --scope --strict did not promote the upstream advisory (rc=$sco_strict)"; fi
 
+# Plan C: an in-Focus Surface written non-canonically (./ prefix) must pass --scope just
+# like the bare path — focus is a canonical git-ls-files set, so scope_check normalizes the
+# Surface before membership (lint_item already accepts ./scripts/lint-plan.py).
+SCP_NC="$TMP/scope_noncanon_plan.md"
+cat > "$SCP_NC" <<'EOF'
+# planwright Plan — .
+
+- [ ] A non-canonically-spelled in-focus item
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: ./scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+scnc_rc=0
+scnc_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_NC" --scope "$SCG" 2>&1)" || scnc_rc=$?
+if [ "$scnc_rc" -eq 0 ] && ! printf '%s' "$scnc_out" | grep -qF "outside the scoped component"; then ok "lint-plan.py --scope accepts a non-canonical in-Focus Surface (./x) like the bare path"; else bad "lint-plan.py --scope false-failed a non-canonical in-Focus Surface (rc=$scnc_rc): $scnc_out"; fi
+
 # Plan B: a non-repair Context Surface + an out-of-scope Surface => two violations
 SCP_BAD="$TMP/scope_bad_plan.md"
 cat > "$SCP_BAD" <<'EOF'
@@ -670,6 +690,25 @@ if printf '%s' "$fix2" | grep -q 'no auto-fixable violations' && [ "$sha1" = "$s
   ok "lint-plan.py --fix is idempotent (second run is a no-op, file byte-stable)"
 else
   bad "lint-plan.py --fix is not idempotent (re-applied a fix or changed bytes)"
+fi
+
+# --- Test 12f-crlf: --fix preserves a CRLF plan's line terminators -----------------
+# splitlines()+"\n".join() would silently LF-convert EVERY line of a CRLF plan, not just
+# the one Surfaces field it respells — corrupting an editor's/git-autocrlf checkout. Build
+# a CRLF plan with a CMakeLists Surface (forces a respell) plus an untouched item, --fix
+# it, and assert the respell landed while every line kept its \r\n terminator.
+CRROOT="$TMP/fixroot-crlf"; mkdir -p "$CRROOT/.planwright" "$CRROOT/src"
+: > "$CRROOT/src/foo.c"; : > "$CRROOT/CMakeLists.txt"
+CRPLAN="$CRROOT/.planwright/plan.md"
+printf '# planwright Plan — .\r\n\r\n- [ ] Wire it\r\n      Mode: develop\r\n      Rationale: r.\r\n      Evidence: src/foo.c:1 lacks a rule\r\n      Surfaces: src/foo.c, CMakeLists\r\n      Development: add it\r\n      Acceptance: builds\r\n      Verification: bash tests/run.sh\r\n\r\n- [ ] Untouched item\r\n      Mode: docs\r\n      Rationale: r.\r\n      Evidence: README gap\r\n      Surfaces: src/foo.c\r\n      Development: doc it\r\n      Acceptance: done\r\n      Verification: bash tests/run.sh\r\n' > "$CRPLAN"
+cr_before="$(grep -c $'\r' "$CRPLAN" || true)"
+python3 "$ROOT/scripts/lint-plan.py" --fix --root "$CRROOT" --plan "$CRPLAN" --quiet >/dev/null 2>&1 || true
+cr_after="$(grep -c $'\r' "$CRPLAN" || true)"
+if grep -q $'^      Surfaces: src/foo.c, CMakeLists.txt\r$' "$CRPLAN" \
+   && [ "$cr_before" -gt 0 ] && [ "$cr_before" = "$cr_after" ]; then
+  ok "lint-plan.py --fix preserves CRLF terminators (untouched lines stay CRLF, respell landed)"
+else
+  bad "lint-plan.py --fix corrupted CRLF terminators (before=$cr_before after=$cr_after)"
 fi
 
 # --- Test 12g: --fix never touches a non-existent Surface or a completed item ----

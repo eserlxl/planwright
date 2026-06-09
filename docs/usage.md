@@ -165,17 +165,28 @@ inspect or revert flagged invent-tier items before hardening them.
 /planwright upgrade              Update planwright itself to the latest version (alias: update)
 ```
 
-`doctor` is read-only: it reports which host tools (`python3`, `git`, `rg`, `fd`) and bundled scripts
-(`build-graph.py`, `lint-plan.py`, `lifecycle.py`, `status.py`, `check-links.py`) are available, what degrades when one is missing,
-and whether the target is a git work tree — a preflight so a run's fallbacks surface up front rather
-than mid-pipeline. It exits non-zero when a core capability (`git` or a bundled script) is unavailable.
+`doctor` is read-only **by default**: it reports which host tools (`python3`, `git`, `rg`, `fd`) and
+bundled scripts (`build-graph.py`, `lint-plan.py`, `lifecycle.py`, `status.py`, `check-links.py`,
+`plan_parse.py`, `state.py`, `lint-final.py`) are available, what degrades when one is missing, and whether the target
+is a git work tree — a preflight so a run's fallbacks surface up front rather than mid-pipeline. It
+exits non-zero when a core capability (`git` or a bundled script) is unavailable. Two opt-in flags
+change that default: `--fix` is the one **writing** exception — it adds `.planwright/` to the target's
+`.gitignore` (the other warns need the user), then re-checks; `--strict` makes any warn (missing
+`rg`/`fd`, a non-repo target, an un-ignored `.planwright/`, an unset commit identity) fail the exit
+code, for a pristine-environment CI gate.
 
 `status` is read-only: it summarizes the current planning state from `.planwright/` — pending /
 completed / rejected item counts (with the pending items' titles listed under the count, also exposed
 as a `pending_titles` array in `--json`), the recorded final point (its sha, date, `deepest_tier`, and
 whether it is **stale** relative to `HEAD`), and the graph memory (node and dirty-node counts) — so a
 maintainer can see where a project stands without running a plan or cycle. `--json` emits the same
-state as a machine-readable object; the exit code is always 0 (an empty state is valid, not an error).
+state as a machine-readable object (including a canonical `converged` boolean). By default the exit
+code is always 0 (an empty state is valid, not an error); the opt-in `--exit-code` flag is the one
+exception — it exits 0 only at a *current, valid* final point with nothing pending, else 1 (composing
+with `--json`/`--quiet`), so a wrapper or CI gate can check convergence machine-readably. "Valid" means
+the recorded `final.md` passes `lint-final.py`'s contract (a non-empty sha, all four rungs marked dry,
+and a recognized `deepest_tier`); a blank or typo'd marker that merely matches HEAD does not certify
+convergence (`status` flags it `INVALID`).
 
 `reset` (aliases `fresh` / `clean`) is the one lifecycle command that **mutates** `.planwright/`: it
 clears the tool state — graph, plan, digest, final-point marker, completed history, and state snapshot —

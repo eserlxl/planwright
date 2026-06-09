@@ -720,7 +720,19 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
         for block in re.findall(r"(?ms)^\s*import\s*\((.*?)\)", text):
             raw += re.findall(r'"([^"]+)"', block)
     elif lang == "markdown":
-        raw += re.findall(r"\[[^\]]*\]\(([^)]+)\)", text)
+        # A CommonMark link destination may be <...>-wrapped (the only form allowed to
+        # contain spaces) or carry a trailing "title"/'title' after whitespace; both
+        # otherwise reach resolve() verbatim and silently drop the edge. Take the
+        # bracketed inner path, else the first whitespace-delimited token (anything after
+        # the destination is the optional title, never part of the path).
+        for dest in re.findall(r"\[[^\]]*\]\(([^)]+)\)", text):
+            dest = dest.strip()
+            if dest.startswith("<") and ">" in dest:
+                raw.append(dest[1:dest.index(">")])
+            else:
+                tok = dest.split(None, 1)
+                if tok:
+                    raw.append(tok[0])
     out = []
     # bash sources and C includes both reach files by bare name (a sourced lib, an
     # -I include root), so both fall back to a unique basename match.

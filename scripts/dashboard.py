@@ -27,6 +27,7 @@ import argparse
 import errno
 import json
 import os
+import signal
 import sys
 import time
 import webbrowser
@@ -269,6 +270,14 @@ def serve(root, port, open_browser=False):
             webbrowser.open(url)
         except Exception:
             pass
+    # A SIGTERM (proc.terminate() from a supervisor or test harness) should unwind through
+    # the same clean shutdown as Ctrl-C: the finally runs server_close() and any atexit
+    # (e.g. the coverage flush) fires. A default SIGTERM disposition would kill the process
+    # mid-serve, skipping both. Route it to the existing KeyboardInterrupt path. (serve()
+    # runs on the main thread, so signal.signal is permitted here.)
+    def _on_sigterm(_signum, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _on_sigterm)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

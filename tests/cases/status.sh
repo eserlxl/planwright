@@ -7,6 +7,10 @@
 
 STAT="$ROOT/scripts/status.py"
 
+# A lint-final-clean final.md body (sha + four dry rung reasons + a valid deepest_tier), so a
+# fixture asserting convergence is not refused by status' final.md-validity check; $1 = sha.
+_wf_final() { printf 'sha: %s\ndate: 2026-06-09\ndeepest_tier: expand\nrepair: dry\ncoverage: dry\nopportunity: dry\nvision: dry\n' "$1"; }
+
 # --- Test STS1: real repo --json is exit 0 and carries the state keys -------------
 # Read-only: status never fails, so exit 0 even on an empty/partial .planwright.
 rc=0; out="$(python3 "$STAT" --root "$ROOT" --json)" || rc=$?
@@ -94,6 +98,28 @@ else
   bad "status.py \"other\" mode bucket wrong: $orep"
 fi
 
+# --- Test STS6d: completed items are broken down by Mode (what kind of work landed) ----
+# Symmetric to STS6b: report() appends a (mode N, ...) breakdown to the completed: line and
+# --json carries completed_modes, reconciling with the completed total. An uppercase `- [X]`
+# item is counted too (matches the case-insensitive completed count, STS10).
+CMX="$TMP/status-cmodes"; mkdir -p "$CMX/.planwright"
+printf -- '- [x] a\n      Mode: repair\n- [x] b\n      Mode: repair\n- [x] c\n      Mode: develop\n- [X] d\n      Mode: docs\n' > "$CMX/.planwright/completed.md"
+crep="$(python3 "$STAT" --root "$CMX")"
+cjson="$(python3 "$STAT" --root "$CMX" --json)"
+if printf '%s' "$crep" | grep -qE '^  completed: 4  \(repair 2, develop 1, docs 1\)$' \
+   && printf '%s' "$cjson" | python3 -c 'import json,sys; m=json.load(sys.stdin); cm=m["completed_modes"]; assert cm=={"repair":2,"develop":1,"docs":1}, cm; assert sum(cm.values())==m["completed"]==4, (cm,m["completed"])'; then
+  ok "status.py breaks completed items down by mode (report + JSON, reconciles with total, case-insensitive)"
+else
+  bad "status.py completed-mode breakdown wrong: $crep"
+fi
+ECM="$TMP/status-cmodes-empty"; mkdir -p "$ECM/.planwright"
+ecrep="$(python3 "$STAT" --root "$ECM")"
+if printf '%s' "$ecrep" | grep -qE '^  completed: 0$'; then
+  ok "status.py shows no completed-mode breakdown when nothing is completed"
+else
+  bad "status.py emitted a spurious completed-mode breakdown on an empty completed log"
+fi
+
 # --- Test STS11: rejected items surface their titles + Rejection reasons ----------
 # status lists pending titles; for the feedback loop a power user also needs to see
 # what was rejected and why without cat'ing rejected.md. The readable report lists the
@@ -179,6 +205,23 @@ else
   bad "status.py crashed or mis-rendered on a numeric graph_built_at_sha: $nrep"
 fi
 
+# --- Test STS7d: a non-UTF-8 (corrupt) plan-state file degrades, not crashes -------
+# status is read-only and "never errors" — a non-UTF-8 final.md/plan.md (raises
+# UnicodeDecodeError, a ValueError subclass, not OSError) must degrade like a corrupt
+# graph.json (STS7b), not traceback. final.md -> none-recorded; plan.md -> 0 pending.
+UFX="$TMP/status-nonutf8"; mkdir -p "$UFX/.planwright"
+printf '\377\376bad bytes\n' > "$UFX/.planwright/final.md"
+printf '\377\376bad bytes\n' > "$UFX/.planwright/plan.md"
+urc=0; urep="$(python3 "$STAT" --root "$UFX" 2>/dev/null)" || urc=$?
+ujrc=0; python3 "$STAT" --root "$UFX" --json >/dev/null 2>&1 || ujrc=$?
+if [ "$urc" = 0 ] && [ "$ujrc" = 0 ] \
+   && printf '%s' "$urep" | grep -qF 'final point: none recorded' \
+   && printf '%s' "$urep" | grep -qE '^  pending:   0'; then
+  ok "status.py degrades (exit 0) on a non-UTF-8 final.md/plan.md instead of tracebacking"
+else
+  bad "status.py crashed or mis-rendered on a non-UTF-8 plan-state file (rc=$urc json_rc=$ujrc)"
+fi
+
 # --- Test STS4: final-point staleness is HEAD-relative in a git fixture -----------
 # A final.md whose sha != HEAD is STALE; rewriting it to the real HEAD clears it.
 GFIX="$TMP/status-git"; mkdir -p "$GFIX/.planwright"
@@ -210,8 +253,8 @@ ECX="$TMP/status-exitcode"; mkdir -p "$ECX/.planwright"
     && git commit -q --allow-empty -m init ) 2>/dev/null
 echead="$(git -C "$ECX" rev-parse HEAD 2>/dev/null)"
 if [ -n "$echead" ]; then
-  # converged: current final point, no plan.md (0 pending) -> rc 0
-  printf 'sha: %s\ndeepest_tier: expand\n' "$echead" > "$ECX/.planwright/final.md"
+  # converged: current, VALID final point, no plan.md (0 pending) -> rc 0
+  _wf_final "$echead" > "$ECX/.planwright/final.md"
   rc_conv=0; python3 "$STAT" --root "$ECX" --exit-code --quiet || rc_conv=$?
   # default (no flag) still exits 0 even with a pending item present
   printf -- '- [ ] some pending item\n' > "$ECX/.planwright/plan.md"
@@ -240,7 +283,7 @@ CVX="$TMP/status-converged"; mkdir -p "$CVX/.planwright"
     && git commit -q --allow-empty -m init ) 2>/dev/null
 cvhead="$(git -C "$CVX" rev-parse HEAD 2>/dev/null)"
 if [ -n "$cvhead" ]; then
-  printf 'sha: %s\ndeepest_tier: expand\n' "$cvhead" > "$CVX/.planwright/final.md"
+  _wf_final "$cvhead" > "$CVX/.planwright/final.md"
   conv_true="$(python3 "$STAT" --root "$CVX" --json)"
   printf -- '- [ ] pending\n' > "$CVX/.planwright/plan.md"
   conv_false="$(python3 "$STAT" --root "$CVX" --json)"
@@ -252,6 +295,53 @@ if [ -n "$cvhead" ]; then
   fi
 else
   ok "status.py converged-field check skipped (git unavailable)"
+fi
+
+# --- Test STS9b: a HEAD-matching but MALFORMED final.md does not certify convergence ----
+# _converged now also requires the final.md to pass lint-final's contract, so a final.md
+# whose sha matches HEAD with 0 pending but which is rungless (a lint-final violation) is
+# reported converged:false / --exit-code rc 1, and the report flags it INVALID. This closes
+# the hole where a blank/typo'd marker certified the north star on a bare sha match.
+IVX="$TMP/status-invalid-final"; mkdir -p "$IVX/.planwright"
+( cd "$IVX" && git init -q && git config user.email t@t && git config user.name t \
+    && git commit -q --allow-empty -m init ) 2>/dev/null
+ivhead="$(git -C "$IVX" rev-parse HEAD 2>/dev/null)"
+if [ -n "$ivhead" ]; then
+  # sha matches HEAD (not stale) but no rung reasons -> lint-final rejects it
+  printf 'sha: %s\ndeepest_tier: expand\n' "$ivhead" > "$IVX/.planwright/final.md"
+  iv_json="$(python3 "$STAT" --root "$IVX" --json)"
+  iv_rep="$(python3 "$STAT" --root "$IVX")"
+  iv_rc=0; python3 "$STAT" --root "$IVX" --exit-code --quiet || iv_rc=$?
+  if printf '%s' "$iv_json" | grep -q '"converged": false' \
+     && printf '%s' "$iv_json" | grep -q '"valid": false' \
+     && [ "$iv_rc" = 1 ] \
+     && printf '%s' "$iv_rep" | grep -q 'INVALID'; then
+    ok "status.py refuses convergence for a HEAD-matching but malformed (rungless) final.md"
+  else
+    bad "status.py certified a malformed final.md (rc=$iv_rc json=$iv_json)"
+  fi
+else
+  ok "status.py malformed-final-point check skipped (git unavailable)"
+fi
+
+# --- Test STS8b: a final point is NOT converged when HEAD is unconfirmable ----------
+# When git is unavailable (or the target is not a work tree) _head_sha returns "", so the
+# recorded sha cannot be shown to equal HEAD. status must then NOT report the point
+# converged/current: --json carries converged:false / stale:true and --exit-code returns
+# 1. Regression: a `bool(head) and ...` guard previously coerced an unconfirmable point to
+# fresh, so a non-repo target falsely reported convergence (rc 0).
+NGT="$TMP/status-nogit"; mkdir -p "$NGT/.planwright"
+printf 'sha: abc1234567\ndeepest_tier: expand\n' > "$NGT/.planwright/final.md"
+STUB="$TMP/nogit-bin"; mkdir -p "$STUB"
+printf '#!/bin/sh\nexit 127\n' > "$STUB/git"; chmod +x "$STUB/git"
+ngj="$(PATH="$STUB:$PATH" python3 "$STAT" --root "$NGT" --json)"
+rc_ng=0; PATH="$STUB:$PATH" python3 "$STAT" --root "$NGT" --exit-code --quiet || rc_ng=$?
+if printf '%s' "$ngj" | grep -q '"converged": false' \
+   && printf '%s' "$ngj" | grep -q '"stale": true' \
+   && [ "$rc_ng" = 1 ]; then
+  ok "status.py is not converged when HEAD is unconfirmable (git off): converged:false, rc 1"
+else
+  bad "status.py wrongly reported convergence with git unavailable (rc=$rc_ng json=$ngj)"
 fi
 
 # --- Test STS10: completed count is case-insensitive on the x marker --------------

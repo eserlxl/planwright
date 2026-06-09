@@ -65,6 +65,24 @@ else
   bad "state.py mis-listed completed/rejected items"
 fi
 
+# --- Test ST3b: rejected count reconciles with the rejected[] array on a bad marker ----
+# counts.rejected must equal len(rejected[]) even when rejected.md carries a non-canonical
+# marker (e.g. `- [-]`): the count is derived from the same canonical parser as the array,
+# not a loose `- [` prefix scan that would over-count the malformed line.
+RCX="$TMP/state-reject-recon"; mkdir -p "$RCX/.planwright"
+printf -- '- [-] partial reject\n      Rejection: nope\n- [ ] valid reject\n      Rejection: yes\n' \
+  > "$RCX/.planwright/rejected.md"
+if python3 "$STATE" --root "$RCX" --out - | python3 -c '
+import json, sys
+s = json.load(sys.stdin)
+assert s["counts"]["rejected"] == len(s["rejected"]), (s["counts"]["rejected"], len(s["rejected"]))
+assert s["counts"]["rejected"] == 1, s["counts"]["rejected"]
+'; then
+  ok "state.py rejected count reconciles with the rejected[] array on a non-canonical marker"
+else
+  bad "state.py rejected count disagrees with the rejected[] array"
+fi
+
 # --- Test ST4: --out writes .planwright/state.json by default ---------------------
 OFX="$TMP/state-out"; mkdir -p "$OFX/.planwright"
 printf -- '- [ ] one\n      Mode: improve\n' > "$OFX/.planwright/plan.md"
@@ -107,4 +125,17 @@ assert "done not drained" not in titles, titles
   ok "state.py keeps checked plan.md items out of pending (pending length reconciles with counts.pending)"
 else
   bad "state.py leaked a checked item into the pending array"
+fi
+
+# --- Test ST-nonutf8: state.py degrades on a non-UTF-8 plan.md (mirrors status.py) -----
+# state.py._parse_items reads UTF-8; a non-UTF-8 plan.md/completed.md raises
+# UnicodeDecodeError (a ValueError subclass) and must degrade to [] (exit 0) like status.py's
+# readers, not crash the dashboard's machine-state emitter.
+NUS="$TMP/state-nonutf8"; mkdir -p "$NUS/.planwright"
+printf '\377\376garbage\n' > "$NUS/.planwright/plan.md"
+nus_rc=0; nus="$(python3 "$STATE" --root "$NUS" --out - 2>/dev/null)" || nus_rc=$?
+if [ "$nus_rc" = 0 ] && printf '%s' "$nus" | python3 -c 'import json,sys; s=json.load(sys.stdin); assert s["counts"]["pending"]==0 and s["pending"]==[], s'; then
+  ok "state.py degrades (exit 0) on a non-UTF-8 plan.md instead of crashing"
+else
+  bad "state.py crashed or mis-rendered on a non-UTF-8 plan.md (rc=$nus_rc)"
 fi

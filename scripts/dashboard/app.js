@@ -335,7 +335,7 @@
     if (fetching) { refetch = true; return Promise.resolve(); }
     fetching = true;
     return Promise.all([
-      fetch("/state.json").then(function (r) { return r.json(); }),
+      fetch("/state.json").then(function (r) { if (!r.ok) { throw new Error("state " + r.status); } return r.json(); }),
       fetch("/graph.json").then(function (r) { return r.ok ? r.text() : null; })
         .catch(function () { return null; }),
     ]).then(function (res) {

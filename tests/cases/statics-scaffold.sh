@@ -68,6 +68,23 @@ if grep -q "smoke-test bump" "$WORK/CHANGELOG.md"; then ok "changelog -m note ap
 sv="$(grep -m1 '  version:' "$WORK/skills/planwright/SKILL.md" | sed -E 's/.*"([^"]+)".*/\1/')"
 if [ "$sv" = "$pj" ]; then ok "skill frontmatter in lockstep ($sv)"; else bad "skill version drift: skill=$sv manifest=$pj"; fi
 
+# --- Test 1b: --dry-run agrees with the real run on an unquoted skill version ----------
+# The preview must predict the real run. The real rewrite only touches a QUOTED metadata
+# version, so an unquoted (YAML-legal) `  version: X` is skipped — and --dry-run must report
+# it skipped too, not falsely "would sync" (regression: a looser dry-run probe regex).
+sed -i -E '0,/^  version:/ s/^(  version:)[[:space:]]*"[^"]*"/\1 9.9.9/' "$WORK/skills/planwright/SKILL.md"
+dry_out="$("$WORK/scripts/bump-version.sh" patch --dry-run 2>&1 || true)"
+dry_rc=0; "$WORK/scripts/bump-version.sh" patch --dry-run >/dev/null 2>&1 || dry_rc=$?
+real_out="$("$WORK/scripts/bump-version.sh" patch 2>&1 || true)"
+if printf '%s' "$dry_out" | grep -q 'skipped' \
+   && ! printf '%s' "$dry_out" | grep -q 'would sync skills/planwright/SKILL.md' \
+   && [ "$dry_rc" = 0 ] \
+   && printf '%s' "$real_out" | grep -q 'skipped'; then
+  ok "bump-version --dry-run agrees with the real run on an unquoted skill version (both skip, dry-run exit 0)"
+else
+  bad "bump-version --dry-run disagrees with the real run on an unquoted version (dry_rc=$dry_rc dry=[$dry_out])"
+fi
+
 # --- Test 2: make-plugin.sh scaffolds a valid plugin ----------------------
 GEN="$TMP/gen"
 NO_GIT=1 PLUGIN_DESC="Smoke test plugin." "$ROOT/scripts/make-plugin.sh" demo "$GEN" >/dev/null

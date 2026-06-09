@@ -180,6 +180,10 @@ raw output never enters context.
    directory's `.go` files; stdlib, external, and cross-module imports drop.)
 3. **Extract change-coupling** from `git log --name-only --format=%H -n <window>` in the
    sandbox: count file pairs per commit, keep pairs with `cooccur >= coupling_min_cooccurrence`.
+   Each git subprocess is bounded by a **120-second timeout**, overridable via the
+   `PW_GIT_TIMEOUT_SECONDS` environment variable (a positive integer; a non-integer or
+   non-positive value falls back to 120) — raise it for very large or slow/networked
+   repositories where the default would cut off the change-coupling pass.
 4. **Compute metrics** on the import graph: PageRank (centrality) and articulation points.
 5. **Cluster** via connected components / community detection; assign a short label.
 6. **Rank** nodes: primary by `pagerank`, boosted if `is_articulation`, tiebreak `git_churn`.

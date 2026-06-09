@@ -158,6 +158,28 @@ assert all(g["nodes"][f]["branch_count"] > 0 for f in g["ranked_code"]), g["rank
 PY
 then ok "ranked_code holds only code nodes, excluding zero-branch docs"; else bad "ranked_code leaked a zero-branch node or dropped a code node"; fi
 
+# --- Test 11c-md: markdown link titles + angle-bracketed destinations resolve -----
+# A CommonMark destination with a "title" — [x](./b.md "T") — or angle-wrapped —
+# [x](<c.md>) — used to reach resolve() verbatim and silently drop the import edge.
+# Both must now resolve like a plain link, while a plain link and an external/# link
+# are unchanged.
+MDREPO="$TMP/md_link_repo"; mkdir -p "$MDREPO"
+git -C "$MDREPO" init -q
+printf '# a\n[t](./b.md "Title here")\n[u](<c.md>)\n[v](./d.md)\n[ext](https://x/y)\n[frag](b.md#sec)\n' > "$MDREPO/a.md"
+for n in b c d; do printf '# %s\n' "$n" > "$MDREPO/$n.md"; done
+git -C "$MDREPO" add -A
+git -C "$MDREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+md_out="$TMP/md_link_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$MDREPO" > "$md_out" 2>/dev/null
+if python3 - "$md_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+imp = set(g["nodes"]["a.md"]["imports"])
+assert {"b.md", "c.md", "d.md"} <= imp, imp        # titled, angle-wrapped, plain all resolve
+assert not any(i.startswith("http") for i in imp), imp   # external dropped
+PY
+then ok "build-graph.py resolves markdown link titles and angle-bracketed destinations"; else bad "build-graph.py dropped a titled/angle-bracketed markdown import edge"; fi
+
 # --- Test 11c2b: ranked_cold surfaces the explore frontier (uncovered first) ----
 # ranked_cold is the inverse of ranked_code for the opt-in `explore` escalation: it
 # leads with the code the default hot-core routing neglects. On a fresh build both

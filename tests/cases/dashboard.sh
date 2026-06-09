@@ -158,7 +158,12 @@ try:
 finally:
     proc.terminate()
     try:
-        proc.wait(timeout=5)
+        rc = proc.wait(timeout=5)
+        # serve()'s SIGTERM handler routes to its KeyboardInterrupt/finally clean shutdown,
+        # so a terminated server exits 0 (not killed by the default SIGTERM disposition),
+        # which lets the coverage atexit flush run for the server subprocess.
+        if rc == 0:
+            print("SIGTERM-CLEAN-EXIT")
     except subprocess.TimeoutExpired:
         proc.kill()
 PY
@@ -172,6 +177,11 @@ if grep -q DASH-OK "$TMP/dash.out"; then
   ok "dashboard.py serves /state.json (JSON) + /events (text/event-stream), refuses traversal + foreign Host"
 else
   bad "dashboard.py endpoint check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q SIGTERM-CLEAN-EXIT "$TMP/dash.out"; then
+  ok "dashboard.py shuts down cleanly on SIGTERM (proc.terminate() -> exit 0, atexit can flush)"
+else
+  bad "dashboard.py did not exit 0 on SIGTERM (no clean-shutdown handler): $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
 if grep -q SSE-CHANGE-OK "$TMP/dash.out"; then
   ok "dashboard.py /events pushes a change event when .planwright/ mutates (live update)"
@@ -354,8 +364,12 @@ Object.defineProperty(FakeEventSource.prototype, "onerror", { set() {} });
 FakeEventSource.prototype.close = function () {};
 
 let SERVED = null;
+let STATE_OK = true;  // flip to simulate the server returning HTTP 500 for /state.json
 function fakeFetch(url) {
-  if (url === "/state.json") { return Promise.resolve({ ok: true, json() { return Promise.resolve(SERVED); } }); }
+  if (url === "/state.json") {
+    if (!STATE_OK) { return Promise.resolve({ ok: false, status: 500, json() { return Promise.resolve({ error: "boom" }); } }); }
+    return Promise.resolve({ ok: true, json() { return Promise.resolve(SERVED); } });
+  }
   return Promise.resolve({ ok: false, text() { return Promise.resolve(null); } });  // no graph
 }
 
@@ -402,6 +416,15 @@ vm.runInThisContext(fs.readFileSync(APP, "utf8"), { filename: "app.js" });
   const last2 = seen[seen.length - 1];
   assert(last2.state && last2.state.converged === true && last2.state.counts.pending === 0,
     "SSE 'change' did not re-fetch + re-render the new state");
+
+  // A /state.json HTTP 500 (error body) must NOT be rendered as a snapshot: the r.ok guard
+  // routes it to fetchState's .catch, so no view ever receives the {error:...} body
+  // (regression: app.js used to json()-parse a 500 body straight into the view).
+  STATE_OK = false;
+  _changeHandler();
+  await new Promise(function (r) { setTimeout(r, 50); });
+  assert(seen.every(function (s) { return s.state && s.state.counts && s.state.error === undefined; }),
+    "a /state.json 500 error body was handed to a view as a state snapshot (missing r.ok guard)");
 
   console.log("APP-FN-OK");
 })().catch(function (e) { console.error("APP-FN-FAIL", e && e.message); process.exit(1); });

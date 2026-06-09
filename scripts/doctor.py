@@ -10,9 +10,10 @@
 #      change-coupling + execute commits), rg/fd (fast scanning in Stage 1). Each is
 #      reported present/absent with the version and exactly what degrades when absent.
 #   2. Bundled-script resolution — the sibling scripts under this file's directory
-#      (build-graph.py, lint-plan.py, lifecycle.py). This is the `<scripts>` seam the
-#      SKILL.md resolves per "Procedure → Bundled scripts"; doctor confirms it from the
-#      script's own location so a broken install is caught before Stage 1.5.
+#      (build-graph.py, lint-plan.py, lifecycle.py, status.py, check-links.py,
+#      plan_parse.py, state.py, lint-final.py — the full BUNDLED set below). This is the `<scripts>`
+#      seam the SKILL.md resolves per "Procedure → Bundled scripts"; doctor confirms it
+#      from the script's own location so a broken install is caught before Stage 1.5.
 #
 # It also reports whether the --root target is a git work tree (graph build needs one),
 # whether that tree gitignores .planwright/ — the directory MISSION.md keeps all tool
@@ -45,6 +46,9 @@ BUNDLED = [
     ("lifecycle.py", "Stage 0 lifecycle housekeeping (drain / FIFO / reset)"),
     ("status.py", "the `status` read-only planning-state summary"),
     ("check-links.py", "the intra-repo Markdown link-check verification command"),
+    ("plan_parse.py", "the canonical plan.md parser (status.py / lint-plan.py import it)"),
+    ("state.py", "the dashboard /state.json snapshot source (state.collect)"),
+    ("lint-final.py", "the Stage 11 final.md / final-point validator"),
 ]
 
 

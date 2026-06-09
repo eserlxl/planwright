@@ -36,12 +36,45 @@ import sys
 import plan_parse
 
 
+def _load_lint_final():
+    """Load the sibling lint-final.py validator (its hyphenated name is not a plain import).
+    Returns the module, or None when it cannot be loaded — in which case convergence falls
+    back to the sha+pending check rather than crashing this read-only tool."""
+    try:
+        import importlib.util
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lint-final.py")
+        spec = importlib.util.spec_from_file_location("planwright_lint_final", path)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+_LINT_FINAL = _load_lint_final()
+
+
+def _final_valid(root):
+    """True when the recorded final.md passes lint-final's structural contract (a non-empty
+    sha, all four rungs marked dry with a reason, a valid deepest_tier). Falls back to True
+    when the validator cannot load, so a missing validator never makes convergence stricter
+    than the historical sha+pending check."""
+    if _LINT_FINAL is None:
+        return True
+    try:
+        return bool(_LINT_FINAL.collect(root)["ok"])
+    except Exception:
+        return True
+
+
 def _parse(path):
     """Parse a plan-style file through the one canonical parser, or [] when absent."""
     try:
         with open(path, encoding="utf-8") as fh:
             return plan_parse.parse_items(fh.read())
-    except OSError:
+    except (OSError, ValueError):  # also degrade (not crash) on a non-UTF-8/undecodable file
         return []
 
 
@@ -54,7 +87,7 @@ def _count_checkbox(path, marker):
     try:
         with open(path, encoding="utf-8") as fh:
             return sum(1 for line in fh if line.lower().startswith(marker))
-    except OSError:
+    except (OSError, ValueError):  # also degrade (not crash) on a non-UTF-8/undecodable file
         return 0
 
 
@@ -78,6 +111,24 @@ def _pending_modes(path):
     raw = {}
     for it in _parse(path):
         if it["checked"]:
+            continue
+        mode = it["fields"].get("Mode", "").strip().lower()
+        key = mode if mode in _MODE_ORDER else "other"
+        raw[key] = raw.get(key, 0) + 1
+    ordered = {m: raw[m] for m in _MODE_ORDER if raw.get(m)}
+    if raw.get("other"):
+        ordered["other"] = raw["other"]
+    return ordered
+
+
+def _completed_modes(path):
+    """Tally completed (`- [x]`/`- [X]`) items by their `Mode:` continuation line — same
+    shape as _pending_modes (ordered by _MODE_ORDER, then "other"), so the counts sum to
+    the completed total and the breakdown always reconciles. A missing file yields {}.
+    Lets a maintainer see what *kind* of work actually landed, not just how much."""
+    raw = {}
+    for it in _parse(path):
+        if not it["checked"]:
             continue
         mode = it["fields"].get("Mode", "").strip().lower()
         key = mode if mode in _MODE_ORDER else "other"
@@ -116,7 +167,7 @@ def _parse_final(path):
     try:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
-    except OSError:
+    except (OSError, ValueError):  # also degrade (not crash) on a non-UTF-8/undecodable file
         return None
     fields = {"sha": "", "date": "", "deepest_tier": ""}
     for line in text.splitlines():
@@ -141,19 +192,31 @@ def collect(root: str) -> dict:
     pending = len(pending_titles)
     pending_modes = _pending_modes(os.path.join(pw, "plan.md"))
     completed = _count_checkbox(os.path.join(pw, "completed.md"), "- [x]")
-    rejected = _count_checkbox(os.path.join(pw, "rejected.md"), "- [")
+    completed_modes = _completed_modes(os.path.join(pw, "completed.md"))
     rejected_items = _rejected_items(os.path.join(pw, "rejected.md"))
+    # Derive the count from the canonical parser (same source as rejected_items) rather than
+    # the loose `- [` prefix scan, so counts.rejected can never disagree with the rejected[]
+    # array it accompanies on a non-canonical marker line (e.g. `- [-]`).
+    rejected = len(rejected_items)
     head = _head_sha(root)
 
     final = _parse_final(os.path.join(pw, "final.md"))
     final_rec = None
     if final is not None:
-        stale = bool(head) and not _shas_match(final["sha"], head)
+        # An unconfirmable HEAD (git unavailable / not a work tree, so head == "") means
+        # the recorded sha cannot be shown to equal HEAD — treat the point as stale rather
+        # than silently "fresh", so _converged / --exit-code never claim a convergence they
+        # cannot actually verify (the north-star contract _converged documents).
+        stale = (not head) or not _shas_match(final["sha"], head)
         final_rec = {
             "sha": final["sha"],
             "date": final["date"],
             "deepest_tier": final["deepest_tier"],
             "stale": stale,
+            # A recorded final point that fails lint-final's contract (blank/typo'd/rungless)
+            # is not a trustworthy terminal state — surface it so _converged can refuse to
+            # certify it (the north star: a final-point claim must mean it).
+            "valid": _final_valid(root),
         }
 
     graph_rec = None
@@ -186,6 +249,7 @@ def collect(root: str) -> dict:
         "pending_titles": pending_titles,
         "pending_modes": pending_modes,
         "completed": completed,
+        "completed_modes": completed_modes,
         "rejected": rejected,
         "rejected_items": rejected_items,
         "final_point": final_rec,
@@ -203,7 +267,9 @@ def report(state, quiet):
     print("  pending:   %d%s" % (state["pending"], breakdown))
     for title in state["pending_titles"]:
         print("    - " + title)
-    print("  completed: %d" % state["completed"])
+    cmodes = state.get("completed_modes") or {}
+    cbreak = "  (%s)" % ", ".join("%s %d" % (m, c) for m, c in cmodes.items()) if cmodes else ""
+    print("  completed: %d%s" % (state["completed"], cbreak))
     print("  rejected:  %d" % state["rejected"])
     for item in state["rejected_items"]:
         suffix = " — " + item["reason"] if item["reason"] else ""
@@ -214,8 +280,12 @@ def report(state, quiet):
         print("  final point: none recorded (the ladder is open)")
     else:
         tier = fp["deepest_tier"] or "(unrecorded tier)"
-        flag = "STALE — HEAD has moved; a fresh run re-opens the ladder" if fp["stale"] \
-            else "current"
+        if fp["stale"]:
+            flag = "STALE — HEAD has moved; a fresh run re-opens the ladder"
+        elif not fp.get("valid", True):
+            flag = "INVALID — final.md fails lint-final's contract (not a trusted final point)"
+        else:
+            flag = "current"
         print("  final point: %s (%s) deepest_tier=%s — %s"
               % (fp["sha"] or "?", fp["date"] or "?", tier, flag))
 
@@ -229,12 +299,14 @@ def report(state, quiet):
 
 
 def _converged(state):
-    """True when the project is at a *current* final point with no pending work: a final
-    point is recorded, it is not stale (its sha is HEAD), and nothing is pending. This is
-    the machine-checkable form of the north star — "when planwright says final point, it
-    means it" — that the opt-in --exit-code flag maps to a 0/1 exit status."""
+    """True when the project is at a *current, valid* final point with no pending work: a
+    final point is recorded, it is not stale (its sha is HEAD), it passes lint-final's
+    structural contract (so a blank/typo'd/rungless marker cannot certify convergence), and
+    nothing is pending. This is the machine-checkable form of the north star — "when
+    planwright says final point, it means it" — that the opt-in --exit-code flag maps to a
+    0/1 exit status."""
     fp = state["final_point"]
-    return bool(fp) and not fp["stale"] and state["pending"] == 0
+    return bool(fp) and not fp["stale"] and fp.get("valid", True) and state["pending"] == 0
 
 
 def main():

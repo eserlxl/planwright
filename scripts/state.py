@@ -67,7 +67,10 @@ def _parse_items(path):
     try:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
-    except OSError:
+    except (OSError, ValueError):
+        # Mirror status.py's readers: a non-UTF-8/undecodable plan.md or completed.md
+        # (UnicodeDecodeError is a ValueError subclass) degrades to [] rather than crashing
+        # this read-only snapshot — the dashboard surface must survive corrupt input.
         return []
     items = []
     for it in plan_parse.parse_items(text):

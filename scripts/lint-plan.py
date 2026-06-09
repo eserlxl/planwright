@@ -268,9 +268,14 @@ def scope_check(item, focus, context):
     mode = f.get("Mode", "")
     viols, advs = [], []
     for p in split_paths(f.get("Surfaces", "")):
-        if p in focus:
+        # focus/context are canonical git-ls-files node ids (no leading `./`, no doubled
+        # separators); normalize the Surface the same way before the membership test so a
+        # non-canonical spelling that lint_item already accepts (./x, x//y) is not
+        # false-failed as out-of-scope. The original spelling stays in any message.
+        key = os.path.normpath(p).replace("\\", "/")
+        if key in focus:
             continue
-        if p in context:
+        if key in context:
             if mode == "repair":
                 advs.append(f"repair Surface '{p}' is upstream of Focus (Context) — "
                             "confirm Evidence proves the in-Focus impact")
@@ -357,6 +362,12 @@ def fix_text(text, root, include_checked=False):
     Edits are surgical (only the Surfaces / New Surfaces field lines are rewritten) and
     applied bottom-up so line indices stay valid. Re-emitting a touched field normalizes
     it to a single comma-joined line; untouched items are left exactly as written."""
+    # Preserve the file's dominant line terminator: splitlines() drops it, and a hardcoded
+    # "\n" rejoin would silently rewrite a CRLF plan's untouched lines to LF, breaking the
+    # "untouched items left exactly as written" promise (real for a Windows / git autocrlf
+    # checkout). Pick the majority terminator and rejoin with it.
+    crlf = text.count("\r\n")
+    nl = "\r\n" if crlf > text.count("\n") - crlf else "\n"
     had_nl = text.endswith("\n")
     lines = text.splitlines()
     items = field_spans(lines)
@@ -414,9 +425,9 @@ def fix_text(text, root, include_checked=False):
     for start, end, repl in sorted(edits, key=lambda e: e[0], reverse=True):
         lines[start:end] = repl
 
-    new_text = "\n".join(lines)
-    if had_nl and not new_text.endswith("\n"):
-        new_text += "\n"
+    new_text = nl.join(lines)
+    if had_nl and not new_text.endswith(nl):
+        new_text += nl
     return new_text, changes
 
 
@@ -525,11 +536,17 @@ def main():
 
     fixes = []
     if args.fix:
-        fixed, fixes = fix_text(text, root, args.all)
+        # Read raw (newline-preserving) so fix_text keeps the file's CRLF/LF terminators on
+        # its surgical rewrite — the default universal-newline read above already collapsed
+        # \r\n to \n, which a write-back would then make permanent. The lint parse below
+        # stays on the normalized `text`.
+        with open(args.plan, encoding="utf-8", newline="") as fh:
+            raw = fh.read()
+        fixed, fixes = fix_text(raw, root, args.all)
         if fixes:
-            with open(args.plan, "w", encoding="utf-8") as fh:
+            with open(args.plan, "w", encoding="utf-8", newline="") as fh:
                 fh.write(fixed)
-            text = fixed
+            text = fixed.replace("\r\n", "\n").replace("\r", "\n")
         if not args.quiet and not args.json:
             if fixes:
                 print(f"lint-plan --fix: applied {len(fixes)} fix(es):")
