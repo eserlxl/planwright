@@ -160,6 +160,7 @@ inspect or revert flagged invent-tier items before hardening them.
 ```bash
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
 /planwright status               Read-only: summarize plan / final-point / graph state (--json)
+/planwright reset                Cold start: clear .planwright/ but keep rejected.md (aliases: fresh, clean)
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version (alias: update)
 ```
@@ -175,6 +176,18 @@ as a `pending_titles` array in `--json`), the recorded final point (its sha, dat
 whether it is **stale** relative to `HEAD`), and the graph memory (node and dirty-node counts) — so a
 maintainer can see where a project stands without running a plan or cycle. `--json` emits the same
 state as a machine-readable object; the exit code is always 0 (an empty state is valid, not an error).
+
+`reset` (aliases `fresh` / `clean`) is the one lifecycle command that **mutates** `.planwright/`: it
+clears the tool state — graph, plan, digest, final-point marker, completed history, and state snapshot —
+so the next run rebuilds from scratch, re-auditing the whole tree with no incremental shortcuts. It is
+the antidote to a *stale* convergence: an incremental final point only asserts dryness relative to what
+changed, so `reset` then `/codvisor` re-surfaces groundable work the dirty-set gating would otherwise
+skip. It deliberately **keeps `rejected.md`** — the rejection feedback memory is the only piece of state
+that is neither regenerable nor recorded in git, and retaining it stops the cold-start run from
+re-proposing already-rejected work (so no backup is needed). `--json` emits
+`{command, cleared, rejected_kept}`; a missing or already-clean `.planwright/` is a no-op. To discard the
+rejection memory too — a *total* reset that re-evaluates even previously-rejected ideas — delete
+`rejected.md` yourself after running it.
 
 `version` is read-only: it reports the installed version from the detected host metadata when
 available (`~/.claude/plugins/installed_plugins.json` for Claude Code, `.codex-plugin/plugin.json` for

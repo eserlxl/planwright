@@ -240,9 +240,80 @@
     return [s.pending + " pending", s.completed + " accepted so far"];
   }
 
+  // A supplementary cold-start nudge, surfaced only when the project is CONVERGED (at a
+  // current final point). The incremental audit is dry — but it only ever asserted dryness
+  // relative to what changed since the last run, so a `planwright reset` (which clears
+  // .planwright/ but keeps rejected.md) forces a whole-tree cold-start re-audit that can
+  // re-surface work the dirty-set gating skipped. Returns null when not converged (nothing
+  // to suggest yet) so the view shows it only when it is actually the useful next move.
+  function coachReset(s) {
+    if (!s.converged) return null;
+    return {
+      cmd: "/planwright reset",
+      why: "Converged — but that final point is incremental (dry only against what changed). " +
+           "A reset clears .planwright/ for a whole-tree cold-start re-audit that can re-surface " +
+           "work the incremental pass skipped; rejected.md is kept, then follow with /codvisor.",
+    };
+  }
+
+  // ---- graph: shape PW_DERIVE.metrics into the Coupling Web renderer's data ------------
+  // Pure (DOM-free) shaping kept here next to metrics (which it consumes), so the top-N
+  // selection + keepSet pruning can be unit-tested rather than living trapped in the Graph
+  // view's IIFE. Keeps the most-central `topNodes` nodes (default 60) and only the
+  // coupling/import/cycle/cluster structure among them — dropping any cycle/cluster left
+  // with fewer than 2 kept members — which enforces the renderer's no-dangling-edge
+  // invariant (every edge/importEdge endpoint passed on is in the kept node set). The
+  // empty-state message is injected by the caller so the string has one owner (the view).
+  function graphAdapt(metrics, ctx, opts) {
+    opts = opts || {};
+    var topNodes = opts.topNodes || 60;
+    var emptyMsg = opts.emptyMsg || "";
+
+    var kept = metrics.nodesArr.slice().sort(function (a, b) {
+      return (b.pagerank || 0) - (a.pagerank || 0);
+    }).slice(0, topNodes);
+    var keepSet = {};
+    kept.forEach(function (n) { keepSet[n.path] = true; });
+
+    var nodes = kept.map(function (n) {
+      return {
+        id: n.path, base: n.base, lang: n.lang, pagerank: n.pagerank, churn: n.churn,
+        covered: n.covered, articulation: n.articulation, dirty: !!metrics.dirtySet[n.path],
+      };
+    });
+
+    var edges = metrics.couplingEdges.filter(function (e) {
+      return keepSet[e.a] && keepSet[e.b];
+    }).map(function (e) {
+      return { source: e.a, target: e.b, weight: +e.weight || 0, cooccur: e.cooccur };
+    });
+
+    var importEdges = [];
+    kept.forEach(function (n) {
+      (n.imports || []).forEach(function (t) {
+        if (keepSet[t]) importEdges.push({ source: n.path, target: t });
+      });
+    });
+
+    var cyclesK = (metrics.cycles || []).map(function (c) {
+      return c.filter(function (p) { return keepSet[p]; });
+    }).filter(function (c) { return c.length >= 2; });
+
+    var clustersK = (metrics.clusters || []).map(function (c) {
+      return { label: c.label, members: (c.members || []).filter(function (p) { return keepSet[p]; }) };
+    }).filter(function (c) { return c.members.length >= 2; });
+
+    return {
+      nodes: nodes, edges: edges, importEdges: importEdges, cycles: cyclesK,
+      clusters: clustersK, total: metrics.nodeCount, emptyMsg: emptyMsg,
+      stale: !!(ctx && ctx.stale), builtSha: ctx && ctx.builtSha,
+    };
+  }
+
   window.PW_DERIVE = {
     metrics: metrics, pctRank: pctRank, quantile: quantile,
-    coach: { signals: coachSignals, recommend: coachRecommend, evidence: coachEvidence },
+    coach: { signals: coachSignals, recommend: coachRecommend, evidence: coachEvidence, reset: coachReset },
+    graph: { adapt: graphAdapt },
   };
 
   // ---- PW_BUS: cross-view selection (view-state only) ----------------------------------

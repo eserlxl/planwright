@@ -497,6 +497,47 @@ assert n["orphan.py"]["covered_by_test"] is False, "no test reaches orphan.py"
 PY
 then ok "is_test + covered_by_test route the coverage rung (import-reached source is covered)"; else bad "covered_by_test routing wrong (classification or reach)"; fi
 
+# --- Test 11c4: covered_by_test via change-coupling alone (test co-changes, no import)
+# build-graph.py:1073-1078 also marks a source covered when a *test* node co-changes with
+# it strongly (cooccur >= 3) even with NO import between them — a real scenario (a bash
+# behavioural test that exercises but never `source`s its target). Every other
+# covered_by_test==True assertion (11c3) reaches its subject by import, so this coupling-only
+# branch was unexercised. Control: a source coupled only to a NON-test file stays uncovered,
+# proving it is the test-membership of the edge that covers, not coupling per se.
+CPCOV="$TMP/cpcov"; mkdir -p "$CPCOV"; git -C "$CPCOV" init -q
+printf 'def helper(x):\n    return x + 1\n' > "$CPCOV/lib2.py"        # source, imports nothing
+printf 'def test_x():\n    assert True\n'    > "$CPCOV/test_thing.py"  # test, imports nothing
+printf 'def widget():\n    return 0\n'       > "$CPCOV/solo.py"        # source coupled to a doc
+printf '# notes\n'                           > "$CPCOV/notes.md"       # non-test coupling partner
+git -C "$CPCOV" add -A
+git -C "$CPCOV" -c user.name=t -c user.email=t@e.com commit -qm init
+# co-change lib2<->test_thing and solo<->notes in SEPARATE commits, three times each, so each
+# strong pair clears cooccur>=3 while the cross pairs (e.g. solo<->test) stay at 1 (init only).
+for i in 1 2 3; do
+  echo "e$i" >> "$CPCOV/lib2.py"; echo "e$i" >> "$CPCOV/test_thing.py"
+  git -C "$CPCOV" add -A
+  git -C "$CPCOV" -c user.name=t -c user.email=t@e.com commit -qm "lib2/test co $i"
+  echo "e$i" >> "$CPCOV/solo.py"; echo "e$i" >> "$CPCOV/notes.md"
+  git -C "$CPCOV" add -A
+  git -C "$CPCOV" -c user.name=t -c user.email=t@e.com commit -qm "solo/notes co $i"
+done
+cpcov_out="$TMP/cpcov_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$CPCOV" > "$cpcov_out" 2>/dev/null
+if python3 - "$cpcov_out" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1])); n = g["nodes"]
+assert n["test_thing.py"]["is_test"] is True, n["test_thing.py"]
+# the pair has a strong coupling edge AND no import edge either way -> coupling-only path
+assert "lib2.py" not in n["test_thing.py"]["imports"] and "test_thing.py" not in n["lib2.py"]["imports"], "fixture must have no import edge between the pair"
+edge = [e for e in g["coupling_edges"] if {e["a"], e["b"]} == {"lib2.py", "test_thing.py"}]
+assert edge and edge[0]["cooccur"] >= 3, "lib2/test coupling edge missing"
+# payoff: lib2.py is covered purely via change-coupling to a test
+assert n["lib2.py"]["covered_by_test"] is True, "coupling to a test must mark the source covered"
+# control: solo.py couples only to a non-test doc, so it stays uncovered
+assert n["solo.py"]["covered_by_test"] is False, "coupling to a non-test must NOT cover"
+PY
+then ok "build-graph.py covers a source via change-coupling to a test alone (no import edge)"; else bad "build-graph.py coupling-only covered_by_test routing wrong"; fi
+
 # is_test_node classifies conventional layouts/names without mislabeling sources.
 if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
 import importlib.util, sys

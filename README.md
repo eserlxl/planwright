@@ -347,6 +347,7 @@ the equivalent trigger from the command adapter table and keep the arguments the
 # Maintenance
 /planwright doctor     # preflight: check git/rg/python3 + bundled-script resolution
 /planwright status     # read-only: summarize plan / final-point / graph state (--json)
+/planwright reset      # cold start: clear .planwright/ but keep rejected.md (aliases: fresh, clean)
 /planwright version    # show current and latest available version
 /planwright upgrade    # update planwright itself to the latest version (alias: update)
 ```

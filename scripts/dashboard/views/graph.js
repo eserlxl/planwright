@@ -18,7 +18,6 @@
 
   window.PW_VIEWS = window.PW_VIEWS || {};
 
-  var TOP_NODES = 60;
   var lastSig;      // the graph.json text behind the current drawing (memoize-on-bytes)
   var unsub = null; // current PW_BUS focus subscription (leak-safe across re-renders)
 
@@ -36,49 +35,9 @@
 
   var NO_GRAPH = "No graph has been built yet (run a plan to build .planwright/graph.json).";
 
-  // Shape PW_DERIVE metrics into the renderer's coupling-web data, keeping the most-central
-  // TOP_NODES and only the coupling/import/cycle/cluster structure among them.
-  function adapt(metrics, ctx) {
-    var kept = metrics.nodesArr.slice().sort(function (a, b) {
-      return (b.pagerank || 0) - (a.pagerank || 0);
-    }).slice(0, TOP_NODES);
-    var keepSet = {};
-    kept.forEach(function (n) { keepSet[n.path] = true; });
-
-    var nodes = kept.map(function (n) {
-      return {
-        id: n.path, base: n.base, lang: n.lang, pagerank: n.pagerank, churn: n.churn,
-        covered: n.covered, articulation: n.articulation, dirty: !!metrics.dirtySet[n.path],
-      };
-    });
-
-    var edges = metrics.couplingEdges.filter(function (e) {
-      return keepSet[e.a] && keepSet[e.b];
-    }).map(function (e) {
-      return { source: e.a, target: e.b, weight: +e.weight || 0, cooccur: e.cooccur };
-    });
-
-    var importEdges = [];
-    kept.forEach(function (n) {
-      (n.imports || []).forEach(function (t) {
-        if (keepSet[t]) importEdges.push({ source: n.path, target: t });
-      });
-    });
-
-    var cyclesK = (metrics.cycles || []).map(function (c) {
-      return c.filter(function (p) { return keepSet[p]; });
-    }).filter(function (c) { return c.length >= 2; });
-
-    var clustersK = (metrics.clusters || []).map(function (c) {
-      return { label: c.label, members: (c.members || []).filter(function (p) { return keepSet[p]; }) };
-    }).filter(function (c) { return c.members.length >= 2; });
-
-    return {
-      nodes: nodes, edges: edges, importEdges: importEdges, cycles: cyclesK,
-      clusters: clustersK, total: metrics.nodeCount, emptyMsg: NO_GRAPH,
-      stale: !!(ctx && ctx.stale), builtSha: ctx && ctx.builtSha,
-    };
-  }
+  // The pure metrics->coupling-web shaping (top-N selection + keepSet pruning) lives in
+  // PW_DERIVE.graph.adapt so it can be unit-tested under node; this view just injects its
+  // empty-state message and renders the result.
 
   function render(container, state, ctx) {
     ctx = ctx || {};
@@ -95,7 +54,7 @@
     var metrics = ctx.metrics || null;
     if (text == null || metrics == null) { showEmpty(container, NO_GRAPH); return; }
 
-    var data = adapt(metrics, ctx);
+    var data = window.PW_DERIVE.graph.adapt(metrics, ctx, { emptyMsg: NO_GRAPH });
     if (!data.nodes.length) { showEmpty(container, NO_GRAPH); return; }
 
     window.PW_GRAPH.renderCoupling(container, data, {

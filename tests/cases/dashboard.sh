@@ -197,6 +197,15 @@ if grep -q VIEW-commands-OK "$TMP/dash.out"; then
 else
   bad "dashboard Commands view check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
+# The Commands view must wire the cold-start reset nudge from the coach engine. The
+# rendering is jsdom-bound (untestable here), but the COACH.reset(...) call is a grep-able
+# guard so the suggestion cannot be silently dropped from the view (its logic is pinned in
+# derive.sh; this pins that the view actually consumes it).
+if grep -q 'COACH\.reset(' "$ROOT/scripts/dashboard/views/commands.js"; then
+  ok "Commands view wires the coach reset suggestion (COACH.reset)"
+else
+  bad "Commands view dropped the coach reset suggestion wiring (COACH.reset)"
+fi
 if grep -q VIEW-insights-OK "$TMP/dash.out"; then
   ok "dashboard serves the Insights view (views/insights.js registers PW_VIEWS.insights)"
 else

@@ -88,3 +88,23 @@ assert s["counts"] == {"pending": 0, "completed": 0, "rejected": 0}, s["counts"]
 else
   bad "state.py did not degrade cleanly on an empty .planwright"
 fi
+
+# --- Test ST6: checked (done-but-undrained) items never leak into the pending array
+# During `execute` an item is flipped to `- [x]` in plan.md before lifecycle drains it
+# to completed.md. The `pending` list must mirror counts.pending (which counts only
+# `- [ ]`), so a transient checked line must not appear in `pending`.
+MFX="$TMP/state-mixed"; mkdir -p "$MFX/.planwright"
+printf -- '- [ ] first pending\n      Mode: improve\n- [x] done not drained\n      Mode: repair\n- [ ] second pending\n      Mode: develop\n' \
+  > "$MFX/.planwright/plan.md"
+if python3 "$STATE" --root "$MFX" --out - | python3 -c '
+import json, sys
+s = json.load(sys.stdin)
+titles = [p["title"] for p in s["pending"]]
+assert titles == ["first pending", "second pending"], titles
+assert len(s["pending"]) == s["counts"]["pending"] == 2, (s["pending"], s["counts"])
+assert "done not drained" not in titles, titles
+'; then
+  ok "state.py keeps checked plan.md items out of pending (pending length reconciles with counts.pending)"
+else
+  bad "state.py leaked a checked item into the pending array"
+fi

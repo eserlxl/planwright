@@ -35,6 +35,9 @@ import urllib.parse
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
+# A setext heading is a line of text followed by a line of only `=` (H1) or `-` (H2),
+# indented 0-3 spaces. We match the underline; the heading text is the preceding line.
+SETEXT_RE = re.compile(r"^\s{0,3}(?:=+|-+)\s*$")
 HTML_ANCHOR_RE = re.compile(r"""<a\s+[^>]*?(?:name|id)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 EXTERNAL_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")
 
@@ -78,26 +81,44 @@ def anchors_of(path):
     except OSError:
         return None
     slugs, counts, in_fence = set(), {}, False
+    prev = None  # previous non-fenced line's text — a candidate setext heading
+
+    def register(text):
+        slug = slugify(text)
+        if slug:
+            # GitHub disambiguates a REPEATED heading by appending -1, -2, … in order
+            # of occurrence: the 1st `slug`, the 2nd `slug-1`, the 3rd `slug-2`. Emit
+            # exactly those anchors so a bogus `slug-999` on a single heading does not
+            # resolve (the old `-\d+$` strip accepted any numeric suffix).
+            n = counts.get(slug, 0)
+            slugs.add(slug if n == 0 else "%s-%d" % (slug, n))
+            counts[slug] = n + 1
+
     for raw in lines:
         s = raw.lstrip()
         if s.startswith("```") or s.startswith("~~~"):
             in_fence = not in_fence
+            prev = None
             continue
         if in_fence:
+            prev = None
             continue
         m = HEADING_RE.match(raw)
         if m:
-            slug = slugify(m.group(1))
-            if slug:
-                # GitHub disambiguates a REPEATED heading by appending -1, -2, … in order
-                # of occurrence: the 1st `slug`, the 2nd `slug-1`, the 3rd `slug-2`. Emit
-                # exactly those anchors so a bogus `slug-999` on a single heading does not
-                # resolve (the old `-\d+$` strip accepted any numeric suffix).
-                n = counts.get(slug, 0)
-                slugs.add(slug if n == 0 else "%s-%d" % (slug, n))
-                counts[slug] = n + 1
+            register(m.group(1))
+            prev = None
+            continue
+        # A setext underline (a line of only `=` or `-`) turns the PRECEDING non-blank
+        # line into a heading. This is purely additive — it only ever adds an anchor — so
+        # it can never introduce a false "broken link"; it removes the false-fail on links
+        # to setext headings, honouring this module's never-false-fail contract.
+        if prev is not None and SETEXT_RE.match(raw):
+            register(prev.strip())
+            prev = None
+            continue
         for am in HTML_ANCHOR_RE.finditer(raw):
             slugs.add(am.group(1).lower())
+        prev = raw if raw.strip() else None
     return slugs
 
 

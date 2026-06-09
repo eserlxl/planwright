@@ -15,16 +15,27 @@
 #      plan is left untouched so the next run merges into it.
 #   housekeep — run 1 -> 2 -> 3 in order and print the Stage 0 report.
 #
+# It also mechanizes a deliberate full cold-start reset (NOT part of Stage 0):
+#   reset (aka fresh / clean) — clear the .planwright/ tool-state directory so the next run
+#      rebuilds graph + plan + final point from scratch (re-surfacing work an incremental
+#      final point would skip). It deliberately KEEPS rejected.md in place: the rejection
+#      feedback memory (Stage 1 PREVIOUSLY REJECTED) is the one piece that is not in git and
+#      does not regenerate, and retaining it stops the cold-start run from re-proposing
+#      already-rejected, known-bad work. Everything else (graph/digest/plan/final/completed/
+#      state…) is regenerable or recorded in git, so it is removed.
+#
 # Item parsing mirrors lint-plan.py: a checkbox line plus its indented continuation
 # lines, with blocks separated by a blank line. It only edits files under --root.
 #
 #   python3 scripts/lifecycle.py housekeep --root .planwright
 #   python3 scripts/lifecycle.py {drain-completed|drain-rejected|reset-if-empty} --root DIR
+#   python3 scripts/lifecycle.py reset --root .planwright   (keeps rejected.md)
 
 import argparse
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 
@@ -150,17 +161,46 @@ def reset_if_empty(plan_path):
     return False
 
 
+RESET_KEEP = {"rejected.md"}
+
+
+def reset_planwright(root):
+    """Reset the .planwright/ state directory for a deliberate cold start: remove every
+    entry so the next run rebuilds graph + plan + final point from scratch, EXCEPT
+    rejected.md, which is kept in place. The rejection feedback memory (Stage 1 PREVIOUSLY
+    REJECTED) is the one piece of state that is not in git and does not regenerate, and
+    retaining it stops the cold-start run from re-proposing already-rejected, known-bad
+    work; everything else is regenerable (graph/digest/plan/final/state) or recorded in git
+    (completed history). Returns (count_of_entries_cleared, rejected_kept) — rejected_kept
+    is True when a rejected.md was present and preserved. A missing root, or a root holding
+    nothing but the kept file(s), is a clean no-op."""
+    if not os.path.isdir(root):
+        return 0, False
+    rejected_kept = os.path.isfile(os.path.join(root, "rejected.md"))
+    entries = [e for e in sorted(os.listdir(root)) if e not in RESET_KEEP]
+    for e in entries:
+        p = os.path.join(root, e)
+        # islink first: a symlink to a directory must be unlinked (os.remove), not
+        # followed and rmtree'd, so the link's target is never touched.
+        if os.path.isdir(p) and not os.path.islink(p):
+            shutil.rmtree(p)
+        else:
+            os.remove(p)
+    return len(entries), rejected_kept
+
+
 def main():
     ap = argparse.ArgumentParser(description="planwright Stage 0 lifecycle housekeeping.")
     ap.add_argument("command",
-                    choices=["drain-completed", "drain-rejected", "reset-if-empty", "housekeep"])
+                    choices=["drain-completed", "drain-rejected", "reset-if-empty", "housekeep",
+                             "reset", "fresh", "clean"])
     ap.add_argument("--root", default=".planwright",
                     help="the .planwright/ directory to operate on (default: .planwright)")
     ap.add_argument("--quiet", action="store_true", help="suppress the report line")
     ap.add_argument("--json", action="store_true",
                     help="emit the report as a JSON object (command/compacted/rejected_drained/"
-                         "plan_deleted) for CI (parity with the sibling scripts); --quiet still "
-                         "suppresses all output")
+                         "plan_deleted for housekeep; command/cleared/rejected_kept for reset) for CI "
+                         "(parity with the sibling scripts); --quiet still suppresses all output")
     args = ap.parse_args()
     # Validate the deletion boundary at the argument edge: reset_if_empty()
     # os.remove()s <root>/plan.md, so a --root carrying parent-directory traversal
@@ -172,6 +212,20 @@ def main():
             f"lifecycle: --root '{args.root}' contains parent-directory traversal '..'\n")
         return 2
     root = args.root
+
+    if args.command in ("reset", "fresh", "clean"):
+        cleared, rejected_kept = reset_planwright(root)
+        if not args.quiet and args.json:
+            print(json.dumps({"command": "reset", "cleared": cleared, "rejected_kept": rejected_kept}))
+        elif not args.quiet:
+            noun = "entry" if cleared == 1 else "entries"
+            if cleared == 0:
+                print(f"lifecycle: nothing to reset ({root} already clean)")
+            else:
+                tail = ", kept rejected.md (rejection memory retained)" if rejected_kept else ""
+                print(f"lifecycle: reset {cleared} {noun}{tail}")
+        return 0
+
     plan = os.path.join(root, "plan.md")
     completed = os.path.join(root, "completed.md")
     rejected = os.path.join(root, "rejected.md")

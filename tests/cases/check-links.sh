@@ -189,3 +189,29 @@ if [ "$ae_rc" = "1" ] \
 else
   bad "check-links.py mis-handled a percent-encoded anchor (rc=$ae_rc): $ae_out"
 fi
+
+# --- Test CL12: setext (underline) headings produce anchors; no false-fail ---------
+# A heading written as a text line over `===` (H1) or `---` (H2) is standard Markdown.
+# anchors_of() previously matched only ATX (#) headings, so a same-page link to a setext
+# heading false-failed as broken — violating the module's never-false-fail contract. A
+# pure-setext page's valid same-page anchors must resolve (exit 0); a bogus anchor on the
+# same page must still flag (exit 1), proving the addition does not over-resolve.
+SX="$TMP/cl-setext"; mkdir -p "$SX"; git -C "$SX" init -q
+printf 'My Title\n========\n\nSub Heading\n-----------\n\n[h1](#my-title)\n[h2](#sub-heading)\n' > "$SX/index.md"
+git -C "$SX" add -A
+sx_rc=0
+sx_out="$(python3 "$CL" --root "$SX" 2>&1)" || sx_rc=$?
+if [ "$sx_rc" = "0" ] && printf '%s' "$sx_out" | grep -q 'markdown file(s) OK'; then
+  ok "check-links.py resolves same-page anchors to setext (underline) H1/H2 headings"
+else
+  bad "check-links.py false-failed a link to a setext heading (rc=$sx_rc): $sx_out"
+fi
+printf '[bogus](#no-such-heading)\n' >> "$SX/index.md"
+git -C "$SX" add -A
+sxb_rc=0
+sxb_out="$(python3 "$CL" --root "$SX" 2>&1)" || sxb_rc=$?
+if [ "$sxb_rc" = "1" ] && printf '%s' "$sxb_out" | grep -q '#no-such-heading'; then
+  ok "check-links.py still flags a bogus anchor on a setext page (setext support does not over-resolve)"
+else
+  bad "check-links.py setext support over-resolved a bogus anchor (rc=$sxb_rc): $sxb_out"
+fi

@@ -34,6 +34,11 @@ Think of the ladder as four ambitions, tried in order:
 
 When every rung produces no actionable work, the run records a **final point** and stops.
 
+That final point is *incremental* — it asserts dryness only relative to what changed since the last
+run. When you want a fresh look from scratch, **`planwright reset`** (aliases `fresh` / `clean`) clears
+`.planwright/` for a whole-tree cold-start re-audit that re-surfaces work the dirty-set gating would
+skip, while keeping `rejected.md` so already-rejected work is not re-proposed.
+
 ## explore — sweeping the cold frontier
 
 The opt-in **`explore`** flag turns that final point into an escalation instead of a stop: it

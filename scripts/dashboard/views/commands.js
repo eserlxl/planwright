@@ -108,6 +108,16 @@
     COACH.evidence(rec.key, s).forEach(function (e) { ev.appendChild(elt("span", "pw-coach-ev", e)); });
     hero.appendChild(ev);
     hero.appendChild(invoke(picked.cmd));
+    // Supplementary cold-start nudge: only when converged, suggest a reset to re-audit the
+    // whole tree from scratch (the incremental final point may be masking work).
+    var resetSug = COACH.reset(s);
+    if (resetSug) {
+      var alt = elt("div", "pw-coach-alt");
+      alt.appendChild(elt("span", "pw-coach-alt-kicker", "Or cold-start re-audit"));
+      alt.appendChild(elt("p", "pw-coach-alt-why", resetSug.why));
+      alt.appendChild(invoke(resetSug.cmd));
+      hero.appendChild(alt);
+    }
     container.appendChild(hero);
 
     // the three command cards

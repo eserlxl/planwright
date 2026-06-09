@@ -237,3 +237,59 @@ if [ "$tmpleft" = "0" ] && [ "$comp_done" = "1" ] && [ "$plan_pending" = "1" ]; 
 else
   bad "lifecycle.py atomic write wrong (tmpleft=$tmpleft comp_done=$comp_done plan_pending=$plan_pending)"
 fi
+
+# --- Test L9: reset clears .planwright for a cold start but KEEPS rejected.md -----------
+# `lifecycle.py reset` (aka fresh/clean) removes graph/plan/final/completed/digest/state so
+# the next run rebuilds from scratch, but preserves rejected.md in place — the rejection
+# feedback memory (not in git, does not regenerate) keeps the cold-start run from
+# re-proposing already-rejected work. No backup is made (nothing to accumulate).
+LCR="$TMP/lc9/.planwright"; mkdir -p "$LCR/sub"
+printf 'plan\n' > "$LCR/plan.md"; printf '{}\n' > "$LCR/graph.json"; printf 'fp\n' > "$LCR/final.md"
+printf 'comp\n' > "$LCR/completed.md"; printf 'n\n' > "$LCR/sub/nested.txt"
+printf -- '- [ ] a bad idea\n      Rejection: value-gate: no consumer\n' > "$LCR/rejected.md"
+rout="$(python3 "$LC" reset --root "$LCR")"
+if [ ! -e "$LCR/plan.md" ] && [ ! -e "$LCR/graph.json" ] && [ ! -e "$LCR/final.md" ] \
+   && [ ! -e "$LCR/completed.md" ] && [ ! -e "$LCR/sub" ] && [ ! -e "$LCR/.backups" ] \
+   && [ -f "$LCR/rejected.md" ] && grep -q 'a bad idea' "$LCR/rejected.md" \
+   && printf '%s' "$rout" | grep -q 'kept rejected.md'; then
+  ok "lifecycle.py reset clears .planwright for a cold start but keeps rejected.md in place"
+else
+  bad "lifecycle.py reset did not clear+keep correctly (out='$rout')"
+fi
+# a dir holding only the kept rejected.md (nothing left to clear) is a clean no-op
+nrout="$(python3 "$LC" reset --root "$LCR")"
+if printf '%s' "$nrout" | grep -q 'nothing to reset'; then
+  ok "lifecycle.py reset is a clean no-op when only rejected.md remains"
+else
+  bad "lifecycle.py reset did not no-op when only the kept file remains (out='$nrout')"
+fi
+# --json reports cleared + rejected_kept; with no rejected.md present, rejected_kept is false
+LCR2="$TMP/lc9b/.planwright"; mkdir -p "$LCR2"
+printf 'plan\n' > "$LCR2/plan.md"; printf '{}\n' > "$LCR2/graph.json"
+jrout="$(python3 "$LC" reset --root "$LCR2" --json)"
+if [ ! -e "$LCR2/plan.md" ] && [ ! -e "$LCR2/graph.json" ] \
+   && printf '%s' "$jrout" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"]=="reset" and d["cleared"]==2 and d["rejected_kept"] is False' 2>/dev/null; then
+  ok "lifecycle.py reset --json reports cleared count and rejected_kept=false when no rejected.md"
+else
+  bad "lifecycle.py reset --json wrong (out='$jrout')"
+fi
+# reset is destructive, so it must honour main()'s parent-traversal guard
+rt_rc=0
+python3 "$LC" reset --root "../escape" >/dev/null 2>&1 || rt_rc=$?
+if [ "$rt_rc" -ne 0 ]; then
+  ok "lifecycle.py reset rejects a --root containing parent-directory traversal"
+else
+  bad "lifecycle.py reset accepted a traversal --root (destructive command unguarded)"
+fi
+# the `fresh` and `clean` aliases route to the same reset (canonical command name in --json)
+LCR3="$TMP/lc9c/.planwright"; mkdir -p "$LCR3"
+printf 'p\n' > "$LCR3/plan.md"
+fout="$(python3 "$LC" fresh --root "$LCR3" --json)"
+printf 'p\n' > "$LCR3/plan.md"
+cout="$(python3 "$LC" clean --root "$LCR3" --json)"
+if printf '%s' "$fout" | python3 -c 'import json,sys; assert json.load(sys.stdin)["command"]=="reset"' 2>/dev/null \
+   && printf '%s' "$cout" | python3 -c 'import json,sys; assert json.load(sys.stdin)["command"]=="reset"' 2>/dev/null; then
+  ok "lifecycle.py accepts the fresh/clean aliases (both route to reset)"
+else
+  bad "lifecycle.py fresh/clean aliases did not route to reset (fresh='$fout' clean='$cout')"
+fi

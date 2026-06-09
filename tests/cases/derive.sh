@@ -93,6 +93,80 @@ assert.strictEqual(sG.hotUncovered, 2, "signals hotUncovered");
 assert.strictEqual(sG.articulation, 1, "signals articulation");
 assert.strictEqual(sG.coveragePct, 50, "signals coveragePct");
 
+// signals.converged passthrough — the one signal that drives a coach.evidence branch
+assert.strictEqual(C.signals({ pending: [], completed: [], rejected: [], converged: true }, null).converged, true, "signals converged true");
+assert.strictEqual(C.signals({ pending: [], completed: [], rejected: [] }, null).converged, false, "signals converged default false");
+
+// coach.evidence: the numbers rendered beneath each recommendation (pure per-key truth table)
+assert(typeof C.evidence === "function", "PW_DERIVE.coach.evidence missing");
+// no-graph short-circuit: ANY key falls back to [pending, accepted, rejected]
+assert.deepStrictEqual(
+  C.evidence("codvisor", { hasGraph: false, pending: 5, completed: 3, rejected: 1 }),
+  ["5 pending", "3 accepted", "1 rejected"], "evidence no-graph fallback");
+// codvisor branch: cycles / hotspots / articulation / repair-improve
+assert.deepStrictEqual(
+  C.evidence("codvisor", { hasGraph: true, cycles: 2, hotUncovered: 4, articulation: 1, pendRepairImprove: 2 }),
+  ["2 import cycles", "4 untested hotspots", "1 articulation risks", "2 repair/improve pending"], "evidence codvisor");
+// codinventor branch: converged toggles the third chip
+assert.deepStrictEqual(
+  C.evidence("codinventor", { hasGraph: true, pending: 0, cycles: 0, converged: true }),
+  ["0 pending", "0 cycles", "converged"], "evidence codinventor converged");
+assert.deepStrictEqual(
+  C.evidence("codinventor", { hasGraph: true, pending: 5, cycles: 2, converged: false }),
+  ["5 pending", "2 cycles", "no open debt"], "evidence codinventor not converged");
+// codcycle default branch
+assert.deepStrictEqual(
+  C.evidence("codcycle", { hasGraph: true, pending: 4, completed: 7 }),
+  ["4 pending", "7 accepted so far"], "evidence codcycle default");
+
+// coach.reset: a supplementary cold-start nudge, present ONLY when converged
+assert(typeof C.reset === "function", "PW_DERIVE.coach.reset missing");
+assert.strictEqual(C.reset({ converged: false }), null, "reset suggestion is absent when not converged");
+const rsug = C.reset({ converged: true });
+assert(rsug && rsug.cmd === "/planwright reset", "reset suggestion names `/planwright reset` (Claude Code slash form) when converged");
+assert(/reset/i.test(rsug.why) && /rejected\.md/i.test(rsug.why), "reset suggestion explains the cold-start and that rejected.md is kept");
+
+// graph.adapt: the Coupling Web's data contract — top-N selection + keepSet pruning
+assert(D.graph && typeof D.graph.adapt === "function", "PW_DERIVE.graph.adapt missing");
+const N = 62;
+const nodesArr = [];
+for (let i = 0; i < N; i++) {
+  nodesArr.push({ path: "n" + i, base: "n" + i, lang: "python", pagerank: N - i, churn: 0, covered: false, articulation: false, imports: [] });
+}
+const keptX = "n0", keptY = "n1", dropA = "n60", dropB = "n61";  // n60/n61 have the lowest pagerank
+nodesArr[0].imports = [keptY, dropA];                            // one kept->kept, one kept->dropped
+const gm = {
+  nodeCount: N,
+  nodesArr: nodesArr,
+  dirtySet: { [keptX]: true },
+  couplingEdges: [
+    { a: keptX, b: keptY, weight: 2, cooccur: 5 },   // both kept -> survives
+    { a: keptX, b: dropA, weight: 1, cooccur: 4 },   // one dropped -> pruned
+  ],
+  cycles: [[keptX, keptY], [keptX, dropA]],          // 2nd has <2 kept after prune -> dropped
+  clusters: [
+    { label: "core", members: [keptX, keptY, dropA] },  // 2 kept -> survives, dropA pruned out
+    { label: "edge", members: [dropA, dropB] },         // 0 kept -> dropped
+  ],
+};
+const ad = D.graph.adapt(gm, { stale: true, builtSha: "abc123" }, { emptyMsg: "NONE" });
+const ids = ad.nodes.map(function (n) { return n.id; });
+assert.strictEqual(ad.nodes.length, 60, "adapt keeps the top 60 nodes by pagerank");
+assert(!ids.includes(dropA) && !ids.includes(dropB), "lowest-pagerank nodes are dropped");
+assert(ids.includes(keptX) && ids.includes(keptY), "top nodes are kept");
+assert.strictEqual(ad.nodes.find(function (n) { return n.id === keptX; }).dirty, true, "dirtySet flows through");
+assert.strictEqual(ad.edges.length, 1, "a coupling edge to a dropped node is pruned");
+assert.deepStrictEqual([ad.edges[0].source, ad.edges[0].target], [keptX, keptY], "surviving edge is kept->kept");
+assert.deepStrictEqual(ad.importEdges, [{ source: keptX, target: keptY }], "an import edge to a dropped node is pruned");
+assert.strictEqual(ad.cycles.length, 1, "a cycle left with <2 kept members is dropped");
+assert(ad.cycles[0].every(function (p) { return ids.includes(p); }), "surviving cycle has only kept members");
+assert.strictEqual(ad.clusters.length, 1, "a cluster left with <2 kept members is dropped");
+assert.deepStrictEqual(ad.clusters[0].members, [keptX, keptY], "cluster pruned to its kept members");
+assert.strictEqual(ad.total, N, "total = nodeCount");
+assert.strictEqual(ad.emptyMsg, "NONE", "emptyMsg is injected by the caller");
+assert.strictEqual(ad.stale, true, "ctx.stale passthrough");
+assert.strictEqual(ad.builtSha, "abc123", "ctx.builtSha passthrough");
+
 console.log("DERIVE-OK");
 JS
   if node "$TMP/derive_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive.out" 2>"$TMP/derive.err" && grep -q DERIVE-OK "$TMP/derive.out"; then

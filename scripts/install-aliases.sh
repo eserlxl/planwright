@@ -46,6 +46,10 @@ while [ $# -gt 0 ]; do
       ;;
     --dir)
       [ $# -ge 2 ] || { echo "error: --dir needs a path" >&2; exit 2; }
+      # Reject an explicit empty value (e.g. `--dir "$VAR"` with VAR unset): an empty
+      # TARGET_DIR is indistinguishable from "no --dir" below and would silently reroute
+      # to the personal ~/.claude/commands scope — destructive under --uninstall.
+      [ -n "$2" ] || { echo "error: --dir path must not be empty" >&2; exit 2; }
       TARGET_DIR="$2"
       shift 2
       ;;

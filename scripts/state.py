@@ -104,7 +104,14 @@ def collect(root):
     pw = os.path.join(root, ".planwright")
     base = status.collect(root)
 
-    pending_items = [_pending_item(i) for i in _parse_items(os.path.join(pw, "plan.md"))]
+    # Only unchecked lines are pending. During `execute` an item is checked off
+    # (`- [x]`) in plan.md before lifecycle drains it to completed.md; without this
+    # filter that transient checked item leaks into `pending`, disagreeing with
+    # counts.pending (status counts only `- [ ]`) in the very same snapshot.
+    pending_items = [
+        _pending_item(i)
+        for i in _parse_items(os.path.join(pw, "plan.md")) if not i["checked"]
+    ]
     completed_items = [
         _completed_item(i)
         for i in _parse_items(os.path.join(pw, "completed.md")) if i["checked"]

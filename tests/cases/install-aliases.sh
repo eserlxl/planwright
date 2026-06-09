@@ -78,3 +78,29 @@ else
     bad "install-aliases unknown flag exit was $ia_rc, not 2"
   fi
 fi
+
+# --- Test IA5: an explicit empty --dir is rejected, not rerouted to the personal scope
+# `--dir ""` (e.g. `--dir "$VAR"` with VAR unset) must exit 2 and write nothing — never
+# silently fall through to ~/.claude/commands, which --uninstall would then delete from.
+# Run under an isolated HOME/CLAUDE_CONFIG_DIR so even a regression cannot touch the real
+# personal scope.
+IAHOME="$TMP/ia-emptyguard"; mkdir -p "$IAHOME"
+ia5_rc=0
+HOME="$IAHOME" CLAUDE_CONFIG_DIR="$IAHOME/.claude" bash "$IA" --dir "" \
+  >"$TMP/ia5.out" 2>"$TMP/ia5.err" || ia5_rc=$?
+if [ "$ia5_rc" -eq 2 ] \
+   && grep -q 'must not be empty' "$TMP/ia5.err" \
+   && [ ! -e "$IAHOME/.claude/commands/codvisor.md" ]; then
+  ok "install-aliases rejects an empty --dir (exit 2) and writes nothing to the personal scope"
+else
+  bad "install-aliases mis-handled an empty --dir (rc=$ia5_rc err='$(cat "$TMP/ia5.err" 2>/dev/null)')"
+fi
+# The destructive variant must also exit 2 at parse, before the uninstall rm loop runs.
+ia5u_rc=0
+HOME="$IAHOME" CLAUDE_CONFIG_DIR="$IAHOME/.claude" bash "$IA" --dir "" --uninstall \
+  >/dev/null 2>&1 || ia5u_rc=$?
+if [ "$ia5u_rc" -eq 2 ]; then
+  ok "install-aliases --dir '' --uninstall exits 2 before removing anything"
+else
+  bad "install-aliases --dir '' --uninstall did not exit 2 (rc=$ia5u_rc)"
+fi
