@@ -293,3 +293,23 @@ if printf '%s' "$fout" | python3 -c 'import json,sys; assert json.load(sys.stdin
 else
   bad "lifecycle.py fresh/clean aliases did not route to reset (fresh='$fout' clean='$cout')"
 fi
+
+# --- Test L10: reset unlinks a symlinked entry, never rmtree's through it ---------------
+# reset_planwright() guards `os.path.isdir(p) and not os.path.islink(p)` before rmtree: a
+# symlink-to-directory under .planwright/ has isdir()==True, so without the `not islink`
+# guard reset would call shutil.rmtree on the symlink, which raises OSError ("cannot call
+# rmtree on a symbolic link") and aborts the cold-start clear. The guard routes a symlinked
+# entry to os.remove(), so the link itself is unlinked, the link TARGET (which can live
+# outside .planwright/) is left untouched, and reset completes.
+LCEXT="$TMP/lc10ext"; mkdir -p "$LCEXT"; printf 'precious\n' > "$LCEXT/sentinel.txt"
+LCS="$TMP/lc10/.planwright"; mkdir -p "$LCS"
+printf 'p\n' > "$LCS/plan.md"
+ln -s "$LCEXT" "$LCS/linkdir"
+srout=""; srrc=0
+srout="$(python3 "$LC" reset --root "$LCS" 2>&1)" || srrc=$?
+if [ "$srrc" -eq 0 ] && [ ! -e "$LCS/linkdir" ] && [ ! -e "$LCS/plan.md" ] \
+   && [ -d "$LCEXT" ] && [ -f "$LCEXT/sentinel.txt" ] && grep -q 'precious' "$LCEXT/sentinel.txt"; then
+  ok "lifecycle.py reset unlinks a symlinked entry without rmtree-ing through it (target intact)"
+else
+  bad "lifecycle.py reset mishandled a symlinked entry (rc=$srrc out='$srout')"
+fi
