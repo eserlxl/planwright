@@ -189,9 +189,12 @@ def lint_item(item, root):
             break
     # Stage 10: a `repair` item's Evidence must cite the wrong call site as
     # file:line — a bare "X is absent" is insufficient for a confirmed defect.
-    # Require a line anchor (`:N`, `line N`, or `lines N`); improve/docs may use
-    # structural-absence Evidence and are exempt.
-    if mode == "repair" and ev and not re.search(r"(?::\d+|\blines?\s+\d+)", ev, re.IGNORECASE):
+    # Require a real path-anchored citation (_EVIDENCE_ANCHOR_RE: `file.ext:N` or
+    # `file.ext (line N)`) or an explicit `line(s) N`; a bare `:N` is not enough, so a
+    # version/time/ratio token ("python 3.10:5", "30:00") no longer satisfies the gate.
+    # improve/docs may use structural-absence Evidence and are exempt.
+    if mode == "repair" and ev and not (
+            _EVIDENCE_ANCHOR_RE.search(ev) or re.search(r"\blines?\s+\d+", ev, re.IGNORECASE)):
         v.append("repair Evidence lacks a file:line anchor "
                  "(Stage 10: cite the wrong call site, not just structural absence)")
 

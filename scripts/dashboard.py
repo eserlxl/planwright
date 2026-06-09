@@ -141,7 +141,11 @@ class Handler(BaseHTTPRequestHandler):
             hostname = host[1:].split("]", 1)[0]
         else:
             hostname = host.rsplit(":", 1)[0] if ":" in host else host
-        return hostname in self._ALLOWED_HOSTS
+        # Hostnames are case-insensitive (RFC 4343), so a legitimate loopback request may
+        # arrive as `Localhost`/`LOCALHOST`; fold to lowercase before matching the (already
+        # lowercase) allow-list. Case-folding loopback names does not weaken the rebinding
+        # defense — a rebound attacker hostname still fails the membership test.
+        return hostname.lower() in self._ALLOWED_HOSTS
 
     def do_GET(self):
         if not self._host_allowed():

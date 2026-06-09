@@ -161,6 +161,25 @@ else
   bad "doctor.py mis-graded the git commit-identity check (rc=$rc warn=$id_warn ok=$id_ok)"
 fi
 
+# --- Test DR8b: a PARTIAL identity (only name OR only email) warns, naming the unset field
+# DR8 covered both-unset and both-set; the in-between branch (doctor.py:206) names exactly
+# the missing key. Set only user.name and assert the warning names user.email, not user.name.
+IDP="$TMP/doctor-id-partial"; mkdir -p "$IDP"
+git -C "$IDP" init -q
+git -C "$IDP" config user.name "Only Name"   # user.email deliberately left unset
+pout="$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null python3 "$DOC" --root "$IDP" --json)"
+if printf '%s' "$pout" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+r = next(x for x in d["checks"] if x["name"] == "git commit identity")
+assert r["status"] == "warn", r
+assert "user.email" in r["detail"] and "user.name" not in r["detail"], r["detail"]
+'; then
+  ok "doctor.py names exactly the unset identity field (user.email) on a partial identity"
+else
+  bad "doctor.py mis-named the partial git-identity warning"
+fi
+
 # --- Test DR9: --strict promotes warns to failures (pristine-env gate) ------------
 # A fresh git work tree with no .gitignore has at least one warn (.planwright/ not
 # ignored) and no fail: doctor exits 0 by default but 1 under --strict, so a CI

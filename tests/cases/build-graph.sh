@@ -474,6 +474,32 @@ else
   bad "build-graph --select scope/lang= regression (scoped=[$sel_scoped] le_rc=$sel_le_rc)"
 fi
 
+# --- Test 11c2k: --select code (branch_count>0) and never-audited predicates --------
+# Two predicate branches of to_select the cases above never reach. `code` selects nodes
+# carrying real code (branch_count>0); `never-audited` selects nodes whose last_audited_sha
+# is still null. Both were untested (inverting either kept the suite green).
+sel_code="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select code 2>/dev/null)"
+# fresh build: nothing audited yet, so never-audited returns every node
+sel_never_fresh="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select never-audited 2>/dev/null | sort | tr '\n' ' ')"
+# stamp hub.py as audited via a --prior graph (the 11b pattern); never-audited then drops it
+python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" > "$TMP/sel_g.json" 2>/dev/null
+python3 - "$TMP/sel_g.json" <<'PY'
+import json, sys
+g = json.load(open(sys.argv[1]))
+g["nodes"]["hub.py"]["last_audited_sha"] = g["graph_built_at_sha"]
+json.dump(g, open(sys.argv[1], "w"))
+PY
+sel_never_stamped="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --prior "$TMP/sel_g.json" --select never-audited 2>/dev/null)"
+if printf '%s' "$sel_code" | grep -qx "hub.py" \
+   && ! printf '%s' "$sel_code" | grep -qx "x.py" \
+   && [ "$sel_never_fresh" = "hub.py test_hub.py x.py y.py z.py " ] \
+   && ! printf '%s' "$sel_never_stamped" | grep -qx "hub.py" \
+   && printf '%s' "$sel_never_stamped" | grep -qx "x.py"; then
+  ok "build-graph --select code (branch>0) and never-audited (null last_audited_sha) filter correctly"
+else
+  bad "build-graph --select code/never-audited wrong (code=[$sel_code] fresh=[$sel_never_fresh] stamped=[$sel_never_stamped])"
+fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.
@@ -627,6 +653,11 @@ spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
 bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
 for ext in ("cc", "cxx", "c++", "hh", "hxx", "tpp"):
     assert bg.lang_of("x." + ext, b"int f(){}") == "c", ext
+# C header extensions that are include targets (C_HEADER_EXTS) must also route as C, not
+# "unknown" — otherwise a resolved .h++/.cuh/.tcc/.ipp/.inc node carries no defines/branch.
+for ext in ("h++", "cuh", "tcc", "ipp", "inc"):
+    assert ("." + ext) in bg.C_HEADER_EXTS, ext            # guard: still an include target
+    assert bg.lang_of("x." + ext, b"int f(){}") == "c", ext
 for ext in ("jsx", "tsx", "mjs", "cjs"):
     assert bg.lang_of("x." + ext, b"export const f = () => 1") == "js", ext
 # previously-recognized extensions are unchanged
@@ -676,6 +707,28 @@ assert n["src/main.rs"]["branch_count"] > 0 and n["src/util.rs"]["branch_count"]
 assert "src/util.rs" in n["src/main.rs"]["imports"], n["src/main.rs"]["imports"]
 PY
 then ok "build-graph.py routes Rust source (lang, defines, branch_count, mod/use edge)"; else bad "build-graph.py failed to route Rust source"; fi
+
+# --- Test 11d3b: a leading std/core/alloc crate root must NOT forge a false edge ------
+# resolve_rust_import drops an external stdlib import (`use std::io::Read;`) rather than
+# stripping the crate root and probing the rest, which would link to an unrelated local
+# module of the same name (here src/io.rs). A genuine intra-crate `use crate::io::...`
+# against the same fileset must still resolve. Guards the import graph that centrality /
+# articulation / cycle / dirty-set routing all consume.
+if python3 - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+fs = {"src/main.rs", "src/io.rs"}
+# external stdlib roots collide with a same-named local module -> must drop (no edge)
+for use in ("use std::io::Read;", "use core::ptr::null;", "use alloc::vec::Vec;"):
+    coll = {"src/main.rs", "src/" + use.split("::")[0].split()[1] + ".rs"}
+    assert bg.imports_of("rust", use, "src/main.rs", coll) == [], (use, bg.imports_of("rust", use, "src/main.rs", coll))
+# the std collision specifically must not link to src/io.rs
+assert bg.imports_of("rust", "use std::io::Read;", "src/main.rs", fs) == [], "std::io forged an edge"
+# a genuine intra-crate use of a local `io` module still resolves
+assert bg.imports_of("rust", "use crate::io::Read;", "src/main.rs", fs) == ["src/io.rs"], "crate::io must resolve"
+PY
+then ok "build-graph.py drops a stdlib Rust import instead of forging a false local edge"; else bad "build-graph.py forged a false Rust edge for a stdlib crate root"; fi
 
 # --- Test 11d4: Go source support (lang, defines func/method/type, branch_count) -
 # A .go file must route as lang "go" with extracted funcs/methods/types and a

@@ -137,6 +137,77 @@ assert "negative" in body.lower(), "negative=infinite rule not stated"
 PY
 then ok "commands/codcycle.md orchestrates the explore→invent rhythm with a rotating invent framing and a closing explore"; else bad "commands/codcycle.md malformed or lost its rhythm/framing-rotation/closing-explore/delegation/default contract"; fi
 
+# --- Test 15b: commands/codcycle.md peels a path/lib scope and trails it after the seed ---
+# Test 13c guards the path/lib scope-peel for codvisor/codinventor but iterates ONLY those two
+# (it excludes codcycle), and Test 15 asserts codcycle's phases/seed/framing but never the scope.
+# codcycle.md step 0 carries the same peel contract, and its Phase B has a load-bearing token order:
+# `<scope>` must trail `seed <i>` so `cycle` stays the FIRST token planwright dispatches on. Guard
+# that step 0 can't be dropped and that the seed/scope order can't be flipped.
+CMD="$ROOT/commands/codcycle.md"
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+need = []
+# step 0 peel contract (mirrors Test 13c's peel-step / path-lib-doc / first-token assertions)
+if "Peel the scope first" not in t: need.append("peel-step")
+if "path <X>" not in t or "lib <X>" not in t: need.append("path/lib-doc")
+if "<rest>" not in t or "<scope>" not in t: need.append("rest/scope-vars")
+if "first token" not in t: need.append("first-token-order")
+# Phase A (harden) and the final closing explore both carry the trailing scope, scope AFTER the mode
+if "cycle 3 depth 10 explore <scope>" not in t: need.append("explore+scope")
+# Phase B (grow): `<scope>` MUST trail `seed <i>` so `cycle` leads — the load-bearing order. The
+# reordered form (scope ahead of the seed) must NOT be accepted.
+if "cycle 3 depth 10 invent seed <i> <scope>" not in t: need.append("invent-seed-scope-order")
+if "cycle 3 depth 10 invent <scope> seed <i>" in t: need.append("scope-ahead-of-seed")
+sys.exit(1 if need else 0)
+PY
+then ok "commands/codcycle.md peels a path/lib scope and trails it after seed <i> (cycle stays first token)"; else bad "commands/codcycle.md scope-peel missing or its seed/scope order is wrong"; fi
+
+# --- Test 15c: the --path/--lib/--scope alias-normalization contract is documented everywhere ---
+# All scope-aware command files (and SKILL.md) promise to accept the CLI-habit `--`-prefixed flag
+# forms, normalising `--path <X>`→`path <X>`, `--lib <X>`→`lib <X>`, `--scope <X>`→`path <X>`.
+# Test 13c checks only the bare `path <X>`/`lib <X>` tokens, never the `--`-aliases, so deleting the
+# alias sentence from any one file leaves the suite green. Guard the leniency contract in every file.
+al_cmd_ok=1
+for cmd in codvisor codinventor codcycle; do
+  cf="$ROOT/commands/$cmd.md"
+  python3 - "$cf" <<'PY' 2>/dev/null || al_cmd_ok=0
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+need = []
+# the three documented aliases must all be present...
+for alias in ("--path <X>", "--lib <X>", "--scope <X>"):
+    if alias not in t: need.append(alias)
+# ...together with a normalise/equivalence cue tying alias to the bare form (the command files use →)
+if "→" not in t and "≡" not in t: need.append("normalise-cue")
+# both the spaced and = spellings of an --opt are accepted
+if "--opt <X>" not in t or "--opt=<X>" not in t: need.append("opt-spellings")
+sys.exit(1 if need else 0)
+PY
+done
+if [ "$al_cmd_ok" = 1 ]; then ok "codvisor/codinventor/codcycle document the --path/--lib/--scope alias normalization"; else bad "a scope-aware command file lost its --path/--lib/--scope alias-normalization contract"; fi
+
+# The canonical statement of the same rule lives in SKILL.md (uses ≡); guard it too. Anchor on the
+# "Flag aliases." paragraph itself (not the whole file) — `--scope` also appears far away in the
+# SCOPE→FOCUS section, so a file-wide substring check would survive gutting this paragraph.
+SK="$ROOT/skills/planwright/SKILL.md"
+if python3 - "$SK" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r"\*\*Flag aliases\.\*\*.*?(?=\n\n|\n#)", t, re.S)
+assert m, "no '**Flag aliases.**' paragraph"
+para = m.group(0)
+need = []
+for alias in ("--path <X>", "--lib <X>", "--scope <X>"):
+    if alias not in para: need.append(alias)
+# normalise/equivalence cue tying alias to the bare form (SKILL.md uses ≡)
+if "≡" not in para and "→" not in para: need.append("normalise-cue")
+# both --opt spellings are accepted
+if "--opt <X>" not in para or "--opt=<X>" not in para: need.append("opt-spellings")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md states the canonical --path/--lib/--scope alias-normalization rule"; else bad "SKILL.md lost its canonical --path/--lib/--scope alias-normalization rule"; fi
+
 # --- commands/dashboard.md launches the bundled read-only dashboard server ---
 # /dashboard wraps `dashboard.py --open`; guard that it resolves the bundled <scripts>
 # path, launches non-blocking (background) so the turn does not hang, opens the browser,

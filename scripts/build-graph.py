@@ -71,6 +71,10 @@ EXT_LANG = {
     # c/c++ family (planwright's primary target) — common alternate extensions.
     "c": "c", "h": "c", "cpp": "c", "hpp": "c",
     "cc": "c", "cxx": "c", "c++": "c", "hh": "c", "hxx": "c", "tpp": "c",
+    # C header extensions that are also resolvable include targets (C_HEADER_EXTS) —
+    # keep EXT_LANG in sync so a resolved .h++/.cuh/.tcc/.ipp/.inc is a first-class C
+    # node (defines/branch_count, centrality routing) instead of degrading to "unknown".
+    "h++": "c", "cuh": "c", "tcc": "c", "ipp": "c", "inc": "c",
     # rust — so a Rust repo gets centrality routing + Stage 2b function hints
     # instead of degrading to the coupling-only fallback (lang "unknown").
     "rs": "rust",
@@ -493,10 +497,19 @@ def resolve_rust_import(target, from_path, fileset):
     """Resolve a Rust `mod name;` or `use path::...;` target to a repo file.
     `mod foo;` is a sibling `foo.rs` or `foo/mod.rs`; a `use` path is probed
     best-effort against progressively shorter `::`-prefixes (a trailing item name
-    is not a file, so drop it and retry the module path). Crate-root markers are
-    skipped. Recall over precision, like the other language resolvers."""
-    parts = [p for p in target.split("::")
-             if p and p not in ("crate", "self", "super", "std", "core", "alloc")]
+    is not a file, so drop it and retry the module path). An external stdlib crate
+    root (std/core/alloc) as the LEADING segment drops the whole import — probing its
+    remaining segments would forge a false edge to a same-named local module (the same
+    reason resolve_c_angle refuses a bare-basename fallback). Intra-crate markers
+    (crate/self/super) are skipped. Recall over precision, like the other resolvers."""
+    raw = [p for p in target.split("::") if p]
+    # A leading std/core/alloc is the external stdlib crate root: it has no repo file,
+    # and stripping it to probe the rest (`std::io` -> `io`) would link to an unrelated
+    # local module of that name. Drop the import outright. (Only the leading segment is
+    # treated as a crate root; a non-leading `std` may be a genuine local module.)
+    if raw and raw[0] in ("std", "core", "alloc"):
+        return None
+    parts = [p for p in raw if p not in ("crate", "self", "super")]
     base = os.path.dirname(from_path)
     while parts:
         rel = "/".join(parts)

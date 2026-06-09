@@ -173,8 +173,7 @@
     panel.appendChild(elt("p", "pw-panel-sub",
       "The planner's centrality-ranked surfaces — where a change ripples furthest."));
 
-    var inCycle = {};
-    (metrics.cycles || []).forEach(function (c) { c.forEach(function (p) { inCycle[p] = true; }); });
+    var inCycle = window.PW_DERIVE.graph.cycleMembers(metrics);
 
     var list = elt("ol", "pw-prio-list");
     ranked.slice(0, 12).forEach(function (p, i) {

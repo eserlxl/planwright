@@ -125,6 +125,17 @@ GEN2="$TMP/gen2"
 NO_GIT=1 "$ROOT/scripts/make-plugin.sh" demo "$GEN2" >/dev/null
 if NO_GIT=1 "$ROOT/scripts/make-plugin.sh" demo "$GEN2" >/dev/null 2>&1; then bad "make-plugin accepted duplicate destination"; else ok "make-plugin rejects duplicate destination"; fi
 if "$ROOT/scripts/make-plugin.sh" >/dev/null 2>&1; then bad "make-plugin accepted no arguments"; else ok "make-plugin exits non-zero with no arguments"; fi
+# The arg-count guard fires before any mkdir, so no fixture cleanup is needed.
+if NO_GIT=1 "$ROOT/scripts/make-plugin.sh" a b c >/dev/null 2>&1; then bad "make-plugin accepted too many positional arguments"; else ok "make-plugin rejects too many positional arguments"; fi
+mp_too_err="$(NO_GIT=1 "$ROOT/scripts/make-plugin.sh" a b c 2>&1 >/dev/null)" || true
+if printf '%s' "$mp_too_err" | grep -q "Too many positional"; then ok "make-plugin too-many-args prints 'Too many positional' diagnostic"; else bad "make-plugin too-many-args missing diagnostic"; fi
+
+# --- Test 2c2: make-plugin.sh honors the `--` end-of-options sentinel ------
+# Post-`--` tokens must be consumed as the NAME/DEST positionals; breaking the `--` branch
+# (not collecting trailing tokens) leaves NAME empty and the scaffold never happens.
+GEN_DD="$TMP/gen_dd"
+NO_GIT=1 "$ROOT/scripts/make-plugin.sh" -- demo "$GEN_DD" >/dev/null 2>&1 || true
+if [ -f "$GEN_DD/.claude-plugin/plugin.json" ]; then ok "make-plugin honors -- end-of-options sentinel (scaffolds from trailing positionals)"; else bad "make-plugin -- sentinel did not scaffold from trailing positionals"; fi
 
 # --- Test 2d: make-plugin.sh injects AUTHOR_NAME into generated LICENSE -----
 GEN_AUTH="$TMP/gen_auth"
@@ -176,7 +187,13 @@ git -C "$GREPO" add -A
 git -C "$GREPO" -c user.name=test -c user.email=test@example.com commit -qm init
 echo "dirt" >> "$GREPO/README.md"
 if "$GREPO/scripts/bump-version.sh" patch -m x >/dev/null 2>&1; then bad "guard did not abort on dirty tree"; else ok "guard aborts on dirty git tree"; fi
+# The script's FOCUS invariant: it edits version files but must NOT tag, commit, or publish.
+# Snapshot the commit count before bumping; ALLOW_DIRTY=1 lets the bump run on this work tree.
+g_commits_before="$(git -C "$GREPO" rev-list --count HEAD)"
 if ALLOW_DIRTY=1 "$GREPO/scripts/bump-version.sh" patch -m x >/dev/null 2>&1; then ok "ALLOW_DIRTY=1 bypasses dirty-tree guard"; else bad "ALLOW_DIRTY=1 did not bypass dirty-tree guard"; fi
+if [ -z "$(git -C "$GREPO" tag)" ]; then ok "bump-version creates no git tag (no-tag/publish contract)"; else bad "bump-version created a git tag"; fi
+g_commits_after="$(git -C "$GREPO" rev-list --count HEAD)"
+if [ "$g_commits_before" = "$g_commits_after" ]; then ok "bump-version creates no new commit ($g_commits_after unchanged)"; else bad "bump-version created a commit ($g_commits_before -> $g_commits_after)"; fi
 
 # --- Test 4: skill-sync warns and skips when no version: line matches ------
 WREPO="$TMP/warnrepo"

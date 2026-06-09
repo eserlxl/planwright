@@ -165,8 +165,8 @@ inspect or revert flagged invent-tier items before hardening them.
 /planwright upgrade              Update planwright itself to the latest version (alias: update)
 ```
 
-`doctor` is read-only: it reports which host tools (`git`, `rg`, `fd`) and bundled scripts
-(`build-graph.py`, `lint-plan.py`, `lifecycle.py`) are available, what degrades when one is missing,
+`doctor` is read-only: it reports which host tools (`python3`, `git`, `rg`, `fd`) and bundled scripts
+(`build-graph.py`, `lint-plan.py`, `lifecycle.py`, `status.py`, `check-links.py`) are available, what degrades when one is missing,
 and whether the target is a git work tree — a preflight so a run's fallbacks surface up front rather
 than mid-pipeline. It exits non-zero when a core capability (`git` or a bundled script) is unavailable.
 
@@ -207,7 +207,7 @@ reports the installed version versus the latest, then gives the host-specific ha
 
 Run `/plugin install planwright@eserlxl` between those two only if the version did not advance. For
 Codex, reinstall the local plugin from the marketplace that points at this repo, or start a new thread
-after updating a direct `~/.codex/skills/planwright` symlink/copy. For Cursor, Antigravity, and Gemini,
+after updating a direct `~/.agents/skills/planwright` symlink/copy. For Cursor, Antigravity, and Gemini,
 update the clone or copied skill and reload the host context if it caches instructions.
 
 ## Dashboard (live read-only web view)
@@ -231,10 +231,12 @@ npm/build toolchain; everything works offline.
 The static UI (`scripts/dashboard/`) is a vanilla, dependency-free `index.html` + `app.js` shell
 (no build step), re-rendered from `/state.json` whenever the server's `/events` SSE stream reports a
 change (the active tab survives a reload via the URL hash). It has a command palette (`Ctrl/⌘-K`),
-light/dark themes, full keyboard navigation, and six views:
+light/dark themes, full keyboard navigation, and seven views:
 
 - **Console** — the glance-once landing: a convergence reactor, health vitals (coverage, hotspots,
   cycles, coupling), a decision-cadence ribbon, a live session trend, and a dirty-files pulse.
+- **Commands** — the recommended next sweep for the current state (codvisor / codinventor / codcycle),
+  with a supplementary cold-start `/planwright reset` nudge once the tree has converged.
 - **Plan** — pending / completed / rejected items (pending shown with all eight fields, filterable by Mode).
 - **Timeline** — items accepted / killed over the run, from the completed/rejected logs.
 - **Graph** — the temporal coupling network as a rotatable, zoomable **3D globe** (drag to rotate,

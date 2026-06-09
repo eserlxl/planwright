@@ -37,23 +37,6 @@
     return Array.isArray(v) ? v.join(", ") : (v || "");
   }
 
-  // Count pending items per mode (state.pending_modes is unreliable / often empty).
-  function deriveModes(pending) {
-    var modes = {};
-    pending.forEach(function (p) {
-      var m = p.mode || "other";
-      modes[m] = (modes[m] || 0) + 1;
-    });
-    return modes;
-  }
-
-  // The set of file paths that participate in any import cycle (for the in-cycle badge).
-  function cycleMemberSet(metrics) {
-    var s = {};
-    (metrics.cycles || []).forEach(function (c) { c.forEach(function (p) { s[p] = true; }); });
-    return s;
-  }
-
   function crossLinks(item, metrics, inCycle) {
     if (!metrics) return null;
     var seen = {}, paths = [];
@@ -135,7 +118,7 @@
   function render(container, state, ctx) {
     ctx = ctx || {};
     var metrics = ctx.metrics || null;
-    var inCycle = metrics ? cycleMemberSet(metrics) : {};
+    var inCycle = metrics ? window.PW_DERIVE.graph.cycleMembers(metrics) : {};
     container.textContent = "";
     var pending = state.pending || [];
     var completed = state.completed || [];
@@ -143,7 +126,7 @@
 
     // Pending
     section(container, "Pending", pending.length);
-    var modes = pending.length ? deriveModes(pending) : (state.pending_modes || {});
+    var modes = pending.length ? window.PW_DERIVE.pendingModes(pending) : (state.pending_modes || {});
     modeFilters(container, modes, function () { render(container, state, ctx); });
     var shown = pending.filter(function (p) {
       return PW_UI.planMode === "all" || (p.mode || "other") === PW_UI.planMode;

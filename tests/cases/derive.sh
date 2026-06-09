@@ -124,7 +124,7 @@ assert(typeof C.reset === "function", "PW_DERIVE.coach.reset missing");
 assert.strictEqual(C.reset({ converged: false }), null, "reset suggestion is absent when not converged");
 const rsug = C.reset({ converged: true });
 assert(rsug && rsug.cmd === "/planwright reset", "reset suggestion names `/planwright reset` (Claude Code slash form) when converged");
-assert(/reset/i.test(rsug.why) && /rejected\.md/i.test(rsug.why), "reset suggestion explains the cold-start and that rejected.md is kept");
+assert(/reset/i.test(rsug.why) && /rejected\.md/i.test(rsug.why) && /codvisor/i.test(rsug.why), "reset suggestion explains the cold-start, that rejected.md is kept, and points to the /codvisor follow-up");
 
 // graph.adapt: the Coupling Web's data contract — top-N selection + keepSet pruning
 assert(D.graph && typeof D.graph.adapt === "function", "PW_DERIVE.graph.adapt missing");
@@ -166,6 +166,118 @@ assert.strictEqual(ad.total, N, "total = nodeCount");
 assert.strictEqual(ad.emptyMsg, "NONE", "emptyMsg is injected by the caller");
 assert.strictEqual(ad.stale, true, "ctx.stale passthrough");
 assert.strictEqual(ad.builtSha, "abc123", "ctx.builtSha passthrough");
+
+// graph.adapt defensive guards: with no ctx and no opts the fallbacks are taken (opts||{},
+// emptyMsg default "", and the `ctx &&` guards) — it must not throw and must degrade cleanly.
+const adBare = D.graph.adapt(gm);
+assert.strictEqual(adBare.emptyMsg, "", "adapt with no opts -> emptyMsg defaults to ''");
+assert.strictEqual(adBare.stale, false, "adapt with no ctx -> stale false");
+assert.strictEqual(adBare.builtSha, undefined, "adapt with no ctx -> builtSha undefined");
+assert.strictEqual(adBare.nodes.length, 60, "adapt with no opts -> default top-60 cap applies");
+
+// graph.cycleMembers: the pure {path:true} set of every file in any import cycle (shared by
+// the Plan cross-link chips and the Insights Next-up "in cycle" badge).
+assert(typeof D.graph.cycleMembers === "function", "PW_DERIVE.graph.cycleMembers missing");
+assert.deepStrictEqual(
+  D.graph.cycleMembers({ cycles: [["a", "b"], ["c"]] }), { a: true, b: true, c: true },
+  "cycleMembers maps every path in any cycle");
+assert.deepStrictEqual(
+  D.graph.cycleMembers({ cycles: [["a", "b"], ["b", "a"]] }), { a: true, b: true },
+  "cycleMembers dedupes a node appearing in two cycles");
+assert.deepStrictEqual(D.graph.cycleMembers({}), {}, "cycleMembers over missing cycles -> {}");
+assert.deepStrictEqual(D.graph.cycleMembers({ cycles: [] }), {}, "cycleMembers over empty cycles -> {}");
+
+// pendingModes: the Plan view's per-mode tally for the filter pills; a missing mode -> "other".
+assert(typeof D.pendingModes === "function", "PW_DERIVE.pendingModes missing");
+assert.deepStrictEqual(
+  D.pendingModes([{ mode: "repair" }, { mode: "repair" }, {}]), { repair: 2, other: 1 },
+  "pendingModes tallies modes and buckets a missing mode as 'other'");
+assert.deepStrictEqual(D.pendingModes([]), {}, "pendingModes over [] -> {}");
+
+// metrics().coverage.byLang: the per-language coverage split (cov/total per bucket), plus the
+// `lang || "unknown"` default. A {python:2 (1 covered), ts:1 covered, <no lang>:1} graph.
+const gLang = JSON.stringify({
+  graph_built_at_sha: "lang01",
+  nodes: {
+    "a.py":   { lang: "python", covered_by_test: true,  pagerank: 0.5, git_churn: 1 },
+    "b.py":   { lang: "python", covered_by_test: false, pagerank: 0.4, git_churn: 1 },
+    "c.ts":   { lang: "ts",     covered_by_test: true,  pagerank: 0.3, git_churn: 1 },
+    "d.bin":  {                 covered_by_test: false, pagerank: 0.2, git_churn: 1 },
+  },
+});
+const mLang = D.metrics(gLang);
+assert.deepStrictEqual(mLang.coverage.byLang.python, { lang: "python", cov: 1, total: 2 }, "byLang python cov/total");
+assert.deepStrictEqual(mLang.coverage.byLang.ts, { lang: "ts", cov: 1, total: 1 }, "byLang ts cov/total");
+assert.deepStrictEqual(mLang.coverage.byLang.unknown, { lang: "unknown", cov: 0, total: 1 }, "byLang 'unknown' default bucket");
+
+// metrics().centralUntested: !covered && !isTest && prPct>=0.66, ordered by descending pagerank.
+// Four nodes share the top pagerank band (>=0.90) and eight low nodes seed the percentile base, so
+// with 12 nodes prPct(v) = (#strictly-below)/11 puts every top-band node above the 0.66 cutoff
+// (the lowest, 0.90, has 8 below -> 8/11 ≈ 0.727). All four would qualify on pagerank alone, which
+// gives the !covered/!isTest exclusions teeth: hi1/hi2 are uncovered & non-test (kept, hi1 first);
+// cov is in-band but covered (excluded); tst is in-band but a test (excluded). The lo* nodes are
+// below the cutoff (excluded), so dropping the prPct>=0.66 cutoff would surface them.
+const gCU = JSON.stringify({
+  graph_built_at_sha: "cu01",
+  nodes: {
+    "hi1": { pagerank: 0.99, covered_by_test: false, is_test: false, lang: "python" },
+    "cov": { pagerank: 0.96, covered_by_test: true,  is_test: false, lang: "python" },
+    "tst": { pagerank: 0.93, covered_by_test: false, is_test: true,  lang: "python" },
+    "hi2": { pagerank: 0.90, covered_by_test: false, is_test: false, lang: "python" },
+    "lo1": { pagerank: 0.10, covered_by_test: false, is_test: false, lang: "python" },
+    "lo2": { pagerank: 0.09, covered_by_test: false, is_test: false, lang: "python" },
+    "lo3": { pagerank: 0.08, covered_by_test: false, is_test: false, lang: "python" },
+    "lo4": { pagerank: 0.07, covered_by_test: false, is_test: false, lang: "python" },
+    "lo5": { pagerank: 0.06, covered_by_test: false, is_test: false, lang: "python" },
+    "lo6": { pagerank: 0.05, covered_by_test: false, is_test: false, lang: "python" },
+    "lo7": { pagerank: 0.04, covered_by_test: false, is_test: false, lang: "python" },
+    "lo8": { pagerank: 0.03, covered_by_test: false, is_test: false, lang: "python" },
+  },
+});
+const mCU = D.metrics(gCU);
+assert.deepStrictEqual(
+  mCU.centralUntested.map(function (n) { return n.path; }), ["hi1", "hi2"],
+  "centralUntested keeps only prPct>=0.66 uncovered non-test nodes, ordered by descending pagerank");
+
+// metrics() coupling derivations: the a/b!=null filter, the weight>=0.8 strong count, and the
+// couplingStrongShare ratio. Edges: [w0.9 strong, w0.5 weak, {b:null} malformed, null] -> kept 2.
+const gCoup = JSON.stringify({
+  graph_built_at_sha: "coup01",
+  nodes: { "x": { pagerank: 0.5, git_churn: 1 }, "y": { pagerank: 0.4, git_churn: 1 } },
+  coupling_edges: [
+    { a: "x", b: "y", weight: 0.9, cooccur: 3 },
+    { a: "x", b: "y", weight: 0.5, cooccur: 2 },
+    { a: "x", b: null, weight: 0.9 },
+    null,
+  ],
+});
+const mCoup = D.metrics(gCoup);
+assert.strictEqual(mCoup.couplingEdges.length, 2, "coupling: malformed (null endpoint / null entry) edges dropped");
+assert.strictEqual(mCoup.couplingStrong, 1, "coupling: weight>=0.8 strong count");
+assert(Math.abs(mCoup.couplingStrongShare - 0.5) < 1e-9, "coupling: strong share = strong/kept");
+// zero-edge case: the empty-denominator guard yields share 0 (no NaN division).
+const mNoCoup = D.metrics(JSON.stringify({ nodes: { "z": { pagerank: 0.5 } } }));
+assert.strictEqual(mNoCoup.couplingStrongShare, 0, "coupling: zero edges -> share 0 (denominator guard)");
+
+// metrics() dirty/cluster passthroughs: dirtyReason, isFirstRun (!! coercion), dirtyChanged,
+// dirtySet (built from dirty.nodes), and the clusters members.length>=2 filter.
+const gDC = JSON.stringify({
+  graph_built_at_sha: "dc01",
+  nodes: { "p": { pagerank: 0.5 }, "q": { pagerank: 0.4 } },
+  dirty: { reason: "changed since last run", is_first_run: 1, changed: ["p"], nodes: ["p", "q"] },
+  clusters: [
+    { label: "two", members: ["p", "q"] },
+    { label: "one", members: ["p"] },
+    { label: "none", members: [] },
+  ],
+});
+const mDC = D.metrics(gDC);
+assert.strictEqual(mDC.dirtyReason, "changed since last run", "dirtyReason passthrough");
+assert.strictEqual(mDC.isFirstRun, true, "isFirstRun is the !! coercion of dirty.is_first_run");
+assert.deepStrictEqual(mDC.dirtyChanged, ["p"], "dirtyChanged passthrough");
+assert.deepStrictEqual(mDC.dirtySet, { p: true, q: true }, "dirtySet built from dirty.nodes");
+assert.strictEqual(mDC.clusters.length, 1, "clusters filtered to members.length>=2");
+assert.strictEqual(mDC.clusters[0].label, "two", "the surviving cluster is the >=2-member one");
 
 console.log("DERIVE-OK");
 JS

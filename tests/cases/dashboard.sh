@@ -16,7 +16,7 @@ printf '{"nodes":{"a.py":{"pagerank":0.5,"is_articulation":true,"imports":["b.py
   > "$DFX/.planwright/graph.json"
 
 cat > "$TMP/dash_client.py" <<'PY'
-import json, os, subprocess, sys, time, urllib.request, urllib.error
+import json, os, subprocess, sys, time, urllib.request, urllib.error, urllib.parse
 
 root, dash = sys.argv[1], sys.argv[2]
 proc = subprocess.Popen(
@@ -76,6 +76,17 @@ try:
     except urllib.error.HTTPError as e:
         host_blocked = e.code == 403
     assert host_blocked, "foreign Host header was not refused"
+
+    # Host is case-insensitive (RFC 4343): a legitimate mixed-case loopback name must be
+    # allowed, not 403'd. The allow-list is lowercase, so a `Localhost` Host must be folded
+    # before matching (regression guard for the rebinding check rejecting real loopback).
+    _port = urllib.parse.urlparse(base).port
+    req_mc = urllib.request.Request(base + "/state.json", headers={"Host": "Localhost:%d" % _port})
+    try:
+        mc_ok = urllib.request.urlopen(req_mc, timeout=5).status == 200
+    except urllib.error.HTTPError:
+        mc_ok = False
+    assert mc_ok, "mixed-case loopback Host (Localhost) was wrongly refused"
 
     print("DASH-OK")
 
@@ -225,4 +236,50 @@ if grep -q VIEW-doctor-OK "$TMP/dash.out"; then
   ok "dashboard serves the Doctor view (views/doctor.js registers PW_VIEWS.doctor)"
 else
   bad "dashboard Doctor view check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+
+# --- /graph.json on a graphless root returns 404 {"error":"no graph built"} -----------
+# The passthrough success is covered above; the no-graph guard (dashboard.py:189) was not.
+# A second short-lived server on a root with a plan but NO graph.json exercises it.
+DFX2="$TMP/dash-nograph"; mkdir -p "$DFX2/.planwright"
+printf -- '- [ ] x\n      Mode: develop\n' > "$DFX2/.planwright/plan.md"   # plan but NO graph.json
+cat > "$TMP/dash_nograph.py" <<'PY'
+import json, subprocess, sys, time, urllib.request, urllib.error
+root, dash = sys.argv[1], sys.argv[2]
+proc = subprocess.Popen([sys.executable, dash, "--root", root, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+try:
+    port = None
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            if proc.poll() is not None:
+                print("server exited early", file=sys.stderr); sys.exit(1)
+            continue
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    if not port:
+        print("no port banner", file=sys.stderr); sys.exit(1)
+    base = "http://127.0.0.1:%d" % port
+    try:
+        urllib.request.urlopen(base + "/graph.json", timeout=5)
+        print("expected 404, got 200", file=sys.stderr); sys.exit(1)
+    except urllib.error.HTTPError as e:
+        assert e.code == 404, e.code
+        body = json.load(e)
+        assert "no graph built" in body.get("error", ""), body
+    print("NOGRAPH-OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+if python3 "$TMP/dash_nograph.py" "$DFX2" "$DASH" >"$TMP/dash_ng.out" 2>"$TMP/dash_ng.err" \
+   && grep -q NOGRAPH-OK "$TMP/dash_ng.out"; then
+  ok "dashboard.py /graph.json returns 404 {error: no graph built} on a graphless root"
+else
+  bad "dashboard.py /graph.json no-graph 404 failed: $(cat "$TMP/dash_ng.err" 2>/dev/null)"
 fi

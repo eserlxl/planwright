@@ -459,6 +459,32 @@ else
   bad "lint-plan.py --strict wrong (default=$st_def strict=$st_strict)"
 fi
 
+# --- Test 12d-strict-rej: --strict also promotes a *rejected*-match advisory --------
+# 12d-strict covers a completed-match; the monotonic-drain guard also advises when a
+# pending title matches a rejected.md entry. A clean pending item matching a rejected
+# title must be an advisory by default (exit 0) and a failure under --strict (exit 1).
+SDIRR="$TMP/strictdir_rej"; mkdir -p "$SDIRR"
+printf '# rejected\n\n- [x] Doomed twice\n      Rejection: value-gate: no consumer\n' > "$SDIRR/rejected.md"
+cat > "$SDIRR/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] Doomed twice
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+sr_def=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SDIRR/plan.md" --quiet || sr_def=$?
+sr_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SDIRR/plan.md" --strict --quiet || sr_strict=$?
+if [ "$sr_def" = 0 ] && [ "$sr_strict" = 1 ]; then
+  ok "lint-plan.py --strict promotes a rejected-match advisory to a failure (default stays clean)"
+else
+  bad "lint-plan.py --strict rejected-match wrong (default=$sr_def strict=$sr_strict)"
+fi
+
 # --- Test 12e: lint-plan.py --scope mechanizes the Stage 10 Surfaces-in-Focus gate
 # Reads the builder's focus/context sets: a Surface in Focus passes; an out-of-Focus
 # existing Surface fails (a non-repair in Context, or anything outside Context); a
@@ -495,6 +521,12 @@ EOF
 sco_rc=0
 sco_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_OK" --scope "$SCG" 2>&1)" || sco_rc=$?
 if [ "$sco_rc" -eq 0 ] && printf '%s' "$sco_out" | grep -qF "upstream of Focus (Context)"; then ok "lint-plan.py --scope passes in-Focus + advises an upstream repair (non-failing)"; else bad "lint-plan.py --scope mishandled in-Focus/upstream-repair (rc=$sco_rc)"; fi
+
+# The same upstream-of-Focus (Context) advisory is a non-failing note by default (above),
+# but --strict promotes it to a failure (exit 1) so a CI scope gate catches it.
+sco_strict=0
+python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_OK" --scope "$SCG" --strict --quiet || sco_strict=$?
+if [ "$sco_strict" -eq 1 ]; then ok "lint-plan.py --strict promotes the --scope upstream-repair advisory to a failure"; else bad "lint-plan.py --scope --strict did not promote the upstream advisory (rc=$sco_strict)"; fi
 
 # Plan B: a non-repair Context Surface + an out-of-scope Surface => two violations
 SCP_BAD="$TMP/scope_bad_plan.md"

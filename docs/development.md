@@ -19,7 +19,7 @@ When modifying the distribution, the standard workflow is:
    /plugin marketplace update eserlxl
    ```
    For Codex plugin packaging, reinstall the local plugin from the marketplace entry that points at
-   this repo, or start a new thread after updating a direct `~/.codex/skills/planwright` symlink/copy.
+   this repo, or start a new thread after updating a direct `~/.agents/skills/planwright` symlink/copy.
 
 If you deliberately want to bump alongside uncommitted edits (collapsing steps 1–4 into a
 single commit), pass `ALLOW_DIRTY=1` to skip the guard:

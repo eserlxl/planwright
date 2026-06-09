@@ -256,7 +256,31 @@
     };
   }
 
+  // ---- pending: the Plan view's per-mode tally (filter pills) --------------------------
+  // Pure mode-counting kept here so it can be node-tested rather than living inline in the
+  // Plan view. state.pending_modes is often empty in live snapshots, so the view recomputes
+  // the counts from pending[].mode; a missing mode buckets as "other".
+  function pendingModes(pending) {
+    var modes = {};
+    (pending || []).forEach(function (p) {
+      var m = (p && p.mode) || "other";
+      modes[m] = (modes[m] || 0) + 1;
+    });
+    return modes;
+  }
+
   // ---- graph: shape PW_DERIVE.metrics into the Coupling Web renderer's data ------------
+  // The set of file paths that participate in any import cycle (for the "in cycle" badge the
+  // Plan cross-link chips and the Insights Next-up list both render). Pure and DOM-free,
+  // tolerating a missing/empty cycles array so a metrics object without cycles yields {}.
+  function cycleMembers(metrics) {
+    var s = {};
+    ((metrics && metrics.cycles) || []).forEach(function (c) {
+      c.forEach(function (p) { s[p] = true; });
+    });
+    return s;
+  }
+
   // Pure (DOM-free) shaping kept here next to metrics (which it consumes), so the top-N
   // selection + keepSet pruning can be unit-tested rather than living trapped in the Graph
   // view's IIFE. Keeps the most-central `topNodes` nodes (default 60) and only the
@@ -311,9 +335,9 @@
   }
 
   window.PW_DERIVE = {
-    metrics: metrics, pctRank: pctRank, quantile: quantile,
+    metrics: metrics, pctRank: pctRank, quantile: quantile, pendingModes: pendingModes,
     coach: { signals: coachSignals, recommend: coachRecommend, evidence: coachEvidence, reset: coachReset },
-    graph: { adapt: graphAdapt },
+    graph: { adapt: graphAdapt, cycleMembers: cycleMembers },
   };
 
   // ---- PW_BUS: cross-view selection (view-state only) ----------------------------------

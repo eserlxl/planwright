@@ -133,6 +133,23 @@ else
   bad "status.py graph block or final-point rendering is wrong"
 fi
 
+# --- Test STS7c: none-recorded final point + whitespace-only final.md fallbacks ----
+# An empty .planwright must render the none-recorded final-point line and the graph-none
+# line; a whitespace-only final.md (all fields blank) exercises report()'s ?/(?)/
+# (unrecorded tier) empty-field fallbacks. Both were unpinned (STS7 only fed a full final.md).
+EFX="$TMP/status-empty"; mkdir -p "$EFX/.planwright"
+erep="$(python3 "$STAT" --root "$EFX")"
+WFX="$TMP/status-wsfinal"; mkdir -p "$WFX/.planwright"
+printf '   \n\n' > "$WFX/.planwright/final.md"
+wrep="$(python3 "$STAT" --root "$WFX")"
+if printf '%s' "$erep" | grep -qF 'final point: none recorded (the ladder is open)' \
+   && printf '%s' "$erep" | grep -qF 'graph: none (run a plan to build .planwright/graph.json)' \
+   && printf '%s' "$wrep" | grep -qE '^  final point: \? \(\?\) deepest_tier=\(unrecorded tier\)'; then
+  ok "status.py renders the none-recorded final point and the empty-field fallbacks"
+else
+  bad "status.py empty/whitespace final-point rendering wrong (empty=[$erep] ws=[$wrep])"
+fi
+
 # --- Test STS7b: a corrupt (non-object / wrong-shape) graph file degrades, not crashes ---
 # A graph file that is valid JSON but not an object (truncated or hand-edited write) must
 # not crash status — the read-only command a wrapper/CI calls to check convergence. Each

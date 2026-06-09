@@ -104,3 +104,16 @@ if [ "$ia5u_rc" -eq 2 ]; then
 else
   bad "install-aliases --dir '' --uninstall did not exit 2 (rc=$ia5u_rc)"
 fi
+
+# --- Test IA6: --dir as the final argument (no path token) is rejected ------
+# `--dir` with nothing following it must exit 2 with a 'needs a path' diagnostic — never
+# fall through (which, under set -u, would otherwise abort on $2 unbound). Isolate HOME/
+# CLAUDE_CONFIG_DIR like IA5 so even a regression cannot touch the real personal scope.
+ia6_rc=0
+HOME="$IAHOME" CLAUDE_CONFIG_DIR="$IAHOME/.claude" bash "$IA" --dir \
+  >"$TMP/ia6.out" 2>"$TMP/ia6.err" || ia6_rc=$?
+if [ "$ia6_rc" -eq 2 ] && grep -q 'needs a path' "$TMP/ia6.err"; then
+  ok "install-aliases rejects --dir with no value (exit 2, 'needs a path' diagnostic)"
+else
+  bad "install-aliases mis-handled --dir with no value (rc=$ia6_rc err='$(cat "$TMP/ia6.err" 2>/dev/null)')"
+fi

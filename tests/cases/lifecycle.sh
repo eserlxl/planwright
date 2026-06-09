@@ -313,3 +313,19 @@ if [ "$srrc" -eq 0 ] && [ ! -e "$LCS/linkdir" ] && [ ! -e "$LCS/plan.md" ] \
 else
   bad "lifecycle.py reset mishandled a symlinked entry (rc=$srrc out='$srout')"
 fi
+
+# --- Test L11: reset's singular "1 entry" wording and the kept-rejected tail ----------
+# reset() pluralizes the noun (entry/entries) and appends a kept-rejected note; the
+# singular branch and the singular-with-kept-rejected tail were both unpinned (L9 only
+# exercised the plural counts).
+LCS1="$TMP/lc11a/.planwright"; mkdir -p "$LCS1"; printf 'p\n' > "$LCS1/plan.md"
+o1="$(python3 "$LC" reset --root "$LCS1")"
+LCS2="$TMP/lc11b/.planwright"; mkdir -p "$LCS2"; printf 'p\n' > "$LCS2/plan.md"
+printf '# rejected\n' > "$LCS2/rejected.md"
+o2="$(python3 "$LC" reset --root "$LCS2")"
+if [ "$o1" = "lifecycle: reset 1 entry" ] \
+   && [ "$o2" = "lifecycle: reset 1 entry, kept rejected.md (rejection memory retained)" ]; then
+  ok "lifecycle.py reset uses singular '1 entry' and appends the kept-rejected tail"
+else
+  bad "lifecycle.py reset singular wording wrong (o1='$o1' o2='$o2')"
+fi
