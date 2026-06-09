@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.47.0] - 2026-06-09
+
+### Changed
+- Degrade-not-crash on non-UTF-8 input across check-links, lint-plan, doctor `--fix`, and bump-version (UTF-8 preflight before any manifest write); tolerate non-ASCII tracked filenames in the graph build; reject an out-of-range dashboard `--port` with exit 2. Consolidate lifecycle's block boundaries and rejection flag onto the canonical `plan_parse`; resolve `--scope .`/leading-`./` to the whole-repo Focus, matched case-insensitively. Add `lint-final` validation wiring (earned-empty audit fields, deepest_tier vocabulary, last-wins keys) and surface a scoped/invalid/component final point as untrusted across status and the dashboard; stop the coach recommending invention over a stale final point. PW_DERIVE the explore cold frontier and the recorded invent seed + framing into status and Insights. Preflight `dashboard.py` and the dashboard UI asset tree in doctor; surface graph staleness on the status graph line. Make `install-aliases.sh` run on stock macOS bash 3.2; guard `tests/run.sh` against unregistered case files. Test coverage 343 -> 418.
+
 ## [1.46.0] - 2026-06-09
 
 ### Changed
