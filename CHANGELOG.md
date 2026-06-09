@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.46.0] - 2026-06-09
+
+### Changed
+- Route C-header extensions (.h++/.cuh/.tcc/.ipp/.inc) as C and drop leading std/core/alloc Rust imports in build-graph; accept mixed-case loopback Host headers per RFC 4343 in the dashboard server; tighten the lint-plan repair Evidence file:line gate to a real path anchor; extract PW_DERIVE.pendingModes + graph.cycleMembers and add the dashboard Commands view. Test coverage 325 -> 343.
+
 ## [1.45.0] - 2026-06-09
 
 ### Changed
