@@ -29,6 +29,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -76,6 +77,15 @@ POLL_INTERVAL = _env_float("PW_DASH_POLL", 1.0)
 # comment. The ping keeps the connection warm and lets a vanished client be noticed (the
 # failing write tears the handler thread down) instead of leaking until the next change.
 HEARTBEAT_INTERVAL = _env_float("PW_DASH_HEARTBEAT", 15.0)
+
+
+# Cap on concurrent /events (SSE) streams. ThreadingHTTPServer spawns a handler thread
+# per connection and an idle-closed tab is only reaped at the next heartbeat write, so
+# without a bound, repeated open/close churn can pile up live threads. A BoundedSemaphore
+# caps the live streams; an over-cap client gets a retriable 503 instead of a new thread.
+# Overridable via PW_DASH_MAX_SSE_CLIENTS (invalid/absent -> 64).
+MAX_SSE_CLIENTS = int(_env_float("PW_DASH_MAX_SSE_CLIENTS", 64))
+_sse_slots = threading.BoundedSemaphore(MAX_SSE_CLIENTS)
 
 
 def _planwright_dir(root):
@@ -230,16 +240,20 @@ class Handler(BaseHTTPRequestHandler):
         """Server-Sent Events: emit an initial `change` then one whenever the
         .planwright/ signature changes. During idle stretches it emits a `: ping`
         keep-alive comment every HEARTBEAT_INTERVAL seconds. Runs until the client
-        disconnects (a failed write ends the handler thread)."""
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Connection", "keep-alive")
-        self.end_headers()
-        last = None
-        idle = 0.0
+        disconnects (a failed write ends the handler thread). Bounded by
+        MAX_SSE_CLIENTS concurrent streams — an over-cap client gets a retriable 503
+        instead of an unbounded new handler thread."""
+        if not _sse_slots.acquire(blocking=False):
+            return self._send(503, "text/plain; charset=utf-8", "too many event streams")
         try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            last = None
+            idle = 0.0
             while True:
                 sig = _mtime_signature(self.root)
                 if sig != last:
@@ -254,6 +268,8 @@ class Handler(BaseHTTPRequestHandler):
                 time.sleep(POLL_INTERVAL)
         except (BrokenPipeError, ConnectionResetError, OSError):
             return  # client went away — end the handler thread cleanly
+        finally:
+            _sse_slots.release()
 
 
 def serve(root, port, open_browser=False):
