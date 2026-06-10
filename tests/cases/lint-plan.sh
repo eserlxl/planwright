@@ -185,6 +185,7 @@ if [ "$after1" = "$after2" ] \
    && printf '%s' "$after1" | grep -q 'Surfaces: CMakeLists.txt, existing.py' \
    && ! printf '%s' "$after1" | grep -q 'New Surfaces:' \
    && ! printf '%s' "$fx2_out" | grep -qi 'applied' \
+   && ! find "$FX" -name '.lint-plan-*.tmp' 2>/dev/null | grep -q . \
    && python3 "$ROOT/scripts/lint-plan.py" --root "$FX" --plan "$FXP" --quiet; then
   ok "lint-plan.py --fix is idempotent on a double-violation item (second pass is a no-op)"
 else

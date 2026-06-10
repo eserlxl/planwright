@@ -55,6 +55,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 
 # lint-plan.py lives in scripts/ beside the shared canonical parser. Add its own
 # directory to sys.path so `import plan_parse` resolves both when run as a script and
@@ -620,8 +621,23 @@ def main():
             raw = fh.read()
         fixed, fixes = fix_text(raw, root, args.all)
         if fixes:
-            with open(args.plan, "w", encoding="utf-8", newline="") as fh:
-                fh.write(fixed)
+            # Atomic write (mirrors lifecycle.write): a plain open(plan, "w") truncates
+            # the ACTIVE PLAN before the fixed bytes land, so an interruption between
+            # truncate and flush silently loses pending items — the exact failure
+            # lifecycle's tempfile+os.replace pattern exists to prevent on this file.
+            # newline="" preserves fix_text's CRLF handling byte-for-byte.
+            d = os.path.dirname(os.path.abspath(args.plan)) or "."
+            fd, tmp = tempfile.mkstemp(dir=d, prefix=".lint-plan-", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(fixed)
+                os.replace(tmp, args.plan)
+            except BaseException:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+                raise
             text = fixed.replace("\r\n", "\n").replace("\r", "\n")
         if not args.quiet and not args.json:
             if fixes:
