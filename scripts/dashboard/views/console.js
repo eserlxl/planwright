@@ -56,6 +56,33 @@
     var ratio = total ? done / total : 0;
     var converged = !!state.converged;
 
+    // Reactor state — three resting points, not two, so a drained plan (0 pending) that is
+    // not a certified final point no longer mislabels as "IN PROGRESS":
+    //   CONVERGED    — status certified a current, valid, whole-repo final point.
+    //   IN PROGRESS  — there is pending work to implement (the only genuinely active state).
+    //   STALE / IDLE — the plan is drained but not converged; the recorded final point (if
+    //                  any) is stale/invalid/scoped, so HEAD moved on and a fresh plan would
+    //                  re-open the ladder.
+    var fp = state.final_point;
+    var fpShown = window.PW_DERIVE.finalPointShown(fp);
+    var fpFlag = fpShown ? window.PW_DERIVE.finalFlag(fp) : null;
+    var inProgress = pend > 0;
+    var verdictText = converged ? "CONVERGED" : inProgress ? "IN PROGRESS" : fpShown ? "STALE" : "IDLE";
+    var noteText = converged
+      ? "final point recorded; HEAD has not moved since"
+      : inProgress
+        ? (pend + " item" + (pend === 1 ? "" : "s") + " pending — run execute to implement")
+        : fpFlag === "stale"
+          ? ("plan drained, but the " + (fp.deepest_tier || "?") + " final point is stale — HEAD moved since " +
+             (fp.date || "?") + "; run a plan to re-open the ladder")
+          : fpFlag === "invalid"
+            ? "plan drained, but the recorded final point failed validation — run a plan to re-establish convergence"
+            : fpFlag === "scoped"
+              ? "plan drained, but only a component-scoped final point is recorded — run a whole-repo plan"
+              : fpShown
+                ? "plan drained; HEAD moved since the final point — run a plan to confirm convergence"
+                : "no pending work and no final point recorded — run a plan to assess the tree";
+
     var panel = elt("div", "pw-reactor");
     var size = 240, c = 120, R = 96, C = 2 * Math.PI * R;
     var s = svg("svg", {
@@ -93,7 +120,8 @@
     s.appendChild(svg("circle", {
       cx: c, cy: c, r: 70, "class": "pw-reactor-core" + (converged ? " is-converged" : ""),
     }));
-    if (!converged) {
+    if (inProgress) {
+      // spin only while work is genuinely pending — a drained/stale plan is at rest
       s.appendChild(svg("circle", {
         cx: c, cy: c, r: 80, fill: "none", "class": "pw-reactor-spin",
         "stroke-width": 2, "stroke-dasharray": "4 10",
@@ -104,7 +132,7 @@
       x: c, y: c - 4, "class": "pw-reactor-verdict " + (converged ? "is-ok" : "is-warn"),
       "text-anchor": "middle",
     });
-    verdict.textContent = converged ? "CONVERGED" : "IN PROGRESS";
+    verdict.textContent = verdictText;
     s.appendChild(verdict);
     var sub = svg("text", { x: c, y: c + 20, "class": "pw-reactor-sub", "text-anchor": "middle" });
     sub.textContent = done + " / " + total + " · " + Math.round(ratio * 100) + "%";
@@ -126,13 +154,12 @@
       carriedSat.title = "cut/deferred dossier candidates — routing only, see digest.md";
       sats.appendChild(carriedSat);
     }
-    var fp = state.final_point;
-    if (window.PW_DERIVE.finalPointShown(fp)) {
+    if (fpShown) {
       var label = "final · " + (fp.deepest_tier || "?") + (fp.date ? " · " + fp.date : "");
       // PW_DERIVE.finalFlag: an invalid (fails lint-final) or component-scoped
       // final point must never render as a trusted whole-repo "set" — status
       // refuses to certify it, so do we.
-      var flag = window.PW_DERIVE.finalFlag(fp);
+      var flag = fpFlag;
       var fsat = elt("div", "pw-sat" +
         (flag === "stale" ? " is-stale"
           : flag === "invalid" ? " is-err"
@@ -142,9 +169,7 @@
       sats.appendChild(fsat);
     }
     panel.appendChild(sats);
-    panel.appendChild(elt("div", "pw-reactor-note",
-      converged ? "final point recorded; HEAD has not moved since" :
-      "momentum, not a promise — accepted ÷ all decisions"));
+    panel.appendChild(elt("div", "pw-reactor-note", noteText));
     return panel;
   }
 
