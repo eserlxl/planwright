@@ -257,6 +257,13 @@ def collect(root: str) -> dict:
             # never silently fresh). This is the CANONICAL verdict — the dashboard's
             # buildCtx consumes it from state.json rather than re-deriving it.
             "stale": (not head) or not _shas_match(built_str, head),
+            # Audit backlog the capped ranked lists hide (absent on pre-frontier graphs).
+            # Keep int counts only: report() formats these with %d, so a corrupt graph
+            # with a string count would otherwise crash the human report (the same
+            # failure class as the built_at_sha coercion above).
+            "frontier": ({k: v for k, v in graph.get("frontier").items()
+                          if isinstance(v, int) and not isinstance(v, bool)}
+                         if isinstance(graph.get("frontier"), dict) else None),
         }
     except (OSError, ValueError):
         graph_rec = None
@@ -324,8 +331,14 @@ def report(state, quiet):
         print("  graph: none (run a plan to build .planwright/graph.json)")
     else:
         gflag = " (STALE — HEAD has moved since the build)" if g.get("stale") else ""
-        print("  graph: %d nodes, %d dirty, built at %s%s"
-              % (g["node_count"], g["dirty_node_count"], (g["built_at_sha"] or "?")[:10], gflag))
+        fr = g.get("frontier") or {}
+        frbit = ""
+        if fr.get("never_audited") or fr.get("stale"):
+            frbit = (", audit frontier: %d never-audited, %d stale"
+                     % (fr.get("never_audited") or 0, fr.get("stale") or 0))
+        print("  graph: %d nodes, %d dirty, built at %s%s%s"
+              % (g["node_count"], g["dirty_node_count"], (g["built_at_sha"] or "?")[:10],
+                 frbit, gflag))
     return 0
 
 

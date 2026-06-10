@@ -330,11 +330,24 @@ cycle's depth.
 **Tier ① — cold-frontier sweep (in-round; costs no budget cycle).** Default routing leads with the
 **hot core** (high-blast-radius `ranked_code`: PageRank + articulation ∩ the dirty set); its blind spot
 is the **cold frontier** — code the audit never reached and paths nothing exercises. When the hot-core
-ladder is dry, re-run Stages 2–10 **once** with routing overridden to the graph's **`ranked_cold`** list
-(never-audited first, then uncovered, then least-central — see `docs/graph-memory-schema.md`): Stage 2b
-reads `ranked_cold` bodies, Stages 5–6 survey the cold clusters project-wide, articulation points always
-included. This is part of the planning round, so it costs no extra cycle. If it writes ≥1 item the ladder
-is live again; continue normally.
+ladder is dry, re-run Stages 2–10 **once per planning round** with routing overridden to the graph's
+**`ranked_cold`** list
+(never-audited first, then stalest-audited — most commits since the stamp, via `audit_age_commits` —
+then uncovered, then least-central — see `docs/graph-memory-schema.md`): Stage 2b reads `ranked_cold`
+bodies, Stages 5–6 survey the cold clusters project-wide, articulation points always included. This is
+part of the planning round, so
+it costs no extra cycle. If it writes ≥1 item the ladder is live again; continue normally. **Dryness is
+judged against the graph's `frontier` counts, never the capped 20-entry slice:** while
+`frontier.never_audited > 0` the frontier is not dry — the next round re-enters this sweep instead of
+declaring dryness (Stage 11 stamps what each sweep actually read, the next round's Stage 1.5 rebuild
+re-derives the counts, and the count drains across rounds — not strictly per round: a node whose only
+finding was capacity-cut deliberately keeps its prior stamp, and a capacity stop is never a dry
+verdict). A sweep that writes 0 items once `never_audited` is 0 is dry;
+the residual `frontier.stale` backlog is then *recorded*, not denied (see **Deep final point**) — it
+re-ages continuously on an active repo, so it quantifies the claim rather than blocking it. **Under a
+Scope** the `frontier` counts stay whole-repo (the builder never restricts them): judge a scoped
+sweep's dryness on the never-audited code nodes **within Context** — the only set it may read and
+stamp — and record the whole-repo residuals without chasing them.
 
 **Tier ② — expand (latent-capability completion; spends budget cycles).** If the cold frontier is also
 dry and the cycle budget still allows, `explore` does **not** stop — it switches into the **expand**
@@ -366,7 +379,9 @@ only — see Stage 5's invent lens and Hard rules).
 `.planwright/final.md` (marked with `deepest_tier:` and a one-line note), even if budget remains —
 nothing groundable is left:
 - under `explore`, when the hot core, cold frontier, **and** expand are all dry → `deepest_tier: expand`,
-  `confirmed deep — cold-frontier and expand tiers both dry`;
+  `confirmed deep — cold-frontier and expand tiers both dry`, with the graph's residual `frontier`
+  counts appended to the note (e.g. `frontier: 0 never-audited, 15 stale`) so the convergence record
+  quantifies what the sweep did **not** read instead of over-claiming;
 - under `invent`, **only** in the rare genuine empty — no net-new candidate clears even the grounding
   floor + structural hard ceiling (no seam left to extend), **and** that empty is *earned by breadth*
   (Framing auto-rotation exhausted every vantage) **and** *earned by rigor* (the per-seam gate justified
@@ -377,8 +392,12 @@ nothing groundable is left:
 This multi-tier fixpoint is a far more honest "stable" than a single hot-core survey.
 
 **Termination.** Under **`explore`** the ladder is safe for any non-zero N (including `-1`): each tier is
-finite and drains monotonically — swept cold nodes are restamped (`last_audited_sha = HEAD`, Stage 11)
-and leave the frontier; expand candidates are implemented (advancing state) or dropped/rejected (recorded,
+finite and drains monotonically — swept cold nodes are stamped when actually read (`last_audited_sha =
+HEAD`, Stage 11) and fall to the back of the staleness queue (the never-audited bin drains as nodes are
+read — a capacity-cut node keeps its stamp only until its carried finding is promoted, dropped, or
+rejected via the digest's per-run drain, so it cannot recirculate forever;
+re-aging merely reorders the stamped queue and never blocks the item-driven dry verdict); expand
+candidates are implemented (advancing state) or dropped/rejected (recorded,
 not re-proposed) — so the escalation is a bounded sequence that always ends in a recorded final point.
 Under **`invent`** termination is deliberately different: the **invent-must-generate** rule means the
 tier keeps producing groundable net-new work as long as any seam remains to extend, so an `invent` run
@@ -501,6 +520,13 @@ Then load the planning memory so this run learns from prior ones:
   changed. Use the recurring reasons to steer away from whole classes of doomed work.
 - **RECENTLY COMPLETED** — read `.planwright/completed.md` so you do not re-propose finished work
   (unless the audit shows a regression).
+- **CARRIED CANDIDATES** — read the `## Carried dossier candidates` section of `.planwright/digest.md`
+  if present (findings a prior run verified but cut at the Stage 8 capacity gate, or deferred as
+  unverifiable — see Stage 11 step 2). Each entry is a **mandatory re-verification seed** for this
+  run's Stage 2: re-read the cited anchor, then either promote the finding into the dossier (it
+  competes at Stage 8 again), drop it with a one-line reason, or carry it again if still blocked;
+  delete any entry whose anchor no longer verifies. The cap (10) plus this per-run drain keeps the
+  block self-cleaning; like the rest of the digest it is routing only, never Evidence.
 - **FINAL POINT** — read `.planwright/final.md` if present. Once Stage 1.5 has computed the dirty set,
   if `final.md`'s recorded sha equals the current HEAD **and** the dirty set is empty **and** no new
   instruction or higher depth was given this run **and** the run's scope matches the recorded one (the
@@ -637,7 +663,11 @@ empty). It is PageRank-ordered, so high-blast-radius code first; take its
 top files, **always including every `is_articulation` node regardless of depth** (a defect in a
 cut vertex breaks many modules), breaking ties between *files* by their `loc` and `branch_count`. Then,
 **within** each selected file, rank the functions to read by `branch_at` (branches attributed to each
-symbol by its definition span) — most-branchy first — and use `defines_at` (symbol → 1-based line) to
+symbol by its definition span) — most-branchy first, but **promote any function with `swallow_at` > 0**
+(a mechanically detected error-swallowing site: empty handler, ignored error return, silenced stderr)
+ahead of its swallow-free peers — that is exactly the silent-failure candidate this sub-pass hunts, and
+branchiness alone ranks it last. Swallow sites are candidates to read, never findings. Use `defines_at`
+(symbol → 1-based line) to
 jump straight to each body rather than re-scanning. This is the function-granular half of
 **centrality ∩ complexity**: centrality picks the files, `branch_at` picks the functions inside them.
 When the
@@ -646,8 +676,9 @@ already coupling-ordered — walk it the same way; centrality and coupling feed 
 If `graph.json` is absent or graph-aware routing was skipped this run, **fall back** to the original rule:
 the top-N most complex functions by line count or branching. **During an `explore` cold-frontier sweep**
 (see **Escalation ladder**), route Stage 2b by the graph's **`ranked_cold`** list instead of
-`ranked_code` — same walk, but it leads with the audit/coverage frontier (never-audited, then uncovered,
-then least-central) so the sweep reads exactly the code the hot-core pass skipped. **Under a Scope**
+`ranked_code` — same walk, but it leads with the audit/coverage frontier (never-audited, then
+stalest-audited by `audit_age_commits`, then uncovered, then least-central) so the sweep reads exactly
+the code the hot-core pass skipped or has not re-read for the longest stretch of commits. **Under a Scope**
 (`path`/`lib`, see **Inputs**), walk the same ranked list but **restricted to the Context node set** —
 the function bodies read are the in-scope ones plus their 1-hop blast radius (articulation points inside
 Context still always included), so root cause upstream of Focus stays readable. For each selected function, trace every non-trivial path: look for silent
@@ -881,7 +912,9 @@ header:
 canonical, test-covered linter for the *machine-checkable subset* of the OUTPUT FORMAT and the Stage 10
 gate (every pending item has all eight fields, a valid `Mode`, `Surfaces:` that exist, `New Surfaces:`
 that do not, no path in both, no `.planwright/` tool-owned path in either, no graph-memory citation in
-`Evidence`, a `file:line` anchor in a `repair` item's `Evidence`, a `.txt` on any `CMakeLists`, and
+`Evidence`, a `file:line` anchor in a `repair` item's `Evidence` — whose cited file must also exist
+(a ghost anchor fails a `repair` item; a ghost anchor in any other mode, or a line number past the
+end of the cited file in any mode, is a non-failing advisory), a `.txt` on any `CMakeLists`, and
 a non-empty `Verification:`). It also enforces the ladder's **monotonic-drain** guard — no two pending
 items share a title — and prints non-failing **advisories** when a pending title matches a
 `completed.md`/`rejected.md` item, so you confirm it is a genuine regression or a resolved rejection
@@ -904,14 +937,29 @@ Then, unless `dry-run` was passed (no graph-memory state is persisted on a dry r
 something to diff against:
 
 1. **Stamp `last_audited_sha`** — in `.planwright/graph.json`, set `last_audited_sha = graph_built_at_sha`
-   for every node that was in scope this run (the dirty set on an incremental run, or all nodes on a
-   first/whole-graph-invalidation run). Leave skipped nodes' prior `last_audited_sha` untouched. Write
-   with the native Write tool. Without this stamp every future run looks like a first run and re-audits
-   everything, so this step is what actually activates incremental skipping.
+   only for nodes this run actually **examined**: every node whose function bodies Stage 2b read
+   (articulation auto-includes and cold-frontier sweep reads included), and every node a Stage 2
+   sub-pass or dossier lens emitted a finding or an explicit dismissal for — **except** a node whose
+   only finding was cut at the Stage 8 capacity gate: leave its prior stamp untouched, so the node
+   re-enters the frontier and its finding re-surfaces next run (the claim itself is also carried in
+   the digest — step 2). The carve-out overrides the read-stamp trigger: a node Stage 2b read but
+   whose only finding was capacity-cut stays unstamped. Leave every other node's prior `last_audited_sha` untouched. Write with the
+   native Write tool. The stamp drives the cold/stale frontier ordering (`ranked_cold`,
+   `audit_age_commits`, the `frontier` counts) — incremental skipping itself is keyed on the prior
+   graph's existence and sha256 diffing (`compute_dirty`), never on stamps — so stamping a node the
+   run never read speeds nothing up; it only launders that node off the audit frontier.
 2. **Refresh `digest.md`** — write `.planwright/digest.md` with one short block per cluster (id, label,
    member count, a one-line routing summary), each block prefixed `UNVERIFIED — routing only`. This is
    the carried-forward dossier Stages 3–7 resume from; it is **never** valid Evidence (Stage 10 bars
    citing it). Refresh only audited clusters; leave untouched clusters' prior blocks in place.
+   After the cluster blocks, write a **`## Carried dossier candidates`** section — one line per finding
+   that survived this run's review but was **cut by `propose`/pending capacity** at Stage 8, or
+   **deferred as unverifiable in this environment**, in the format
+   `[<rung> sev<k>, CUT|DEFERRED — <reason>] <file:line> — <one-line claim>; fix: <one-line>`.
+   Hard cap **10** entries, highest value first; overflow is dropped (it was the lowest-value cut by
+   construction). The section sits under the same `UNVERIFIED — routing only` banner and is never
+   valid Evidence; the next run drains it (see Stage 1 → CARRIED CANDIDATES). Omit the section when
+   nothing was cut or deferred.
 3. **Maintain `final.md`** — if this round wrote **≥1 item**, delete any stale `.planwright/final.md`
    (the ladder is live again). If this round wrote **0 items because all four maturity rungs were dry**
    (not merely an empty dirty set — the maturity-gated rungs were surveyed project-wide and produced

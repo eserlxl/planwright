@@ -206,7 +206,8 @@
 
   // ---- Cold frontier ---------------------------------------------------------------------
   // The explore escalation's tier-① sweep list (graph.json ranked_cold: never-audited,
-  // then uncovered, then least-central). When the hot core runs dry, these are exactly
+  // then stalest-audited (audit_age_commits), then uncovered, then least-central). When
+  // the hot core runs dry, these are exactly
   // the files the escalation reads next — the live view of "what a dry round does".
 
   function coldFrontier(metrics, ctx) {
@@ -221,13 +222,21 @@
       framingBit = " Invent framing: " + metrics.exploreFraming +
         (metrics.exploreSeed == null ? "" : " (seed " + metrics.exploreSeed + ")") + ".";
     }
+    // The builder's frontier counts quantify the backlog the capped list hides —
+    // the dryness verdict's denominator, not just the next 8 reads.
+    var frontierBit = metrics.frontier
+      ? " Backlog: " + (metrics.frontier.never_audited || 0) + " never-audited, " +
+        (metrics.frontier.stale || 0) + " stale." : "";
     if (!cold.length) {
-      if (framingBit) panel.appendChild(elt("p", "pw-panel-sub", framingBit.trim()));
+      if (framingBit || frontierBit) {
+        panel.appendChild(elt("p", "pw-panel-sub", (framingBit + frontierBit).trim()));
+      }
       panel.appendChild(elt("div", "pw-empty", "No cold-frontier list recorded yet."));
       return panel;
     }
     panel.appendChild(elt("p", "pw-panel-sub",
-      "The explore escalation sweeps these when the hot core runs dry — least-audited first." + framingBit));
+      "The explore escalation sweeps these when the hot core runs dry — least-audited first." +
+      framingBit + frontierBit));
     var list = elt("ol", "pw-prio-list");
     cold.slice(0, 8).forEach(function (p, i) {
       var n = metrics.byPath[p];

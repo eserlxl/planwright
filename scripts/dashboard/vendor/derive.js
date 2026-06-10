@@ -179,9 +179,13 @@
       ranked: g.ranked || [],
       rankedCode: g.ranked_code || [],
       // The explore escalation's first tier sweeps this list (never-audited, then
-      // uncovered, then least-central) when the hot core runs dry — the one
+      // stalest-audited by audit_age_commits, then uncovered, then least-central)
+      // when the hot core runs dry — the one
       // escalation input the dashboard previously had no surface for.
       rankedCold: g.ranked_cold || [],
+      // Audit backlog counts the capped ranked lists hide (never_audited / stale);
+      // null on pre-frontier graphs so views can distinguish "absent" from "zero".
+      frontier: g.frontier || null,
       // The seeded-invent framing record (--seed builds only): which generative
       // vantage the invent lens surveys through. null/"" on an unseeded graph.
       exploreSeed: (g.explore_seed == null ? null : g.explore_seed),

@@ -46,6 +46,8 @@ The same `graph.json` also drives two **derived, read-only views** for a human/p
       "loc": 123,
       "branch_count": 9,                     // file-level branch tokens (cross-file complexity)
       "branch_at": { "funcA": 6, "funcB": 1 }, // branches per symbol by def-span (within-file Stage 2b rank)
+      "swallow_count": 1,                    // file-level error-swallowing sites (silent-failure signal)
+      "swallow_at": { "funcA": 1 },          // swallow sites per symbol by def-span (Stage 2b promotion)
       "lang": "bash|markdown|python|c|js|rust|go|...|unknown",
       "git_churn": 17,                       // commit count touching this file
       "defines": ["funcA", "funcB"],         // best-effort symbol defs (routing hint)
@@ -55,7 +57,8 @@ The same `graph.json` also drives two **derived, read-only views** for a human/p
       "covered_by_test": true,               // a test node reaches this one (import/coupling); routing-only
       "pagerank": 0.0123,                    // centrality over the import graph
       "is_articulation": false,              // cut vertex => fragile chokepoint
-      "last_audited_sha": null               // Phase 2: HEAD sha when last deep-audited
+      "last_audited_sha": null,              // Phase 2: HEAD sha when last deep-audited
+      "audit_age_commits": null              // commits on HEAD since that stamp; null = never audited / unreachable stamp
     }
   },
   "coupling_edges": [
@@ -75,6 +78,10 @@ The same `graph.json` also drives two **derived, read-only views** for a human/p
     "changed": ["fileX"],                     // nodes whose sha256 != prior sha256
     "nodes": ["fileX", "fileY"],              // dirty set: changed + 1-hop blast radius
     "clusters": [0, 2]                        // cluster ids the dirty set touches
+  },
+  "frontier": {                               // audit backlog the capped ranked lists hide
+    "never_audited": 0,                       // non-test code nodes with no (reachable) audit stamp
+    "stale": 15                               // ... stamped before HEAD and outside this run's dirty set
   },
   "focus":   ["src/auth/a.py"],              // OPT (--scope only): the scoped files — where plan items land
   "context": ["src/auth/a.py", "src/crypto/b.py"],  // OPT (--scope only): Focus + 1-hop blast radius — what the audit reads
@@ -103,6 +110,14 @@ The same `graph.json` also drives two **derived, read-only views** for a human/p
   what links an exec-based harness (e.g. a runner that *runs* rather than imports its targets) to the
   code it exercises. A `false` on a non-test code node is a **candidate** missing-test finding to
   investigate, never proof; like `imports`/`defines` these fields only route attention.
+- **`swallow_count`** / **`swallow_at`** count error-SWALLOWING sites (empty `catch {}`,
+  `except: pass`, `|| true`, `2>/dev/null`, discarded Go error returns) — per file and per
+  symbol by definition span, the same best-effort span walk as `branch_at`. Stage 2b promotes
+  a `swallow_at > 0` function ahead of its swallow-free peers: silent failures are that
+  sub-pass's verbatim target, and branchiness alone ranks a two-line `except: pass` last.
+  Rust/C have no arm (`.unwrap()` panics loudly; no C idiom is matchable at this precision),
+  so their nodes report 0 — like every routing hint, a swallow site is a candidate to read,
+  never itself a finding.
 - **`import_cycles`** are the strongly-connected components (size ≥ 2) of the *directed* import
   graph — circular-import groups (`a → b → a`, python circular imports, C `#include` cycles). They
   give the Stage 3 architecture lens a concrete "dependency direction" signal instead of eyeballing
@@ -115,14 +130,26 @@ The same `graph.json` also drives two **derived, read-only views** for a human/p
   read by the opt-in `explore` escalation (SKILL.md "Explore escalation") and surfaced
   read-only by the dashboard's Insights "Cold frontier" card (`PW_DERIVE.metrics.rankedCold`). It orders
   the `branch_count > 0` code nodes the default hot-core routing neglects: never-audited
-  (`last_audited_sha` is `null`) first, then uncovered (`covered_by_test` false), then the
-  least-central (ascending `pagerank`), tiebroken by least churn then path. Deterministic
+  (`audit_age_commits` is `null` — no stamp, or an unreachable one) first, then the
+  stalest-audited (most commits since the stamp), then uncovered (`covered_by_test` false),
+  then the least-central (ascending `pagerank`), tiebroken by least churn then path. The
+  staleness band is what lets audited-but-aging nodes climb back onto the frontier, so an
+  incremental `explore` sweep drains the same backlog a cold start would expose. Deterministic
   (no randomness), so `explore` stays reproducible. Routing only — never Evidence.
 - **`coupling_edges`** capture files that co-commit without importing each other — the
   hidden dependencies a reader cannot see. `weight = cooccur / min(churn_a, churn_b)`.
 - **`is_articulation`** marks cut vertices of the import graph: a defect there has wide
   blast radius, so Stage 2b auto-promotes them regardless of depth.
 - **`last_audited_sha`** stays `null` until a node is first deep-audited (then Stage 11 stamps it).
+- **`audit_age_commits`** is derived at build time: `git rev-list --count <stamp>..HEAD`, computed
+  once per *distinct* stamp sha. `null` when `last_audited_sha` is `null` or unreachable (rewritten
+  history) — unknown provenance is treated as cold, matching `dirty`'s posture. `ranked_cold`'s
+  staleness band sorts on it; routing only, never Evidence.
+- **`frontier`** counts the audit backlog that the `ranked_surface_limit`-capped lists hide:
+  `never_audited` = non-test `branch_count > 0` nodes with `audit_age_commits` `null`; `stale` =
+  such nodes stamped before HEAD (`audit_age_commits > 0`) and **outside this run's dirty set** —
+  exactly the residual an incremental run will not touch. "Cold frontier dry" claims (Tier ① /
+  the deep final point) are judged against these counts, not the capped list slices.
 - **`dirty`** is the deterministic Phase 2 dirty set, computed by the builder when `--prior` is
   given (the prior `graph.json`). `changed` = nodes whose `sha256` differs from the prior; `nodes` =
   `changed` plus their 1-hop blast radius along import + coupling edges; `clusters` = the cluster ids

@@ -103,6 +103,17 @@ grep -q '"focus"' "$ROOT/scripts/build-graph.py" || scope_ok=0
 grep -q '"context"' "$ROOT/scripts/build-graph.py" || scope_ok=0
 if [ "$scope_ok" = 1 ]; then ok "SKILL.md documents path/lib scoping and build-graph.py backs --scope/focus/context"; else bad "scope wiring incomplete: SKILL.md docs or build-graph.py --scope/keys missing"; fi
 
+# Contract between SKILL.md Stage 2b and build-graph.py for the silent-failure signal:
+# the prose promotion rule must name `swallow_at`, and the builder must actually emit
+# the key (SWALLOW_KW table + node fields) — so the spec can't promote on a signal the
+# script doesn't compute, and the signal can't lose its consumer silently.
+swallow_ok=1
+grep -q 'swallow_at' "$ROOT/skills/planwright/SKILL.md" || swallow_ok=0
+grep -q 'SWALLOW_KW' "$ROOT/scripts/build-graph.py" || swallow_ok=0
+grep -q '"swallow_at"' "$ROOT/scripts/build-graph.py" || swallow_ok=0
+grep -q '"swallow_count"' "$ROOT/scripts/build-graph.py" || swallow_ok=0
+if [ "$swallow_ok" = 1 ]; then ok "SKILL.md's swallow_at promotion rides keys build-graph.py emits (SWALLOW_KW wiring)"; else bad "swallow signal wiring incomplete: SKILL.md mention or build-graph.py SWALLOW_KW/keys missing"; fi
+
 # --- Test 10c2: build-graph.py --debug digests routing to stderr, stdout stays JSON ---
 # The routing digest (ranking signal, top ranked/code/cold nodes, dirty-set, cycles) is
 # an observability aid; it MUST go to stderr so `--debug > graph.json` still produces a

@@ -253,5 +253,60 @@ class TestIncrementalDirtyDeletion(unittest.TestCase):
         self.assertIn(0, dirty["clusters"])
 
 
+class TestSwallowSignals(unittest.TestCase):
+    """Per-arm positive/negative pins for SWALLOW_KW — the error-swallowing routing
+    signal behind Stage 2b's silent-failure promotion. Precision-leaning: each arm's
+    documented non-match (a legitimate handler) is pinned as firmly as its match."""
+
+    def test_python_except_pass_and_continue_match(self):
+        self.assertEqual(bg.swallow_count_of("python", "try:\n    x()\nexcept Exception:\n    pass\n"), 1)
+        self.assertEqual(bg.swallow_count_of("python", "except ValueError:\n    continue\n"), 1)
+        self.assertEqual(bg.swallow_count_of("python", "except:\n    pass\n"), 1)
+
+    def test_python_real_handlers_do_not_match(self):
+        self.assertEqual(bg.swallow_count_of("python", "except ValueError:\n    raise\n"), 0)
+        self.assertEqual(bg.swallow_count_of("python", "except OSError as e:\n    return None\n"), 0)
+        # 'passes'/'continued' as prose after the colon must not satisfy the \b-anchored verb
+        self.assertEqual(bg.swallow_count_of("python", "except OSError:\n    passthrough()\n"), 0)
+
+    def test_bash_suppression_idioms_match(self):
+        self.assertEqual(bg.swallow_count_of("bash", "rm -f x || true\n"), 1)
+        self.assertEqual(bg.swallow_count_of("bash", "grep -q foo f 2>/dev/null\n"), 1)
+        self.assertEqual(bg.swallow_count_of("bash", "cmd 2> /dev/null || true\n"), 2)
+
+    def test_bash_real_fallbacks_do_not_match(self):
+        self.assertEqual(bg.swallow_count_of("bash", "cmd || die 'failed'\n"), 0)
+        self.assertEqual(bg.swallow_count_of("bash", "cmd > /dev/null\n"), 0)  # stdout, not stderr
+
+    def test_js_empty_catch_matches_handled_catch_does_not(self):
+        self.assertEqual(bg.swallow_count_of("js", "try { f() } catch (e) {}\n"), 1)
+        self.assertEqual(bg.swallow_count_of("js", "try { f() } catch {  }\n"), 1)
+        self.assertEqual(bg.swallow_count_of("js", "try { f() } catch (e) { log(e) }\n"), 0)
+
+    def test_go_discarded_error_matches_handled_error_does_not(self):
+        self.assertEqual(bg.swallow_count_of("go", "v, _ := strconv.Atoi(s)\n"), 1)
+        self.assertEqual(bg.swallow_count_of("go", "\t_ = os.Remove(p)\n"), 1)
+        self.assertEqual(bg.swallow_count_of("go", "v, err := strconv.Atoi(s)\n"), 0)
+        self.assertEqual(bg.swallow_count_of("go", "for _, x := range xs {\n"), 0)
+
+    def test_unmatched_languages_report_zero(self):
+        # rust/c deliberately have no arm (unwrap panics loudly; no C idiom at this
+        # precision); markdown has no code at all
+        self.assertEqual(bg.swallow_count_of("rust", "let v = f().unwrap();\n"), 0)
+        self.assertEqual(bg.swallow_count_of("c", "if (!ok) return 0;\n"), 0)
+        self.assertEqual(bg.swallow_count_of("markdown", "except: pass\n"), 0)
+
+    def test_swallow_at_attributes_to_the_swallowing_function(self):
+        src = ("def quiet():\n"
+               "    try:\n"
+               "        x()\n"
+               "    except Exception:\n"
+               "        pass\n"
+               "\n"
+               "def loud():\n"
+               "    x()\n")
+        self.assertEqual(bg.swallow_at_of("python", src), {"quiet": 1, "loud": 0})
+
+
 if __name__ == "__main__":
     unittest.main()

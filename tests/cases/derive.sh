@@ -59,6 +59,13 @@ assert(m.byPath["hot.py"].risk > m.byPath["cold.py"].risk, "risk orders hot abov
 // memoize-on-raw-bytes: same text returns the identical cached record
 assert.strictEqual(D.metrics(g), m, "metrics memoizes on identical text");
 
+// frontier: absent on a pre-frontier graph -> null (views can tell "absent" from "zero");
+// present -> passed through verbatim (after the memoize check: metrics caches one entry,
+// so calling it on a second graph here must not sit between the m/identity pair above)
+assert.strictEqual(m.frontier, null, "frontier defaults to null when the graph lacks it");
+const gFr = JSON.stringify(Object.assign(JSON.parse(g), { frontier: { never_audited: 7, stale: 43 } }));
+assert.deepStrictEqual(D.metrics(gFr).frontier, { never_audited: 7, stale: 43 }, "frontier passes through");
+
 // coach: the Commands-view recommendation truth table (pure decision logic)
 const C = D.coach;
 assert(C && typeof C.recommend === "function" && typeof C.signals === "function", "PW_DERIVE.coach missing");

@@ -174,6 +174,29 @@ def branch_count_of(lang, text):
     return len(re.findall(pat, text)) if pat else 0
 
 
+# Per-language error-SWALLOWING patterns — sites where a failure is silenced (empty
+# handler, ignored error return, discarded result, suppressed stderr). Stage 2b's
+# silent-failure hunt promotes functions carrying these ahead of swallow-free peers:
+# branchiness is only a proxy for that hunt, a two-line `except: pass` is its exact
+# target. Precision-leaning per arm (a legitimate `except X: return default` is NOT
+# matched — too often correct); rust and c are deliberately absent (`.unwrap()` panics
+# loudly, C has no idiom matchable at this precision). Comment/string hits are
+# tolerated, same contract as BRANCH_KW: candidates to read, never findings.
+SWALLOW_KW = {
+    "bash": r"\|\|\s*true\b|2>\s*/dev/null",
+    "python": r"(?m)\bexcept\b[^\n:]*:\s*(?:pass|continue)\b",
+    "js": r"\bcatch\s*(?:\([^)]*\))?\s*\{\s*\}",
+    "go": r"(?m),\s*_\s*:?=|^\s*_\s*=\s*\w[\w.]*\(",
+}
+
+
+def swallow_count_of(lang, text):
+    """Best-effort count of error-swallowing sites — the silent-failure analogue of
+    branch_count_of. 0 for languages with no matchable swallow idiom."""
+    pat = SWALLOW_KW.get(lang)
+    return len(re.findall(pat, text)) if pat else 0
+
+
 # Non-whitespace, non-word filler for blanked comment/string regions. NUL is chosen so
 # the symbol regexes' `^\s*` anchor cannot span a blanked region (a space-filled blank
 # would let `\s*` swallow whole lines and pull m.start() back onto the wrong line), while
@@ -297,16 +320,26 @@ def _defines_at_from_defs(defs, text):
     return at
 
 
-def _branch_at_from_defs(lang, defs, text):
-    pat = BRANCH_KW.get(lang)
-    if not pat:
-        return {}
+def _count_at_from_defs(pat, defs, text):
+    """Count `pat` matches per symbol by its DEFINITION SPAN (definition to the next
+    definition or EOF), first definition of a repeated name winning. The shared span
+    walk behind branch_at and swallow_at."""
     out = {}
     for i, (name, start) in enumerate(defs):
         end = defs[i + 1][1] if i + 1 < len(defs) else len(text)
         if name not in out:
             out[name] = len(re.findall(pat, text[start:end]))
     return out
+
+
+def _branch_at_from_defs(lang, defs, text):
+    pat = BRANCH_KW.get(lang)
+    return _count_at_from_defs(pat, defs, text) if pat else {}
+
+
+def _swallow_at_from_defs(lang, defs, text):
+    pat = SWALLOW_KW.get(lang)
+    return _count_at_from_defs(pat, defs, text) if pat else {}
 
 
 def defines_of(lang, text):
@@ -327,6 +360,13 @@ def branch_at_of(lang, text):
     *within* a centrality-ranked file (see docs/architecture.md design note). First
     definition of a repeated name wins, mirroring defines_of/defines_at_of."""
     return _branch_at_from_defs(lang, list(iter_defines(lang, text)), text)
+
+
+def swallow_at_of(lang, text):
+    """Attribute error-swallowing sites to each symbol by its definition span — the
+    silent-failure analogue of branch_at_of, so Stage 2b can promote a swallowing
+    function ahead of its swallow-free peers regardless of branchiness."""
+    return _swallow_at_from_defs(lang, list(iter_defines(lang, text)), text)
 
 
 _TEST_DIR_SEGMENTS = {"test", "tests", "spec", "specs", "__tests__"}
@@ -1078,6 +1118,13 @@ def build(root, prior_path, scope=None, seed=None):
     # with AttributeError — the very failure the sanitize contract above forbids.
     # Dropping the bad entry degrades that one node to "no baseline" (fresh audit).
     prior = {k: v for k, v in prior.items() if isinstance(v, dict)}
+    # And the stamps themselves: last_audited_sha is copied verbatim into the new nodes
+    # and then aggregated into a sorted set for the audit_age_commits batch — a
+    # hand-edited non-string stamp (int, list) would crash that sort/hash. Coerce to
+    # None (= never audited), the same posture as the graph_built_at_sha coercion below.
+    for v in prior.values():
+        if not isinstance(v.get("last_audited_sha"), str):
+            v["last_audited_sha"] = None
 
     # Type-sanitize the nested prior-graph fields compute_dirty later consumes, so a
     # hand-edited or truncated graph.json degrades to a clean rebuild instead of
@@ -1171,6 +1218,8 @@ def build(root, prior_path, scope=None, seed=None):
                 "loc": loc + (0 if last == b"\n" else 1),
                 "branch_count": 0,
                 "branch_at": {},
+                "swallow_count": 0,
+                "swallow_at": {},
                 "lang": lang_of(f, sniff),
                 "git_churn": churn.get(f, 0),
                 "defines": [],
@@ -1197,6 +1246,8 @@ def build(root, prior_path, scope=None, seed=None):
             "loc": loc_of(blob),
             "branch_count": branch_count_of(lang, text),
             "branch_at": _branch_at_from_defs(lang, defs, text),
+            "swallow_count": swallow_count_of(lang, text),
+            "swallow_at": _swallow_at_from_defs(lang, defs, text),
             "lang": lang,
             "git_churn": churn.get(f, 0),
             "defines": _defines_from_defs(defs),
@@ -1221,6 +1272,18 @@ def build(root, prior_path, scope=None, seed=None):
     for f in files:
         nodes[f]["pagerank"] = round(pr.get(f, 0.0), 6)
         nodes[f]["is_articulation"] = f in aps
+
+    # audit_age_commits: commits on HEAD since the node's last_audited_sha stamp —
+    # the graded staleness signal ranked_cold drains by. One `git rev-list --count`
+    # per *distinct* stamp sha (bounded by the number of past runs, not nodes).
+    # None when never audited, or when the stamp is unreachable (rewritten
+    # history): unknown provenance is treated as cold, matching compute_dirty.
+    stamps = {n["last_audited_sha"] for n in nodes.values()
+              if n["last_audited_sha"] is not None}
+    age_of = {sha: commits_since(sha, head, root) for sha in sorted(stamps)}
+    for f in files:
+        stamp = nodes[f]["last_audited_sha"]
+        nodes[f]["audit_age_commits"] = age_of[stamp] if stamp is not None else None
 
     coupling_edges = []
     # Weighted coupling degree: sum of incident edge weights, where
@@ -1288,13 +1351,18 @@ def build(root, prior_path, scope=None, seed=None):
     # for the opt-in `explore` escalation (SKILL.md "Explore escalation"). Where
     # ranked_code leads with the hot, high-blast-radius core, ranked_cold leads with
     # the code the default routing neglects: never-audited nodes first
-    # (last_audited_sha is None), then uncovered (covered_by_test False), then the
-    # least-central (ascending pagerank), tiebroken by least churn then path. It is
-    # fully deterministic (no RNG), so explore stays reproducible across runs.
+    # (last_audited_sha is None or unreachable), then the stalest-audited (most
+    # commits since the stamp, via audit_age_commits — so audited-but-aging nodes
+    # climb back onto the frontier instead of leaving it forever), then uncovered
+    # (covered_by_test False), then the least-central (ascending pagerank),
+    # tiebroken by least churn then path. It is fully deterministic (no RNG), so
+    # explore stays reproducible across runs.
     def cold_key(f):
         n = nodes[f]
+        age = n["audit_age_commits"]
         return (
-            0 if n["last_audited_sha"] is None else 1,  # never-audited frontier first
+            0 if age is None else 1,                    # never-audited frontier first
+            0 if age is None else -age,                 # then stalest stamp first
             0 if not n["covered_by_test"] else 1,       # then uncovered code
             n["pagerank"],                              # then peripheral (low centrality)
             churn.get(f, 0),                            # then least-churned
@@ -1305,6 +1373,22 @@ def build(root, prior_path, scope=None, seed=None):
 
     dirty = compute_dirty(files, nodes, prior, prior_graph, head, undirected,
                           coupling_edges, clusters, root)
+
+    # frontier: the audit backlog the RANKED_SURFACE_LIMIT-capped lists hide. Counts
+    # non-test code nodes (branch_count > 0) the audit has not reached: never_audited
+    # (no stamp / unreachable stamp) and stale (stamped before HEAD, and not in this
+    # run's dirty set — i.e. exactly the residual an incremental run will not touch).
+    # Two derived integers, so "frontier dry" is a falsifiable claim, not a top-20 one.
+    dirty_set = set(dirty["nodes"])
+    code_nodes = [f for f in files
+                  if not nodes[f]["is_test"] and nodes[f]["branch_count"] > 0]
+    frontier = {
+        "never_audited": sum(1 for f in code_nodes
+                             if nodes[f]["audit_age_commits"] is None),
+        "stale": sum(1 for f in code_nodes
+                     if nodes[f]["audit_age_commits"] not in (None, 0)
+                     and f not in dirty_set),
+    }
 
     graph = {
         "version": 1,
@@ -1326,6 +1410,7 @@ def build(root, prior_path, scope=None, seed=None):
         "ranked_cold": ranked_cold,
         "import_cycles": cycles,
         "dirty": dirty,
+        "frontier": frontier,
     }
 
     # Component scoping (docs/scope-design.md) — emitted ONLY under --scope, so a
@@ -1386,6 +1471,10 @@ def debug_digest(graph, out):
     p(f"# import_cycles={len(graph['import_cycles'])}  "
       f"coupling_edges={len(graph['coupling_edges'])}  "
       f"articulation_points={sum(1 for n in nodes.values() if n['is_articulation'])}\n")
+    fr = graph.get("frontier", {})
+    p(f"# frontier: never_audited={fr.get('never_audited', 0)} "
+      f"stale={fr.get('stale', 0)} (code nodes the audit has not reached / "
+      f"stamped before HEAD and outside this run's dirty set)\n")
 
     def row(rank, f):
         n = nodes[f]
@@ -1400,7 +1489,8 @@ def debug_digest(graph, out):
     p("# ranked_code (top 10, branch_count>0 — Stage 2b correctness routing):\n")
     for i, f in enumerate(graph["ranked_code"][:10], 1):
         p(row(i, f) + "\n")
-    p("# ranked_cold (top 10 — explore cold-frontier: never-audited, then uncovered):\n")
+    p("# ranked_cold (top 10 — explore cold-frontier: never-audited, then stalest, "
+      "then uncovered):\n")
     for i, f in enumerate(graph["ranked_cold"][:10], 1):
         p(row(i, f) + "\n")
     out.flush()
@@ -1470,7 +1560,7 @@ def to_select(graph, expr):
     build-graph already computes (not a general query language): a boolean field name
     (is_articulation | covered_by_test | is_test) selects nodes where it is true; a `no-` prefix
     on one selects where it is false; `code` selects branch_count>0; `never-audited` selects
-    nodes whose last_audited_sha is null; `lang=NAME` (NAME non-empty) selects nodes of that
+    nodes with no reachable audit stamp (audit_age_commits null); `lang=NAME` (NAME non-empty) selects nodes of that
     language. Under a --scope build the result is restricted to the Context node set, matching
     --dot so the two non-JSON output modes agree on scope. Raises ValueError on an unknown or
     malformed predicate (including a bare `lang=`) so the caller can report it and exit non-zero."""
@@ -1486,7 +1576,10 @@ def to_select(graph, expr):
     elif e == "code":
         pred = lambda n: (n.get("branch_count") or 0) > 0
     elif e == "never-audited":
-        pred = lambda n: n.get("last_audited_sha") is None
+        # audit_age_commits, not last_audited_sha: an unreachable stamp (rewritten
+        # history) is cold too, so --select agrees with ranked_cold's never bin and
+        # the frontier.never_audited count.
+        pred = lambda n: n.get("audit_age_commits") is None
     elif e.startswith("no-") and e[3:] in _SELECT_BOOL_FIELDS:
         field = e[3:]
         pred = lambda n: not n.get(field)

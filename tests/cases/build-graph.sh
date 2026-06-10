@@ -16,7 +16,7 @@ assert re.fullmatch(r"[0-9a-f]{40}", g["graph_built_at_sha"])
 assert g["ranking_signal"] in ("centrality", "coupling")
 assert {"coupling_window_commits", "coupling_min_cooccurrence", "ranked_surface_limit"} <= set(g["params"])
 assert g["nodes"], "no nodes"
-need = {"sha256", "loc", "branch_count", "branch_at", "lang", "git_churn", "defines", "defines_at", "imports", "is_test", "covered_by_test", "pagerank", "is_articulation", "last_audited_sha"}
+need = {"sha256", "loc", "branch_count", "branch_at", "lang", "git_churn", "defines", "defines_at", "imports", "is_test", "covered_by_test", "pagerank", "is_articulation", "last_audited_sha", "audit_age_commits", "swallow_count", "swallow_at"}
 for f, n in g["nodes"].items():
     assert need <= set(n), f
     assert isinstance(n["is_test"], bool) and isinstance(n["covered_by_test"], bool), f
@@ -27,6 +27,17 @@ for f, n in g["nodes"].items():
     assert all(isinstance(v, int) and v >= 0 for v in n["branch_at"].values()), f
     # branch_at keys are a subset of the file's defined symbols
     assert set(n["branch_at"]) <= set(n["defines"]), f
+    # swallow_count/swallow_at mirror the branch invariants (silent-failure signal)
+    assert isinstance(n["swallow_count"], int) and n["swallow_count"] >= 0, f
+    assert isinstance(n["swallow_at"], dict), f
+    assert all(isinstance(v, int) and v >= 0 for v in n["swallow_at"].values()), f
+    assert set(n["swallow_at"]) <= set(n["defines"]), f
+    # audit_age_commits: None (never audited / unreachable stamp) or int >= 0,
+    # and always None when there is no stamp to age
+    a = n["audit_age_commits"]
+    assert a is None or (isinstance(a, int) and a >= 0), f
+    if n["last_audited_sha"] is None:
+        assert a is None, f
 assert isinstance(g["ranked"], list) and all(x in g["nodes"] for x in g["ranked"])
 # ranked_code: a list of branch_count>0 nodes only, in the same priority order as ranked
 assert isinstance(g["ranked_code"], list)
@@ -51,6 +62,10 @@ assert {"is_first_run", "whole_graph", "reason", "changed", "nodes", "clusters"}
 assert d["is_first_run"] is True and d["whole_graph"] is True and d["reason"] == "first-run", d
 assert set(d["nodes"]) == set(g["nodes"]) and d["changed"] == [], d
 assert set(d["clusters"]) == {c["id"] for c in g["clusters"]}, d
+# frontier: on a first run nothing is stamped, so the whole non-test code surface
+# is the never-audited frontier and nothing can be stale yet
+code = [f for f, n in g["nodes"].items() if not n["is_test"] and n["branch_count"] > 0]
+assert g["frontier"] == {"never_audited": len(code), "stale": 0}, g["frontier"]
 PY
 then ok "build-graph.py output conforms to graph-memory schema"; else bad "build-graph.py output missing or non-conforming"; fi
 
@@ -278,6 +293,130 @@ assert "a.sh" in rc and "b.sh" in rc, rc
 assert rc.index("b.sh") < rc.index("a.sh"), rc
 PY
 then ok "ranked_cold's never-audited primary key outranks an audited node (covered key tied)"; else bad "ranked_cold ignored the never-audited primary key"; fi
+
+# --- Test 11c2c2: graded staleness — audit_age_commits orders ranked_cold, frontier counts the residual
+# cold_key's staleness band: within the stamped nodes, the stalest stamp (most commits since,
+# via audit_age_commits) leads, so an incremental explore sweep drains the audited-but-aging
+# backlog a cold start would expose. Also the first cold-vs-incremental regression pin: the
+# exact residual the incremental dirty set will NOT touch is an asserted frontier quantity.
+# Fixture: five code files; b.sh stamped at an old commit (stale — alphabetically AFTER
+# the fresh a.sh, so the path tiebreak OPPOSES the asserted order and only the staleness
+# key can produce it), a.sh restamped at HEAD (fresh), c.sh never stamped, d.sh stamped
+# with a garbage sha (unreachable -> cold bin), f.sh stamped old but ALSO dirtied (pins
+# that the stale count excludes the dirty set: an aged node the run re-audits anyway is
+# not residual backlog).
+STREPO="$TMP/strepo"
+mkdir -p "$STREPO"
+git -C "$STREPO" init -q
+for fn in a b c d f; do
+  printf '#!/usr/bin/env bash\n%s() { if true; then echo %s; fi; }\n' "$fn" "$fn" > "$STREPO/$fn.sh"
+done
+git -C "$STREPO" add -A
+git -C "$STREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+st_old_sha=$(git -C "$STREPO" rev-parse HEAD)
+st_prior="$TMP/st_prior.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$STREPO" > "$st_prior" 2>/dev/null
+# two more commits: note1 also dirties f.sh; the other .sh nodes stay out of the dirty set
+echo note1 > "$STREPO/e.txt"; echo '# drift' >> "$STREPO/f.sh"; git -C "$STREPO" add -A
+git -C "$STREPO" -c user.name=t -c user.email=t@e.com commit -qm note1
+echo note2 >> "$STREPO/e.txt"; git -C "$STREPO" add -A
+git -C "$STREPO" -c user.name=t -c user.email=t@e.com commit -qm note2
+st_head_sha=$(git -C "$STREPO" rev-parse HEAD)
+st_age=$(git -C "$STREPO" rev-list --count "$st_old_sha..HEAD")
+python3 - "$st_prior" "$st_old_sha" "$st_head_sha" <<'PY'
+import json, sys
+p, old, head = sys.argv[1], sys.argv[2], sys.argv[3]
+g = json.load(open(p))
+g["nodes"]["b.sh"]["last_audited_sha"] = old      # stale: stamped two commits ago
+g["nodes"]["a.sh"]["last_audited_sha"] = head     # fresh: restamped at current HEAD
+g["nodes"]["d.sh"]["last_audited_sha"] = "d" * 40 # unreachable stamp -> cold bin
+g["nodes"]["f.sh"]["last_audited_sha"] = old      # stale AND dirty (modified post-stamp)
+json.dump(g, open(p, "w"))
+PY
+st_new="$TMP/st_new.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$STREPO" --prior "$st_prior" > "$st_new" 2>/dev/null
+if python3 - "$st_new" "$st_age" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1])); n = g["nodes"]; rc = g["ranked_cold"]
+expected_age = int(sys.argv[2])
+# ages match `git rev-list --count <stamp>..HEAD`; no stamp / garbage stamp degrade to None
+assert n["b.sh"]["audit_age_commits"] == expected_age, n["b.sh"]
+assert n["f.sh"]["audit_age_commits"] == expected_age, n["f.sh"]
+assert n["a.sh"]["audit_age_commits"] == 0, n["a.sh"]
+assert n["c.sh"]["audit_age_commits"] is None, n["c.sh"]
+assert n["d.sh"]["audit_age_commits"] is None, n["d.sh"]
+# frontier band order: never/unreachable (c, d) < stale (b) < fresh (a). The path
+# tiebreak alone would put a.sh before b.sh, so only the staleness key passes this.
+for f in ("a.sh", "b.sh", "c.sh", "d.sh"):
+    assert f in rc, (f, rc)
+assert rc.index("c.sh") < rc.index("b.sh") and rc.index("d.sh") < rc.index("b.sh"), rc
+assert rc.index("b.sh") < rc.index("a.sh"), rc
+# the cold-vs-incremental pin: b.sh is OUTSIDE the incremental dirty set, so the
+# frontier counts it as the stale residual the run will not touch; f.sh is aged the
+# same but IN the dirty set, so it must not be counted (else stale would be 2)
+d = g["dirty"]
+assert d["is_first_run"] is False, d
+assert "f.sh" in d["nodes"] and "b.sh" not in d["nodes"] and "a.sh" not in d["nodes"], d
+assert g["frontier"] == {"never_audited": 2, "stale": 1}, g["frontier"]
+PY
+then ok "audit_age_commits grades ranked_cold's staleness band and frontier pins the incremental residual"; else bad "graded staleness ordering or frontier accounting broke (see Test 11c2c2)"; fi
+
+# --- Test 11c2c3: a corrupt prior last_audited_sha degrades to never-audited, not a crash
+# Stage 11 has the agent rewrite graph.json by hand (native Write tool), so a malformed
+# stamp (int, list) is realistic corruption. The stamp sanitizer must coerce it to None
+# (= never audited) before the audit_age_commits batch sorts/hashes the stamp set.
+cs_prior="$TMP/cs_prior.json"
+python3 - "$st_prior" "$cs_prior" "$st_old_sha" <<'PY'
+import json, sys
+g = json.load(open(sys.argv[1]))
+g["nodes"]["a.sh"]["last_audited_sha"] = 12345          # int stamp
+g["nodes"]["b.sh"]["last_audited_sha"] = ["not", "a"]   # list stamp
+g["nodes"]["c.sh"]["last_audited_sha"] = sys.argv[3]    # a real one survives beside them
+json.dump(g, open(sys.argv[2], "w"))
+PY
+cs_new="$TMP/cs_new.json"
+if python3 "$ROOT/scripts/build-graph.py" --root "$STREPO" --prior "$cs_prior" > "$cs_new" 2>/dev/null \
+   && python3 - "$cs_new" <<'PY' 2>/dev/null
+import json, sys
+n = json.load(open(sys.argv[1]))["nodes"]
+assert n["a.sh"]["last_audited_sha"] is None and n["a.sh"]["audit_age_commits"] is None, n["a.sh"]
+assert n["b.sh"]["last_audited_sha"] is None and n["b.sh"]["audit_age_commits"] is None, n["b.sh"]
+assert isinstance(n["c.sh"]["last_audited_sha"], str) and n["c.sh"]["audit_age_commits"] >= 0, n["c.sh"]
+PY
+then ok "build-graph.py coerces corrupt prior stamps to never-audited instead of crashing"; else bad "build-graph.py crashed or kept a corrupt prior last_audited_sha"; fi
+
+# --- Test 11c2c4: swallow_count/swallow_at surface error-swallowing sites per node and symbol
+# Stage 2b's silent-failure hunt promotes swallow_at > 0 functions; the builder must
+# attribute a python except-pass to the function that contains it (not its clean sibling),
+# count a bash `|| true`, and report 0 on a no-arm language (markdown).
+SWREPO="$TMP/swrepo"
+mkdir -p "$SWREPO"
+git -C "$SWREPO" init -q
+cat > "$SWREPO/quiet.py" <<'EOF'
+def swallower():
+    try:
+        risky()
+    except Exception:
+        pass
+
+def clean():
+    return risky()
+EOF
+printf '#!/usr/bin/env bash\nrun() { rm -f lock || true; }\n' > "$SWREPO/noisy.sh"
+printf '# notes\nexcept: pass\n' > "$SWREPO/notes.md"
+git -C "$SWREPO" add -A
+git -C "$SWREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+sw_out="$TMP/sw_graph.json"
+python3 "$ROOT/scripts/build-graph.py" --root "$SWREPO" > "$sw_out" 2>/dev/null
+if python3 - "$sw_out" <<'PY' 2>/dev/null
+import json, sys
+n = json.load(open(sys.argv[1]))["nodes"]
+assert n["quiet.py"]["swallow_count"] == 1, n["quiet.py"]
+assert n["quiet.py"]["swallow_at"] == {"swallower": 1, "clean": 0}, n["quiet.py"]["swallow_at"]
+assert n["noisy.sh"]["swallow_count"] == 1, n["noisy.sh"]
+assert n["notes.md"]["swallow_count"] == 0 and n["notes.md"]["swallow_at"] == {}, n["notes.md"]
+PY
+then ok "build-graph.py attributes swallow_count/swallow_at to the swallowing symbol (no-arm langs report 0)"; else bad "swallow_count/swallow_at extraction wrong (see Test 11c2c4)"; fi
 
 # --- Test 11c2d: --scope emits focus + context (Focus + 1-hop blast radius) ----
 # Component scoping (docs/scope-design.md): --scope picks a Focus set; Context is

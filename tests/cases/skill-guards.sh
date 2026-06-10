@@ -170,3 +170,49 @@ if "never auto-dispatch" not in sec and "never auto-run" not in sec:
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md: an invent run ends by suggesting /codvisor to harden the net-new code (suggestion only, never auto-dispatched)"; else bad "invent->/codvisor hardening suggestion missing/incomplete in SKILL.md (After all cycles section)"; fi
+
+# --- Test 10k: read-honest Stage 11 stamping (audit-tier guard) -----------------------
+# Stage 11 must stamp last_audited_sha only for nodes the run actually examined, carve
+# out capacity-cut findings (their nodes keep the prior stamp so the finding re-surfaces),
+# and must NOT claim stamps drive incremental skipping (compute_dirty never reads them —
+# stamping unread nodes only launders them off the audit frontier). Guards against the
+# over-stamping semantics drifting back in.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1]).read()
+need = []
+if "actually **examined**" not in t: need.append("rule:examined-only")
+if "cut at the Stage 8 capacity gate" not in t: need.append("carve-out:capacity-cut")
+if "leave its prior stamp untouched" not in t: need.append("carve-out:keep-prior-stamp")
+if "launders" not in t: need.append("rationale:laundering-named")
+# the old over-stamping clause and its false rationale must stay gone
+if "for every node that was in scope this run" in t: need.append("regression:scope-stamping-back")
+if "Without this stamp every future run looks like a first run" in t: need.append("regression:false-rationale-back")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md stamps last_audited_sha only for examined nodes, keeps capacity-cut stamps, drops the false skip rationale"; else bad "read-honest Stage 11 stamping clause missing/regressed in SKILL.md"; fi
+
+# --- Test 10l: carried candidates + frontier-judged dryness (audit-tier guards) -------
+# (a) Capacity-cut/deferred findings persist as a capped, self-draining digest section
+# the next run must re-verify (else a real defect found-then-cut is silently lost), and
+# (b) cold-frontier dryness is judged against the graph's frontier counts with the stale
+# residual recorded in the final point, and the cold walk is staleness-graded.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1]).read()
+need = []
+# (a) the carried-candidates contract
+if t.count("## Carried dossier candidates") < 2: need.append("carried:section-in-stage11-and-stage1")
+if "Hard cap **10**" not in t: need.append("carried:cap-10")
+if "mandatory re-verification seed" not in t: need.append("carried:mandatory-reverify")
+if "CUT|DEFERRED" not in t: need.append("carried:reason-vocabulary")
+if "the next run drains it" not in t: need.append("carried:self-draining")
+# (b) frontier-judged dryness + staleness-graded cold walk
+if "judged against the graph's `frontier` counts" not in t: need.append("frontier:dryness-judged-on-counts")
+if "frontier.never_audited > 0" not in t: need.append("frontier:never-audited-gate")
+if "*recorded*, not denied" not in t: need.append("frontier:residual-recorded")
+if "audit_age_commits" not in t: need.append("frontier:staleness-signal-named")
+if "stalest-audited" not in t: need.append("frontier:stalest-ordering-named")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md specifies carried dossier candidates (capped, re-verified, never Evidence) and frontier-judged staleness-graded dryness"; else bad "carried-candidates block or frontier-dryness contract missing/incomplete in SKILL.md"; fi

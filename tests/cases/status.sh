@@ -499,3 +499,29 @@ if ( cd "$SGS" && git init -q && git config user.email t@t && git config user.na
 else
   ok "status.py graph-staleness check skipped (git unavailable)"
 fi
+
+# --- Test STS15: the audit frontier counts surface on the status graph line ---------
+# build-graph.py emits frontier.never_audited/stale (the backlog the capped ranked
+# lists hide); status must relay nonzero counts on the graph line and pass the block
+# through --json, and a pre-frontier graph (no key) must render the line unchanged.
+SFR="$TMP/status-frontier"; mkdir -p "$SFR/.planwright"
+printf '{"graph_built_at_sha": "x", "nodes": {"a.py": {}}, "dirty": {"nodes": []}, "frontier": {"never_audited": 7, "stale": 43}}' \
+  > "$SFR/.planwright/graph.json"
+fr_rep="$(python3 "$STAT" --root "$SFR")"
+fr_json="$(python3 "$STAT" --root "$SFR" --json)"
+printf '{"graph_built_at_sha": "x", "nodes": {"a.py": {}}, "dirty": {"nodes": []}}' \
+  > "$SFR/.planwright/graph.json"
+fr_rep_old="$(python3 "$STAT" --root "$SFR")"
+# corrupt counts (string instead of int) must be dropped at collect(), not crash report()'s %d
+printf '{"graph_built_at_sha": "x", "nodes": {"a.py": {}}, "dirty": {"nodes": []}, "frontier": {"never_audited": "7", "stale": 0}}' \
+  > "$SFR/.planwright/graph.json"
+fr_rep_bad="$(python3 "$STAT" --root "$SFR" 2>/dev/null)"; fr_bad_rc=$?
+if printf '%s' "$fr_rep" | grep -q 'audit frontier: 7 never-audited, 43 stale' \
+   && printf '%s' "$fr_json" | python3 -c 'import json,sys;assert json.load(sys.stdin)["graph"]["frontier"] == {"never_audited": 7, "stale": 43}' \
+   && printf '%s' "$fr_rep_old" | grep -q '^  graph: 1 nodes, 0 dirty' \
+   && ! printf '%s' "$fr_rep_old" | grep -q 'audit frontier' \
+   && [ "$fr_bad_rc" = 0 ] && ! printf '%s' "$fr_rep_bad" | grep -q 'audit frontier'; then
+  ok "status.py surfaces audit frontier counts on the graph line and in --json (absent/corrupt keys degrade)"
+else
+  bad "status.py audit frontier counts wrong (bad_rc=$fr_bad_rc)"
+fi

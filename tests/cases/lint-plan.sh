@@ -889,6 +889,47 @@ else
   bad "lint-plan.py root-level evidence-anchor regression (root=$ev_root strict=$ev_root_strict real=$ev_root_real ver=$ev_ver)"
 fi
 
+# --- Test 12i: a repair item's ghost Evidence anchor FAILS; out-of-range lines are advisories
+# repair means "confirmed defect, cite the wrong call site" — a ghost call site is as fatal
+# as a ghost Surface, so it is a violation (exit 1) on repair items while every other mode
+# keeps the advisory posture (12g above pins that). A line number past the end of the cited
+# file is a hallucinated anchor in any mode: a non-failing advisory naming the cited line
+# and the file's real length. Multiple offending anchors are all reported, not just the first.
+mk_ev_mode() { # $1 = Mode, $2 = Evidence string
+  cat > "$EVDIR/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] An item with some evidence
+      Mode: $1
+      Rationale: r.
+      Evidence: $2
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+}
+mk_ev_mode repair "scripts/nope_missing.py:42 returns the wrong default"
+ev_rg=0; ev_rg_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" 2>&1)" || ev_rg=$?
+mk_ev_mode improve "scripts/lint-plan.py:99999 lacks a guard"
+ev_oor=0; ev_oor_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" 2>&1)" || ev_oor=$?
+ev_oor_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" --strict --quiet || ev_oor_strict=$?
+mk_ev_mode improve "scripts/lint-plan.py (line 99999) lacks a guard"   # the (line N) form is range-checked too
+ev_oor2=0; ev_oor2_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" 2>&1)" || ev_oor2=$?
+mk_ev_mode improve "scripts/nope_a.py:1 and scripts/nope_b.py:2 are both wrong"
+ev_multi_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EVDIR/plan.md" 2>&1)" || true
+if [ "$ev_rg" = 1 ] \
+   && printf '%s' "$ev_rg_out" | grep -qF "repair Evidence cites 'scripts/nope_missing.py', which does not exist" \
+   && [ "$ev_oor" = 0 ] && [ "$ev_oor_strict" = 1 ] \
+   && printf '%s' "$ev_oor_out" | grep -qE "cites line 99999, but the file has [0-9]+ lines" \
+   && [ "$ev_oor2" = 0 ] && printf '%s' "$ev_oor2_out" | grep -qF "cites line 99999" \
+   && printf '%s' "$ev_multi_out" | grep -qF "scripts/nope_a.py" \
+   && printf '%s' "$ev_multi_out" | grep -qF "scripts/nope_b.py"; then
+  ok "lint-plan.py fails a repair ghost anchor, advises on out-of-range lines, and reports every offending anchor"
+else
+  bad "lint-plan.py repair-ghost/out-of-range anchor handling wrong (rg=$ev_rg oor=$ev_oor strict=$ev_oor_strict oor2=$ev_oor2)"
+fi
+
 # --- Test 12n: lint-plan.py accepts modern tooling in a Verification ---------
 # A real Verification like `docker run my_test_container` is multi-word and carries
 # no command-signal char, so before docker/bazel/php joined _KNOWN_EXEC it was
@@ -929,7 +970,13 @@ fi
 # file:line citation on a Makefile/Dockerfile/dotfile surface ("Makefile:2 ...")
 # hard-failed the mandatory repair-anchor gate — a false failure the file header
 # forbids. The filename alternation now admits well-known extension-less build
-# files and >=3-char dotfiles, while version strings keep failing.
+# files and >=3-char dotfiles, while version strings keep failing. The anchors
+# run against a fixture root with REAL files: a repair ghost anchor is now a
+# failing violation (Test 12i), so the admission test must cite files that exist.
+EXTROOT="$TMP/extless_root"; mkdir -p "$EXTROOT/scripts"
+printf 'release:\n\tcc -O0 main.c\n' > "$EXTROOT/Makefile"
+printf 'build/\nbuild/\n*.o\n' > "$EXTROOT/.gitignore"
+printf '# surface stub\n' > "$EXTROOT/scripts/lint-plan.py"
 EXTLESS="$TMP/extless_plan.md"
 cat > "$EXTLESS" <<'EOF'
 # planwright Plan — .
@@ -944,16 +991,16 @@ cat > "$EXTLESS" <<'EOF'
       Verification: bash tests/run.sh
 EOF
 exl_rc=0
-python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$EXTLESS" --quiet || exl_rc=$?
+python3 "$ROOT/scripts/lint-plan.py" --root "$EXTROOT" --plan "$EXTLESS" --quiet || exl_rc=$?
 # dotfile anchor also satisfies the gate; a version string still does not
 DOTFILE="$TMP/dotfile_plan.md"
 sed 's|Makefile:2 passes -O0 in the release recipe; expected -O2|.gitignore:3 ignores build/ twice; expected one rule|' "$EXTLESS" > "$DOTFILE"
 dot_rc=0
-python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$DOTFILE" --quiet || dot_rc=$?
+python3 "$ROOT/scripts/lint-plan.py" --root "$EXTROOT" --plan "$DOTFILE" --quiet || dot_rc=$?
 VERSTR="$TMP/verstr_plan.md"
 sed 's|Makefile:2 passes -O0 in the release recipe; expected -O2|python 3.10:5 mishandles the flag|' "$EXTLESS" > "$VERSTR"
 ver_rc=0
-ver_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$VERSTR" 2>&1)" || ver_rc=$?
+ver_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$EXTROOT" --plan "$VERSTR" 2>&1)" || ver_rc=$?
 if [ "$exl_rc" -eq 0 ] && [ "$dot_rc" -eq 0 ] && [ "$ver_rc" -ne 0 ] \
    && printf '%s' "$ver_out" | grep -qF "repair Evidence lacks a file:line anchor"; then
   ok "lint-plan.py accepts extension-less/dotfile repair anchors; version strings still fail"

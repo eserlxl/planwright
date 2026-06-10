@@ -12,8 +12,9 @@
 #   * Mode is one of the five valid modes;
 #   * Evidence never cites .planwright/graph.json or .planwright/digest.md
 #     (graph memory routes attention, it is never proof);
-#   * a `repair` item's Evidence carries a file:line anchor (`:N` / `line N`),
-#     not bare structural absence — improve/docs are exempt;
+#   * a `repair` item's Evidence carries a file:line anchor (`:N` / `line N`)
+#     whose cited file exists, not bare structural absence — improve/docs are
+#     exempt;
 #   * Surfaces are existing repo files; New Surfaces do not already exist;
 #     no path appears in both Surfaces and New Surfaces; no Surface is under the
 #     tool-owned .planwright/ tree;
@@ -25,8 +26,10 @@
 #     completed.md / rejected.md item, for the active agent to confirm a regression or a
 #     resolved rejection rather than blocking it, notes a Verification that runs a
 #     repo script which does not exist (the item would be unverifiable at execute), and
-#     notes an Evidence `path:N` anchor whose file does not exist (a fabricated or stale
-#     grounding citation — the plan's single most important signal).
+#     notes an Evidence `path:N` anchor whose file does not exist on a NON-repair item
+#     (on a `repair` item the same ghost anchor is a failing violation, per the bullet
+#     above), or whose cited line number exceeds the file's length in any mode (a
+#     fabricated or stale grounding citation — the plan's single most important signal).
 #
 # Semantic checks that need code understanding (is the Evidence a *real* defect?
 # does Development name a real call site?) stay the active agent's job — this linter is
@@ -505,25 +508,46 @@ _EVIDENCE_ANCHOR_RE = re.compile(
     r"|(?:GNUmakefile|[Mm]akefile|Dockerfile|Containerfile|Jenkinsfile|Justfile"
     r"|Vagrantfile|Gemfile|Rakefile|Procfile|Kconfig|BUILD|WORKSPACE)"  # well-known extension-less files
     r"|\.[A-Za-z][A-Za-z0-9_.-]{2,}))"         # root dotfile (.gitignore, .env) — >=3 chars after the dot
-    r"(?::\d+(?:-\d+)?|\s*\(line\s+\d+\))")
+    r"(?::(\d+)(?:-\d+)?|\s*\(line\s+(\d+)\))")  # the start line is captured (groups 2/3) for range checks
 
 
-def evidence_missing_anchor(ev, root):
-    """If the Evidence cites a repo-relative `path:N` (or `path (line N)`) anchor whose file does
-    not exist under root, return that path; else None. Deliberately conservative — only a token
-    that is clearly a path (a filename with a letter-led extension, optionally under >=1 dotless dir
-    segment) AND carries a line reference is treated as an anchor, so a prose sentence, a bare
-    filename, a glued abbreviation ("e.g.scripts/x.py"), or a version string never false-flags. A
-    root-level file (README.md:50) is now caught too — its stale citation matters as much. Advisory-only
-    (non-failing), so a missed anchor is harmless and a false positive is avoided by construction —
-    it catches a fabricated or stale Evidence path, the single most important grounding signal."""
+def evidence_anchor_issues(ev, root):
+    """Verify every repo-relative `path:N` (or `path (line N)`) anchor the Evidence cites — the
+    single most important grounding signal. Returns a list of (path, kind, detail) issues:
+    kind "missing" when the cited file does not exist under root (a fabricated or stale citation),
+    kind "out-of-range" when the file exists but the cited start line exceeds its line count (a
+    hallucinated line number; detail carries the cited line and the file's actual length).
+    Deliberately conservative on what counts as an anchor — only a token that is clearly a path AND
+    carries a line reference (_EVIDENCE_ANCHOR_RE), so a prose sentence, a bare filename, a glued
+    abbreviation ("e.g.scripts/x.py"), or a version string never false-flags. ALL offending anchors
+    are reported, not just the first. An unreadable file skips the range check (degrade, never
+    crash); severity (violation vs advisory) is the caller's call, keyed on the item's Mode."""
+    issues = []
     if not ev:
-        return None
+        return issues
+    seen = set()
     for m in _EVIDENCE_ANCHOR_RE.finditer(ev):
         cand = m.group(1)
-        if not os.path.exists(os.path.join(root, cand)):
-            return cand
-    return None
+        full = os.path.join(root, cand)
+        if not os.path.exists(full):
+            if (cand, "missing") not in seen:
+                seen.add((cand, "missing"))
+                issues.append((cand, "missing", ""))
+            continue
+        line_s = m.group(2) or m.group(3)
+        if not os.path.isfile(full):
+            continue
+        try:
+            with open(full, "rb") as fh:
+                n_lines = sum(1 for _ in fh)
+        except OSError:
+            continue
+        cited = int(line_s)
+        if cited > n_lines and (cand, cited) not in seen:
+            seen.add((cand, cited))
+            issues.append((cand, "out-of-range",
+                           f"cites line {cited}, but the file has {n_lines} lines"))
+    return issues
 
 
 def main():
@@ -632,13 +656,23 @@ def main():
         if missing:
             advisories = list(advisories) + [
                 f"Verification runs '{missing}', which does not exist (item will be unverifiable)"]
-        # Advisory: an Evidence file:line anchor pointing at a file that does not exist is a
-        # fabricated or stale grounding citation — surface it (non-failing; --strict promotes)
-        # so the plan's single most important grounding signal stays honest.
-        ghost = evidence_missing_anchor(item["fields"].get("Evidence", ""), root)
-        if ghost:
-            advisories = list(advisories) + [
-                f"Evidence cites '{ghost}', which does not exist (re-read the cited surface)"]
+        # An Evidence file:line anchor pointing at a file that does not exist is a fabricated
+        # or stale grounding citation. On a `repair` item that is a FAILING violation — repair
+        # means "confirmed defect, cite the wrong call site", so a ghost call site is as fatal
+        # as a ghost Surface. Everything else (a non-repair ghost, an out-of-range line number
+        # in any mode) stays a non-failing advisory (--strict promotes), keeping the
+        # conservative posture where structural absence is legitimate Evidence.
+        for path, kind, detail in evidence_anchor_issues(
+                item["fields"].get("Evidence", ""), root):
+            if kind == "missing" and item["fields"].get("Mode", "") == "repair":
+                violations = list(violations) + [
+                    f"repair Evidence cites '{path}', which does not exist"]
+            elif kind == "missing":
+                advisories = list(advisories) + [
+                    f"Evidence cites '{path}', which does not exist (re-read the cited surface)"]
+            else:
+                advisories = list(advisories) + [
+                    f"Evidence anchor '{path}' {detail} (re-read the cited surface)"]
         records.append({"idx": idx, "item": item, "violations": violations,
                         "advisories": list(advisories)})
         if violations:
