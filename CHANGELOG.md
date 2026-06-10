@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.48.0] - 2026-06-10
+
+### Changed
+- Merge planwright-alpha: cold-frontier staleness routing, swallow-site Stage 2b promotion, lint-plan ghost-anchor advisory, status frontier counts, carried dossier candidates, and dashboard insights
+
 ## [1.47.0] - 2026-06-09
 
 ### Changed
@@ -73,7 +78,7 @@ milestones, read these:
 ## [1.39.3] - 2026-06-06
 
 ### Changed
-- Council-audit fixes: symlink-safe Surface validation, lifecycle --root traversal guard and exists/open TOCTOU fix, git-log commit-boundary fix, corrupt-graph warning, portable bump-version, non-default tsconfig aliases, timeout-vs-failure messages; CI shellchecks tests/cases; new engine unit suite.
+- Audit-driven fixes: symlink-safe Surface validation, lifecycle --root traversal guard and exists/open TOCTOU fix, git-log commit-boundary fix, corrupt-graph warning, portable bump-version, non-default tsconfig aliases, timeout-vs-failure messages; CI shellchecks tests/cases; new engine unit suite.
 
 ## [1.39.2] - 2026-06-05
 
