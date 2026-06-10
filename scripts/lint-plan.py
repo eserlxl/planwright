@@ -688,8 +688,15 @@ def main():
 
     # Cross-item: a title repeated among pending items is always a violation
     # (you cannot have two identical pending items). Reported once per dup title.
+    # Scan ONLY pending items: --all widens `items` to include completed history,
+    # where repeated titles are legitimate (and a pending/completed overlap is
+    # surfaced separately as a non-failing advisory below) — counting those here
+    # would falsely hard-fail a clean history and mislabel completed titles as
+    # "pending".
     seen, dups = set(), []
     for it in items:
+        if it["checked"]:
+            continue
         t = it["title"]
         if t and t in seen and t not in dups:
             dups.append(t)

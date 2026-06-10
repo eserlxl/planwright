@@ -432,6 +432,61 @@ if [ "$ld_rc" -ne 0 ]; then ok "lint-plan.py fails on convergence violations"; e
 if printf '%s' "$ld_out" | grep -qF "duplicate pending title: 'A finished thing'"; then ok "lint-plan.py flags a duplicate pending title"; else bad "lint-plan.py missed a duplicate pending title"; fi
 if printf '%s' "$ld_out" | grep -qF "both Surfaces and New Surfaces"; then ok "lint-plan.py flags a Surfaces/New-Surfaces overlap"; else bad "lint-plan.py missed a Surfaces/New-Surfaces overlap"; fi
 
+# Regression: --all widens `items` to include completed history, but the dup-title
+# guard must scan PENDING items only. Two completed twins (or a pending/completed
+# overlap) are legitimate history and must NOT be reported as a "duplicate pending
+# title"; only genuinely repeated PENDING titles hard-fail.
+ADIR="$TMP/lintall"
+mkdir -p "$ADIR"
+cat > "$ADIR/plan.md" <<EOF
+# planwright Plan — .
+
+- [x] Twin completed
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [x] Twin completed
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/build-graph.py exists.
+      Surfaces: scripts/build-graph.py
+      Development: edit build().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+la_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$ADIR/plan.md" --all 2>&1)" || true
+if printf '%s' "$la_out" | grep -qF "duplicate pending title"; then bad "lint-plan.py --all mislabels two completed twins as a duplicate pending title"; else ok "lint-plan.py --all does not flag completed twins as a duplicate pending title"; fi
+
+cat > "$ADIR/plan2.md" <<EOF
+# planwright Plan — .
+
+- [ ] Pending twin
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] Pending twin
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/build-graph.py exists.
+      Surfaces: scripts/build-graph.py
+      Development: edit build().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+lp_rc=0
+lp_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$ADIR/plan2.md" --all 2>&1)" || lp_rc=$?
+if [ "$lp_rc" -ne 0 ] && printf '%s' "$lp_out" | grep -qF "duplicate pending title: 'Pending twin'"; then ok "lint-plan.py --all still flags two genuinely pending duplicate titles"; else bad "lint-plan.py --all missed a real pending duplicate under --all"; fi
+
 # --- Test 12d-strict: --strict promotes a re-proposal advisory to a failure -------
 # A well-formed plan whose only issue is a pending title matching a completed item is
 # an advisory (does NOT fail by default), so a CI gate cannot catch an accidental
