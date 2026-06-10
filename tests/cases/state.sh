@@ -100,11 +100,34 @@ if python3 "$STATE" --root "$EFX" --out - | python3 -c '
 import json, sys
 s = json.load(sys.stdin)
 assert s["pending"] == [] and s["completed"] == [] and s["rejected"] == [], s
-assert s["counts"] == {"pending": 0, "completed": 0, "rejected": 0}, s["counts"]
+assert s["counts"] == {"pending": 0, "completed": 0, "rejected": 0, "carried": 0}, s["counts"]
 '; then
   ok "state.py degrades to empty arrays on an empty .planwright (valid state, exit 0)"
 else
   bad "state.py did not degrade cleanly on an empty .planwright"
+fi
+
+# --- Test ST5b: counts.carried rides state.json from the planning digest ----------
+# status._carried_count tallies the digest's "## Carried dossier candidates" entries;
+# state.collect must pass it through counts so the dashboard's one data contract can
+# surface the verified-but-cut backlog a bare pending: 0 would hide.
+CDX="$TMP/state-carried"; mkdir -p "$CDX/.planwright"
+cat > "$CDX/.planwright/digest.md" <<'DIGEST'
+# digest — UNVERIFIED, routing only
+
+## Carried dossier candidates
+
+[coverage sev2, CUT — capacity] a.py:1 — one; fix: f
+[repair sev1, DEFERRED — env] b.py:2 — two; fix: g
+DIGEST
+if python3 "$STATE" --root "$CDX" --out - | python3 -c '
+import json, sys
+s = json.load(sys.stdin)
+assert s["counts"]["carried"] == 2, s["counts"]
+'; then
+  ok "state.py surfaces counts.carried from the planning digest"
+else
+  bad "state.py counts.carried wrong"
 fi
 
 # --- Test ST6: checked (done-but-undrained) items never leak into the pending array

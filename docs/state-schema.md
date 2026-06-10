@@ -21,7 +21,7 @@ straight from `status`, and `state.py` adds the full pending/completed item bodi
 | `schema_version` | int | `state.py` | Schema version (`1`). Bump on any breaking change. |
 | `root` | string | `status` | Absolute path of the inspected repo. |
 | `head` | string | `status` | Current git HEAD sha (`""` when git is unavailable). |
-| `counts` | object | `status` | `{pending, completed, rejected}` integer counts. |
+| `counts` | object | `status` | `{pending, completed, rejected, carried}` integer counts. `carried` = verified-but-cut dossier candidates recorded in the planning digest's carried section (0 when absent) — the backlog a bare `pending: 0` can hide. |
 | `pending_modes` | object | `status` | `{mode: count}` breakdown of pending items, canonical order. |
 | `pending` | array | `state.py` | Full pending item bodies — see **Item shape**. |
 | `completed` | array | `state.py` | Completed items: `{title, mode}`. |

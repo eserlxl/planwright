@@ -126,6 +126,9 @@ def collect(root: str) -> dict:
             "pending": base["pending"],
             "completed": base["completed"],
             "rejected": base["rejected"],
+            # Verified-but-cut dossier findings carried in the planning digest
+            # (status._carried_count) — the backlog a bare "0 pending" can hide.
+            "carried": base["carried"],
         },
         "pending_modes": base["pending_modes"],
         "pending": pending_items,

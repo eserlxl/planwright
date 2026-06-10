@@ -724,6 +724,16 @@ var nf = new El("section");
 win.PW_VIEWS.console(nf, state, { graphText: graphless, metrics: mNoFr, builtSha: "deadbeef", stale: false, head: "deadbeef" });
 assert(!/never-audited/.test(textOf(nf)), "Console rendered a frontier vital on a pre-frontier (null) graph");
 
+// Targeted: the carried satellite appears ONLY when counts.carried is non-zero; the base
+// fixture (no carried field — an older snapshot) must render the satellites unchanged.
+assert(!/carried/.test(textOf(fc)), "Console rendered a carried satellite without counts.carried");
+var carriedState = Object.assign({}, state, {
+  counts: Object.assign({}, state.counts, { carried: 2 }),
+});
+var cs = new El("section");
+win.PW_VIEWS.console(cs, carriedState, fullCtx);
+assert(/carried/.test(textOf(cs)), "Console omitted the carried satellite on counts.carried=2");
+
 // doctor view: fetch-based (not state-driven), so it sits outside the VIEWS render loop —
 // load its file here (registers PW_VIEWS.doctor) and cover it explicitly: render() must show
 // the sync placeholder immediately, and once the stubbed /doctor.json promise flushes,

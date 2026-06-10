@@ -117,6 +117,15 @@
     sats.appendChild(sat("accepted", done, "is-ok"));
     sats.appendChild(sat("pending", pend, "is-muted"));
     sats.appendChild(sat("rejected", kill, "is-err"));
+    // Verified-but-cut dossier findings carried in the planning digest. Rendered only
+    // when non-zero (mirroring status.report's zero-silence), so a snapshot without
+    // the field — an older state.json — renders the satellites unchanged.
+    var carried = (state.counts && state.counts.carried) || 0;
+    if (carried > 0) {
+      var carriedSat = sat("carried", carried, "is-muted");
+      carriedSat.title = "cut/deferred dossier candidates — routing only, see digest.md";
+      sats.appendChild(carriedSat);
+    }
     var fp = state.final_point;
     if (window.PW_DERIVE.finalPointShown(fp)) {
       var label = "final · " + (fp.deepest_tier || "?") + (fp.date ? " · " + fp.date : "");
