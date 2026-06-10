@@ -38,43 +38,45 @@ import plan_parse
 
 def _load_lint_final():
     """Load the sibling lint-final.py validator (its hyphenated name is not a plain import).
-    Returns the module, or None when it cannot be loaded — in which case convergence falls
-    back to the sha+pending check rather than crashing this read-only tool.
+    Returns (module_or_None, status) where status is 'ok', 'absent', or 'broken'.
 
-    A *genuinely absent* validator degrades silently (a valid state). A validator that is
-    present but fails to load (a syntax/import error in lint-final.py) is a different beast:
-    swallowing it silently would disable the convergence gate without a trace, so warn to
-    stderr before falling back — the degrade must be visible, not invisible."""
+    A *genuinely absent* validator degrades silently (a valid state — 'absent'). A validator
+    that is present but fails to load (a syntax/import error in lint-final.py) is a different
+    beast ('broken'): swallowing it silently would disable the convergence gate without a
+    trace, so warn to stderr AND refuse to certify convergence (see _final_valid) — a broken
+    validator must fail the gate loudly, never pass it blind."""
     import importlib.util
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lint-final.py")
     if not os.path.exists(path):
-        return None
+        return None, "absent"
     try:
         spec = importlib.util.spec_from_file_location("planwright_lint_final", path)
         if spec is None or spec.loader is None:
             print("planwright status: lint-final.py present but unloadable (no import spec); "
-                  "convergence gate degraded to the sha+pending check", file=sys.stderr)
-            return None
+                  "convergence gate cannot certify and --exit-code will fail", file=sys.stderr)
+            return None, "broken"
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        return mod
+        return mod, "ok"
     except Exception as exc:  # present but broken (syntax/import error) — never silent
         print("planwright status: lint-final.py present but failed to load (%s: %s); "
-              "convergence gate degraded to the sha+pending check"
+              "convergence gate cannot certify and --exit-code will fail"
               % (type(exc).__name__, exc), file=sys.stderr)
-        return None
+        return None, "broken"
 
 
-_LINT_FINAL = _load_lint_final()
+_LINT_FINAL, _LINT_FINAL_STATUS = _load_lint_final()
 
 
 def _final_valid(root):
     """True when the recorded final.md passes lint-final's structural contract (a non-empty
-    sha, all four rungs marked dry with a reason, a valid deepest_tier). Falls back to True
-    when the validator cannot load, so a missing validator never makes convergence stricter
-    than the historical sha+pending check."""
+    sha, all four rungs marked dry with a reason, a valid deepest_tier). A *genuinely absent*
+    validator falls back to True, so a missing validator never makes convergence stricter than
+    the historical sha+pending check. A *present-but-broken* validator instead returns False:
+    convergence must not be certified when the contract validator could not run, so --exit-code
+    refuses (exit 1) rather than passing a CI gate blind."""
     if _LINT_FINAL is None:
-        return True
+        return _LINT_FINAL_STATUS != "broken"
     try:
         return bool(_LINT_FINAL.collect(root)["ok"])
     except Exception:
