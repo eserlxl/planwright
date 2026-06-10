@@ -29,7 +29,7 @@ jobs:
           mypy --config-file mypy.ini scripts/
 
       - name: Validate plugin manifests
-        run: python3 -c "import json,glob;[json.load(open(f)) for f in glob.glob('.claude-plugin/*.json')]"
+        run: python3 -c "import json,glob;[json.load(open(f)) for f in glob.glob('.claude-plugin/*.json')+glob.glob('.codex-plugin/*.json')]"
 
       - name: Smoke tests
         run: bash tests/run.sh
