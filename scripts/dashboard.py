@@ -52,13 +52,27 @@ _CONTENT_TYPES = {
     ".svg": "image/svg+xml",
 }
 
+def _env_float(name, default):
+    """A positive float from the environment, else the default. A behavior-preserving
+    tuning/test seam (the defaults are unchanged when the env var is absent or invalid)."""
+    raw = os.environ.get(name)
+    if raw is not None:
+        try:
+            v = float(raw)
+            if v > 0:
+                return v
+        except ValueError:
+            pass
+    return default
+
+
 # How often the /events stream polls .planwright/ for changes (seconds).
-POLL_INTERVAL = 1.0
+POLL_INTERVAL = _env_float("PW_DASH_POLL", 1.0)
 
 # How long the /events stream may stay silent before it sends a keep-alive `: ping`
 # comment. The ping keeps the connection warm and lets a vanished client be noticed (the
 # failing write tears the handler thread down) instead of leaking until the next change.
-HEARTBEAT_INTERVAL = 15.0
+HEARTBEAT_INTERVAL = _env_float("PW_DASH_HEARTBEAT", 15.0)
 
 
 def _planwright_dir(root):

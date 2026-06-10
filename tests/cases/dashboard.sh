@@ -271,6 +271,55 @@ else
   bad "dashboard Doctor view check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
 
+# --- Test DASH-SSE-PING: an idle /events stream emits the keep-alive `: ping` ----------
+# The heartbeat (HEARTBEAT_INTERVAL) is the only mechanism that reaps a vanished SSE client
+# (the failing write tears the handler thread down) during the long unattended cycle runs
+# the dashboard is built to watch. With sub-second POLL/HEARTBEAT env overrides, an idle
+# stream (no .planwright/ mutation) must emit a `: ping` comment line.
+cat > "$TMP/dash_ping.py" <<'PY'
+import os, subprocess, sys, time, urllib.request
+root, dash = sys.argv[1], sys.argv[2]
+env = dict(os.environ, PW_DASH_POLL="0.05", PW_DASH_HEARTBEAT="0.1")
+proc = subprocess.Popen([sys.executable, dash, "--root", root, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+try:
+    port, deadline = None, time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            if proc.poll() is not None:
+                print("server exited early", file=sys.stderr); sys.exit(1)
+            continue
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    if not port:
+        print("no port banner", file=sys.stderr); sys.exit(1)
+    ev = urllib.request.urlopen("http://127.0.0.1:%d/events" % port, timeout=5)
+    assert ev.readline().startswith(b"event: change"), "no initial change event"
+    # Stay idle (do NOT touch .planwright/); a heartbeat ping must arrive within a bounded read.
+    saw_ping = False
+    for _ in range(50):
+        if ev.readline().startswith(b": ping"):
+            saw_ping = True; break
+    ev.close()
+    assert saw_ping, "no `: ping` heartbeat on an idle /events stream"
+    print("SSE-PING-OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+DPDIR="$TMP/dash-ping"; mkdir -p "$DPDIR/.planwright"
+printf -- '- [ ] one\n      Mode: improve\n' > "$DPDIR/.planwright/plan.md"
+python3 "$TMP/dash_ping.py" "$DPDIR" "$DASH" >"$TMP/dping.out" 2>"$TMP/dping.err" || true
+if grep -q SSE-PING-OK "$TMP/dping.out"; then
+  ok "dashboard.py /events emits the : ping heartbeat on an idle stream (vanished-client reaper)"
+else
+  bad "dashboard.py heartbeat ping not observed: $(cat "$TMP/dping.err" 2>/dev/null)"
+fi
+
 # --- /graph.json on a graphless root returns 404 {"error":"no graph built"} -----------
 # The passthrough success is covered above; the no-graph guard (dashboard.py:189) was not.
 # A second short-lived server on a root with a plan but NO graph.json exercises it.
