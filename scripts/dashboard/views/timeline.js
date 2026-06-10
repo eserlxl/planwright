@@ -19,6 +19,83 @@
     return e;
   }
 
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var MODES = ["repair", "improve", "develop", "docs", "reorganize", "other"];
+
+  function svgEl(tag, attrs) {
+    var e = document.createElementNS(SVG_NS, tag);
+    for (var k in attrs) { if (Object.prototype.hasOwnProperty.call(attrs, k)) e.setAttribute(k, String(attrs[k])); }
+    return e;
+  }
+
+  function svgTitle(text) {
+    var t = document.createElementNS(SVG_NS, "title");
+    t.textContent = text;
+    return t;
+  }
+
+  // The timeline graph: a full-width ribbon of every decision in log order — accepted
+  // bars rise above the midline (colored by mode), rejected bars drop below it (red) —
+  // with a mode legend. Honest about the data: entries carry no per-item timestamps, so
+  // the x-axis is log position, not wall-clock.
+  function timelineGraph(completed, rejected) {
+    var wrap = elt("div", "pw-tlgraph");
+    var done = completed.length, kill = rejected.length, tot = done + kill;
+    var rate = tot ? Math.round(100 * done / tot) : 0;
+
+    var head = elt("div", "pw-tlgraph-head");
+    head.appendChild(elt("span", "pw-section-mini", "Decision timeline"));
+    head.appendChild(elt("span", "pw-tlgraph-rate", rate + "% accepted (" + done + "/" + tot + ")"));
+    wrap.appendChild(head);
+
+    var n = Math.max(done, kill, 1);
+    var step = 4, W = n * step + 2, H = 56, mid = 28;
+    var s = svgEl("svg", {
+      "class": "pw-tlgraph-svg", viewBox: "0 0 " + W + " " + H,
+      preserveAspectRatio: "none", role: "img",
+      "aria-label": "Decision timeline: " + done + " accepted, " + kill + " rejected, in log order",
+    });
+    s.appendChild(svgEl("line", { x1: 0, y1: mid, x2: W, y2: mid, "class": "pw-tlgraph-mid" }));
+    completed.forEach(function (it, i) {
+      var bar = svgEl("rect", {
+        x: 1 + i * step, y: mid - 22, width: step - 1.5, height: 22, rx: 0.6,
+        "class": "pw-tlgraph-bar up mode-" + (it.mode || "other"),
+      });
+      bar.appendChild(svgTitle("#" + (i + 1) + " accepted · " + (it.title || "(untitled)") +
+        (it.mode ? " · " + it.mode : "")));
+      s.appendChild(bar);
+    });
+    rejected.forEach(function (it, i) {
+      var bar = svgEl("rect", {
+        x: 1 + i * step, y: mid, width: step - 1.5, height: 18, rx: 0.6, "class": "pw-tlgraph-bar down",
+      });
+      bar.appendChild(svgTitle("#" + (i + 1) + " rejected · " + (it.title || "(untitled)")));
+      s.appendChild(bar);
+    });
+    wrap.appendChild(s);
+
+    var counts = {};
+    completed.forEach(function (it) { var m = it.mode || "other"; counts[m] = (counts[m] || 0) + 1; });
+    var legend = elt("div", "pw-tlgraph-legend");
+    MODES.forEach(function (m) {
+      if (!counts[m]) return;
+      var leg = elt("span", "pw-tlgraph-leg mode-" + m);
+      leg.appendChild(elt("span", "pw-tlgraph-sw"));
+      leg.appendChild(elt("span", null, m + " " + counts[m]));
+      legend.appendChild(leg);
+    });
+    if (kill) {
+      var rj = elt("span", "pw-tlgraph-leg is-rej");
+      rj.appendChild(elt("span", "pw-tlgraph-sw"));
+      rj.appendChild(elt("span", null, "rejected " + kill));
+      legend.appendChild(rj);
+    }
+    wrap.appendChild(legend);
+    wrap.appendChild(elt("div", "pw-tlgraph-foot",
+      "log order, not wall-clock — entries carry no per-item timestamps"));
+    return wrap;
+  }
+
   function row(kind, position, title, badge, reason, hoverTitle) {
     var li = document.createElement("li");
     if (hoverTitle) li.title = hoverTitle;
@@ -37,13 +114,13 @@
 
     container.appendChild(elt("div", "pw-section-title",
       "Timeline — " + completed.length + " accepted, " + rejected.length + " rejected"));
-    container.appendChild(elt("div", "pw-empty",
-      "Ordered by log position (planwright appends chronologically); no per-item timestamps."));
 
     if (!completed.length && !rejected.length) {
       container.appendChild(elt("div", "pw-empty", "No history yet."));
       return;
     }
+
+    container.appendChild(timelineGraph(completed, rejected));
 
     var list = elt("ul", "pw-timeline");
     completed.forEach(function (c, i) {
