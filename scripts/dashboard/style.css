@@ -422,16 +422,15 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
 .pw-tlgraph { background: var(--pw-panel); border: 1px solid var(--pw-border); border-radius: var(--pw-r-md); padding: var(--pw-s4) var(--pw-s5); margin-bottom: var(--pw-s5); }
 .pw-tlgraph-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--pw-s3); }
 .pw-tlgraph-rate { font-size: var(--pw-fs-sm); font-weight: 600; color: var(--pw-ok); font-variant-numeric: tabular-nums; }
-.pw-tlgraph-svg { width: 100%; height: 56px; display: block; }
-.pw-tlgraph-mid { stroke: var(--pw-border); stroke-width: 1; }
-.pw-tlgraph-bar { fill: var(--pw-muted); }
-.pw-tlgraph-bar.down { fill: var(--pw-err); }
-.pw-tlgraph-bar.mode-repair { fill: var(--pw-repair); }
-.pw-tlgraph-bar.mode-improve { fill: var(--pw-improve); }
-.pw-tlgraph-bar.mode-develop { fill: var(--pw-develop); }
-.pw-tlgraph-bar.mode-docs { fill: var(--pw-docs); }
-.pw-tlgraph-bar.mode-reorganize { fill: var(--pw-reorganize); }
-.pw-tlgraph-bar.mode-other { fill: var(--pw-other); }
+.pw-tlgraph-svg { width: 100%; height: 120px; display: block; }
+.pw-tlgraph-axis { stroke: var(--pw-border); stroke-width: 1; }
+.pw-tlgraph-line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.pw-tlgraph-line.mode-repair { stroke: var(--pw-repair); }
+.pw-tlgraph-line.mode-improve { stroke: var(--pw-improve); }
+.pw-tlgraph-line.mode-develop { stroke: var(--pw-develop); }
+.pw-tlgraph-line.mode-docs { stroke: var(--pw-docs); }
+.pw-tlgraph-line.mode-reorganize { stroke: var(--pw-reorganize); }
+.pw-tlgraph-line.mode-other { stroke: var(--pw-other); }
 .pw-tlgraph-legend { display: flex; flex-wrap: wrap; gap: var(--pw-s3); margin-top: var(--pw-s3); }
 .pw-tlgraph-leg { display: inline-flex; align-items: center; gap: var(--pw-s2); font-size: var(--pw-fs-xs); color: var(--pw-muted); text-transform: capitalize; }
 .pw-tlgraph-sw { width: 10px; height: 10px; border-radius: 2px; background: var(--pw-muted); display: inline-block; }
@@ -441,7 +440,6 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
 .pw-tlgraph-leg.mode-docs .pw-tlgraph-sw { background: var(--pw-docs); }
 .pw-tlgraph-leg.mode-reorganize .pw-tlgraph-sw { background: var(--pw-reorganize); }
 .pw-tlgraph-leg.mode-other .pw-tlgraph-sw { background: var(--pw-other); }
-.pw-tlgraph-leg.is-rej .pw-tlgraph-sw { background: var(--pw-err); }
 .pw-tlgraph-foot { margin-top: var(--pw-s2); font-size: var(--pw-fs-xs); color: var(--pw-faint); }
 
 /* Session trend sparkline */

@@ -34,10 +34,12 @@
     return t;
   }
 
-  // The timeline graph: a full-width ribbon of every decision in log order — accepted
-  // bars rise above the midline (colored by mode), rejected bars drop below it (red) —
-  // with a mode legend. Honest about the data: entries carry no per-item timestamps, so
-  // the x-axis is log position, not wall-clock.
+  // The timeline graph: a cumulative burn-up of accepted decisions by mode. Each line is
+  // one mode climbing to its total across the accepted log (chronological FIFO), so the
+  // slopes show when each kind of work landed in the run. Honest about the data: the
+  // x-axis is log position, not wall-clock, since entries carry no per-item timestamps.
+  // Rejected decisions have no aligned position in the accepted log, so they are summarized
+  // in the header, never plotted (avoids implying accepted[i] and rejected[i] are paired).
   function timelineGraph(completed, rejected) {
     var wrap = elt("div", "pw-tlgraph");
     var done = completed.length, kill = rejected.length, tot = done + kill;
@@ -45,54 +47,59 @@
 
     var head = elt("div", "pw-tlgraph-head");
     head.appendChild(elt("span", "pw-section-mini", "Decision timeline"));
-    head.appendChild(elt("span", "pw-tlgraph-rate", rate + "% accepted (" + done + "/" + tot + ")"));
+    head.appendChild(elt("span", "pw-tlgraph-rate",
+      rate + "% accepted (" + done + "/" + tot + ")" + (kill ? " · " + kill + " rejected" : "")));
     wrap.appendChild(head);
 
-    var n = Math.max(done, kill, 1);
-    var step = 4, W = n * step + 2, H = 56, mid = 28;
+    if (!done) {
+      wrap.appendChild(elt("div", "pw-empty", kill + " rejected, none accepted yet."));
+      return wrap;
+    }
+
+    // running cumulative per mode after each accepted step
+    var run = {}; MODES.forEach(function (m) { run[m] = 0; });
+    var snaps = [];
+    completed.forEach(function (it) {
+      var m = MODES.indexOf(it.mode) >= 0 ? it.mode : "other";
+      run[m] += 1;
+      var snap = {}; MODES.forEach(function (mm) { snap[mm] = run[mm]; });
+      snaps.push(snap);
+    });
+    var maxY = 1; MODES.forEach(function (m) { if (run[m] > maxY) maxY = run[m]; });
+
+    var W = 600, H = 120, padT = 8, padB = 10, padX = 4;
+    var plotW = W - padX * 2, plotH = H - padT - padB, y0 = H - padB;
+    function xAt(i) { return padX + (done <= 1 ? plotW : (i + 1) / done * plotW); }
+    function yAt(v) { return padT + plotH - (v / maxY) * plotH; }
+
     var s = svgEl("svg", {
       "class": "pw-tlgraph-svg", viewBox: "0 0 " + W + " " + H,
       preserveAspectRatio: "none", role: "img",
-      "aria-label": "Decision timeline: " + done + " accepted, " + kill + " rejected, in log order",
+      "aria-label": "Cumulative accepted decisions by mode over " + done + " accepted (log order); " +
+        kill + " rejected",
     });
-    s.appendChild(svgEl("line", { x1: 0, y1: mid, x2: W, y2: mid, "class": "pw-tlgraph-mid" }));
-    completed.forEach(function (it, i) {
-      var bar = svgEl("rect", {
-        x: 1 + i * step, y: mid - 22, width: step - 1.5, height: 22, rx: 0.6,
-        "class": "pw-tlgraph-bar up mode-" + (it.mode || "other"),
-      });
-      bar.appendChild(svgTitle("#" + (i + 1) + " accepted · " + (it.title || "(untitled)") +
-        (it.mode ? " · " + it.mode : "")));
-      s.appendChild(bar);
-    });
-    rejected.forEach(function (it, i) {
-      var bar = svgEl("rect", {
-        x: 1 + i * step, y: mid, width: step - 1.5, height: 18, rx: 0.6, "class": "pw-tlgraph-bar down",
-      });
-      bar.appendChild(svgTitle("#" + (i + 1) + " rejected · " + (it.title || "(untitled)")));
-      s.appendChild(bar);
+    s.appendChild(svgEl("line", { x1: padX, y1: y0, x2: W - padX, y2: y0, "class": "pw-tlgraph-axis" }));
+    MODES.forEach(function (m) {
+      if (!run[m]) return;
+      var pts = [padX + "," + y0.toFixed(1)];
+      snaps.forEach(function (snap, i) { pts.push(xAt(i).toFixed(1) + "," + yAt(snap[m]).toFixed(1)); });
+      var pl = svgEl("polyline", { points: pts.join(" "), "class": "pw-tlgraph-line mode-" + m });
+      pl.appendChild(svgTitle(m + " — " + run[m] + " accepted"));
+      s.appendChild(pl);
     });
     wrap.appendChild(s);
 
-    var counts = {};
-    completed.forEach(function (it) { var m = it.mode || "other"; counts[m] = (counts[m] || 0) + 1; });
     var legend = elt("div", "pw-tlgraph-legend");
     MODES.forEach(function (m) {
-      if (!counts[m]) return;
+      if (!run[m]) return;
       var leg = elt("span", "pw-tlgraph-leg mode-" + m);
       leg.appendChild(elt("span", "pw-tlgraph-sw"));
-      leg.appendChild(elt("span", null, m + " " + counts[m]));
+      leg.appendChild(elt("span", null, m + " " + run[m]));
       legend.appendChild(leg);
     });
-    if (kill) {
-      var rj = elt("span", "pw-tlgraph-leg is-rej");
-      rj.appendChild(elt("span", "pw-tlgraph-sw"));
-      rj.appendChild(elt("span", null, "rejected " + kill));
-      legend.appendChild(rj);
-    }
     wrap.appendChild(legend);
     wrap.appendChild(elt("div", "pw-tlgraph-foot",
-      "log order, not wall-clock — entries carry no per-item timestamps"));
+      "cumulative accepted by mode · log order, not wall-clock (no per-item timestamps)"));
     return wrap;
   }
 
