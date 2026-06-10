@@ -302,6 +302,10 @@ Examples below use Claude Code slash-command spelling. On Codex, Cursor, Antigra
 the equivalent trigger from the command adapter table and keep the arguments the same.
 
 ```bash
+# First run: preflight git/rg/python3, the .planwright/ gitignore, and your commit
+# identity up front (--fix adds the gitignore rule); degradations surface here, not mid-run
+/planwright doctor
+
 # Generate a plan for your project
 /planwright
 

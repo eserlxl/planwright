@@ -8,6 +8,10 @@ Antigravity, or Gemini project instructions).
 ## Quick Start
 
 ```bash
+# First run: preflight git/rg/python3, the .planwright/ gitignore, and your commit
+# identity up front (--fix adds the gitignore rule); degradations surface here, not mid-run
+/planwright doctor
+
 # Propose a plan based on the current codebase
 /planwright
 
