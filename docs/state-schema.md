@@ -56,3 +56,31 @@ A missing string field defaults to `""`; a missing list field defaults to `[]`.
 - **Determinism.** The snapshot carries no timestamp, so two runs over an unchanged
   tree produce byte-identical output; freshness is the dashboard's concern (it re-fetches
   on each SSE event).
+
+## status --json
+
+`scripts/status.py --root . --json` is the *other* machine contract — the summary a CI
+wrapper consumes (it composes with `--exit-code`, which keys on the same `converged`
+boolean). Its top-level fields:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `root` | string | Absolute path of the inspected repo. |
+| `head` | string | Current git HEAD sha (`""` when git is unavailable). |
+| `pending` | int | Count of pending (`- [ ]`) items in `plan.md`. |
+| `pending_titles` | array | Pending item titles, in plan order. |
+| `pending_modes` | object | `{mode: count}` breakdown of pending items, canonical order. |
+| `completed` | int | Count of completed (`- [x]`) items in `completed.md`. |
+| `completed_modes` | object | `{mode: count}` breakdown of completed items. |
+| `rejected` | int | Rejected item count (always equals `len(rejected_items)`). |
+| `rejected_items` | array | Rejected items: `{title, reason}` (reason `""` when absent). |
+| `carried` | int | Carried dossier candidates in the planning digest (0 when absent). |
+| `final_point` | object\|null | Same shape as state.json's `final_point` above. |
+| `graph` | object\|null | Same shape as state.json's `graph` above. |
+| `converged` | bool | Current, valid, whole-repo final point with nothing pending — the `--exit-code` verdict. |
+
+Deliberate divergences from `state.json`: `status` reports **flat integer counts plus
+`pending_titles`** where `state.json` nests them under `counts` and ships full item
+bodies in `pending`/`completed`; and the rejected list is named **`rejected_items`**
+here but `rejected` there. Consumers of one contract must not assume the other's field
+names.
