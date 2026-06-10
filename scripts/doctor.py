@@ -54,8 +54,21 @@ BUNDLED = [
     ("dashboard.py", "the read-only live dashboard server (`planwright dashboard`)"),
     # The server resolves its whole UI from <scripts>/dashboard/; without the asset
     # tree it launches, prints a healthy URL, and serves 404s — a SILENT partial
-    # install the dashboard.py check alone cannot catch.
+    # install the dashboard.py check alone cannot catch. index.html loads every asset
+    # below by hard path, so a guard that checks only the shell still misses a tree
+    # that 404s every script/style — list each load-bearing asset index.html requires.
     ("dashboard/index.html", "the dashboard static UI shell (served by dashboard.py)"),
+    ("dashboard/style.css", "the dashboard stylesheet (index.html loads it; absent = unstyled UI)"),
+    ("dashboard/app.js", "the dashboard SPA bootstrap (absent = blank app, every view dead)"),
+    ("dashboard/vendor/derive.js", "the shared state-derivation logic (every view consumes it)"),
+    ("dashboard/vendor/graph.js", "the 3D coupling-graph renderer (Graph view)"),
+    ("dashboard/views/console.js", "the Console (convergence reactor) view"),
+    ("dashboard/views/plan.js", "the Plan view"),
+    ("dashboard/views/timeline.js", "the Timeline view"),
+    ("dashboard/views/graph.js", "the Graph (coupling globe) view"),
+    ("dashboard/views/insights.js", "the Insights (risk/hotspot/frontier) view"),
+    ("dashboard/views/commands.js", "the Commands (recommended next sweep) view"),
+    ("dashboard/views/doctor.js", "the Doctor (environment preflight) view"),
 ]
 
 

@@ -40,17 +40,22 @@ fi
 
 # --- Test DR3: a broken install (no sibling scripts) FAILs with exit 1 -----------
 # Copy doctor.py ALONE into an isolated dir; check_scripts resolves siblings from
-# __file__, so all ten bundled entries are missing -> 10 fails -> ok=false, exit 1.
+# __file__, so EVERY bundled entry is missing -> all fail -> ok=false, exit 1. The
+# expected fail count is derived from BUNDLED itself (not hard-coded) so the guard
+# can grow its asset list — e.g. the load-bearing dashboard assets — without this
+# test going stale.
 ISO="$TMP/doctor-iso"; mkdir -p "$ISO"
 cp "$DOC" "$ISO/doctor.py"
+nbundled="$(python3 -c "import importlib.util,sys; s=importlib.util.spec_from_file_location('d',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(len(m.BUNDLED))" "$DOC")"
 rc=0; out="$(python3 "$ISO/doctor.py" --root "$ROOT" --json)" || rc=$?
 if [ "$rc" = "1" ] \
    && printf '%s' "$out" | grep -q '"ok": false' \
-   && printf '%s' "$out" | grep -q '"fail": 10' \
+   && printf '%s' "$out" | grep -q "\"fail\": $nbundled" \
+   && printf '%s' "$out" | grep -q '"<scripts>/dashboard/app.js"' \
    && printf '%s' "$out" | grep -q '"status": "fail"'; then
   ok "doctor.py FAILs (exit 1) when the bundled scripts cannot be resolved beside it"
 else
-  bad "doctor.py did not fail on a broken install (rc=$rc)"
+  bad "doctor.py did not fail on a broken install (rc=$rc, expected fail=$nbundled)"
 fi
 
 # --- Test DR4: missing git degrades to FAIL (exit 1); rg/fd absence is WARN-only --
