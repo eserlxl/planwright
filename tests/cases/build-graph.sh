@@ -89,6 +89,20 @@ assert load().COUPLING_MAX_FILES_PER_COMMIT == 100, "non-integer falls back"
 PY
 then ok "PW_COUPLING_MAX_FILES overrides the coupling bulk-skip threshold (invalid falls back to 100)"; else bad "PW_COUPLING_MAX_FILES override/fallback wrong"; fi
 
+# --- Test 11a2: bash `source $(dirname $0)/lib` couples via the recovered basename
+# The old [^\s;]+ capture truncated at the space inside the command substitution and
+# dropped the edge; the balanced-token capture + basename fallback now recovers it.
+if python3 - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+fs = {"a.sh", "helper.sh"}
+assert m.imports_of("bash", "source $(dirname $0)/helper.sh", "a.sh", fs) == ["helper.sh"], "dynamic-prefix source dropped"
+assert m.imports_of("bash", 'source "${LIB}/helper.sh"', "a.sh", fs) == ["helper.sh"], "brace-var source regressed"
+assert m.imports_of("bash", "source helper.sh", "a.sh", fs) == ["helper.sh"], "static source regressed"
+PY
+then ok "bash source with a command-substitution prefix still couples (basename recovered)"; else bad "bash dynamic-prefix source coupling wrong"; fi
+
 # --- Test 11b: build-graph.py --prior preserves last_audited_sha -----------
 # Stage 11's incremental-audit skipping depends on last_audited_sha surviving
 # rebuilds; without --prior preservation every run re-audits the whole tree.

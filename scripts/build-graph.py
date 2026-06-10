@@ -765,11 +765,19 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
     raw = []
     c_angles = []
     if lang == "bash":
-        # Strip a single balanced surrounding quote pair: the idiomatic
-        # `. "$HERE/lib.sh"` / `source 'lib.sh'` forms otherwise reach resolve()
-        # with the quote still attached, so basename() yields `lib.sh"` and the
-        # unique-basename fallback never matches — dropping the edge.
-        for t in re.findall(r"(?m)^\s*(?:source|\.)\s+([^\s;]+)", text):
+        # Capture the source/. target as one argument, treating a quoted string, a
+        # `$(...)` command substitution, a `${...}` expansion, or a `` `...` `` backtick as a
+        # single unit so internal whitespace does not truncate it. A bare `[^\s;]+` stops at
+        # the space in `source $(dirname $0)/helper.sh`, capturing `$(dirname` and dropping
+        # the real helper.sh edge; keeping the trailing static path component lets resolve()'s
+        # unique-basename fallback still recover the lib for a dynamically-prefixed path.
+        for t in re.findall(
+                r"""(?m)^\s*(?:source|\.)\s+"""
+                r"""((?:"[^"]*"|'[^']*'|\$\([^)]*\)|\$\{[^}]*\}|`[^`]*`|[^\s;'"`])+)""",
+                text):
+            # Strip a single balanced surrounding quote pair: the idiomatic
+            # `. "$HERE/lib.sh"` / `source 'lib.sh'` forms otherwise reach resolve() with the
+            # quote attached, so basename() yields `lib.sh"` and the fallback never matches.
             if len(t) >= 2 and t[0] == t[-1] and t[0] in ("\"", "'"):
                 t = t[1:-1]
             raw.append(t)
