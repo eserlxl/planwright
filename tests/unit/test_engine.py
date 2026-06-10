@@ -380,6 +380,30 @@ def _git(work, *args):
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def _write(work, name, text):
+    with open(os.path.join(work, name), "w") as fh:
+        fh.write(text)
+
+
+class TestMarkdownCentrality(unittest.TestCase):
+    def test_markdown_links_not_in_pagerank(self):
+        # A doc linked-to only by other docs must not gain centrality from those doc->doc
+        # links: its PageRank should equal that of a doc nobody links to.
+        with tempfile.TemporaryDirectory() as work:
+            _git(work, "init")
+            _git(work, "config", "user.name", "t")
+            _git(work, "config", "user.email", "t@t")
+            _write(work, "a.md", "see [hub](hub.md)\n")
+            _write(work, "b.md", "see [hub](hub.md)\n")
+            _write(work, "hub.md", "# hub\n")      # linked by a.md and b.md (doc->doc)
+            _write(work, "lonely.md", "# lonely\n")  # linked by nobody
+            _git(work, "add", "-A")
+            _git(work, "commit", "-m", "init")
+            nodes = bg.build(work, None)["nodes"]
+            self.assertAlmostEqual(nodes["hub.md"]["pagerank"],
+                                   nodes["lonely.md"]["pagerank"], places=6)
+
+
 class TestBuildWorktree(unittest.TestCase):
     def test_ls_files_deleted_worktree(self):
         # A tracked file deleted from the working tree but not staged is still

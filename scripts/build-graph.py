@@ -1302,7 +1302,18 @@ def build(root, prior_path, scope=None, seed=None):
             undirected[t].add(f)
     undirected = {f: sorted(s) for f, s in undirected.items()}
 
-    pr = pagerank(files, import_edges)
+    # Markdown link edges otherwise let densely cross-linked docs inflate each other's
+    # PageRank, floating documentation nodes to the top of `ranked` on link-density alone.
+    # Keep those edges in import_edges (navigation, coupling, cycles, the graph output) but
+    # exclude doc->doc links from the centrality input so a doc gains rank only from genuine
+    # (non-doc) in-links. (code->doc and doc->code edges still count.)
+    def _is_doc(f):
+        return nodes.get(f, {}).get("lang") == "markdown"
+    centrality_edges = {
+        f: [t for t in outs if not (_is_doc(f) and _is_doc(t))]
+        for f, outs in import_edges.items()
+    }
+    pr = pagerank(files, centrality_edges)
     aps = articulation_points(files, undirected)
     for f in files:
         nodes[f]["pagerank"] = round(pr.get(f, 0.0), 6)
