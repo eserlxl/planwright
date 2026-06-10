@@ -529,6 +529,16 @@ def evidence_anchor_issues(ev, root):
     seen = set()
     for m in _EVIDENCE_ANCHOR_RE.finditer(ev):
         cand = m.group(1)
+        # The anchor regex permits a leading `../`; apply the same realpath-under-root
+        # containment guard Surfaces use (unsafe_surface), so an anchor escaping the
+        # repo root is flagged as such instead of being existence/range-checked against
+        # a file outside the repository — the grounding guarantee must hold for Evidence
+        # citations as strongly as it does for Surfaces.
+        if unsafe_surface(cand, root):
+            if (cand, "escape") not in seen:
+                seen.add((cand, "escape"))
+                issues.append((cand, "escape", "resolves outside the repo root"))
+            continue
         full = os.path.join(root, cand)
         if not os.path.exists(full):
             if (cand, "missing") not in seen:
@@ -680,7 +690,12 @@ def main():
         # conservative posture where structural absence is legitimate Evidence.
         for path, kind, detail in evidence_anchor_issues(
                 item["fields"].get("Evidence", ""), root):
-            if kind == "missing" and item["fields"].get("Mode", "") == "repair":
+            if kind == "escape":
+                # A containment breach is fatal in every mode, exactly like a Surfaces
+                # escape — the cited evidence is not grounded inside the repository.
+                violations = list(violations) + [
+                    f"Evidence anchor '{path}' {detail} (must stay within the repo)"]
+            elif kind == "missing" and item["fields"].get("Mode", "") == "repair":
                 violations = list(violations) + [
                     f"repair Evidence cites '{path}', which does not exist"]
             elif kind == "missing":
