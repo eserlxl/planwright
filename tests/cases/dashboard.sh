@@ -741,6 +741,30 @@ var cs = new El("section");
 win.PW_VIEWS.console(cs, carriedState, fullCtx);
 assert(/carried/.test(textOf(cs)), "Console omitted the carried satellite on counts.carried=2");
 
+// Targeted: the Decision-timeline cumulative graph (timelineGraph) — header + accepted-rate
+// text, a legend entry per mode present in completed[] with its cumulative count, and the
+// no-accepted empty state (a rejected-only log plots no cumulative line).
+function classOf(n) { return String(n.className || (n._attr && n._attr["class"]) || ""); }
+function findByClass(node, cls, out) {
+  out = out || [];
+  if (classOf(node).indexOf(cls) >= 0) out.push(node);
+  (node.children || []).forEach(function (c) { findByClass(c, cls, out); });
+  return out;
+}
+var tl = new El("section");
+win.PW_VIEWS.timeline(tl, state, fullCtx);
+var tlText = textOf(tl);
+assert(/Decision timeline/.test(tlText), "Timeline omitted the decision-timeline graph header");
+assert(/50% accepted \(1\/2\)/.test(tlText), "Timeline graph accepted-rate text wrong (want 50% accepted (1/2))");
+assert(/develop 1/.test(tlText), "Timeline graph legend missed the develop cumulative count");
+assert(findByClass(tl, "pw-tlgraph-line").length === 1,
+  "Timeline graph should draw exactly one cumulative line for a one-mode log");
+var tlEmpty = new El("section");
+win.PW_VIEWS.timeline(tlEmpty, Object.assign({}, state, { completed: [] }), fullCtx);
+assert(/none accepted yet/.test(textOf(tlEmpty)), "Timeline graph empty state missing on a rejected-only log");
+assert(findByClass(tlEmpty, "pw-tlgraph-line").length === 0,
+  "Timeline graph plotted cumulative lines with no accepted entries");
+
 // doctor view: fetch-based (not state-driven), so it sits outside the VIEWS render loop —
 // load its file here (registers PW_VIEWS.doctor) and cover it explicitly: render() must show
 // the sync placeholder immediately, and once the stubbed /doctor.json promise flushes,
