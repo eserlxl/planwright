@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.49.0] - 2026-06-10
+
+### Changed
+- --select conjunctions, stale-audited predicate and -z output; carried backlog through status/state.json/Console; atomic state.json and lint-plan --fix writes; status --json contract and CI-gating recipe documented; Quick Starts lead with doctor
+
 ## [1.48.0] - 2026-06-10
 
 ### Changed

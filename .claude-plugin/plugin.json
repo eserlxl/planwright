@@ -1,6 +1,6 @@
 {
   "name": "planwright",
-  "version": "1.48.0",
+  "version": "1.49.0",
   "description": "Grounded codebase planning for AI coding agents, packaged here for Claude Code. It audits your repository and writes a verification-ready checkbox plan where every item cites real file:line evidence and a runnable verification \u2014 then can optionally implement and verify each item, one commit at a time. No external binary and no extra API calls beyond the active agent session.",
   "author": {
     "name": "Eser KUBALI",
