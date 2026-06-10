@@ -190,6 +190,22 @@ rungs marked dry, and a recognized `deepest_tier`); a blank or typo'd marker tha
 does not certify convergence (`status` flags it `INVALID`), and a component-scoped final point asserts
 dryness only for its component — it never gates 0.
 
+### Gating CI on convergence
+
+The four machine gates above compose into one copy-paste job step — each line fails the job for a
+distinct, named reason:
+
+```sh
+python3 <scripts>/status.py --root . --exit-code --quiet   # not at a current, valid final point (or work pending)
+python3 <scripts>/lint-plan.py --root . --strict --quiet   # plan violations, or advisories (re-proposed/upstream) under --strict
+python3 <scripts>/check-links.py --root . --quiet          # a broken intra-repo doc link
+python3 <scripts>/doctor.py --root . --strict --quiet      # a degraded environment (missing tool, un-ignored .planwright/, unset identity)
+```
+
+The block is host-agnostic — any CI runs it verbatim once `<scripts>` is resolved (the `scripts/`
+directory of the planwright distribution, as everywhere in this guide); `set -e` (or the runner's
+per-step failure) turns any non-zero exit into a red job.
+
 `reset` (aliases `fresh` / `clean`) is the one lifecycle command that **mutates** `.planwright/`: it
 clears the tool state — graph, plan, digest, final-point marker, completed history, and state snapshot —
 so the next run rebuilds from scratch, re-auditing the whole tree with no incremental shortcuts. It is
