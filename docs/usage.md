@@ -285,11 +285,12 @@ See [Graph memory](graph-memory-schema.md) for the full `graph.json` schema and 
   python3 <scripts>/build-graph.py --scope src/ --dot | dot -Tsvg > src.svg
   ```
 
-- **`--select EXPR`** — print the repo-relative paths of nodes matching one predicate (one per line, sorted) for scripting without `jq`. EXPR is one of `is_articulation`, `covered_by_test`, `is_test`, a `no-` negation of those, `code` (`branch_count > 0`), `never-audited` (no reachable audit stamp — the same bin `frontier.never_audited` counts), or `lang=NAME`. It takes precedence over `--dot`:
+- **`--select EXPR`** — print the repo-relative paths of nodes matching a predicate (one per line, sorted) for scripting without `jq`. EXPR is one of `is_articulation`, `covered_by_test`, `is_test`, a `no-` negation of those, `code` (`branch_count > 0`), `never-audited` (no reachable audit stamp — the same bin `frontier.never_audited` counts), or `lang=NAME` — or a **comma-ANDed conjunction** of those (a node must match every member), so a multi-signal slice needs no `jq` post-processing either. It takes precedence over `--dot`:
 
   ```bash
-  python3 <scripts>/build-graph.py --select is_articulation    # the fragile chokepoints
-  python3 <scripts>/build-graph.py --select no-covered_by_test # uncovered code nodes
+  python3 <scripts>/build-graph.py --select is_articulation         # the fragile chokepoints
+  python3 <scripts>/build-graph.py --select no-covered_by_test      # uncovered code nodes
+  python3 <scripts>/build-graph.py --select code,no-covered_by_test # untested CODE nodes only
   ```
 
 (`--debug` writes a human-readable routing digest to stderr — see [Troubleshooting](#the-audit-looked-at-the-wrong-files).)

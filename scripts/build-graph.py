@@ -1561,43 +1561,53 @@ def to_dot(graph):
 _SELECT_BOOL_FIELDS = ("is_articulation", "covered_by_test", "is_test")
 
 
+def _select_token_pred(e):
+    """Resolve ONE predicate token from the closed --select vocabulary to a node
+    predicate, or raise ValueError naming the offending token. Shared by every member
+    of a comma-ANDed conjunction, so a typo'd member errors exactly like a typo'd
+    single predicate."""
+    if e.startswith("lang=") and e[len("lang="):]:
+        want = e[len("lang="):]
+        return lambda n: n.get("lang") == want
+    if e == "code":
+        return lambda n: (n.get("branch_count") or 0) > 0
+    if e == "never-audited":
+        # audit_age_commits, not last_audited_sha: an unreachable stamp (rewritten
+        # history) is cold too, so --select agrees with ranked_cold's never bin and
+        # the frontier.never_audited count.
+        return lambda n: n.get("audit_age_commits") is None
+    if e.startswith("no-") and e[3:] in _SELECT_BOOL_FIELDS:
+        field = e[3:]
+        return lambda n: not n.get(field)
+    if e in _SELECT_BOOL_FIELDS:
+        return lambda n: bool(n.get(e))
+    allowed = ", ".join(list(_SELECT_BOOL_FIELDS)
+                        + ["no-" + b for b in _SELECT_BOOL_FIELDS]
+                        + ["code", "never-audited", "lang=NAME"])
+    raise ValueError(f"unknown --select predicate '{e}'; allowed: {allowed}")
+
+
 def to_select(graph, expr):
     """Resolve a --select predicate against the per-node signals and return the matching
-    repo-relative paths, sorted. EXPR is ONE predicate from a closed vocabulary over the keys
-    build-graph already computes (not a general query language): a boolean field name
-    (is_articulation | covered_by_test | is_test) selects nodes where it is true; a `no-` prefix
-    on one selects where it is false; `code` selects branch_count>0; `never-audited` selects
-    nodes with no reachable audit stamp (audit_age_commits null); `lang=NAME` (NAME non-empty) selects nodes of that
-    language. Under a --scope build the result is restricted to the Context node set, matching
-    --dot so the two non-JSON output modes agree on scope. Raises ValueError on an unknown or
-    malformed predicate (including a bare `lang=`) so the caller can report it and exit non-zero."""
+    repo-relative paths, sorted. EXPR is a predicate from a closed vocabulary over the keys
+    build-graph already computes (not a general query language) — or a comma-ANDed
+    conjunction of them (`code,no-covered_by_test`), where a node must match EVERY member:
+    a boolean field name (is_articulation | covered_by_test | is_test) selects nodes where
+    it is true; a `no-` prefix on one selects where it is false; `code` selects
+    branch_count>0; `never-audited` selects nodes with no reachable audit stamp
+    (audit_age_commits null); `lang=NAME` (NAME non-empty) selects nodes of that language.
+    Under a --scope build the result is restricted to the Context node set, matching
+    --dot so the two non-JSON output modes agree on scope. Raises ValueError on an unknown
+    or malformed predicate token (including a bare `lang=` or an empty conjunction member)
+    so the caller can report it and exit non-zero."""
     nodes = graph.get("nodes", {})
     # Mirror to_dot: a --scope build carries a "context" node list; restrict the result to it so
     # `--scope X --select ...` answers about that component, not the whole repo. Absent => all.
     context = graph.get("context")
     visible = set(context) if context is not None else set(nodes)
-    e = (expr or "").strip()
-    if e.startswith("lang=") and e[len("lang="):]:
-        want = e[len("lang="):]
-        pred = lambda n: n.get("lang") == want
-    elif e == "code":
-        pred = lambda n: (n.get("branch_count") or 0) > 0
-    elif e == "never-audited":
-        # audit_age_commits, not last_audited_sha: an unreachable stamp (rewritten
-        # history) is cold too, so --select agrees with ranked_cold's never bin and
-        # the frontier.never_audited count.
-        pred = lambda n: n.get("audit_age_commits") is None
-    elif e.startswith("no-") and e[3:] in _SELECT_BOOL_FIELDS:
-        field = e[3:]
-        pred = lambda n: not n.get(field)
-    elif e in _SELECT_BOOL_FIELDS:
-        pred = lambda n: bool(n.get(e))
-    else:
-        allowed = ", ".join(list(_SELECT_BOOL_FIELDS)
-                            + ["no-" + b for b in _SELECT_BOOL_FIELDS]
-                            + ["code", "never-audited", "lang=NAME"])
-        raise ValueError(f"unknown --select predicate '{expr}'; allowed: {allowed}")
-    return sorted(p for p, n in nodes.items() if p in visible and pred(n))
+    preds = [_select_token_pred(t.strip()) for t in (expr or "").split(",")]
+    return sorted(p for p, n in nodes.items()
+                  if p in visible and all(pred(n) for pred in preds))
 
 
 def main():
@@ -1616,10 +1626,11 @@ def main():
                     help="emit the import graph as GraphViz DOT to stdout instead of JSON "
                          "(visualization/interop; pipe to `dot -Tsvg`)")
     ap.add_argument("--select", default=None, metavar="EXPR",
-                    help="print the repo-relative paths of nodes matching ONE predicate, one per "
-                         "line, instead of JSON: is_articulation | covered_by_test | is_test | "
-                         "no-<that> | code | never-audited | lang=NAME (scriptable access to the "
-                         "computed routing signals; takes precedence over --dot)")
+                    help="print the repo-relative paths of nodes matching a predicate — or a "
+                         "comma-ANDed conjunction of predicates (code,no-covered_by_test) — one "
+                         "per line, instead of JSON: is_articulation | covered_by_test | is_test "
+                         "| no-<that> | code | never-audited | lang=NAME (scriptable access to "
+                         "the computed routing signals; takes precedence over --dot)")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:

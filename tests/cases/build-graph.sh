@@ -667,6 +667,24 @@ else
   bad "build-graph --select scope/lang= regression (scoped=[$sel_scoped] le_rc=$sel_le_rc)"
 fi
 
+# --- Test 11c2j3: --select comma-ANDs predicate conjunctions (multi-signal, no jq) --
+# Each comma-separated token resolves through the same closed vocabulary and a node must
+# match ALL of them. lang=python,no-is_test on SELREPO is a strict subset of lang=python
+# (test_hub.py drops), proving real intersection — not first-token-wins; a disjoint pair
+# (is_articulation,is_test) yields empty output with exit 0; an unknown member errors
+# exactly like an unknown single predicate (exit 2, naming the offending token).
+sel_conj="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select lang=python,no-is_test 2>/dev/null | sort | tr '\n' ' ')"
+sel_conj_empty_rc=0
+sel_conj_empty="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select is_articulation,is_test 2>/dev/null)" || sel_conj_empty_rc=$?
+sel_conj_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select code,bogus >/dev/null 2>"$TMP/sel_conj_err" || sel_conj_rc=$?
+if [ "$sel_conj" = "hub.py x.py y.py z.py " ] \
+   && [ -z "$sel_conj_empty" ] && [ "$sel_conj_empty_rc" = 0 ] \
+   && [ "$sel_conj_rc" = 2 ] && grep -q "unknown --select predicate 'bogus'" "$TMP/sel_conj_err"; then
+  ok "build-graph --select ANDs comma conjunctions; empty intersection exits 0; unknown member exits 2"
+else
+  bad "build-graph --select conjunction wrong (conj=[$sel_conj] empty=[$sel_conj_empty] rc=$sel_conj_rc emptyrc=$sel_conj_empty_rc)"
+fi
+
 # --- Test 11c2k: --select code (branch_count>0) and never-audited predicates --------
 # Two predicate branches of to_select the cases above never reach. `code` selects nodes
 # carrying real code (branch_count>0); `never-audited` selects nodes whose last_audited_sha
