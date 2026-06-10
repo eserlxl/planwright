@@ -25,10 +25,13 @@ Stdlib only (no Flask/websocket libs, no build step). It exposes:
 4. **`/events`** — a one-directional Server-Sent Events stream that mtime-polls `.planwright/` ~every
    second and pushes a `change` event whenever a file changes, so the browser re-fetches `/state.json`.
 5. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
-   reactive console with seven views — **Console** (convergence reactor, health vitals, cadence,
-   session trend, dirty pulse), **Commands** (the recommended next sweep for the current state —
+   reactive console with seven views — **Console** (convergence reactor with a three-state resting
+   verdict, the expanded health vitals row — coverage, hotspots, coupling, audit frontier, files,
+   articulation, tests, cycles — cadence with a mode legend, session trend, dirty pulse),
+   **Commands** (the recommended next sweep for the current state —
    codvisor / codinventor / codcycle — with a cold-start reset nudge once converged), **Plan**,
-   **Timeline**, **Graph** (3D coupling globe), **Insights** (risk ledger, hotspot constellation,
+   **Timeline** (a cumulative Decision timeline graph by mode above the accepted/killed lists),
+   **Graph** (3D coupling globe), **Insights** (risk ledger, hotspot constellation,
    coverage, priorities, the explore escalation's cold-frontier sweep order, import cycles), and
    **Doctor** — plus a command palette, light/dark themes, and full keyboard navigation.
 

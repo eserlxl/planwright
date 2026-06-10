@@ -266,12 +266,15 @@ The static UI (`scripts/dashboard/`) is a vanilla, dependency-free `index.html` 
 change (the active tab survives a reload via the URL hash). It has a command palette (`Ctrl/⌘-K`),
 light/dark themes, full keyboard navigation, and seven views:
 
-- **Console** — the glance-once landing: a convergence reactor, health vitals (coverage, hotspots,
-  cycles, coupling), a decision-cadence ribbon, a live session trend, and a dirty-files pulse.
+- **Console** — the glance-once landing: a convergence reactor with a three-state resting verdict
+  (CONVERGED / IN PROGRESS / STALE-or-IDLE), health vitals (coverage, hotspots, coupling, the audit
+  frontier, tracked files, articulation points, test files, import cycles), a decision-cadence
+  ribbon with a per-mode legend, a live session trend, and a dirty-files pulse.
 - **Commands** — the recommended next sweep for the current state (codvisor / codinventor / codcycle),
   with a supplementary cold-start `/planwright reset` nudge once the tree has converged.
 - **Plan** — pending / completed / rejected items (pending shown with all eight fields, filterable by Mode).
-- **Timeline** — items accepted / killed over the run, from the completed/rejected logs.
+- **Timeline** — a cumulative **Decision timeline** graph (accepted decisions by mode over the run,
+  with the shared mode legend) above the accepted/killed item lists, from the completed/rejected logs.
 - **Graph** — the temporal coupling network as a rotatable, zoomable **3D globe** (drag to rotate,
   scroll to zoom; nodes coloured by language, import cycles flagged).
 - **Insights** — a risk ledger (churn × centrality), a hotspot constellation, coverage by language,
