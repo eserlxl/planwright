@@ -241,6 +241,14 @@ def main():
         sys.stderr.write(
             f"lifecycle: --root '{args.root}' contains parent-directory traversal '..'\n")
         return 2
+    # Reject NUL bytes and control characters too: the path feeds os.remove on
+    # <root>/plan.md, and an exotic component should be refused at the edge rather than
+    # reaching the filesystem (a NUL would raise mid-operation; a control char is never a
+    # legitimate .planwright path).
+    if any(ord(ch) < 0x20 or ch == "\x7f" for ch in args.root):
+        sys.stderr.write(
+            f"lifecycle: --root {args.root!r} contains a NUL or control character\n")
+        return 2
     root = args.root
 
     if args.command in ("reset", "fresh", "clean"):
