@@ -223,8 +223,17 @@ def blank_comments(lang, text):
         text = _blank_spans(text, r"/\*.*?\*/", flags=re.S)
         text = _blank_spans(text, r"(?m)//.*$")
     elif lang == "python":
-        text = _blank_spans(text, r'"""(?:.|\n)*?"""')
-        text = _blank_spans(text, r"'''(?:.|\n)*?'''")
+        # Blank both triple-quote styles in ONE pass, so a delimiter sitting inside the
+        # other style's string ('''…"""…''') cannot cross-contaminate the way two
+        # sequential single-style passes did. `[\s\S]*?` (not the slow `(?:.|\n)*?`) avoids
+        # pathological backtracking, and the trailing open-ended alternatives blank an
+        # UNTERMINATED triple-quote to end-of-text instead of leaving its body to leak
+        # in as spurious import/def noise.
+        _triple = (
+            r'"""[\s\S]*?"""' r"|'''[\s\S]*?'''"   # closed triple-quoted strings, either delimiter
+            r'|"""[\s\S]*' r"|'''[\s\S]*"          # an unterminated triple-quote runs to EOF
+        )
+        text = _blank_spans(text, _triple)
         text = _blank_spans(text, r"(?m)#.*$")
     elif lang == "bash":
         text = _blank_spans(text, r"(?m)#.*$")
