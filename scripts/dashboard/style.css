@@ -50,7 +50,7 @@
   --pw-improve: #f59e0b;
   --pw-develop: #d946ef;
   --pw-docs: #3b82f6;
-  --pw-reorganize: #8b5cf6;
+  --pw-reorganize: #06b6d4;
   --pw-other: #6b7280;
 
   /* language palette (10 real buckets) */
@@ -431,15 +431,17 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
 .pw-tlgraph-line.mode-docs { stroke: var(--pw-docs); }
 .pw-tlgraph-line.mode-reorganize { stroke: var(--pw-reorganize); }
 .pw-tlgraph-line.mode-other { stroke: var(--pw-other); }
-.pw-tlgraph-legend { display: flex; flex-wrap: wrap; gap: var(--pw-s3); margin-top: var(--pw-s3); }
-.pw-tlgraph-leg { display: inline-flex; align-items: center; gap: var(--pw-s2); font-size: var(--pw-fs-xs); color: var(--pw-muted); text-transform: capitalize; }
-.pw-tlgraph-sw { width: 10px; height: 10px; border-radius: 2px; background: var(--pw-muted); display: inline-block; }
-.pw-tlgraph-leg.mode-repair .pw-tlgraph-sw { background: var(--pw-repair); }
-.pw-tlgraph-leg.mode-improve .pw-tlgraph-sw { background: var(--pw-improve); }
-.pw-tlgraph-leg.mode-develop .pw-tlgraph-sw { background: var(--pw-develop); }
-.pw-tlgraph-leg.mode-docs .pw-tlgraph-sw { background: var(--pw-docs); }
-.pw-tlgraph-leg.mode-reorganize .pw-tlgraph-sw { background: var(--pw-reorganize); }
-.pw-tlgraph-leg.mode-other .pw-tlgraph-sw { background: var(--pw-other); }
+/* Shared mode legend (timeline graph + decision cadence) */
+.pw-legend { display: flex; flex-wrap: wrap; gap: var(--pw-s3); margin-top: var(--pw-s3); }
+.pw-legend-item { display: inline-flex; align-items: center; gap: var(--pw-s2); font-size: var(--pw-fs-xs); color: var(--pw-muted); text-transform: capitalize; }
+.pw-legend-sw { width: 10px; height: 10px; border-radius: 2px; background: var(--pw-muted); display: inline-block; }
+.pw-legend-item.mode-repair .pw-legend-sw { background: var(--pw-repair); }
+.pw-legend-item.mode-improve .pw-legend-sw { background: var(--pw-improve); }
+.pw-legend-item.mode-develop .pw-legend-sw { background: var(--pw-develop); }
+.pw-legend-item.mode-docs .pw-legend-sw { background: var(--pw-docs); }
+.pw-legend-item.mode-reorganize .pw-legend-sw { background: var(--pw-reorganize); }
+.pw-legend-item.mode-other .pw-legend-sw { background: var(--pw-other); }
+.pw-legend-item.is-rej .pw-legend-sw { background: var(--pw-err); }
 .pw-tlgraph-foot { margin-top: var(--pw-s2); font-size: var(--pw-fs-xs); color: var(--pw-faint); }
 
 /* Session trend sparkline */

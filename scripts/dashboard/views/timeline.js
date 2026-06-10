@@ -89,11 +89,11 @@
     });
     wrap.appendChild(s);
 
-    var legend = elt("div", "pw-tlgraph-legend");
+    var legend = elt("div", "pw-legend");
     MODES.forEach(function (m) {
       if (!run[m]) return;
-      var leg = elt("span", "pw-tlgraph-leg mode-" + m);
-      leg.appendChild(elt("span", "pw-tlgraph-sw"));
+      var leg = elt("span", "pw-legend-item mode-" + m);
+      leg.appendChild(elt("span", "pw-legend-sw"));
       leg.appendChild(elt("span", null, m + " " + run[m]));
       legend.appendChild(leg);
     });

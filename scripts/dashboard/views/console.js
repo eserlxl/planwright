@@ -374,6 +374,26 @@
       }));
     });
     panel.appendChild(s);
+
+    // mode legend (accepted ticks are colored by mode; rejected ticks are red, below the line)
+    var counts = {};
+    completed.forEach(function (it) { var m = it.mode || "other"; counts[m] = (counts[m] || 0) + 1; });
+    var legend = elt("div", "pw-legend");
+    ["repair", "improve", "develop", "docs", "reorganize", "other"].forEach(function (m) {
+      if (!counts[m]) return;
+      var leg = elt("span", "pw-legend-item mode-" + m);
+      leg.appendChild(elt("span", "pw-legend-sw"));
+      leg.appendChild(elt("span", null, m + " " + counts[m]));
+      legend.appendChild(leg);
+    });
+    if (rejected.length) {
+      var rj = elt("span", "pw-legend-item is-rej");
+      rj.appendChild(elt("span", "pw-legend-sw"));
+      rj.appendChild(elt("span", null, "rejected " + rejected.length));
+      legend.appendChild(rj);
+    }
+    panel.appendChild(legend);
+
     var foot = elt("div", "pw-cadence-foot");
     var truncated = completed.length > cap || rejected.length > cap;
     foot.textContent = (truncated ? "last " + cap + " of " + completed.length + " accepted / " +
