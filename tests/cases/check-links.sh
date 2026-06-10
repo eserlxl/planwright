@@ -256,3 +256,24 @@ if [ "$nu_rc" = "1" ] && ! printf '%s' "$nu_out" | grep -q 'Traceback' \
 else
   bad "check-links.py crashed or misreported a non-UTF-8 .md (rc=$nu_rc): $nu_out"
 fi
+
+# --- Test CL13: a bare `#` top-of-page link is valid, not broken -------------------
+# `[top](#)` (the ubiquitous back-to-top idiom) has an empty anchor and must resolve
+# (exit 0); a same-page link to a genuinely missing anchor must still flag (exit 1),
+# proving the empty-anchor skip does not over-resolve a real missing target.
+TP="$TMP/cl-toplink"; mkdir -p "$TP"; git -C "$TP" init -q
+printf '# Home\n\nBack to [top](#).\n' > "$TP/index.md"
+git -C "$TP" add -A
+tp_rc=0
+python3 "$CL" --root "$TP" >/dev/null 2>&1 || tp_rc=$?
+printf '# Home\n\nBack to [top](#).\n[bad](#ghost-heading)\n' > "$TP/index.md"
+git -C "$TP" add -A
+tpb_rc=0
+tpb_out="$(python3 "$CL" --root "$TP" 2>&1)" || tpb_rc=$?
+if [ "$tp_rc" = "0" ] \
+   && [ "$tpb_rc" = "1" ] && printf '%s' "$tpb_out" | grep -q '#ghost-heading' \
+   && ! printf '%s' "$tpb_out" | grep -qE '\-> # \('; then
+  ok "check-links.py treats a bare # top-of-page link as valid but still flags a missing same-page anchor"
+else
+  bad "check-links.py mis-handled a bare # link (top_rc=$tp_rc bad_rc=$tpb_rc): $tpb_out"
+fi

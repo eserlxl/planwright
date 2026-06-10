@@ -206,10 +206,15 @@ def check_file(root, relpath, anchor_cache):
             # such as `docs/core%20concepts.md` / `usage.md?v=1` false-fails as broken.
             path = urllib.parse.unquote(path.split("?", 1)[0])
             if path == "":
-                # same-file anchor
-                slugs = resolve_anchors(relpath)
-                if slugs is not None and not anchor_ok(anchor, slugs):
-                    broken.append((lineno, target, "no heading/anchor on this page"))
+                # same-file anchor; a bare `#` (the ubiquitous top-of-page / back-to-top
+                # link) has no anchor to resolve, so only check a non-empty anchor —
+                # mirroring the cross-file branch's `if anchor and ...` guard below. Without
+                # this, `[top](#)` false-fails as broken, breaking the never-false-fail
+                # contract on the very command planwright recommends as a verification.
+                if anchor:
+                    slugs = resolve_anchors(relpath)
+                    if slugs is not None and not anchor_ok(anchor, slugs):
+                        broken.append((lineno, target, "no heading/anchor on this page"))
                 continue
             # normalize the file target relative to the linking file's directory
             dest = os.path.normpath(os.path.join(base_dir, path)) if base_dir else os.path.normpath(path)
