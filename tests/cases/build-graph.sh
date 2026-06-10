@@ -69,6 +69,26 @@ assert g["frontier"] == {"never_audited": len(code), "stale": 0}, g["frontier"]
 PY
 then ok "build-graph.py output conforms to graph-memory schema"; else bad "build-graph.py output missing or non-conforming"; fi
 
+# --- Test 11a: PW_COUPLING_MAX_FILES overrides the coupling bulk-skip threshold
+# The git timeout is runtime-overridable (PW_GIT_TIMEOUT_SECONDS); its sibling
+# bulk-skip threshold COUPLING_MAX_FILES_PER_COMMIT must be too, so a large-commit
+# monorepo can tune it instead of silently dropping the coupling signal.
+if python3 - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, os, sys
+def load():
+    spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+os.environ.pop("PW_COUPLING_MAX_FILES", None)
+assert load().COUPLING_MAX_FILES_PER_COMMIT == 100, "default"
+os.environ["PW_COUPLING_MAX_FILES"] = "7"
+assert load().COUPLING_MAX_FILES_PER_COMMIT == 7, "override"
+os.environ["PW_COUPLING_MAX_FILES"] = "0"
+assert load().COUPLING_MAX_FILES_PER_COMMIT == 100, "non-positive falls back"
+os.environ["PW_COUPLING_MAX_FILES"] = "x"
+assert load().COUPLING_MAX_FILES_PER_COMMIT == 100, "non-integer falls back"
+PY
+then ok "PW_COUPLING_MAX_FILES overrides the coupling bulk-skip threshold (invalid falls back to 100)"; else bad "PW_COUPLING_MAX_FILES override/fallback wrong"; fi
+
 # --- Test 11b: build-graph.py --prior preserves last_audited_sha -----------
 # Stage 11's incremental-audit skipping depends on last_audited_sha surviving
 # rebuilds; without --prior preservation every run re-audits the whole tree.

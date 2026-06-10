@@ -30,7 +30,22 @@ RANKED_SURFACE_LIMIT = 20
 # reformat, generated-file dump): its pairwise co-occurrence is O(F^2) noise that
 # both distorts the coupling signal and can blow up memory/time on a large `git log`.
 # Such commits are excluded from coupling pairing (their per-file churn still counts).
-COUPLING_MAX_FILES_PER_COMMIT = 100
+# Overridable via PW_COUPLING_MAX_FILES for very large monorepos whose legitimate
+# commits routinely exceed the default; a missing, non-integer, or non-positive value
+# falls back to the 100-file default (mirrors PW_GIT_TIMEOUT_SECONDS below).
+def _resolve_coupling_max_files():
+    raw = os.environ.get("PW_COUPLING_MAX_FILES")
+    if raw is not None:
+        try:
+            v = int(raw)
+            if v > 0:
+                return v
+        except ValueError:
+            pass
+    return 100
+
+
+COUPLING_MAX_FILES_PER_COMMIT = _resolve_coupling_max_files()
 # Upper bound (seconds) on any git/subprocess call, so a wedged git (hung credential
 # prompt, lock contention) degrades instead of hanging the whole build. Generous: the
 # heaviest call (`git log -n 200`) is bounded, so no legitimate call approaches this.
