@@ -308,13 +308,16 @@ fi
 NG="$TMP/cl-nongit"; mkdir -p "$NG"
 printf '# Doc\n[x](y.md)\n' > "$NG/index.md"
 ng_rc=0; ng_out="$(python3 "$CL" --root "$NG" 2>&1)" || ng_rc=$?
-# --quiet suppresses check-links' OWN message (rc still 2); git's subprocess stderr may
-# still leak, which check-links does not control, so assert the own-message is gone rather
-# than total silence.
-ngq_rc=0; ngq_out="$(python3 "$CL" --root "$NG" --quiet 2>&1)" || ngq_rc=$?
+# --quiet must stay FULLY silent: list_markdown captures git's stderr (parity with
+# status._head_sha), so the subprocess's `fatal: not a git repository` no longer leaks
+# past the --quiet contract. Capture the quiet run's stdout and stderr SEPARATELY and
+# assert BOTH are empty — a regression that drops the capture (leaking git's stderr) fails
+# here instead of being tolerated.
+ngq_rc=0; ngq_out="$(python3 "$CL" --root "$NG" --quiet 2>/dev/null)" || ngq_rc=$?
+ngq_err="$(python3 "$CL" --root "$NG" --quiet 2>&1 1>/dev/null || true)"
 if [ "$ng_rc" = "2" ] && printf '%s' "$ng_out" | grep -q 'could not enumerate markdown files' \
-   && [ "$ngq_rc" = "2" ] && ! printf '%s' "$ngq_out" | grep -q 'could not enumerate markdown files'; then
-  ok "check-links.py exits 2 with an enumeration-error message on a non-git dir (--quiet suppresses its own message, rc 2)"
+   && [ "$ngq_rc" = "2" ] && [ -z "$ngq_out" ] && [ -z "$ngq_err" ]; then
+  ok "check-links.py exits 2 on a non-git dir; --quiet stays fully silent (git stderr captured, no leak)"
 else
-  bad "check-links.py enumeration-failure contract wrong (rc=$ng_rc quiet_rc=$ngq_rc out=$ng_out)"
+  bad "check-links.py enumeration-failure contract wrong (rc=$ng_rc quiet_rc=$ngq_rc out='$ngq_out' err='$ngq_err')"
 fi

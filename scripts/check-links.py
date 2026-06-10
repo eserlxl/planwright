@@ -52,9 +52,15 @@ EXTERNAL_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")
 
 def list_markdown(root):
     """Tracked *.md files, repo-relative. Uses git so untracked scratch and ignored
-    trees (.planwright/, node_modules) are never walked."""
-    out = subprocess.check_output(["git", "-C", root, "ls-files", "*.md", "**/*.md"],
-                                  text=True)
+    trees (.planwright/, node_modules) are never walked. git's stderr is captured (not
+    inherited) so a non-git root's `fatal: not a git repository` never leaks past the
+    --quiet contract — parity with status._head_sha's captured subprocess.run."""
+    proc = subprocess.run(["git", "-C", root, "ls-files", "*.md", "**/*.md"],
+                          capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, proc.args,
+                                            proc.stdout, proc.stderr)
+    out = proc.stdout
     seen, files = set(), []
     for line in out.splitlines():
         f = line.strip()
