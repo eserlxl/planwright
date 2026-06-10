@@ -718,8 +718,14 @@ def strip_comments(lang, text):
         text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
         text = re.sub(r"(?m)//.*$", "", text)
     elif lang == "python":
-        text = re.sub(r'"""(?:.|\n)*?"""', "", text)
-        text = re.sub(r"'''(?:.|\n)*?'''", "", text)
+        # Strip both triple-quote styles in ONE pass (mirrors blank_comments) so a
+        # delimiter inside the other style's string cannot cross-contaminate, and an
+        # UNTERMINATED triple-quote runs to EOF instead of leaking import-looking text
+        # inside it as a false import edge.
+        text = re.sub(
+            r'"""[\s\S]*?"""' r"|'''[\s\S]*?'''"   # closed triple-quoted strings, either delimiter
+            r'|"""[\s\S]*' r"|'''[\s\S]*",          # an unterminated triple-quote runs to EOF
+            "", text)
         text = re.sub(r"(?m)#.*$", "", text)
     elif lang == "bash":
         text = re.sub(r"(?m)#.*$", "", text)

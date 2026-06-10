@@ -347,6 +347,22 @@ class TestSwallowSignals(unittest.TestCase):
         self.assertEqual(bg.swallow_at_of("python", src), {"quiet": 1, "loud": 0})
 
 
+class TestImportStripping(unittest.TestCase):
+    FILES = {"a.py", "secrets.py"}
+
+    def test_unterminated_triple_quote_no_import(self):
+        # An import-looking line inside an UNTERMINATED triple-quoted string must not
+        # become an import edge (strip_comments must blank it to EOF, like blank_comments).
+        src = 'x = """\nimport secrets\n'  # the triple-quote is never closed
+        imps = bg.imports_of("python", src, "a.py", self.FILES)
+        self.assertNotIn("secrets.py", imps)
+
+    def test_real_import_still_resolves(self):
+        # Control: a genuine top-level import is still extracted.
+        imps = bg.imports_of("python", "import secrets\n", "a.py", self.FILES)
+        self.assertIn("secrets.py", imps)
+
+
 def _git(work, *args):
     subprocess.run(["git", "-C", work, *args], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
