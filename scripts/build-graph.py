@@ -1512,6 +1512,20 @@ def debug_digest(graph, out):
     out.flush()
 
 
+def _dot_quote(s):
+    """Quote a value as a GraphViz DOT ID/label: escape backslash and double-quote and
+    encode newline/carriage-return/tab. A git-tracked path may legally contain any of
+    these, and interpolating it raw into a `"..."` DOT string would emit malformed or
+    truncated output; escaping keeps `--dot` valid for any repository. Returns the value
+    WITH its surrounding double quotes (backslash escaped first, so nothing double-escapes)."""
+    s = (s.replace("\\", "\\\\")
+          .replace('"', '\\"')
+          .replace("\n", "\\n")
+          .replace("\r", "\\r")
+          .replace("\t", "\\t"))
+    return '"%s"' % s
+
+
 def to_dot(graph):
     """Serialize the graph as GraphViz DOT — one node line per tracked file, one solid
     directed edge per resolved import, and one dashed arrowless edge per change-coupling
@@ -1533,15 +1547,15 @@ def to_dot(graph):
         if nodes[path].get("is_articulation"):
             # Cut-vertices are wide-blast-radius chokepoints (the #1 structural-risk signal);
             # render them as bold boxes so they read distinctly from the plain ellipse nodes.
-            lines.append('  "%s" [shape=box, style=bold];' % path)
+            lines.append('  %s [shape=box, style=bold];' % _dot_quote(path))
         else:
-            lines.append('  "%s";' % path)
+            lines.append('  %s;' % _dot_quote(path))
     for path in sorted(nodes):
         if path not in visible:
             continue
         for target in sorted(nodes[path].get("imports", []) or []):
             if target in visible:
-                lines.append('  "%s" -> "%s";' % (path, target))
+                lines.append('  %s -> %s;' % (_dot_quote(path), _dot_quote(target)))
     # Change-coupling edges: undirected pairs that co-change in history, rendered dashed and
     # arrowless (dir=none) so they read distinctly from the solid directed import edges. Dedupe
     # by unordered pair (and sort) so each coupling relationship renders once, deterministically;
@@ -1560,7 +1574,7 @@ def to_dot(graph):
         seen.add(key)
         coupling.append(key)
     for a, b in sorted(coupling):
-        lines.append('  "%s" -> "%s" [style=dashed, dir=none];' % (a, b))
+        lines.append('  %s -> %s [style=dashed, dir=none];' % (_dot_quote(a), _dot_quote(b)))
     lines.append("}")
     return "\n".join(lines) + "\n"
 
