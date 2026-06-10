@@ -44,4 +44,4 @@ jobs:
           coverage run -m unittest discover -s tests/unit -p "test_*.py"
           bash tests/run.sh
           coverage combine
-          coverage report --fail-under=75
+          coverage report --fail-under=90
