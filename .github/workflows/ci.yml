@@ -40,6 +40,18 @@ jobs:
           # Let the python3 subprocesses the shell suite spawns auto-start coverage.
           export COVERAGE_PROCESS_START="$PWD/.coveragerc"
           python3 -c "import sysconfig, pathlib; pathlib.Path(sysconfig.get_paths()['purelib'], 'coverage_subprocess.pth').write_text('import coverage; coverage.process_startup()')"
+          # Fail fast if the subprocess coverage hook did not install: without the .pth the
+          # python3 subprocesses the shell suite spawns run uninstrumented, so `coverage
+          # combine` yields a misleadingly low report that could still pass the gate. Catch
+          # that under-instrumentation here instead of trusting a silently-degraded number.
+          python3 - <<'PY'
+          import sysconfig, pathlib, sys
+          p = pathlib.Path(sysconfig.get_paths()["purelib"], "coverage_subprocess.pth")
+          if not p.exists():
+              sys.stderr.write(f"subprocess coverage hook missing: {p} was not installed; "
+                               "subprocess coverage would be silently under-instrumented\n")
+              sys.exit(1)
+          PY
           coverage erase
           coverage run -m unittest discover -s tests/unit -p "test_*.py"
           bash tests/run.sh
