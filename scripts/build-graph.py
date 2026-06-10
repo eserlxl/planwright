@@ -1108,6 +1108,10 @@ def build(root, prior_path, scope=None, seed=None):
     # NUL-delimited with quotepath off: a non-ASCII path must arrive verbatim, not
     # C-quoted ("na\303\257ve.md"), or every later stat/open on it aborts the build.
     files = [f for f in sh(["git", "-c", "core.quotepath=off", "ls-files", "-z"], root).split("\0") if f]
+    # `git ls-files` still reports a tracked file deleted from the working tree but
+    # not staged; drop those here (treat as a dirty deletion) so a single missing
+    # path cannot crash the stat/open/rank passes downstream.
+    files = [f for f in files if os.path.exists(os.path.join(root, f))]
     fileset = set(files)
 
     prior_graph = {}

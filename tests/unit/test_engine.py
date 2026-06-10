@@ -10,6 +10,7 @@
 
 import importlib.util
 import os
+import subprocess
 import tempfile
 import unittest
 
@@ -344,6 +345,32 @@ class TestSwallowSignals(unittest.TestCase):
                "def loud():\n"
                "    x()\n")
         self.assertEqual(bg.swallow_at_of("python", src), {"quiet": 1, "loud": 0})
+
+
+def _git(work, *args):
+    subprocess.run(["git", "-C", work, *args], check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+class TestBuildWorktree(unittest.TestCase):
+    def test_ls_files_deleted_worktree(self):
+        # A tracked file deleted from the working tree but not staged is still
+        # reported by `git ls-files`; build() must treat it as a dirty deletion
+        # (drop the node) rather than crash on os.path.getsize/open.
+        with tempfile.TemporaryDirectory() as work:
+            _git(work, "init")
+            _git(work, "config", "user.name", "t")
+            _git(work, "config", "user.email", "t@t")
+            with open(os.path.join(work, "kept.py"), "w") as fh:
+                fh.write("import os\n")
+            with open(os.path.join(work, "gone.py"), "w") as fh:
+                fh.write("import sys\n")
+            _git(work, "add", "-A")
+            _git(work, "commit", "-m", "init")
+            os.remove(os.path.join(work, "gone.py"))  # deleted, not staged
+            graph = bg.build(work, None)  # must not raise
+            self.assertIn("kept.py", graph["nodes"])
+            self.assertNotIn("gone.py", graph["nodes"])
 
 
 if __name__ == "__main__":
