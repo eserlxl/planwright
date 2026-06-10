@@ -128,6 +128,26 @@ else
   bad "lint-final.py crashed on a non-UTF-8 final.md (rc=$rc): $out"
 fi
 
+# --- Test LF9b: a present-but-undecodable final.md WARNS on stderr (visible degrade) -
+# LF9 pins the degrade (present:false, exit 0); this pins that the degrade is not SILENT.
+# A corrupt convergence marker that exists must surface a warning, not be swallowed as if
+# absent (the council fail-open fix) — while a genuinely-absent final.md stays silent.
+NUW="$TMP/lf-nonutf8-warn"; mkdir -p "$NUW/.planwright"
+printf '\377\376garbage\n' > "$NUW/.planwright/final.md"
+rc=0; err="$(python3 "$LF" --root "$NUW" --json 2>&1 >/dev/null)" || rc=$?
+if [ "$rc" = 0 ] && printf '%s' "$err" | grep -q "could not be read"; then
+  ok "lint-final.py warns on a present-but-undecodable final.md (visible degrade)"
+else
+  bad "lint-final.py did not warn on a present-but-undecodable final.md (rc=$rc): $err"
+fi
+ABS="$TMP/lf-absent-silent"; mkdir -p "$ABS/.planwright"
+rc=0; err="$(python3 "$LF" --root "$ABS" --json 2>&1 >/dev/null)" || rc=$?
+if [ "$rc" = 0 ] && [ -z "$err" ]; then
+  ok "lint-final.py stays silent on a genuinely-absent final.md"
+else
+  bad "lint-final.py emitted a warning for a genuinely-absent final.md (rc=$rc): $err"
+fi
+
 # --- Test LF10: the whole-repo sentinel `scope: (whole-repo)` needs no scope_focus_sha --
 # SKILL.md Stage 11 blesses `scope: (whole-repo)` for a whole-repo final point (no Focus
 # list -> no focus sha), so the pairing check must NOT flag it — else a legitimate whole-repo
