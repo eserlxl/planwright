@@ -14,7 +14,7 @@ g = json.load(open(sys.argv[1]))
 assert g["version"] == 1
 assert re.fullmatch(r"[0-9a-f]{40}", g["graph_built_at_sha"])
 assert g["ranking_signal"] in ("centrality", "coupling")
-assert {"coupling_window_commits", "coupling_min_cooccurrence", "ranked_surface_limit"} <= set(g["params"])
+assert set(g["params"]) == {"coupling_window_commits", "coupling_min_cooccurrence", "ranked_surface_limit", "git_timeout_seconds"}, "params keyset must match the documented schema exactly (docs/graph-memory-schema.md)"
 assert g["nodes"], "no nodes"
 need = {"sha256", "loc", "branch_count", "branch_at", "lang", "git_churn", "defines", "defines_at", "imports", "is_test", "covered_by_test", "pagerank", "is_articulation", "last_audited_sha", "audit_age_commits", "swallow_count", "swallow_at"}
 for f, n in g["nodes"].items():

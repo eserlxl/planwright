@@ -38,7 +38,8 @@ The same `graph.json` also drives two **derived, read-only views** for a human/p
   "params": {
     "coupling_window_commits": 200,   // git history depth for change-coupling
     "coupling_min_cooccurrence": 3,   // min co-commits to record a coupling edge
-    "ranked_surface_limit": 20        // how many top nodes Stage 1.5 prints to context
+    "ranked_surface_limit": 20,       // how many top nodes Stage 1.5 prints to context
+    "git_timeout_seconds": 120        // per-git-subprocess timeout (env PW_GIT_TIMEOUT_SECONDS overrides)
   },
   "nodes": {
     "<repo-relative-path>": {
