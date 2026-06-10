@@ -741,6 +741,25 @@ var cs = new El("section");
 win.PW_VIEWS.console(cs, carriedState, fullCtx);
 assert(/carried/.test(textOf(cs)), "Console omitted the carried satellite on counts.carried=2");
 
+// Targeted: the Reactor's four resting states — the base fixture (2 pending) reads
+// IN PROGRESS; converged reads CONVERGED; a drained plan whose recorded point went stale
+// reads STALE; a drained plan with no recorded point reads IDLE.
+assert(/IN PROGRESS/.test(textOf(fc)), "Reactor did not read IN PROGRESS with pending items");
+var convC = new El("section");
+win.PW_VIEWS.console(convC, Object.assign({}, state, { converged: true }), fullCtx);
+assert(/CONVERGED/.test(textOf(convC)), "Reactor did not read CONVERGED on a converged snapshot");
+var staleC = new El("section");
+win.PW_VIEWS.console(staleC, Object.assign({}, state, {
+  pending: [], counts: Object.assign({}, state.counts, { pending: 0 }),
+  final_point: { sha: "deadbeef", date: "2026-01-01", deepest_tier: "expand", valid: true, stale: true, scope: null },
+}), fullCtx);
+assert(/STALE/.test(textOf(staleC)), "Reactor did not read STALE on a drained plan with a stale final point");
+var idleC = new El("section");
+win.PW_VIEWS.console(idleC, Object.assign({}, state, {
+  pending: [], counts: Object.assign({}, state.counts, { pending: 0 }), final_point: null,
+}), fullCtx);
+assert(/IDLE/.test(textOf(idleC)), "Reactor did not read IDLE on a drained plan with no final point");
+
 // Targeted: the Decision-timeline cumulative graph (timelineGraph) — header + accepted-rate
 // text, a legend entry per mode present in completed[] with its cumulative count, and the
 // no-accepted empty state (a rejected-only log plots no cumulative line).
