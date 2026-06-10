@@ -10,10 +10,12 @@ source = scripts
 parallel = true
 
 [report]
-# A regression that drops engine coverage below this floor fails CI. Set below
-# the current ~87% (dashboard.py's signal-killed server subprocess reads 0%) so
-# normal variance across the Python matrix never flakes the gate.
-fail_under = 75
+# A regression that drops engine coverage below this floor fails CI. Set a few
+# points below the current ~94% (dashboard.py's server subprocess flushes its own
+# coverage on SIGTERM, so it reads ~89%, not 0%) so normal variance across the
+# Python matrix never flakes the gate. Keep this in sync with the explicit
+# `--fail-under` the CI workflow passes (.github/workflows/ci.yml).
+fail_under = 90
 exclude_also =
     if __name__ == .__main__.:
     raise NotImplementedError
