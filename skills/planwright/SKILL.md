@@ -61,8 +61,9 @@ thereafter jump to the path you are running.
 - **Cycle path (automated loops)** — [Cycle](#cycle-plan--execute-repeated):
   [Per-cycle loop](#per-cycle-loop-repeat-up-to-n-times-or-indefinitely-when-n--0) ·
   [Stop conditions](#stop-conditions)
-- **Maintenance** — [Doctor](#doctor) · [Upgrade](#upgrade-update-planwright-itself) ·
-  [Version](#version-show-current-and-latest)
+- **Maintenance** (loaded on demand from `references/`) — [Doctor](references/doctor.md) ·
+  [Status](references/status.md) · [Dashboard](references/dashboard.md) ·
+  [Reset](references/reset.md) · [Upgrade](references/upgrade.md) · [Version](references/version.md)
 
 ## Host command adapter
 
@@ -101,24 +102,24 @@ Before doing anything else, inspect the argument the skill was invoked with:
 - If it is `help`, `--help`, `-h`, `?`, or empty-with-an-explicit-help-request, **print a header line
   `planwright v<version>` (read `<version>` from this file's frontmatter `metadata.version`), then the
   Usage reference below verbatim, and STOP.** Do not scan, audit, plan, or write any file.
-- If the first token is `version`, `--version`, or `-V`, dispatch to the **Version** section at the end
-  of this file and follow that procedure instead of the planning Procedure.
+- If the first token is `version`, `--version`, or `-V`, read `skills/planwright/references/version.md`
+  and follow that procedure instead of the planning Procedure.
 - If the first token is `execute`, dispatch to the **Execute** section near the end of this file and
   follow that procedure instead of the planning Procedure. Remaining tokens are execute options
   (`--interactive`, an item index `N`).
 - If the first token is `cycle`, dispatch to the **Cycle** section near the end of this file and
   follow that procedure instead of the planning Procedure. The next token is the repeat count `N`; a
   trailing `depth <D>` (and other plan options) applies to every planning round in the cycle.
-- If the first token is `upgrade` or `update`, dispatch to the **Upgrade** section at the end of
-  this file and follow that procedure instead of the planning Procedure.
-- If the first token is `doctor`, dispatch to the **Doctor** section at the end of this file and
-  follow that preflight procedure instead of the planning Procedure.
-- If the first token is `status`, dispatch to the **Status** section at the end of this file and
-  follow that read-only summary procedure instead of the planning Procedure.
-- If the first token is `dashboard`, dispatch to the **Dashboard** section at the end of this file
-  and follow that read-only server procedure instead of the planning Procedure.
-- If the first token is `reset` (or the aliases `fresh` / `clean`), dispatch to the **Reset** section
-  at the end of this file and follow that cold-start wipe procedure instead of the planning Procedure.
+- If the first token is `upgrade` or `update`, read `skills/planwright/references/upgrade.md`
+  and follow that procedure instead of the planning Procedure.
+- If the first token is `doctor`, read `skills/planwright/references/doctor.md` (resolve `<scripts>`
+  per **Procedure → Bundled scripts**) and follow that preflight procedure instead of the planning Procedure.
+- If the first token is `status`, read `skills/planwright/references/status.md` (resolve `<scripts>`
+  per **Procedure → Bundled scripts**) and follow that read-only summary procedure instead of the planning Procedure.
+- If the first token is `dashboard`, read `skills/planwright/references/dashboard.md` (resolve `<scripts>`
+  per **Procedure → Bundled scripts**) and follow that read-only server procedure instead of the planning Procedure.
+- If the first token is `reset` (or the aliases `fresh` / `clean`), read `skills/planwright/references/reset.md`
+  (resolve `<scripts>` per **Procedure → Bundled scripts**) and follow that cold-start wipe procedure instead of the planning Procedure.
 - Otherwise treat the argument as either an **instruction** (free text to break down) and/or inline
   **option overrides** (see Options), then run the planning Procedure.
 
@@ -1297,221 +1298,3 @@ Stop and do **not** start the next cycle on any of:
 Individual item rejections are **not** a stop condition — the cycle continues and the next planning
 round's audit will learn from the rejection reasons in `rejected.md`.
 
-# Upgrade (update planwright itself)
-
-Reached only via `planwright upgrade` (or the host equivalent such as `/planwright upgrade`). Updates
-the installed planwright distribution. This path does **not** plan or edit your project; it only
-refreshes planwright itself.
-
-## Procedure (upgrade)
-
-1. **Resolve the planwright root.** Prefer the skill base path (`skills/planwright`) and walk two
-   directories up. If the host exposes an installed plugin source path, use that when it is more exact.
-2. **Detect the host/package surface.**
-   - Claude Code plugin: if `~/.claude/plugins/known_marketplaces.json` contains the `eserlxl`
-     marketplace, read the installed version from `~/.claude/plugins/installed_plugins.json`
-     (`planwright@eserlxl`) and the latest version from the marketplace source's
-     `.claude-plugin/plugin.json`.
-   - Codex plugin: if the planwright root contains `.codex-plugin/plugin.json`, read that manifest
-     version and treat the current install as Codex-managed. If a local marketplace entry is known to
-     the host, report it; otherwise report the local root path and do not guess a marketplace name.
-   - Cursor, Antigravity/Gemini, or manual skill copy/symlink: read this file's frontmatter
-     `metadata.version` and the local root's manifests when present.
-3. **Refresh a local git source when possible.** If the resolved root is a git repo, run
-   `git -C <planwright-root> pull --ff-only`. If that tree is dirty or the pull is not fast-forward,
-   STOP and report; do not force it. If the install is a copied skill with no git root, report that the
-   user must update the source clone and re-copy or re-link the skill.
-4. **Report versions and host handoff.** Print current → latest when both are known; otherwise print
-   current and the exact local root that was inspected. Then give only the handoff steps for the detected
-   host:
-   - Claude Code: `/plugin marketplace update eserlxl`, then `/plugin install planwright@eserlxl` only
-     if needed, then `/reload-plugins`.
-   - Codex: reinstall the local plugin from the marketplace that points at this root, or start a new
-     thread after updating a direct `~/.agents/skills/planwright` symlink/copy.
-   - Cursor: restart/reload Cursor's agent context after updating the clone or re-copying the skill.
-   - Antigravity/Gemini: keep `GEMINI.md` pointing at the updated clone; no plugin reload is required
-     unless the host caches project instructions.
-
-Report: detected host/package surface, root path, old → new version when known, whether a local pull
-ran, and the host-specific handoff steps.
-
-# Version (show current and latest)
-
-Reached via `planwright version` (or `--version`, `-V`; `/planwright version` on Claude Code).
-Read-only — it neither plans nor edits.
-
-## Procedure (version)
-
-1. **Current** — the installed/running version. Prefer the detected host install metadata:
-   `~/.claude/plugins/installed_plugins.json` for Claude Code, `.codex-plugin/plugin.json` for a Codex
-   plugin root, or this file's frontmatter `metadata.version` for direct skill installs.
-2. **Latest** — read the version from the resolved planwright root's manifest, preferring
-   `.codex-plugin/plugin.json` on Codex, `.claude-plugin/plugin.json` on Claude Code, and this file's
-   frontmatter as a fallback. If the source is remote-only or cannot be resolved locally, report latest
-   as `unknown (run planwright upgrade from the host that installed it)`.
-3. **Report** one line: `planwright <current> (latest <latest>)`. If latest > current, add
-   `→ upgrade available: run planwright upgrade`; if equal, add `→ up to date`.
-
-STOP after reporting.
-
-## Doctor
-
-Reached only via `planwright doctor` (or the host equivalent such as `/planwright doctor`). A
-read-only **preflight**: it inspects the host environment and reports, up front, which capabilities
-would silently degrade during a real run — instead of letting those fallbacks surface mid-pipeline.
-It never plans, and by default writes nothing; the one exception is the opt-in `--fix` flag, which
-auto-remediates the single fixable warn by adding `.planwright/` to `.gitignore` (the other warns —
-an unset git identity, a missing tool — need the user) and then re-checks. Mirrors `lint-plan --fix`.
-
-**Canonical check.** Prefer the deterministic, test-covered `<scripts>/doctor.py` (resolve
-`<scripts>` per **Procedure → Bundled scripts**): run
-`python3 <scripts>/doctor.py --root <target>` in the sandbox and relay its report. It checks two
-seams and the target:
-
-1. **Host tools** — `python3` (the bundled-script runtime), `git` (graph file enumeration,
-   change-coupling edges, Execute's per-item commits), `rg`/`fd` (fast Stage 1 scanning). Each is
-   reported present/absent with its version and exactly what degrades when missing.
-2. **Bundled-script resolution** — that the bundled scripts (the whole planning pipeline plus
-   `dashboard.py` and the dashboard UI shell — the full set `doctor.py`'s
-   `BUNDLED` list names) resolve beside `doctor.py` (the `<scripts>` seam). A miss here means a
-   broken/partial install.
-3. **Target** — whether `--root` is a git work tree (the graph build needs one), whether that
-   tree gitignores `.planwright/` (the tool-state directory; a repo that forgets to ignore it commits
-   plan/graph/digest as noise), and whether a git commit identity (`user.name`/`user.email`) is set
-   (Execute/Cycle commit per item, so an unset identity fails mid-run). Both are reported `warn`,
-   never `fail`.
-
-Severity is `ok` / `warn` (degraded, run still works) / `fail` (a core capability is unavailable:
-missing `git` or a missing bundled script). The script exits non-zero when any check fails; the opt-in
-`--strict` flag additionally fails on any `warn`, so a CI preflight can require a pristine (not merely
-runnable) environment.
-
-**By-hand fallback** (the script's own runtime is missing — no `python3` — so it cannot run): report
-that `python3` is unavailable (every bundled script will fall back to its by-hand SKILL.md spec),
-then check `git`/`rg`/`fd` on `PATH`, whether `<target>` is a git repo, and whether it gitignores
-`.planwright/`, and relay the same summary by hand.
-
-STOP after reporting.
-
-## Status
-
-Reached only via `planwright status` (or the host equivalent such as `/planwright status`). A
-read-only **summary of the current planning state** — what planwright thinks the project is at —
-so a maintainer can see it at a glance without running a plan or cycle. It reads only the gitignored
-`.planwright/` tool-state directory; it mutates nothing and never plans.
-
-**Canonical check.** Prefer the deterministic, test-covered `<scripts>/status.py` (resolve
-`<scripts>` per **Procedure → Bundled scripts**): run `python3 <scripts>/status.py --root <target>`
-in the sandbox and relay its report (`--json` for machine output, `--quiet` for exit-code-only,
-`--exit-code` to gate on convergence — see below). It reads `<target>/.planwright/` and reports:
-
-1. **Item counts** — pending (`- [ ]` in `plan.md`), completed (`- [x]` in `completed.md`), and
-   rejected (`rejected.md`).
-2. **Final point** — from `final.md`: its `sha`, `date`, and `deepest_tier`, plus whether it is
-   **STALE** — its sha is not the current `git rev-parse HEAD`, so the tree has moved on since the
-   ladder was last exhausted and a fresh run would re-open it (see **Maturity ladder & the final
-   point**). Reports "none recorded" when there is no final point.
-3. **Graph memory** — from `graph.json`: the sha it was built at, its node count, and how many nodes
-   the last build marked dirty.
-
-By default the exit code is always `0` — status is informational, and "no plan / no final point" is a
-valid state, not an error (unlike Doctor, which fails on a broken environment). The opt-in
-`--exit-code` flag is the one exception: it exits `0` only when the project is at a *current,*
-*valid*, **whole-repo** final point (a valid final point is recorded — `final.md` passes lint-final's
-contract — its sha is HEAD, no component `scope:` is recorded, and nothing is pending; a scoped point
-asserts dryness only for its component) and `1` otherwise, so a
-wrapper or CI gate can check convergence machine-readably (it composes with `--json`/`--quiet`). The
-report itself is **never** valid Evidence (it summarizes routing/status state, like the graph and
-final-point markers).
-
-**By-hand fallback** (no `python3`): read `<target>/.planwright/` directly — count the `- [ ]` /
-`- [x]` lines in `plan.md`/`completed.md`, the items in `rejected.md`, the `sha`/`deepest_tier` in
-`final.md` (compare its sha to `git rev-parse HEAD` for staleness), and `graph_built_at_sha` plus the
-node/`dirty` counts in `graph.json` — and relay the same summary by hand.
-
-STOP after reporting.
-
-## Reset
-
-Reached only via `planwright reset` (or the aliases `planwright fresh` / `planwright clean`, or the
-host equivalent such as `/planwright reset`). A deliberate **cold-start clear** of the `.planwright/`
-tool-state directory: it removes the plan, graph memory, digest, final-point marker, completed history,
-and state snapshot so the **next** run rebuilds everything from scratch — re-auditing the whole tree
-with no incremental shortcuts. This is the antidote to a *stale* convergence: an incremental final point
-only asserts dryness relative to what changed since the last graph, so periodically resetting and
-re-running (`reset`, then `/codvisor`) re-surfaces groundable work the dirty-set gating would otherwise
-skip. Unlike `status`/`dashboard` (read-only), this **mutates** `.planwright/` — but it never touches
-application source.
-
-**It deliberately keeps `rejected.md`.** Almost everything in `.planwright/` is either regenerable —
-the graph, digest, plan, final point, and state snapshot all rebuild on the next run — or already
-recorded in git (the completed-item history). The one exception is the **rejection feedback memory**
-(`rejected.md`, read by Stage 1 as PREVIOUSLY REJECTED): it is not in git and does not regenerate, and
-keeping it across the reset stops the cold-start run from wasting cycles re-proposing work that was
-already tried and rejected. So `reset` clears everything *except* that one file — no backup machinery is
-needed, because nothing else of value is lost.
-
-**Canonical script.** Prefer the deterministic, test-covered `<scripts>/lifecycle.py` (resolve
-`<scripts>` per **Procedure → Bundled scripts**): run
-`python3 <scripts>/lifecycle.py reset --root <target>/.planwright` (note `--root` points **at** the
-`.planwright/` directory, as for the other lifecycle commands). It removes every entry under that
-directory except `rejected.md`, so the next plan/cycle run sees no prior graph (first run → whole-tree
-dirty) and no `final.md` (the ladder re-opens) and audits cold, while retaining the rejection memory.
-**`--json`** emits `{command, cleared, rejected_kept}` and **`--quiet`** suppresses the report (parity
-with the sibling scripts). A `--root` with no `.planwright/`, or one holding nothing but the kept
-`rejected.md`, is a clean no-op.
-
-The `..`-traversal guard (shared with `housekeep`) rejects a `--root` containing a parent-directory
-component before touching disk, since `reset` is destructive. It only ever clears under `--root`; it
-never edits application source or anything outside `.planwright/`. (To discard the rejection memory too
-— a *total* cold start that re-evaluates even previously-rejected ideas — delete `rejected.md` yourself
-after the reset.)
-
-**By-hand fallback** (no `python3`): delete `<target>/.planwright/`'s contents *except* `rejected.md`
-yourself, then re-run planwright for the cold start.
-
-STOP after reporting.
-
-## Dashboard
-
-Reached via `planwright dashboard` (or the host equivalent such as `/planwright dashboard`), or the
-dedicated **`/planwright:dashboard`** command, which launches it in the background and opens the
-browser for you (`commands/dashboard.md`). A
-read-only **live web view** of the planning state, so you can *watch* the explore→invent process
-evolve in a browser instead of re-running `status`. Like Status, it reads only the gitignored
-`.planwright/` tool-state directory — it is a **mirror, never a remote control**: it launches no
-agent, edits nothing, and exposes no action buttons.
-
-**Canonical server.** Prefer the bundled, test-covered `<scripts>/dashboard.py` (resolve `<scripts>`
-per **Procedure → Bundled scripts**, beside `status.py`/`state.py`): run
-`python3 <scripts>/dashboard.py --root <target>` — it binds `127.0.0.1` on an ephemeral port (or
-`--port <N>`), prints the URL (add `--open` to also launch a browser), and serves until interrupted.
-Stdlib only (no Flask/websocket libs, no build step). It exposes:
-
-1. **`/state.json`** — the current snapshot built on demand by `<scripts>/state.py`
-   (`state.collect()`): full pending item bodies, the completed/rejected lists, the recorded final
-   point, the graph summary, and `converged`. See `docs/state-schema.md`.
-2. **`/graph.json`** — a passthrough of `.planwright/graph.json` (per-node centrality/coverage/churn,
-   coupling edges, clusters, import cycles) for the Graph (Coupling Web) and Insights views.
-3. **`/doctor.json`** — the read-only environment preflight (`doctor.collect()`: tool availability,
-   bundled-script presence, git work tree, `.planwright/` gitignored, commit identity) for the Doctor
-   view. It only probes — it never reaches doctor's `--fix` write path.
-4. **`/events`** — a one-directional Server-Sent Events stream that mtime-polls `.planwright/` ~every
-   second and pushes a `change` event whenever a file changes, so the browser re-fetches `/state.json`.
-5. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
-   reactive console with seven views — **Console** (convergence reactor, health vitals, cadence,
-   session trend, dirty pulse), **Commands** (the recommended next sweep for the current state —
-   codvisor / codinventor / codcycle — with a cold-start reset nudge once converged), **Plan**,
-   **Timeline**, **Graph** (3D coupling globe), **Insights** (risk ledger, hotspot constellation,
-   coverage, priorities, the explore escalation's cold-frontier sweep order, import cycles), and
-   **Doctor** — plus a command palette, light/dark themes, and full keyboard navigation.
-
-The view is **read-only and informational**, like Status: it is never valid Evidence, and it never
-mutates the tree. Stop it with Ctrl-C.
-
-**By-hand fallback** (no `python3`): there is no server — use `status` (or read `.planwright/` directly)
-for a one-shot summary instead.
-
-STOP after starting the server. Run directly it stays in the foreground until interrupted (Ctrl-C);
-the `/planwright:dashboard` command instead launches it in the background, reports the bound URL, and
-returns — the dashboard keeps serving on its own.

@@ -98,19 +98,23 @@ else
   bad "doctor.py mis-graded a non-git target (rc=$rc)"
 fi
 
-# --- Test DR6: SKILL.md wires `doctor` into dispatch + Usage ----------------------
+# --- Test DR6: doctor is wired via progressive disclosure -------------------------
 # Contract: doctor must be reachable — listed in the Usage block and dispatched in the
-# Invocation section, and the bundled script referenced via the <scripts> seam.
-if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+# Invocation section of SKILL.md to references/doctor.md, whose procedure references the
+# bundled script via the <scripts> seam. (The procedure moved out of SKILL.md into the
+# on-demand reference file; SKILL.md keeps the usage line + dispatch pointer.)
+if python3 - "$ROOT/skills/planwright/SKILL.md" "$ROOT/skills/planwright/references/doctor.md" <<'PY' 2>/dev/null
 import sys
-t = open(sys.argv[1], encoding="utf-8").read()
+skill = open(sys.argv[1], encoding="utf-8").read()
+ref = open(sys.argv[2], encoding="utf-8").read()
 need = []
-if "doctor" not in t: need.append("no-mention")
-if "/planwright doctor" not in t: need.append("usage-line")
-if "<scripts>/doctor.py" not in t: need.append("script-wire")
+if "doctor" not in skill: need.append("no-mention")
+if "/planwright doctor" not in skill: need.append("usage-line")
+if "references/doctor.md" not in skill: need.append("dispatch-pointer")
+if "<scripts>/doctor.py" not in ref: need.append("script-wire")
 sys.exit(1 if need else 0)
 PY
-then ok "SKILL.md exposes doctor (Usage line + <scripts>/doctor.py wiring)"; else bad "SKILL.md does not wire the doctor command"; fi
+then ok "doctor exposed: SKILL.md usage + dispatch pointer, references/doctor.md wires <scripts>/doctor.py"; else bad "doctor command wiring missing across SKILL.md / references/doctor.md"; fi
 
 # --- Test DR7: the .planwright/ gitignore check — warn when un-ignored, ok once ignored
 # A fresh git work tree with no .gitignore does NOT ignore .planwright/ -> WARN, but the
