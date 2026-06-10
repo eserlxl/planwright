@@ -690,6 +690,24 @@ VIEWS.forEach(function (v) {
   var c2 = new El("section");
   win.PW_VIEWS[v](c2, state, bareCtx);   // degraded: no graph/metrics must not throw
 });
+
+// Targeted: the Console audit-frontier vital appears ONLY when the snapshot carries a
+// frontier (the fullCtx fixture has frontier:{never_audited:3,stale:5}); a pre-frontier
+// (null) graph must render the vitals strip unchanged (no frontier card).
+function textOf(node) {
+  var t = node.textContent || "";
+  (node.children || []).forEach(function (c) { t += " " + textOf(c); });
+  return t;
+}
+var fc = new El("section");
+win.PW_VIEWS.console(fc, state, fullCtx);
+assert(/never-audited/.test(textOf(fc)), "Console omitted the audit-frontier vital on a frontier-bearing snapshot");
+var graphless = JSON.stringify({ graph_built_at_sha: "deadbeef", nodes: { "a.py": { git_churn: 1, pagerank: 0.5, covered_by_test: true, is_test: false, lang: "python", loc: 5, branch_count: 1, imports: [] } } });
+var mNoFr = win.PW_DERIVE.metrics(graphless);
+assert(mNoFr && mNoFr.frontier === null, "fixture sanity: a frontier-less graph yields null frontier");
+var nf = new El("section");
+win.PW_VIEWS.console(nf, state, { graphText: graphless, metrics: mNoFr, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+assert(!/never-audited/.test(textOf(nf)), "Console rendered a frontier vital on a pre-frontier (null) graph");
 console.log("VIEWS-FN-OK");
 JS
   if node "$TMP/views_fn_test.js" "$ROOT/scripts/dashboard" >"$TMP/views_fn.out" 2>"$TMP/views_fn.err" \

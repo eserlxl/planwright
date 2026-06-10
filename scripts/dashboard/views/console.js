@@ -239,6 +239,28 @@
     v4.appendChild(shaChip(ctx));
     row.appendChild(v4);
 
+    // 5) audit-frontier backlog — the cold work explore/cycle escalate into. Shown only
+    // when the graph carries a frontier (older pre-frontier graphs render the strip
+    // unchanged), so the glance screen can tell "truly dry" from "cold work remains".
+    if (metrics.frontier) {
+      var na = metrics.frontier.never_audited || 0;
+      var fst = metrics.frontier.stale || 0;
+      var v5 = vitalCard("pw-vital--frontier" + (na > 0 ? " is-alert" : ""),
+        na + " never-audited, " + fst + " stale — the audit backlog explore/cycle escalate into. Open Insights.",
+        function () { window.PW_BUS.goto("insights"); });
+      var fbadge = svg("svg", { "class": "pw-vital-svg", viewBox: "0 0 64 64", "aria-hidden": "true" });
+      fbadge.appendChild(svg("circle", { cx: 32, cy: 32, r: 26, fill: "none", "class": "pw-gauge-track", "stroke-width": 6 }));
+      if (na > 0) fbadge.appendChild(svg("circle", { cx: 32, cy: 32, r: 26, fill: "none", "class": "pw-gauge-fill warn", "stroke-width": 6 }));
+      var fbn = svg("text", { x: 32, y: 40, "text-anchor": "middle", "class": "pw-gauge-num" });
+      fbn.textContent = String(na + fst);
+      fbadge.appendChild(fbn);
+      v5.appendChild(fbadge);
+      v5.appendChild(vitalText("frontier", (na + fst) === 0 ? "clear" : String(na + fst),
+        na + " never-audited · " + fst + " stale"));
+      v5.appendChild(shaChip(ctx));
+      row.appendChild(v5);
+    }
+
     return row;
   }
 
