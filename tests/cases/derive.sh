@@ -526,3 +526,50 @@ if grep -q 'typeof s.graph.stale === "boolean"' "$ROOT/scripts/dashboard/app.js"
 else
   bad "app.js buildCtx still re-derives graph staleness instead of consuming graph.stale"
 fi
+
+# --- Test DRV8: vendor/graph.js camera math (rotate/faceAngles/placeSphere/clamp) -----
+# graph.js is the one untested vendor file; its pure camera math carries the invariant
+# click-to-focus relies on — a faced node must project to the front (+z). Exposed on
+# PW_GRAPH._math; the pure fns touch no DOM, so vm-run graph.js with a minimal shim.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/graph_math_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+global.window = { matchMedia: function () { return { matches: false, addEventListener() {}, addListener() {} }; } };
+global.document = { createElement() { return {}; }, createElementNS() { return {}; } };
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+const M = global.window.PW_GRAPH._math;
+assert(M && typeof M.rotate === "function", "PW_GRAPH._math missing");
+
+// (a) face invariant: rotating a unit vector by its own faceAngles brings it to +z.
+function unit(x, y, z) { var n = Math.hypot(x, y, z); return { x: x / n, y: y / n, z: z / n }; }
+[unit(1, 0, 0), unit(0, 1, 0), unit(0, 0, 1), unit(1, 2, 3), unit(-2, 1, -0.5), unit(0.3, -0.7, 0.2)].forEach(function (u) {
+  var a = M.faceAngles(u);
+  var r = M.rotate(u, a.yaw, a.pitch);
+  assert(Math.abs(r.x) < 1e-9 && Math.abs(r.y) < 1e-9 && Math.abs(r.z - 1) < 1e-9,
+    "faced vector must map to +z: " + JSON.stringify(r));
+});
+
+// (b) placeSphere: every point lands on the unit sphere; a single node maps to y=0.
+M.placeSphere([{ lang: "python", pagerank: 0.9 }, { lang: "python", pagerank: 0.1 },
+  { lang: "js", pagerank: 0.5 }, { lang: "go", pagerank: 0.2 }]).forEach(function (n) {
+  assert(Math.abs(Math.hypot(n._u.x, n._u.y, n._u.z) - 1) < 1e-9, "placeSphere point off the unit sphere");
+});
+assert.strictEqual(M.placeSphere([{ lang: "python", pagerank: 1 }])[0]._u.y, 0, "single node maps to y=0");
+
+// (c) clamp boundaries.
+assert.strictEqual(M.clamp(5, 0, 10), 5, "clamp in-range");
+assert.strictEqual(M.clamp(-1, 0, 10), 0, "clamp below");
+assert.strictEqual(M.clamp(11, 0, 10), 10, "clamp above");
+console.log("GRAPHMATH-OK");
+JS
+  if node "$TMP/graph_math_test.js" "$ROOT/scripts/dashboard/vendor/graph.js" >"$TMP/graph_math.out" 2>"$TMP/graph_math.err" \
+     && grep -q GRAPHMATH-OK "$TMP/graph_math.out"; then
+    ok "PW_GRAPH._math: faceAngles/rotate round-trip faces +z, placeSphere lands on the unit sphere, clamp bounds"
+  else
+    bad "vendor/graph.js camera math wrong: $(cat "$TMP/graph_math.err" 2>/dev/null)"
+  fi
+else
+  ok "PW_GRAPH._math check skipped (node not installed)"
+fi

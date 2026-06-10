@@ -556,5 +556,8 @@
     rotate3D: rotate3D,
     zoom3D: zoom3D,
     resetView: resetView,
+    // Pure camera math exposed for unit testing (the focus/face invariant click-to-focus
+    // relies on: a faced node must project to the front, +z). Not part of the public API.
+    _math: { rotate: rotate, faceAngles: faceAngles, placeSphere: placeSphere, clamp: clamp },
   };
 })();
