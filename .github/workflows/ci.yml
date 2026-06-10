@@ -19,6 +19,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # Node lets the dashboard JS harness (DASH-FN, node-gated in tests/cases/dashboard.sh)
+      # actually run in the smoke step instead of skipping, so a JS regression fails CI.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Shellcheck scripts
         run: shellcheck scripts/*.sh tests/*.sh tests/cases/*.sh
 
