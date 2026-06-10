@@ -1576,6 +1576,12 @@ def _select_token_pred(e):
         # history) is cold too, so --select agrees with ranked_cold's never bin and
         # the frontier.never_audited count.
         return lambda n: n.get("audit_age_commits") is None
+    if e == "stale-audited":
+        # The graded half of the audit frontier: stamped, but stamped before HEAD
+        # (audit_age_commits > 0). The RAW per-node bin — frontier.stale additionally
+        # excludes test/data nodes and the current dirty set, so compose
+        # `stale-audited,code,no-is_test` to reproduce that count scriptably.
+        return lambda n: n.get("audit_age_commits") not in (None, 0)
     if e.startswith("no-") and e[3:] in _SELECT_BOOL_FIELDS:
         field = e[3:]
         return lambda n: not n.get(field)
@@ -1583,7 +1589,7 @@ def _select_token_pred(e):
         return lambda n: bool(n.get(e))
     allowed = ", ".join(list(_SELECT_BOOL_FIELDS)
                         + ["no-" + b for b in _SELECT_BOOL_FIELDS]
-                        + ["code", "never-audited", "lang=NAME"])
+                        + ["code", "never-audited", "stale-audited", "lang=NAME"])
     raise ValueError(f"unknown --select predicate '{e}'; allowed: {allowed}")
 
 
@@ -1629,8 +1635,9 @@ def main():
                     help="print the repo-relative paths of nodes matching a predicate — or a "
                          "comma-ANDed conjunction of predicates (code,no-covered_by_test) — one "
                          "per line, instead of JSON: is_articulation | covered_by_test | is_test "
-                         "| no-<that> | code | never-audited | lang=NAME (scriptable access to "
-                         "the computed routing signals; takes precedence over --dot)")
+                         "| no-<that> | code | never-audited | stale-audited | lang=NAME "
+                         "(scriptable access to the computed routing signals; takes precedence "
+                         "over --dot)")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:

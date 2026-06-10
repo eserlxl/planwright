@@ -711,6 +711,27 @@ else
   bad "build-graph --select code/never-audited wrong (code=[$sel_code] fresh=[$sel_never_fresh] stamped=[$sel_never_stamped])"
 fi
 
+# --- Test 11c2k2: --select stale-audited (stamped before HEAD — the graded frontier bin) --
+# Reuses 11c2k's $TMP/sel_g.json (hub.py stamped at the then-HEAD): advance SELREPO by one
+# commit so that stamp lags HEAD by exactly 1, then rebuild with --prior. stale-audited must
+# yield exactly hub.py (age 1, never the age-0/never-audited nodes), never-audited must
+# still exclude hub.py (a reachable stamp is not "never"), the predicate must compose in a
+# conjunction, and on a fresh stamp-less build it must yield empty output with exit 0.
+printf 'touch\n' >> "$SELREPO/x.py"
+git -C "$SELREPO" add -A && git -C "$SELREPO" -c user.name=t -c user.email=t@e.com commit -qm second
+sel_stale="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --prior "$TMP/sel_g.json" --select stale-audited 2>/dev/null)"
+sel_stale_conj="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --prior "$TMP/sel_g.json" --select stale-audited,lang=python 2>/dev/null)"
+sel_stale_fresh_rc=0
+sel_stale_fresh="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select stale-audited 2>/dev/null)" || sel_stale_fresh_rc=$?
+if printf '%s' "$sel_stale" | grep -qx "hub.py" \
+   && [ "$(printf '%s\n' "$sel_stale" | grep -c .)" = 1 ] \
+   && [ "$sel_stale_conj" = "hub.py" ] \
+   && [ -z "$sel_stale_fresh" ] && [ "$sel_stale_fresh_rc" = 0 ]; then
+  ok "build-graph --select stale-audited isolates stamped-before-HEAD nodes (composes; fresh build empty, exit 0)"
+else
+  bad "build-graph --select stale-audited wrong (stale=[$sel_stale] conj=[$sel_stale_conj] fresh=[$sel_stale_fresh] rc=$sel_stale_fresh_rc)"
+fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.
