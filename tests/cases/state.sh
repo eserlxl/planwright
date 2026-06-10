@@ -188,3 +188,39 @@ assert s["converged"] is False, s["converged"]
 else
   ok "state.py converged/final_point check skipped (git unavailable)"
 fi
+
+# --- Test ST8: state.py forwards the graph-block content (the dashboard graph view reads it) ---
+# state.py forwards status.collect's graph summary (node_count, dirty_node_count, stale,
+# frontier) verbatim; the dashboard's graph view + staleness banner consume it. ST1 only
+# checks the bare "graph" key, so pin the CONTENT here, plus the corrupt-graph -> null
+# degradation (status.sh STS7/STS15 pin this for status.py, not the state.py snapshot).
+GBX="$TMP/state-graph"; mkdir -p "$GBX/.planwright"
+cat > "$GBX/.planwright/graph.json" <<'JSON'
+{
+  "version": 1,
+  "graph_built_at_sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+  "nodes": { "a.py": {}, "b.py": {}, "c.py": {} },
+  "dirty": { "nodes": ["a.py", "b.py"] },
+  "frontier": { "never_audited": 4, "stale": 6 }
+}
+JSON
+if python3 "$STATE" --root "$GBX" --out - | python3 -c '
+import json, sys
+g = json.load(sys.stdin)["graph"]
+assert g is not None, "graph block dropped"
+assert g["node_count"] == 3, g
+assert g["dirty_node_count"] == 2, g
+assert g["frontier"] == {"never_audited": 4, "stale": 6}, g
+'; then
+  ok "state.py forwards the graph block content (node_count, dirty_node_count, frontier) from a fixture"
+else
+  bad "state.py graph-block content passthrough wrong"
+fi
+# a corrupt (valid JSON, wrong shape) graph.json -> the graph block degrades to null, exit 0
+printf '[]' > "$GBX/.planwright/graph.json"
+gc_rc=0; gc_out="$(python3 "$STATE" --root "$GBX" --out -)" || gc_rc=$?
+if [ "$gc_rc" = 0 ] && printf '%s' "$gc_out" | python3 -c 'import json,sys; assert json.load(sys.stdin)["graph"] is None'; then
+  ok "state.py degrades a corrupt (non-object) graph.json to a null graph block (exit 0)"
+else
+  bad "state.py did not degrade a corrupt graph.json to null (rc=$gc_rc)"
+fi
