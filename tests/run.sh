@@ -17,7 +17,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Topic case files, sourced in the suite's historical order so output stays stable.
 # Each is a fragment (no shebang) that relies on the harness sourced above.
-CASES="statics-scaffold skill-contract skill-guards build-graph unit-engine lint-plan lint-final lifecycle doctor status state dashboard derive check-links golden-plan integration-scale commands install-aliases"
+CASES="statics-scaffold skill-contract skill-guards skill-graph-contract build-graph unit-engine lint-plan lint-final lifecycle doctor status state dashboard derive check-links golden-plan integration-scale commands install-aliases"
 for case_file in $CASES; do
   # shellcheck source=/dev/null
   . "$HERE/cases/$case_file.sh"
