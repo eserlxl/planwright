@@ -735,7 +735,14 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
     raw = []
     c_angles = []
     if lang == "bash":
-        raw += re.findall(r"(?m)^\s*(?:source|\.)\s+([^\s;]+)", text)
+        # Strip a single balanced surrounding quote pair: the idiomatic
+        # `. "$HERE/lib.sh"` / `source 'lib.sh'` forms otherwise reach resolve()
+        # with the quote still attached, so basename() yields `lib.sh"` and the
+        # unique-basename fallback never matches — dropping the edge.
+        for t in re.findall(r"(?m)^\s*(?:source|\.)\s+([^\s;]+)", text):
+            if len(t) >= 2 and t[0] == t[-1] and t[0] in ("\"", "'"):
+                t = t[1:-1]
+            raw.append(t)
     elif lang == "python":
         raw += re.findall(r"(?m)^\s*(?:from|import)\s+([.\w/]+)", text)
     elif lang == "js":

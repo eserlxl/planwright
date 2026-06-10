@@ -1254,6 +1254,12 @@ bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
 fs = {"scripts/main.sh", "lib/common.sh"}
 # bash: bare-name source resolves to the unique basename match
 assert bg.imports_of("bash", "source common.sh\n", "scripts/main.sh", fs) == ["lib/common.sh"], "bash bare-name source"
+# quoted source targets resolve identically to their unquoted form (the dominant
+# idiom `. "$HERE/lib.sh"` / `source 'lib.sh'`); the surrounding quote pair must
+# be stripped before the basename fallback runs.
+assert bg.imports_of("bash", 'source "common.sh"\n', "scripts/main.sh", fs) == ["lib/common.sh"], "double-quoted source"
+assert bg.imports_of("bash", "source 'common.sh'\n", "scripts/main.sh", fs) == ["lib/common.sh"], "single-quoted source"
+assert bg.imports_of("bash", '. "$HERE/common.sh"\n', "scripts/main.sh", fs) == ["lib/common.sh"], "quoted \$DIR/lib.sh basename fallback"
 # ambiguity: two files share the basename => no resolution
 fs2 = {"scripts/main.sh", "a/common.sh", "b/common.sh"}
 assert bg.imports_of("bash", "source common.sh\n", "scripts/main.sh", fs2) == [], "ambiguous basename stays unresolved"
