@@ -218,7 +218,9 @@
     v2.appendChild(shaChip(ctx));
     row.appendChild(v2);
 
-    // 3) import cycles count badge
+    // import cycles count badge — a secondary structural-debt signal (usually empty on a
+    // healthy, acyclic graph), so it is appended LAST (after the frontier card below),
+    // after the actionable vitals.
     var cyc = metrics.cycles.length;
     var v3 = vitalCard("pw-vital--cycles" + (cyc > 0 ? " is-alert" : ""),
       cyc + " import cycles. Open Insights.",
@@ -232,7 +234,7 @@
     v3.appendChild(badge);
     v3.appendChild(vitalText("cycles", cyc === 0 ? "none" : String(cyc), cyc === 0 ? "no import cycles" : "import cycles"));
     v3.appendChild(shaChip(ctx));
-    row.appendChild(v3);
+    // v3 (import cycles) is appended LAST — see after the frontier card below.
 
     // 4) coupling tension horizontal fill
     var share = metrics.couplingStrongShare;
@@ -269,6 +271,10 @@
       v5.appendChild(shaChip(ctx));
       row.appendChild(v5);
     }
+
+    // Import cycles last: a secondary structural-debt signal, shown after the actionable
+    // vitals (coverage, hotspots, coupling, frontier).
+    row.appendChild(v3);
 
     return row;
   }
