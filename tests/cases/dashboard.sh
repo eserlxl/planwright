@@ -140,6 +140,22 @@ try:
     assert 'role="tab"' in html, "index.html tabs missing ARIA roles"
     print("SHELL-OK")
 
+    # Nested /vendor/*.js: index.html loads the graph view's libraries from /vendor/,
+    # served via dashboard.py's nested-subdirectory static path. Fetch every /vendor/*.js
+    # the shell references and assert 200 + javascript content-type + non-empty body, so a
+    # missing asset or a broken nested-path resolution turns the suite red (statics-scaffold
+    # only checks they exist on disk; nothing fetched them over HTTP).
+    import re as _re
+    vendors = sorted(set(_re.findall(r'src="(/vendor/[^"]+\.js)"', html)))
+    assert vendors, "index.html references no /vendor/*.js assets"
+    for vpath in vendors:
+        with urllib.request.urlopen(base + vpath, timeout=5) as r:
+            vct = r.headers.get_content_type()
+            vbody = r.read()
+        assert vct == "text/javascript", vpath + " content-type: " + vct
+        assert len(vbody) > 0, vpath + " served empty"
+    print("VENDOR-OK")
+
     # /graph.json passthrough (the data path the graph view consumes)
     with urllib.request.urlopen(base + "/graph.json", timeout=5) as r:
         assert r.headers.get_content_type() == "application/json", r.headers.get_content_type()
@@ -215,6 +231,11 @@ if grep -q SHELL-OK "$TMP/dash.out"; then
   ok "dashboard.py serves the UI shell (GET / 200, references app.js, three view containers)"
 else
   bad "dashboard.py UI shell check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q VENDOR-OK "$TMP/dash.out"; then
+  ok "dashboard.py serves every nested /vendor/*.js the shell references (200, javascript, non-empty)"
+else
+  bad "dashboard.py nested /vendor asset serving check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
 if grep -q VIEW-plan-OK "$TMP/dash.out"; then
   ok "dashboard serves the Plan view (views/plan.js registers PW_VIEWS.plan, referenced by shell)"
