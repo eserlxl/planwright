@@ -1302,18 +1302,19 @@ def build(root, prior_path, scope=None, seed=None):
             undirected[t].add(f)
     undirected = {f: sorted(s) for f, s in undirected.items()}
 
-    # Markdown link edges otherwise let densely cross-linked docs inflate each other's
-    # PageRank, floating documentation nodes to the top of `ranked` on link-density alone.
-    # Keep those edges in import_edges (navigation, coupling, cycles, the graph output) but
-    # exclude doc->doc links from the centrality input so a doc gains rank only from genuine
-    # (non-doc) in-links. (code->doc and doc->code edges still count.)
+    # Markdown link edges otherwise let cross-linked docs inflate each other's PageRank
+    # (floating docs to the top of `ranked`) and show up as bogus "import cycles" whenever
+    # two docs link to each other. Keep those edges in import_edges (navigation, coupling,
+    # the graph output) but exclude doc->doc links from both centrality AND cycle detection,
+    # so a doc gains rank only from genuine (non-doc) in-links and `import_cycles` reflects
+    # real code cycles. (code->doc and doc->code edges still count.)
     def _is_doc(f):
         return nodes.get(f, {}).get("lang") == "markdown"
-    centrality_edges = {
+    nondoc_edges = {
         f: [t for t in outs if not (_is_doc(f) and _is_doc(t))]
         for f, outs in import_edges.items()
     }
-    pr = pagerank(files, centrality_edges)
+    pr = pagerank(files, nondoc_edges)
     aps = articulation_points(files, undirected)
     for f in files:
         nodes[f]["pagerank"] = round(pr.get(f, 0.0), 6)
@@ -1370,7 +1371,7 @@ def build(root, prior_path, scope=None, seed=None):
     for i, members in enumerate(sorted(comps, key=lambda m: (-len(m), m[0]))):
         clusters.append({"id": i, "label": cluster_label(members), "members": members})
 
-    cycles = import_cycles(files, import_edges, RANKED_SURFACE_LIMIT)
+    cycles = import_cycles(files, nondoc_edges, RANKED_SURFACE_LIMIT)
 
     # ranking: pagerank-driven, but fall back to change-coupling when the import
     # graph is degenerate (too few edges, or pagerank barely discriminates).

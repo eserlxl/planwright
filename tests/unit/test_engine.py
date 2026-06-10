@@ -403,6 +403,24 @@ class TestMarkdownCentrality(unittest.TestCase):
             self.assertAlmostEqual(nodes["hub.md"]["pagerank"],
                                    nodes["lonely.md"]["pagerank"], places=6)
 
+    def test_doc_mutual_links_are_not_import_cycles(self):
+        # Two docs that link to each other are a doc->doc cycle, not a real import
+        # cycle; they must be excluded. A genuine code cycle is still reported.
+        with tempfile.TemporaryDirectory() as work:
+            _git(work, "init")
+            _git(work, "config", "user.name", "t")
+            _git(work, "config", "user.email", "t@t")
+            _write(work, "a.md", "see [b](b.md)\n")
+            _write(work, "b.md", "see [a](a.md)\n")     # a.md <-> b.md (doc<->doc)
+            _write(work, "x.py", "import y\n")
+            _write(work, "y.py", "import x\n")            # x.py <-> y.py (real cycle)
+            _git(work, "add", "-A")
+            _git(work, "commit", "-m", "init")
+            cycles = bg.build(work, None)["import_cycles"]
+            flat = {frozenset(c) for c in cycles}
+            self.assertIn(frozenset({"x.py", "y.py"}), flat)
+            self.assertNotIn(frozenset({"a.md", "b.md"}), flat)
+
 
 class TestBuildWorktree(unittest.TestCase):
     def test_ls_files_deleted_worktree(self):
