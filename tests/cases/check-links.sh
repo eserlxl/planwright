@@ -299,3 +299,22 @@ if [ "$rf_rc" = "0" ] \
 else
   bad "check-links.py reference-style handling wrong (valid_rc=$rf_rc broken_rc=$rfb_rc): $rf_out | $rfb_out"
 fi
+
+# --- Test CL15: a directory git cannot enumerate exits 2 (fail-closed parity) -------
+# list_markdown shells out to `git ls-files`; when that raises (a non-git dir), the
+# checker returns exit 2 with a distinct enumeration-error message — NOT exit 0/1 — so a
+# usage/enumeration failure is never mistaken for "all links OK" or "broken links found".
+# --quiet must keep rc 2 while staying silent (parity with the siblings).
+NG="$TMP/cl-nongit"; mkdir -p "$NG"
+printf '# Doc\n[x](y.md)\n' > "$NG/index.md"
+ng_rc=0; ng_out="$(python3 "$CL" --root "$NG" 2>&1)" || ng_rc=$?
+# --quiet suppresses check-links' OWN message (rc still 2); git's subprocess stderr may
+# still leak, which check-links does not control, so assert the own-message is gone rather
+# than total silence.
+ngq_rc=0; ngq_out="$(python3 "$CL" --root "$NG" --quiet 2>&1)" || ngq_rc=$?
+if [ "$ng_rc" = "2" ] && printf '%s' "$ng_out" | grep -q 'could not enumerate markdown files' \
+   && [ "$ngq_rc" = "2" ] && ! printf '%s' "$ngq_out" | grep -q 'could not enumerate markdown files'; then
+  ok "check-links.py exits 2 with an enumeration-error message on a non-git dir (--quiet suppresses its own message, rc 2)"
+else
+  bad "check-links.py enumeration-failure contract wrong (rc=$ng_rc quiet_rc=$ngq_rc out=$ng_out)"
+fi
