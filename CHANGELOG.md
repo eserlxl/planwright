@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.50.3] - 2026-06-10
+
+### Changed
+- Dashboard polish. The Convergence Reactor gains a real-time, three-state verdict — CONVERGED / IN PROGRESS / STALE (or IDLE) — so a drained plan that is not a certified final point no longer mislabels as "in progress", with a state-aware subtitle that says exactly why (and the ring spins only while work is genuinely pending). Add a decision-timeline graph atop the Timeline section: a cumulative burn-up with one line per mode over the accepted log (rejected is summarized, never plotted as a misaligned opposing bar). Give the Console "Decision cadence" ribbon a mode legend, sharing one `.pw-legend` component with the timeline graph. Refresh the mode palette: repair green, develop magenta, reorganize cyan — each distinct, with red reserved for rejected/error.
+
 ## [1.50.2] - 2026-06-10
 
 ### Changed
