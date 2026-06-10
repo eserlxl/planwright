@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.50.0] - 2026-06-10
+
+### Changed
+- Harden the code graph: skip tracked files deleted from the working tree (no crash on `getsize`), strip unterminated Python triple-quotes before import extraction, capture every module on a comma-separated `import a, b, c`, and exclude doc→doc markdown links from PageRank centrality so docs no longer float to the top of `ranked`. Tighten validation across the engine: reject Evidence anchors that escape the repo root (same realpath containment as Surfaces), recognize plan field labels with a space before the colon, reject NUL/control characters in `lifecycle --root`, and type the shared `plan_parse` contract so a signature change is caught by mypy. Make the convergence gate fail loudly (not silently degrade) when `lint-final` is present but unloadable, so `status --exit-code` can't pass a broken validator. Make `bump-version.sh` transactional — back up every target and roll back on any failure, so an interrupted bump can't leave version drift. Tests/CI: add a dashboard↔`state.py` contract test, fail CI fast when the subprocess-coverage hook is missing, and validate the `.codex-plugin` manifest. **SKILL.md progressive disclosure** — move the gated subcommand procedures (upgrade/version/doctor/status/reset/dashboard) into `skills/planwright/references/*.md`, loaded on demand, trimming the always-loaded skill payload ~117KB → ~102KB with no behavior change.
+
 ## [1.49.0] - 2026-06-10
 
 ### Changed
