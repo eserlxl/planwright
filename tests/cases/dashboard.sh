@@ -88,6 +88,24 @@ try:
         mc_ok = False
     assert mc_ok, "mixed-case loopback Host (Localhost) was wrongly refused"
 
+    # Absent Host: HTTP/1.0 / non-browser clients send no Host header and cannot be rebound
+    # through, so the guard deliberately ALLOWS them (dashboard.py _host_allowed returns True
+    # on an empty Host). urllib always injects a Host, so exercise this branch via a raw
+    # socket sending a minimal HTTP/1.0 request line with no Host.
+    import socket
+    raw = socket.create_connection(("127.0.0.1", _port), timeout=5)
+    raw.sendall(b"GET /state.json HTTP/1.0\r\n\r\n")
+    buf = b""
+    while b"\r\n" not in buf:
+        chunk = raw.recv(256)
+        if not chunk:
+            break
+        buf += chunk
+    raw.close()
+    nohost_status = buf.split(b"\r\n", 1)[0]
+    assert b" 200 " in nohost_status, "absent-Host request not allowed: %r" % nohost_status
+    print("NOHOST-OK")
+
     print("DASH-OK")
 
     # SSE live-update path: after subscribing to /events, mutating a .planwright/ file
@@ -177,6 +195,11 @@ if grep -q DASH-OK "$TMP/dash.out"; then
   ok "dashboard.py serves /state.json (JSON) + /events (text/event-stream), refuses traversal + foreign Host"
 else
   bad "dashboard.py endpoint check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q NOHOST-OK "$TMP/dash.out"; then
+  ok "dashboard.py allows a no-Host (HTTP/1.0) request — the deliberate DNS-rebinding pass-through"
+else
+  bad "dashboard.py absent-Host pass-through check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
 if grep -q SIGTERM-CLEAN-EXIT "$TMP/dash.out"; then
   ok "dashboard.py shuts down cleanly on SIGTERM (proc.terminate() -> exit 0, atexit can flush)"
