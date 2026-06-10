@@ -39,17 +39,29 @@ import plan_parse
 def _load_lint_final():
     """Load the sibling lint-final.py validator (its hyphenated name is not a plain import).
     Returns the module, or None when it cannot be loaded — in which case convergence falls
-    back to the sha+pending check rather than crashing this read-only tool."""
+    back to the sha+pending check rather than crashing this read-only tool.
+
+    A *genuinely absent* validator degrades silently (a valid state). A validator that is
+    present but fails to load (a syntax/import error in lint-final.py) is a different beast:
+    swallowing it silently would disable the convergence gate without a trace, so warn to
+    stderr before falling back — the degrade must be visible, not invisible."""
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lint-final.py")
+    if not os.path.exists(path):
+        return None
     try:
-        import importlib.util
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lint-final.py")
         spec = importlib.util.spec_from_file_location("planwright_lint_final", path)
         if spec is None or spec.loader is None:
+            print("planwright status: lint-final.py present but unloadable (no import spec); "
+                  "convergence gate degraded to the sha+pending check", file=sys.stderr)
             return None
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         return mod
-    except Exception:
+    except Exception as exc:  # present but broken (syntax/import error) — never silent
+        print("planwright status: lint-final.py present but failed to load (%s: %s); "
+              "convergence gate degraded to the sha+pending check"
+              % (type(exc).__name__, exc), file=sys.stderr)
         return None
 
 

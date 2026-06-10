@@ -58,9 +58,17 @@ def collect(root: str) -> dict:
     try:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
-    except (OSError, ValueError):
-        # Absent OR undecodable (non-UTF-8) final.md: treat as no recorded final point
-        # rather than crash the validator (and its _final_valid caller in status.py).
+    except FileNotFoundError:
+        # Genuinely no recorded final point — a valid open-ladder state.
+        return {"present": False, "ok": True, "violations": [], "path": path}
+    except (OSError, ValueError) as exc:
+        # The file EXISTS but cannot be read/decoded (non-UTF-8, permissions). We still
+        # degrade to the absent/valid state (crash-free, and a corrupt marker must not
+        # wedge the read-only status path) — but a *silent* degrade here is the fail-open
+        # the convergence gate must not hide, so warn that a present marker was unreadable.
+        print("planwright lint-final: %s exists but could not be read (%s: %s); "
+              "treating as no final point" % (path, type(exc).__name__, exc),
+              file=sys.stderr)
         return {"present": False, "ok": True, "violations": [], "path": path}
 
     lines = text.splitlines()
