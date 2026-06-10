@@ -562,3 +562,18 @@ if printf '%s' "$car_json" | grep -q '"carried": 2' \
 else
   bad "status.py carried-count wrong (car=[$(printf '%s' "$car_json" | grep -o '"carried": [0-9]*')] rep=[$car_rep])"
 fi
+
+# --- Test STS-BROKEN-VALIDATOR: a present-but-broken lint-final.py WARNS, not silent --
+# status._load_lint_final degrades to the sha+pending convergence check when its sibling
+# validator cannot load. A genuinely-absent validator degrades silently, but one that is
+# PRESENT but broken (syntax/import error) must warn on stderr rather than silently disable
+# the convergence gate (the council fail-open fix). status stays read-only (exit 0).
+SBV="$TMP/status-broken-validator"; mkdir -p "$SBV/.planwright"
+cp "$ROOT/scripts/status.py" "$ROOT/scripts/plan_parse.py" "$SBV/"
+printf 'def collect(root):\n    this is a syntax error\n' > "$SBV/lint-final.py"
+sbv_rc=0; sbv_err="$(python3 "$SBV/status.py" --root "$SBV" 2>&1 >/dev/null)" || sbv_rc=$?
+if [ "$sbv_rc" = 0 ] && printf '%s' "$sbv_err" | grep -q "failed to load"; then
+  ok "status.py warns when the sibling lint-final.py is present but broken (gate not silently disabled)"
+else
+  bad "status.py did not warn on a present-but-broken sibling lint-final.py (rc=$sbv_rc): $sbv_err"
+fi
