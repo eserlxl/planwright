@@ -27,4 +27,12 @@ trap 'rm -rf "$TMP"' EXIT
 export GIT_CONFIG_GLOBAL="$TMP/gitconfig"
 printf '[commit]\n\tgpgsign = false\n' > "$GIT_CONFIG_GLOBAL"
 
+# Loopback HTTP cases (dashboard, state, derive) reach the local server at 127.0.0.1
+# via urllib. When the environment exports http_proxy/https_proxy, urllib routes even
+# loopback requests through that proxy — which returns 400 (or refuses), flaking the
+# whole suite in proxied sandboxes/CI. Exempt loopback so those requests always talk to
+# the local server directly, regardless of an ambient proxy.
+export no_proxy="127.0.0.1,localhost"
+export NO_PROXY="127.0.0.1,localhost"
+
 ver() { python3 -c "import json,sys;print(json.load(open(sys.argv[1]))$2)" "$1"; }
