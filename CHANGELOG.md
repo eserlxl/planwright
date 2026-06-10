@@ -20,6 +20,20 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.51.0] - 2026-06-10
+
+### Added
+- `PW_COUPLING_MAX_FILES` overrides the change-coupling bulk-skip threshold in `build-graph.py` at runtime (mirrors `PW_GIT_TIMEOUT_SECONDS`), so a large-commit monorepo can tune it instead of silently dropping the coupling signal; a missing, non-integer, or non-positive value falls back to the 100-file default.
+- `PW_DASH_MAX_SSE_CLIENTS` bounds concurrent dashboard `/events` (SSE) streams. A `BoundedSemaphore` caps the live streams (default 64); an over-cap client now gets a retriable `503` instead of an unbounded new handler thread, and the slot is released in a `finally` that also covers a disconnect mid-headers.
+
+### Fixed
+- `build-graph.py` couples bash `source`/`.` targets built with a command substitution (e.g. `source $(dirname $0)/lib.sh`). The import extractor now treats a quoted string, `$(...)`, `${...}`, or backtick as a single unit, so the trailing static path survives the first interior space and `resolve()`'s basename fallback recovers the edge instead of dropping it.
+- `lint-plan.py` no longer rejects a valid `Verification:` led by a JS/TS test runner (`vitest tests`, `jest src`, …) as prose — the common runners (vitest, jest, mocha, ava, jasmine, cypress, playwright, tap) were added to `_KNOWN_EXEC`.
+
+### Changed
+- CI provisions Node (`actions/setup-node`) so the node-gated dashboard JS harness (DASH-FN) runs in the smoke step instead of skipping — a JS frontend regression now fails CI.
+- Test-pinning and docs for the dashboard Console verdict, the expanded structural-count vitals, and the cumulative Decision timeline.
+
 ## [1.50.3] - 2026-06-10
 
 ### Changed
