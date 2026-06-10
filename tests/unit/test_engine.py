@@ -137,6 +137,44 @@ class TestImportResolvers(unittest.TestCase):
         )
         self.assertEqual(bg.defines_of("c", c), ["real_fn"])
 
+    def test_defines_of_handles_tricky_docstrings(self):
+        # The single-pass triple-quote blanker must hide a def inside a cross-style
+        # docstring (''' containing """) and inside an UNTERMINATED """ docstring
+        # (blanked to end-of-text), not just a plain closed block.
+        cross = (
+            "def keep_a():\n"
+            "    pass\n"
+            "x = '''doc with \"\"\" inside\n"
+            "def ghost_cross():\n"
+            "    pass\n"
+            "'''\n"
+        )
+        self.assertEqual(bg.defines_of("python", cross), ["keep_a"])
+        unterminated = (
+            "def keep_b():\n"
+            "    pass\n"
+            'y = """unterminated docstring\n'
+            "def ghost_unterminated():\n"
+            "    pass\n"
+        )
+        self.assertEqual(bg.defines_of("python", unterminated), ["keep_b"])
+
+    def test_to_dot_escapes_special_chars(self):
+        # A git-tracked path may legally contain a quote or backslash; to_dot must escape
+        # them so --dot emits valid GraphViz instead of a malformed/truncated DOT string.
+        tricky = 'src/a"b\\c.py'
+        graph = {
+            "nodes": {
+                tricky: {"is_articulation": True, "imports": ["src/n.py"]},
+                "src/n.py": {"imports": []},
+            },
+            "coupling_edges": [{"a": tricky, "b": "src/n.py"}],
+        }
+        dot = bg.to_dot(graph)
+        self.assertIn('"src/a\\"b\\\\c.py"', dot)   # escaped id present
+        self.assertNotIn('"a"b', dot)               # no bare unescaped quote leaked
+        self.assertEqual(bg._dot_quote('a"b\\c'), '"a\\"b\\\\c"')
+
     def test_iter_defines_yields_in_source_order_across_categories(self):
         # iter_defines runs one regex pass per definition CATEGORY (C struct vs function);
         # their matches must be merged in source order so defines_of/defines_at_of are correct,
