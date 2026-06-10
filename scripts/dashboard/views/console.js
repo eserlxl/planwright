@@ -272,8 +272,36 @@
       row.appendChild(v5);
     }
 
+    // Structural context cards (counts), filling the row before the cycles card.
+    function countVital(modifier, count, key, sub, aria, dest) {
+      var card = vitalCard(modifier, aria, function () { window.PW_BUS.goto(dest); });
+      var g = svg("svg", { "class": "pw-vital-svg", viewBox: "0 0 64 64", "aria-hidden": "true" });
+      g.appendChild(svg("circle", { cx: 32, cy: 32, r: 26, fill: "none", "class": "pw-gauge-track", "stroke-width": 6 }));
+      var t = svg("text", { x: 32, y: 40, "text-anchor": "middle", "class": "pw-gauge-num" });
+      t.textContent = String(count);
+      g.appendChild(t);
+      card.appendChild(g);
+      card.appendChild(vitalText(key, String(count), sub));
+      card.appendChild(shaChip(ctx));
+      return card;
+    }
+
+    // 6) total tracked files in the graph
+    row.appendChild(countVital("pw-vital--files", metrics.nodeCount, "files", "tracked files",
+      metrics.nodeCount + " tracked files in the graph. Open the Coupling Web.", "graph"));
+
+    // 7) articulation points — cut vertices whose failure has wide blast radius
+    var arts = metrics.nodesArr.filter(function (n) { return n.articulation; }).length;
+    row.appendChild(countVital("pw-vital--articulation", arts, "articulation", "cut vertices",
+      arts + " articulation points (cut vertices, wide blast radius). Open Insights.", "insights"));
+
+    // 8) test files in the tree (a rough test-surface count alongside line coverage)
+    var tcount = metrics.nodesArr.filter(function (n) { return n.isTest; }).length;
+    row.appendChild(countVital("pw-vital--tests", tcount, "tests", "test files",
+      tcount + " test files in the tree. Open the Coupling Web.", "graph"));
+
     // Import cycles last: a secondary structural-debt signal, shown after the actionable
-    // vitals (coverage, hotspots, coupling, frontier).
+    // vitals (coverage, hotspots, coupling, frontier) and the context cards.
     row.appendChild(v3);
 
     return row;
