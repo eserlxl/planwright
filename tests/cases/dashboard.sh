@@ -154,6 +154,13 @@ try:
             vbody = r.read()
         assert vct == "text/javascript", vpath + " content-type: " + vct
         assert len(vbody) > 0, vpath + " served empty"
+    # The vendored Inter font must serve with the correct font MIME (not octet-stream),
+    # so the @font-face in style.css loads it cleanly offline.
+    with urllib.request.urlopen(base + "/vendor/inter-variable.woff2", timeout=5) as r:
+        fct = r.headers.get_content_type()
+        fbody = r.read()
+    assert fct == "font/woff2", "woff2 content-type: " + fct
+    assert len(fbody) > 0, "woff2 served empty"
     print("VENDOR-OK")
 
     # /graph.json passthrough (the data path the graph view consumes)
