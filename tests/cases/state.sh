@@ -130,6 +130,21 @@ else
   bad "state.py counts.carried wrong"
 fi
 
+# --- Test ST7: the state.json artifact is written atomically (no temp residue) -----
+# main() renders to a same-directory .state-*.tmp then os.replace()s it (mirroring
+# lifecycle.write), so an interrupted write can never leave a torn state.json. The
+# observable contract on a successful run: the artifact parses AND no temp residue
+# remains beside it.
+ATM="$TMP/state-atomic"; mkdir -p "$ATM/.planwright"
+printf -- '- [ ] solo\n      Mode: improve\n' > "$ATM/.planwright/plan.md"
+python3 "$STATE" --root "$ATM" >/dev/null 2>&1
+if python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$ATM/.planwright/state.json" 2>/dev/null \
+   && ! ls "$ATM/.planwright"/.state-*.tmp >/dev/null 2>&1; then
+  ok "state.py writes state.json atomically (parseable artifact, no .state-*.tmp residue)"
+else
+  bad "state.py atomic write wrong (residue: $(find "$ATM/.planwright" -mindepth 1 2>/dev/null | tr '\n' ' '))"
+fi
+
 # --- Test ST6: checked (done-but-undrained) items never leak into the pending array
 # During `execute` an item is flipped to `- [x]` in plan.md before lifecycle drains it
 # to completed.md. The `pending` list must mirror counts.pending (which counts only

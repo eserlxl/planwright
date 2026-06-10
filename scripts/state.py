@@ -24,6 +24,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 
 # state.py lives beside status.py in scripts/; when run as a script that directory is
 # sys.path[0], so a plain import resolves it without any package machinery.
@@ -160,8 +161,23 @@ def main():
     if out is None:
         out = os.path.join(args.root, ".planwright", "state.json")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(text + "\n")
+    # Atomic write (mirrors lifecycle.write): a plain open(out, "w") truncates the
+    # artifact before the new bytes land, so an interruption between truncate and
+    # flush leaves a torn, unparseable state.json for any external consumer until a
+    # later run replaces it. A same-directory temp keeps os.replace on one
+    # filesystem; on any failure the temp is removed and the original is untouched.
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(out) or ".",
+                               prefix=".state-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+        os.replace(tmp, out)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
     return 0
 
 
