@@ -556,3 +556,127 @@ if python3 "$TMP/dash_portrange.py" "$DASH" >"$TMP/dash_pr.out" 2>"$TMP/dash_pr.
 else
   bad "dashboard.py mishandled an out-of-range --port: $(cat "$TMP/dash_pr.err" 2>/dev/null)"
 fi
+
+# --- Test DASH-VIEWS-FN: the four main views' render() actually runs ------------------
+# DASH-FN boots app.js with a PW_VIEWS *stub*, and DSH checks only served+registered, so
+# console/plan/commands/insights render() is never executed — a logic regression (a renamed
+# state.py field, a null deref on a graph-less snapshot, an unshimmed DOM call) ships green.
+# Load the real derive engine + each view against the El/doc shim and call render() for a
+# full state+graph snapshot AND a degraded graph-less (metrics=null) snapshot. Node-gated.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/views_fn_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+const BASE = process.argv[2];
+
+function El(tag) {
+  this.tagName = (tag || "div").toUpperCase();
+  this.children = [];
+  this.style = { setProperty() {}, removeProperty() {}, getPropertyValue() { return ""; } };
+  this._attr = {}; this.dataset = {};
+  this.classList = { _s: {}, add(c) { this._s[c] = true; }, remove(c) { delete this._s[c]; },
+    toggle(c, on) { if (on === undefined) { on = !this._s[c]; } if (on) { this._s[c] = true; } else { delete this._s[c]; } return !!on; },
+    contains(c) { return !!this._s[c]; } };
+  this.textContent = ""; this.innerHTML = ""; this.hidden = false;
+  this.className = ""; this.tabIndex = 0; this.value = "";
+}
+El.prototype.appendChild = function (c) { this.children.push(c); return c; };
+El.prototype.removeChild = function (c) { this.children = this.children.filter(function (x) { return x !== c; }); return c; };
+El.prototype.insertBefore = function (c) { this.children.unshift(c); return c; };
+El.prototype.append = function () { for (var i = 0; i < arguments.length; i++) { this.children.push(arguments[i]); } };
+El.prototype.replaceChildren = function () { this.children = []; };
+El.prototype.remove = function () {};
+El.prototype.addEventListener = function () {};
+El.prototype.removeEventListener = function () {};
+El.prototype.setAttribute = function (k, v) { this._attr[k] = String(v); };
+El.prototype.getAttribute = function (k) { return (k in this._attr) ? this._attr[k] : null; };
+El.prototype.hasAttribute = function (k) { return k in this._attr; };
+El.prototype.removeAttribute = function (k) { delete this._attr[k]; };
+El.prototype.querySelector = function () { return null; };
+El.prototype.querySelectorAll = function () { return []; };
+El.prototype.getContext = function () { return null; };
+El.prototype.focus = function () {}; El.prototype.click = function () {};
+El.prototype.contains = function () { return false; };
+
+const doc = {
+  readyState: "complete", hidden: false, visibilityState: "visible", title: "", activeElement: null,
+  getElementById() { return new El(); },
+  querySelector() { return null; }, querySelectorAll() { return []; },
+  createElement(t) { return new El(t); },
+  createElementNS(ns, t) { return new El(t); },
+  createTextNode(t) { var n = new El("#text"); n.textContent = String(t); return n; },
+  addEventListener() {}, removeEventListener() {},
+};
+doc.body = new El("body"); doc.documentElement = new El("html"); doc.head = new El("head");
+
+const win = {
+  PW_VIEWS: {}, PW_UI: { planMode: "all" },
+  PW_BUS: { setNavigator() {}, focusNode() {}, clearFocus() {}, getFocus() { return null; },
+    onFocus() { return function () {}; }, goto() {} },
+  addEventListener() {}, removeEventListener() {},
+  matchMedia() { return { matches: false, addEventListener() {}, addListener() {} }; },
+  requestAnimationFrame() { return 0; },
+  location: { hash: "", href: "http://x/", reload() {} },
+  localStorage: { _d: {}, getItem(k) { return (k in this._d) ? this._d[k] : null; },
+    setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } },
+  console: console,
+};
+global.window = win; global.document = doc; global.location = win.location;
+
+// Load the real derive engine, then each view (each registers window.PW_VIEWS.<name>).
+vm.runInThisContext(fs.readFileSync(BASE + "/vendor/derive.js", "utf8"));
+const VIEWS = ["console", "plan", "commands", "insights"];
+VIEWS.forEach(function (v) {
+  vm.runInThisContext(fs.readFileSync(BASE + "/views/" + v + ".js", "utf8"));
+  assert(typeof win.PW_VIEWS[v] === "function", "view " + v + " did not register render()");
+});
+
+const graphText = JSON.stringify({
+  graph_built_at_sha: "deadbeef",
+  frontier: { never_audited: 3, stale: 5 },
+  nodes: {
+    "hot.py": { git_churn: 10, pagerank: 0.9, covered_by_test: false, is_test: false, lang: "python", loc: 100, branch_count: 5, is_articulation: true, imports: ["cold.py"] },
+    "cold.py": { git_churn: 1, pagerank: 0.1, covered_by_test: true, is_test: false, lang: "python", loc: 10, branch_count: 1, is_articulation: false, imports: [] },
+  },
+  coupling_edges: [{ a: "hot.py", b: "cold.py", weight: 2, cooccur: 2 }],
+  clusters: [{ label: "core", members: ["hot.py", "cold.py"] }],
+  import_cycles: [],
+});
+const metrics = win.PW_DERIVE.metrics(graphText);
+assert(metrics, "metrics built from the fixture graph");
+
+const state = {
+  schema_version: 1, root: "/x", head: "deadbeef", converged: false,
+  counts: { pending: 2, completed: 1, rejected: 1 },
+  pending_modes: { develop: 1, repair: 1 },
+  pending: [
+    { title: "do a thing", mode: "develop", rationale: "r", evidence: "e", surfaces: ["a.py"], new_surfaces: [], development: "d", acceptance: "ok", verification: "bash tests/run.sh" },
+    { title: "fix a bug", mode: "repair", rationale: "r", evidence: "e", surfaces: ["b.py"], new_surfaces: [], development: "d", acceptance: "ok", verification: "bash tests/run.sh" },
+  ],
+  completed: [{ title: "shipped", mode: "develop" }],
+  rejected: [{ title: "bad idea", reason: "value-gate: no consumer" }],
+  final_point: { sha: "deadbeef", date: "", deepest_tier: "", valid: true, stale: false, scope: null },
+  graph: { built_sha: "deadbeef", node_count: 2, dirty: 0, stale: false },
+};
+const fullCtx = { graphText: graphText, metrics: metrics, builtSha: "deadbeef", stale: false, head: "deadbeef" };
+const bareCtx = { graphText: null, metrics: null, builtSha: "", stale: false, head: "deadbeef" };
+
+VIEWS.forEach(function (v) {
+  var c1 = new El("section");
+  win.PW_VIEWS[v](c1, state, fullCtx);
+  assert(c1.children.length > 0, "view " + v + " rendered nothing on a full snapshot");
+  var c2 = new El("section");
+  win.PW_VIEWS[v](c2, state, bareCtx);   // degraded: no graph/metrics must not throw
+});
+console.log("VIEWS-FN-OK");
+JS
+  if node "$TMP/views_fn_test.js" "$ROOT/scripts/dashboard" >"$TMP/views_fn.out" 2>"$TMP/views_fn.err" \
+     && grep -q VIEWS-FN-OK "$TMP/views_fn.out"; then
+    ok "dashboard console/plan/commands/insights render() runs on a full and a graph-less snapshot (no throw, non-empty DOM)"
+  else
+    bad "a dashboard view render() failed: $(cat "$TMP/views_fn.err" 2>/dev/null)"
+  fi
+else
+  ok "dashboard view render() check skipped (node not installed)"
+fi
