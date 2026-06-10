@@ -363,6 +363,14 @@ assert.strictEqual(D.finalFlag({ stale: false, valid: true, scope: "path:src/aut
 assert.strictEqual(D.finalFlag({ stale: true, valid: true, scope: "path:x" }), "stale", "stale wins over scoped");
 assert.strictEqual(D.finalFlag({ stale: false, valid: false, scope: "path:x" }), "invalid", "invalid wins over scoped");
 assert.strictEqual(D.finalFlag({ stale: false, valid: true, scope: null }), "", "null scope is whole-repo");
+// finalPointShown: a point renders as soon as it carries a sha; date/deepest_tier are
+// optional, so a sha-only point (especially a STALE/INVALID one) must NOT be hidden.
+assert(typeof D.finalPointShown === "function", "PW_DERIVE.finalPointShown missing");
+assert.strictEqual(D.finalPointShown({ sha: "abc", date: "", deepest_tier: "", stale: true }), true, "sha-only stale point shows");
+assert.strictEqual(D.finalPointShown({ date: "2026-06-10" }), true, "date-only shows");
+assert.strictEqual(D.finalPointShown({ deepest_tier: "expand" }), true, "tier-only shows");
+assert.strictEqual(D.finalPointShown(null), false, "null hidden");
+assert.strictEqual(D.finalPointShown({}), false, "empty point hidden");
 console.log("FINALFLAG-OK");
 JS
   if node "$TMP/derive_final_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive_ff.out" 2>"$TMP/derive_ff.err" && grep -q FINALFLAG-OK "$TMP/derive_ff.out"; then
@@ -376,6 +384,13 @@ JS
     ok "console/commands/timeline route final-point trust through PW_DERIVE.finalFlag"
   else
     bad "a view still renders final-point trust without PW_DERIVE.finalFlag"
+  fi
+  if grep -q 'finalPointShown(fp)' "$ROOT/scripts/dashboard/views/console.js" \
+     && grep -q 'finalPointShown(fp)' "$ROOT/scripts/dashboard/views/commands.js" \
+     && grep -q 'finalPointShown(fp)' "$ROOT/scripts/dashboard/views/timeline.js"; then
+    ok "console/commands/timeline gate the final-point indicator on finalPointShown (a sha-only point shows)"
+  else
+    bad "a view still gates the final-point indicator on date||tier (hides a valid sha-only point)"
   fi
 else
   ok "PW_DERIVE.finalFlag check skipped (node not installed)"

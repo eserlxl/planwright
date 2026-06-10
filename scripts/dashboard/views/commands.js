@@ -167,7 +167,7 @@
     }
 
     var fp = state.final_point;
-    if (fp && (fp.date || fp.deepest_tier)) {
+    if (window.PW_DERIVE.finalPointShown(fp)) {
       var fpFlag = window.PW_DERIVE.finalFlag(fp);
       contrib.appendChild(elt("div", "pw-coach-final",
         "Final point: " + (fp.deepest_tier || "?") + (fp.date ? " · " + fp.date : "") +

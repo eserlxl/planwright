@@ -378,9 +378,18 @@
     return "";
   }
 
+  // Whether a recorded final point should render its indicator at all. A point is real as
+  // soon as it carries a sha — date and deepest_tier are both optional (lint-final never
+  // requires date and treats deepest_tier as "when present"; status defaults both to ""),
+  // so gating the chip on date||tier hides a valid sha-only point precisely when it is
+  // STALE or INVALID — exactly when the maintainer needs the warning.
+  function finalPointShown(fp) {
+    return !!(fp && (fp.sha || fp.date || fp.deepest_tier));
+  }
+
   window.PW_DERIVE = {
     metrics: metrics, pctRank: pctRank, quantile: quantile, pendingModes: pendingModes,
-    staleCast: staleCast, finalFlag: finalFlag,
+    staleCast: staleCast, finalFlag: finalFlag, finalPointShown: finalPointShown,
     coach: { signals: coachSignals, recommend: coachRecommend, evidence: coachEvidence, reset: coachReset },
     graph: { adapt: graphAdapt, cycleMembers: cycleMembers },
   };

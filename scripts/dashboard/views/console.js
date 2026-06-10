@@ -118,7 +118,7 @@
     sats.appendChild(sat("pending", pend, "is-muted"));
     sats.appendChild(sat("rejected", kill, "is-err"));
     var fp = state.final_point;
-    if (fp && (fp.deepest_tier || fp.date)) {
+    if (window.PW_DERIVE.finalPointShown(fp)) {
       var label = "final · " + (fp.deepest_tier || "?") + (fp.date ? " · " + fp.date : "");
       // PW_DERIVE.finalFlag: an invalid (fails lint-final) or component-scoped
       // final point must never render as a trusted whole-repo "set" — status
