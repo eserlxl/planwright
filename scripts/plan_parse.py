@@ -12,7 +12,11 @@
 # diverge. They now all route through parse_items() here — the format is recognised
 # in exactly one place.
 
+from __future__ import annotations
+
 import re
+from collections.abc import Container
+from typing import TypedDict
 
 # Every continuation field the OUTPUT FORMAT defines (the eight plan fields) plus the
 # lifecycle fields the execute/reject path appends (Status / Rejection). This is the
@@ -23,6 +27,17 @@ KNOWN_FIELDS = frozenset({
     "Development", "Acceptance", "Verification", "Status", "Rejection",
 })
 
+
+class Item(TypedDict):
+    """A parsed plan item. Annotating this cross-module contract (consumed by lint-plan,
+    lifecycle, status, and state) means a signature/return-type change is caught by mypy
+    rather than surfacing only at runtime as a downstream count mismatch."""
+    checked: bool
+    title: str
+    line: int
+    fields: dict[str, str]
+    span: tuple[int, int]
+
 _HEAD_RE = re.compile(r"^- \[([ xX])\]\s*(.*)$")
 # Tolerate whitespace before the colon (`Mode :`): the label is matched non-greedily and
 # stripped below, so a near-miss spelling is recognised as the field rather than silently
@@ -31,7 +46,8 @@ _HEAD_RE = re.compile(r"^- \[([ xX])\]\s*(.*)$")
 _FIELD_RE = re.compile(r"^\s+([A-Z][A-Za-z ]*?)\s*:\s*(.*)$")
 
 
-def parse_items(text, known_fields=KNOWN_FIELDS):
+def parse_items(text: str | list[str],
+                known_fields: Container[str] = KNOWN_FIELDS) -> list[Item]:
     """Parse plan-format markdown into a list of item dicts:
     {checked: bool, title: str, line: int (1-based), fields: {name: value},
      span: (first_line_index, last_attached_line_index) — 0-based, inclusive}.
@@ -51,9 +67,9 @@ def parse_items(text, known_fields=KNOWN_FIELDS):
     indented line must not swallow it into the item's slice) — field capture after
     that point still works as before, only the boundary stops."""
     lines = text if isinstance(text, list) else text.splitlines()
-    items = []
-    cur = None
-    field = None
+    items: list[Item] = []
+    cur: Item | None = None
+    field: str | None = None
     span_open = True
     for i, raw in enumerate(lines, 1):
         raw = raw.rstrip("\n")
