@@ -102,6 +102,9 @@ _KNOWN_EXEC = {
     # "ruff check ." — real commands, not prose).
     "mypy", "ruff", "flake8", "pylint", "black", "isort", "shellcheck",
     "eslint", "tsc", "prettier",
+    # JS/TS test runners a Verification leads with ("vitest tests", "jest src" — real
+    # commands the prose heuristic must not reject just because they are two bare words).
+    "vitest", "jest", "mocha", "ava", "jasmine", "cypress", "playwright", "tap",
 }
 
 

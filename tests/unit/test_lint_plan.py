@@ -47,5 +47,22 @@ class TestEvidenceAnchorEscape(unittest.TestCase):
                              f"unexpected escape issue, got {issues}")
 
 
+class TestProseVerification(unittest.TestCase):
+    def test_js_test_runners_not_prose(self):
+        # A bare two-word command led by a real JS/TS test runner (no path/operator
+        # char) must NOT be misread as prose just because the runner is not a Python tool.
+        for cmd in ("vitest tests", "jest src", "mocha test", "ava unit",
+                    "playwright tests"):
+            self.assertFalse(lp.is_prose_verification(cmd),
+                             f"{cmd!r} should be a runnable command, not prose")
+
+    def test_genuine_prose_still_flagged(self):
+        # The heuristic must still catch real prose (two+ words, no command-signal
+        # char, first token not a known runner).
+        for phrase in ("verify manually", "checks pending approval", "inspect the output"):
+            self.assertTrue(lp.is_prose_verification(phrase),
+                            f"{phrase!r} should be flagged as prose")
+
+
 if __name__ == "__main__":
     unittest.main()
