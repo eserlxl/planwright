@@ -114,6 +114,33 @@ PY
 
 DATE="$(date -u +%Y-%m-%d)"
 
+# --- Transactional guard ---------------------------------------------------
+# The JSON manifests, skill frontmatter, and CHANGELOG are rewritten as separate
+# steps below; an interruption or a failed step between them would otherwise leave
+# version drift across files (the lockstep contract forbids this). Back up every
+# target up front and restore them ALL if any step fails or the run is interrupted,
+# so a partial bump is impossible — the bump is all-or-nothing. (Skipped on
+# --dry-run, which writes nothing.)
+if [ -z "$DRY_RUN" ]; then
+  _bump_targets=("$PLUGIN_JSON" "$MARKET_JSON" "$CHANGELOG")
+  [ -f "$CODEX_PLUGIN_JSON" ] && _bump_targets+=("$CODEX_PLUGIN_JSON")
+  for _skill in "$ROOT"/skills/*/SKILL.md; do
+    [ -f "$_skill" ] && _bump_targets+=("$_skill")
+  done
+  BUMP_BACKUP="$(mktemp -d)"
+  for _i in "${!_bump_targets[@]}"; do
+    cp -p "${_bump_targets[$_i]}" "$BUMP_BACKUP/$_i"
+  done
+  _bump_restore() {
+    local _i
+    for _i in "${!_bump_targets[@]}"; do
+      [ -f "$BUMP_BACKUP/$_i" ] && cp -p "$BUMP_BACKUP/$_i" "${_bump_targets[$_i]}" 2>/dev/null || true
+    done
+    echo "bump-version: a step failed or was interrupted; restored all files to their pre-bump state." >&2
+  }
+  trap '_bump_restore' ERR INT TERM
+fi
+
 # --- Update JSON manifests -------------------------------------------------
 if [ -z "$DRY_RUN" ]; then
 python3 - "$PLUGIN_JSON" "$MARKET_JSON" "$CODEX_PLUGIN_JSON" "$NEW" <<'PY'
@@ -198,6 +225,12 @@ lines[idx:idx] = [block]
 with open(path, "w") as f:
     f.writelines(lines)
 PY
+fi
+
+# All writes succeeded — commit the transaction: drop the restore trap and clean up.
+if [ -z "$DRY_RUN" ]; then
+  trap - ERR INT TERM
+  rm -rf "$BUMP_BACKUP"
 fi
 
 if [ -n "$DRY_RUN" ]; then

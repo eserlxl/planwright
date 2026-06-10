@@ -85,6 +85,30 @@ else
   bad "bump-version --dry-run disagrees with the real run on an unquoted version (dry_rc=$dry_rc dry=[$dry_out])"
 fi
 
+# --- Test 1c: a mid-run failure restores all files (transactional bump) ----------
+# Inject a failure AFTER the manifests are rewritten but BEFORE the changelog write by
+# making CHANGELOG.md read-only; the script must restore every file so no version drift
+# is left behind (the lockstep contract must hold under interruption too, not just on a
+# clean run).
+pre_pj="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
+chmod 0444 "$WORK/CHANGELOG.md"
+atomic_rc=0
+atomic_out="$("$WORK/scripts/bump-version.sh" patch -m "should be rolled back" 2>&1)" || atomic_rc=$?
+chmod 0644 "$WORK/CHANGELOG.md"
+post_pj="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
+post_mm="$(ver "$WORK/.claude-plugin/marketplace.json" "['metadata']['version']")"
+post_cj="$(ver "$WORK/.codex-plugin/plugin.json" "['version']")"
+if [ "$atomic_rc" != 0 ]; then ok "bump-version fails when a write step cannot complete"; else bad "bump-version did not fail on an unwritable CHANGELOG (out=[$atomic_out])"; fi
+# The three JSON manifests are rewritten in the first write step, so a mid-run failure
+# would leave them bumped if the transaction were not rolled back. (The skill frontmatter
+# in this WORK copy was deliberately left unquoted by Test 1b, so it is skipped, not bumped.)
+if [ "$post_pj" = "$pre_pj" ] && [ "$post_mm" = "$pre_pj" ] && [ "$post_cj" = "$pre_pj" ]; then
+  ok "bump-version restores all manifests after a mid-run failure (no version drift)"
+else
+  bad "bump-version left version drift after a mid-run failure: plugin=$post_pj meta=$post_mm codex=$post_cj (was $pre_pj)"
+fi
+if ! grep -q "should be rolled back" "$WORK/CHANGELOG.md"; then ok "bump-version did not commit the changelog note on a failed run"; else bad "bump-version left a changelog note after a failed run"; fi
+
 # --- Test 2: make-plugin.sh scaffolds a valid plugin ----------------------
 GEN="$TMP/gen"
 NO_GIT=1 PLUGIN_DESC="Smoke test plugin." "$ROOT/scripts/make-plugin.sh" demo "$GEN" >/dev/null
