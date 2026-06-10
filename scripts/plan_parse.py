@@ -24,7 +24,11 @@ KNOWN_FIELDS = frozenset({
 })
 
 _HEAD_RE = re.compile(r"^- \[([ xX])\]\s*(.*)$")
-_FIELD_RE = re.compile(r"^\s+([A-Z][A-Za-z ]*?):\s*(.*)$")
+# Tolerate whitespace before the colon (`Mode :`): the label is matched non-greedily and
+# stripped below, so a near-miss spelling is recognised as the field rather than silently
+# absorbed as a wrapped continuation. Internal spaces in multi-word labels ("New Surfaces")
+# are preserved.
+_FIELD_RE = re.compile(r"^\s+([A-Z][A-Za-z ]*?)\s*:\s*(.*)$")
 
 
 def parse_items(text, known_fields=KNOWN_FIELDS):
@@ -65,8 +69,8 @@ def parse_items(text, known_fields=KNOWN_FIELDS):
         if cur is None:
             continue
         m = _FIELD_RE.match(raw)
-        if m and m.group(1) in known_fields:
-            field = m.group(1)
+        if m and m.group(1).strip() in known_fields:
+            field = m.group(1).strip()
             cur["fields"][field] = m.group(2).strip()
             if span_open:
                 cur["span"] = (cur["span"][0], i - 1)

@@ -35,6 +35,17 @@ class TestParseItems(unittest.TestCase):
         items = plan_parse.parse_items("- [ ] t\n      Mode:    repair   \n")
         self.assertEqual(items[0]["fields"]["Mode"], "repair")
 
+    def test_field_label_spacing(self):
+        # A space before the colon (`Mode :`) must be recognised as the field, not
+        # silently absorbed as a wrapped continuation.
+        items = plan_parse.parse_items("- [ ] t\n      Mode : repair\n")
+        self.assertEqual(items[0]["fields"].get("Mode"), "repair")
+
+    def test_multiword_field_label_preserved(self):
+        # The internal space of a multi-word label is preserved (no regression).
+        items = plan_parse.parse_items("- [ ] t\n      New Surfaces : a.py\n")
+        self.assertEqual(items[0]["fields"].get("New Surfaces"), "a.py")
+
     def test_checkbox_marker_is_case_insensitive(self):
         items = plan_parse.parse_items("- [ ] a\n- [x] b\n- [X] c\n")
         self.assertEqual([it["checked"] for it in items], [False, True, True])
