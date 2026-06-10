@@ -139,3 +139,52 @@ if [ "$nus_rc" = 0 ] && printf '%s' "$nus" | python3 -c 'import json,sys; s=json
 else
   bad "state.py crashed or mis-rendered on a non-UTF-8 plan.md (rc=$nus_rc)"
 fi
+
+# --- Test ST7: converged + final_point validity/scope passthrough (dashboard's verdict) --
+# state.py is the snapshot the read-only dashboard consumes: console.js reads
+# state.converged; derive.js reads final_point.valid / final_point.scope. status.sh pins
+# all of this for status.py, but the dashboard reads the state.py snapshot — so a regression
+# dropping `converged`, mis-deriving it, or dropping final_point.valid/scope would pass the
+# whole suite while corrupting the dashboard's central CONVERGED verdict. Mirror status.sh
+# STS9/STS9b/STS11 at the state.py surface. A lint-final-clean body ($1 = sha) so the
+# converged case is not refused by the final.md-validity check.
+_st_final() { printf 'sha: %s\ndate: 2026-06-09\ndeepest_tier: expand\nrepair: dry\ncoverage: dry\nopportunity: dry\nvision: dry\n' "$1"; }
+SVX="$TMP/state-converged"; mkdir -p "$SVX/.planwright"
+if ( cd "$SVX" && git init -q && git config user.email t@t && git config user.name t \
+      && git commit -q --allow-empty -m init ) 2>/dev/null; then
+  svhead="$(git -C "$SVX" rev-parse HEAD)"
+  # (a) current, VALID final point, 0 pending -> converged:true, final_point.valid:true
+  _st_final "$svhead" > "$SVX/.planwright/final.md"
+  ok_json="$(python3 "$STATE" --root "$SVX" --out -)"
+  # (b) HEAD-matching but rungless (malformed) -> converged:false, final_point.valid:false
+  printf 'sha: %s\ndeepest_tier: expand\n' "$svhead" > "$SVX/.planwright/final.md"
+  bad_json="$(python3 "$STATE" --root "$SVX" --out -)"
+  # (c) component-scoped point -> final_point.scope surfaced, converged:false
+  { _st_final "$svhead"; printf 'scope: path:src/auth\nscope_focus_sha: abc123def456\n'; } \
+    > "$SVX/.planwright/final.md"
+  scoped_json="$(python3 "$STATE" --root "$SVX" --out -)"
+  if printf '%s' "$ok_json" | python3 -c '
+import json, sys
+s = json.load(sys.stdin)
+assert s["converged"] is True, s["converged"]
+assert s["final_point"]["valid"] is True, s["final_point"]
+' \
+     && printf '%s' "$bad_json" | python3 -c '
+import json, sys
+s = json.load(sys.stdin)
+assert s["converged"] is False, s["converged"]
+assert s["final_point"]["valid"] is False, s["final_point"]
+' \
+     && printf '%s' "$scoped_json" | python3 -c '
+import json, sys
+s = json.load(sys.stdin)
+assert s["final_point"]["scope"] == "path:src/auth", s["final_point"]
+assert s["converged"] is False, s["converged"]
+'; then
+    ok "state.py emits converged + final_point.valid/scope the dashboard reads (clean/malformed/scoped)"
+  else
+    bad "state.py converged or final_point validity/scope passthrough is wrong"
+  fi
+else
+  ok "state.py converged/final_point check skipped (git unavailable)"
+fi
