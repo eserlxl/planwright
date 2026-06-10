@@ -1638,6 +1638,10 @@ def main():
                          "| no-<that> | code | never-audited | stale-audited | lang=NAME "
                          "(scriptable access to the computed routing signals; takes precedence "
                          "over --dot)")
+    ap.add_argument("-z", "--print0", action="store_true",
+                    help="with --select, terminate each printed path with NUL instead of "
+                         "newline (for xargs -0; paths with spaces/newlines stay intact); "
+                         "no effect on the other output modes")
     args = ap.parse_args()
     root = os.path.abspath(args.root)
     try:
@@ -1668,8 +1672,12 @@ def main():
         except ValueError as e:
             sys.stderr.write(f"build-graph: {e}\n")
             return 2
+        # -z: NUL-terminated for xargs -0 — a target repo with spaces/newlines in
+        # tracked paths breaks newline pipelines, the same class the enumeration
+        # above guards with `git ls-files -z`.
+        sep = "\0" if args.print0 else "\n"
         for p in matches:
-            sys.stdout.write(p + "\n")
+            sys.stdout.write(p + sep)
         return 0
     if args.dot:
         sys.stdout.write(to_dot(graph))

@@ -291,6 +291,7 @@ See [Graph memory](graph-memory-schema.md) for the full `graph.json` schema and 
   python3 <scripts>/build-graph.py --select is_articulation         # the fragile chokepoints
   python3 <scripts>/build-graph.py --select no-covered_by_test      # uncovered code nodes
   python3 <scripts>/build-graph.py --select code,no-covered_by_test # untested CODE nodes only
+  python3 <scripts>/build-graph.py --select code -z | xargs -0 wc -l  # NUL-safe pipelines
   ```
 
 (`--debug` writes a human-readable routing digest to stderr — see [Troubleshooting](#the-audit-looked-at-the-wrong-files).)

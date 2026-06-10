@@ -685,6 +685,21 @@ else
   bad "build-graph --select conjunction wrong (conj=[$sel_conj] empty=[$sel_conj_empty] rc=$sel_conj_rc emptyrc=$sel_conj_empty_rc)"
 fi
 
+# --- Test 11c2j4: --select -z/--print0 NUL-delimits paths (xargs -0 interop) --------
+# A target repo with spaces/newlines in tracked paths breaks newline pipelines — the
+# same class the builder's own `git ls-files -z` enumeration guards. -z must yield the
+# same path set as the newline form (NUL separators only), and a -z without --select
+# must leave the JSON mode byte-identical.
+sel_z="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select lang=python -z 2>/dev/null | tr '\0' '\n' | sort | tr '\n' ' ')"
+sel_nl="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" --select lang=python 2>/dev/null | sort | tr '\n' ' ')"
+json_plain="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" 2>/dev/null | grep -v '"built_at"' | python3 -c 'import hashlib,sys;print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')"
+json_z="$(python3 "$ROOT/scripts/build-graph.py" --root "$SELREPO" -z 2>/dev/null | grep -v '"built_at"' | python3 -c 'import hashlib,sys;print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')"
+if [ "$sel_z" = "$sel_nl" ] && [ -n "$sel_z" ] && [ "$json_plain" = "$json_z" ]; then
+  ok "build-graph --select -z NUL-delimits the same path set; -z without --select leaves JSON identical"
+else
+  bad "build-graph --select -z wrong (z=[$sel_z] nl=[$sel_nl] json_same=$([ "$json_plain" = "$json_z" ] && echo y || echo n))"
+fi
+
 # --- Test 11c2k: --select code (branch_count>0) and never-audited predicates --------
 # Two predicate branches of to_select the cases above never reach. `code` selects nodes
 # carrying real code (branch_count>0); `never-audited` selects nodes whose last_audited_sha
