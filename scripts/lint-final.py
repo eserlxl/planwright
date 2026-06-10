@@ -116,8 +116,17 @@ def collect(root: str) -> dict:
         # sentinel — it has no Focus list, so it needs no scope_focus_sha. Treat that one
         # value as scope-absent for pairing; a real `path:`/`lib:` scope still requires its
         # focus sha, and a scope_focus_sha with no real scope still fails.
+        whole_repo_scope = False
         if a == "scope" and av is not None and av.strip().lower() == "(whole-repo)":
             av = None
+            whole_repo_scope = True
+        # A whole-repo sentinel needs no focus sha, so a scope_focus_sha alongside it is
+        # the spurious field — name IT, not `scope:` (which is present and correct), or the
+        # generic branch below would misdirect the maintainer to the one good line.
+        if whole_repo_scope and bv:
+            viols.append("`%s:` must not accompany the whole-repo sentinel "
+                         "`scope: (whole-repo)`" % b)
+            continue
         # Symmetric: if either member appears at all, BOTH must be present and non-empty —
         # a half-recorded pair in EITHER direction is an unanchored/un-replayable point.
         if (av is not None or bv is not None) and not (av and bv):

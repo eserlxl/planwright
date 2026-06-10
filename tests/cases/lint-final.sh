@@ -141,6 +141,19 @@ else
   bad "lint-final.py wrongly flagged scope: (whole-repo) (rc=$rc): $out"
 fi
 
+# --- Test LF10b: a whole-repo sentinel carrying a stray scope_focus_sha must name the
+# stray field, not `scope:` (which is present and correct). The generic "must co-occur"
+# branch would misdirect a maintainer to fix the one good line on the convergence marker.
+WRX="$TMP/lf-wholerepo-stray"; mkdir -p "$WRX/.planwright"
+{ _wellformed; printf 'scope: (whole-repo)\nscope_focus_sha: deadbeef\n'; } > "$WRX/.planwright/final.md"
+rc=0; out="$(python3 "$LF" --root "$WRX" --json 2>&1)" || rc=$?
+if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q 'scope_focus_sha' \
+   && ! printf '%s' "$out" | grep -q 'must co-occur'; then
+  ok "lint-final.py names scope_focus_sha (not scope) on a whole-repo point with a stray focus sha"
+else
+  bad "lint-final.py misdirected the stray scope_focus_sha message (rc=$rc): $out"
+fi
+
 
 # --- Test LF-INVENT: deepest_tier invent requires the earned-empty audits ----------
 # SKILL.md Stage 11 makes invent_framings_tried (earned by breadth) and
