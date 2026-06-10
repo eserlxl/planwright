@@ -362,6 +362,18 @@ class TestImportStripping(unittest.TestCase):
         imps = bg.imports_of("python", "import secrets\n", "a.py", self.FILES)
         self.assertIn("secrets.py", imps)
 
+    def test_multi_module_import_line(self):
+        # `import a, b, c` must yield edges for every module, not just the first.
+        files = {"a.py", "os.py", "sys.py", "json.py"}
+        imps = bg.imports_of("python", "import os, sys, json\n", "a.py", files)
+        self.assertEqual({"os.py", "sys.py", "json.py"}, set(imps))
+
+    def test_import_alias_dropped(self):
+        # A trailing `as NAME` alias is not treated as a module.
+        files = {"a.py", "os.py"}
+        imps = bg.imports_of("python", "import os as operating_system\n", "a.py", files)
+        self.assertEqual(["os.py"], imps)
+
 
 def _git(work, *args):
     subprocess.run(["git", "-C", work, *args], check=True,

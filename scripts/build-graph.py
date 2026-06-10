@@ -759,7 +759,16 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
                 t = t[1:-1]
             raw.append(t)
     elif lang == "python":
-        raw += re.findall(r"(?m)^\s*(?:from|import)\s+([.\w/]+)", text)
+        # `from X import ...` — the edge target is the module X.
+        raw += re.findall(r"(?m)^\s*from\s+([.\w/]+)\s+import\b", text)
+        # `import a, b.c as d, e` — capture EVERY comma-separated module on the line, not
+        # just the first; drop a trailing `as` alias. (Resolution still drops stdlib and
+        # unresolved targets downstream, and `out` dedupes, so duplicates are harmless.)
+        for spec in re.findall(r"(?m)^\s*import\s+(.+)$", text):
+            for part in spec.split(","):
+                m = re.match(r"\s*([.\w/]+)", part)
+                if m:
+                    raw.append(m.group(1))
     elif lang == "js":
         raw += re.findall(r"""import\s+.*?from\s+['"]([^'"]+)['"]""", text)
         raw += re.findall(r"""require\(\s*['"]([^'"]+)['"]\s*\)""", text)
