@@ -578,12 +578,15 @@ else
   bad "dashboard.py mishandled an out-of-range --port: $(cat "$TMP/dash_pr.err" 2>/dev/null)"
 fi
 
-# --- Test DASH-VIEWS-FN: the four main views' render() actually runs ------------------
-# DASH-FN boots app.js with a PW_VIEWS *stub*, and DSH checks only served+registered, so
-# console/plan/commands/insights render() is never executed — a logic regression (a renamed
-# state.py field, a null deref on a graph-less snapshot, an unshimmed DOM call) ships green.
-# Load the real derive engine + each view against the El/doc shim and call render() for a
-# full state+graph snapshot AND a degraded graph-less (metrics=null) snapshot. Node-gated.
+# --- Test DASH-VIEWS-FN: every registered view's render() actually runs ----------------
+# DASH-FN boots app.js with a PW_VIEWS *stub*, and DSH checks only served+registered, so a
+# view's render() is never executed — a logic regression (a renamed state.py field, a null
+# deref on a graph-less snapshot, an unshimmed DOM call) ships green. Load the real derive
+# engine + the vendored coupling renderer + each view against the El/doc shim and call
+# render() for a full state+graph snapshot AND a degraded graph-less (metrics=null) snapshot.
+# Covers all seven views: the four state-driven ones, timeline + graph (graph's full path
+# drives PW_GRAPH.renderCoupling, its bare path the graph-less guard), and the fetch-based
+# doctor view (stubbed fetch -> async paint). Node-gated.
 if command -v node >/dev/null 2>&1; then
   cat > "$TMP/views_fn_test.js" <<'JS'
 const fs = require("fs");
@@ -643,11 +646,23 @@ const win = {
     setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } },
   console: console,
 };
-global.window = win; global.document = doc; global.location = win.location;
+// doctor.js is the one view that fetches its own data (/doctor.json) instead of rendering
+// from the passed state; stub fetch so its render()+paint() path is exercisable here.
+win.fetch = function () {
+  return Promise.resolve({ ok: true, json: function () {
+    return Promise.resolve({ total: 5, warn: 1, fail: 0, checks: [
+      { name: "git", status: "ok", detail: "2.40" },
+      { name: "rg", status: "warn", detail: "not found", degrades: "slower Stage 1 scan" },
+    ] });
+  } });
+};
+global.window = win; global.document = doc; global.location = win.location; global.fetch = win.fetch;
 
-// Load the real derive engine, then each view (each registers window.PW_VIEWS.<name>).
+// Load the real derive engine + the vendored coupling renderer (PW_GRAPH, which the graph
+// view drives on a full snapshot), then each view (each registers window.PW_VIEWS.<name>).
 vm.runInThisContext(fs.readFileSync(BASE + "/vendor/derive.js", "utf8"));
-const VIEWS = ["console", "plan", "commands", "insights"];
+vm.runInThisContext(fs.readFileSync(BASE + "/vendor/graph.js", "utf8"));
+const VIEWS = ["console", "plan", "commands", "insights", "timeline", "graph"];
 VIEWS.forEach(function (v) {
   vm.runInThisContext(fs.readFileSync(BASE + "/views/" + v + ".js", "utf8"));
   assert(typeof win.PW_VIEWS[v] === "function", "view " + v + " did not register render()");
@@ -708,11 +723,25 @@ assert(mNoFr && mNoFr.frontier === null, "fixture sanity: a frontier-less graph 
 var nf = new El("section");
 win.PW_VIEWS.console(nf, state, { graphText: graphless, metrics: mNoFr, builtSha: "deadbeef", stale: false, head: "deadbeef" });
 assert(!/never-audited/.test(textOf(nf)), "Console rendered a frontier vital on a pre-frontier (null) graph");
-console.log("VIEWS-FN-OK");
+
+// doctor view: fetch-based (not state-driven), so it sits outside the VIEWS render loop —
+// load its file here (registers PW_VIEWS.doctor) and cover it explicitly: render() must show
+// the sync placeholder immediately, and once the stubbed /doctor.json promise flushes,
+// paint() must render the preflight rows (a renamed doctor.json field would break this).
+vm.runInThisContext(fs.readFileSync(BASE + "/views/doctor.js", "utf8"));
+assert(typeof win.PW_VIEWS.doctor === "function", "view doctor did not register render()");
+var docC = new El("section");
+win.PW_VIEWS.doctor(docC, state, fullCtx);
+assert(textOf(docC).length > 0, "doctor render() produced no DOM synchronously");
+setTimeout(function () {
+  assert(/Environment preflight/.test(textOf(docC)),
+    "doctor paint() did not render the preflight after /doctor.json resolved");
+  console.log("VIEWS-FN-OK");
+}, 0);
 JS
   if node "$TMP/views_fn_test.js" "$ROOT/scripts/dashboard" >"$TMP/views_fn.out" 2>"$TMP/views_fn.err" \
      && grep -q VIEWS-FN-OK "$TMP/views_fn.out"; then
-    ok "dashboard console/plan/commands/insights render() runs on a full and a graph-less snapshot (no throw, non-empty DOM)"
+    ok "dashboard render() runs for all seven views (incl. doctor/graph/timeline) on full + graph-less snapshots (no throw, non-empty DOM)"
   else
     bad "a dashboard view render() failed: $(cat "$TMP/views_fn.err" 2>/dev/null)"
   fi
