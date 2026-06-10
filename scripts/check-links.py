@@ -34,6 +34,14 @@ import sys
 import urllib.parse
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+# Reference-style links: full `[text][label]` and collapsed `[text][]` (group 1 = text,
+# group 2 = label; collapsed uses the text as the label). Only the unambiguous `][` forms
+# are extracted — a shortcut `[label]` is indistinguishable from prose, so it is left
+# alone (never-false-fail). REFDEF_RE matches a link-reference definition `[label]: target`
+# (the rest of the line is the target + optional title; clean_target() trims it). Labels
+# are compared case- and whitespace-folded.
+REFLINK_RE = re.compile(r"\[([^\]]+)\]\[([^\]]*)\]")
+REFDEF_RE = re.compile(r"^\s{0,3}\[([^\]]+)\]:\s+(.+)$")
 HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
 # A setext heading is a line of text followed by a line of only `=` (H1) or `-` (H2),
 # indented 0-3 spaces. We match the underline; the heading text is the preceding line.
@@ -167,7 +175,72 @@ def check_file(root, relpath, anchor_cache):
             anchor_cache[target_rel] = anchors_of(os.path.join(root, target_rel))
         return anchor_cache[target_rel]
 
-    broken, in_fence, code_open = [], False, False
+    broken = []
+
+    # Collect link-reference definitions in a full pre-pass: a definition may follow its
+    # use, and may appear anywhere in the file. Skip fenced code, mirroring the inline
+    # scanner. Labels are folded (case + whitespace); the target is cleaned at check time.
+    defs, dfence = {}, False
+    for raw in lines:
+        s = raw.lstrip()
+        if s.startswith("```") or s.startswith("~~~"):
+            dfence = not dfence
+            continue
+        if dfence:
+            continue
+        dm = REFDEF_RE.match(raw)
+        if dm:
+            defs[re.sub(r"\s+", " ", dm.group(1).strip()).lower()] = dm.group(2).strip()
+
+    def check_target(rawtarget, lineno):
+        """Run one raw link target through the intra-repo existence/containment/anchor
+        checks, appending any failure to `broken`. Shared by inline and reference links."""
+        target = clean_target(rawtarget)
+        if not target or EXTERNAL_RE.match(target):
+            return
+        path, _, anchor = target.partition("#")
+        # Decode the anchor symmetrically with the path below: a percent-encoded anchor
+        # (e.g. #my%20section linking an <a name="my section"> anchor) must match the
+        # decoded name, not the literal '%20', or a valid link false-fails.
+        anchor = urllib.parse.unquote(anchor)
+        # A real file target may carry a `?query` (drop it) and percent-encoding like
+        # `%20` (decode it) before it is matched against disk, or a valid link such as
+        # `docs/core%20concepts.md` / `usage.md?v=1` false-fails as broken.
+        path = urllib.parse.unquote(path.split("?", 1)[0])
+        if path == "":
+            # same-file anchor; a bare `#` (the ubiquitous top-of-page / back-to-top link)
+            # has no anchor to resolve, so only check a non-empty anchor — mirroring the
+            # cross-file branch's `if anchor and ...` guard below. Without this, `[top](#)`
+            # false-fails as broken, breaking the never-false-fail contract on the very
+            # command planwright recommends as a verification.
+            if anchor:
+                slugs = resolve_anchors(relpath)
+                if slugs is not None and not anchor_ok(anchor, slugs):
+                    broken.append((lineno, target, "no heading/anchor on this page"))
+            return
+        # normalize the file target relative to the linking file's directory
+        dest = os.path.normpath(os.path.join(base_dir, path)) if base_dir else os.path.normpath(path)
+        # Containment: a relative target that escapes the repo root (e.g. ../outside.md)
+        # is not an intra-repo link even if such a file exists on disk — flag it rather
+        # than silently resolving against whatever lies outside the tree.
+        full = os.path.realpath(os.path.join(root, dest))
+        rootn = os.path.realpath(root)
+        try:
+            contained = full == rootn or os.path.commonpath([full, rootn]) == rootn
+        except ValueError:
+            contained = False  # different drive / uncomparable -> treat as escaping
+        if not contained:
+            broken.append((lineno, target, "escapes repo root"))
+            return
+        if not os.path.exists(os.path.join(root, dest)):
+            broken.append((lineno, target, "file does not exist"))
+            return
+        if anchor and dest.lower().endswith(".md"):
+            slugs = resolve_anchors(dest)
+            if slugs is not None and not anchor_ok(anchor, slugs):
+                broken.append((lineno, target, "anchor not found in %s" % dest))
+
+    in_fence, code_open = False, False
     for lineno, raw in enumerate(lines, 1):
         s = raw.lstrip()
         if s.startswith("```") or s.startswith("~~~"):
@@ -193,50 +266,15 @@ def check_file(root, relpath, anchor_cache):
             scan = scan[:scan.rfind("`")]
             code_open = True
         for m in LINK_RE.finditer(scan):
-            target = clean_target(m.group(1))
-            if not target or EXTERNAL_RE.match(target):
-                continue
-            path, _, anchor = target.partition("#")
-            # Decode the anchor symmetrically with the path below: a percent-encoded
-            # anchor (e.g. #my%20section linking an <a name="my section"> anchor) must
-            # match the decoded name, not the literal '%20', or a valid link false-fails.
-            anchor = urllib.parse.unquote(anchor)
-            # A real file target may carry a `?query` (drop it) and percent-encoding
-            # like `%20` (decode it) before it is matched against disk, or a valid link
-            # such as `docs/core%20concepts.md` / `usage.md?v=1` false-fails as broken.
-            path = urllib.parse.unquote(path.split("?", 1)[0])
-            if path == "":
-                # same-file anchor; a bare `#` (the ubiquitous top-of-page / back-to-top
-                # link) has no anchor to resolve, so only check a non-empty anchor —
-                # mirroring the cross-file branch's `if anchor and ...` guard below. Without
-                # this, `[top](#)` false-fails as broken, breaking the never-false-fail
-                # contract on the very command planwright recommends as a verification.
-                if anchor:
-                    slugs = resolve_anchors(relpath)
-                    if slugs is not None and not anchor_ok(anchor, slugs):
-                        broken.append((lineno, target, "no heading/anchor on this page"))
-                continue
-            # normalize the file target relative to the linking file's directory
-            dest = os.path.normpath(os.path.join(base_dir, path)) if base_dir else os.path.normpath(path)
-            # Containment: a relative target that escapes the repo root (e.g. ../outside.md)
-            # is not an intra-repo link even if such a file exists on disk — flag it rather
-            # than silently resolving against whatever lies outside the tree.
-            full = os.path.realpath(os.path.join(root, dest))
-            rootn = os.path.realpath(root)
-            try:
-                contained = full == rootn or os.path.commonpath([full, rootn]) == rootn
-            except ValueError:
-                contained = False  # different drive / uncomparable -> treat as escaping
-            if not contained:
-                broken.append((lineno, target, "escapes repo root"))
-                continue
-            if not os.path.exists(os.path.join(root, dest)):
-                broken.append((lineno, target, "file does not exist"))
-                continue
-            if anchor and dest.lower().endswith(".md"):
-                slugs = resolve_anchors(dest)
-                if slugs is not None and not anchor_ok(anchor, slugs):
-                    broken.append((lineno, target, "anchor not found in %s" % dest))
+            check_target(m.group(1), lineno)
+        # Reference-style links: resolve a (defined) label to its definition target and
+        # run it through the same checks. An undefined label is left alone — it may simply
+        # be prose — so only a real, defined reference whose target is broken is flagged.
+        for m in REFLINK_RE.finditer(scan):
+            label = m.group(2) or m.group(1)
+            key = re.sub(r"\s+", " ", label.strip()).lower()
+            if key in defs:
+                check_target(defs[key], lineno)
     return broken
 
 

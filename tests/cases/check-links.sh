@@ -277,3 +277,25 @@ if [ "$tp_rc" = "0" ] \
 else
   bad "check-links.py mis-handled a bare # link (top_rc=$tp_rc bad_rc=$tpb_rc): $tpb_out"
 fi
+
+# --- Test CL14: reference-style links resolve their definition's target ------------
+# `[text][label]` and collapsed `[text][]` resolve their (defined) label to a `[label]:
+# target` definition and check that target. An undefined label (shortcut or prose) is
+# left alone (never-false-fail); a defined reference whose target is a missing intra-repo
+# file is flagged — the silent-404 class this extends the checker to catch.
+RF="$TMP/cl-refstyle"; mkdir -p "$RF"; git -C "$RF" init -q
+printf '# Real\n' > "$RF/real.md"
+# valid full + collapsed references, plus prose and an undefined shortcut (must not flag)
+printf '# Home\n\nSee [the docs][ok] and collapsed [Real][].\nProse [just words], shortcut [undefined] too.\n\n[ok]: real.md\n[real]: real.md\n' > "$RF/index.md"
+git -C "$RF" add -A
+rf_rc=0; rf_out="$(python3 "$CL" --root "$RF" 2>&1)" || rf_rc=$?
+# break a reference: a defined label whose target file is missing
+printf '# Home\n\nStale [concepts][c] link.\n\n[c]: docs/old-gone.md\n' > "$RF/index.md"
+git -C "$RF" add -A
+rfb_rc=0; rfb_out="$(python3 "$CL" --root "$RF" 2>&1)" || rfb_rc=$?
+if [ "$rf_rc" = "0" ] \
+   && [ "$rfb_rc" = "1" ] && printf '%s' "$rfb_out" | grep -q 'docs/old-gone.md'; then
+  ok "check-links.py resolves reference-style links and flags a broken definition target (prose/shortcut left alone)"
+else
+  bad "check-links.py reference-style handling wrong (valid_rc=$rf_rc broken_rc=$rfb_rc): $rf_out | $rfb_out"
+fi
