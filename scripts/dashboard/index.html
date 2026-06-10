@@ -10,9 +10,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
   <meta name="color-scheme" content="dark light">
   <title>planwright dashboard</title>
   <link id="pw-favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Ccircle%20cx='16'%20cy='16'%20r='15'%20fill='%233b82f6'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Inter is vendored offline via @font-face in style.css (scripts/dashboard/vendor/);
+       no external font CDN, so the dashboard makes zero outbound requests. -->
   <link rel="stylesheet" href="/style.css">
 </head>
 <body data-active="console">

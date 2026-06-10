@@ -5,6 +5,17 @@
  * motion flows from --pw-* vars. app.js writes the live tokens (--pw-converge-hue,
  * --pw-workload) from the planning data so the page itself reacts to convergence. */
 
+/* Inter, vendored for offline use (no external font CDN) — SIL Open Font License 1.1,
+ * see vendor/OFL.txt. One variable file covers the 300–700 weight axis the UI uses;
+ * the --pw-font-sans stack still falls back to system-ui if the file is unavailable. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('vendor/inter-variable.woff2') format('woff2');
+}
+
 :root {
   /* surface / ground (dark, default) */
   --pw-bg: #06080d;
