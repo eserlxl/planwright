@@ -149,6 +149,39 @@ def _rejected_items(path):
             for it in _parse(path)]
 
 
+_CARRIED_HEADING = "## Carried dossier candidates"
+
+
+def _carried_count(path):
+    """Count the carried dossier candidates in the planning digest — the findings a
+    prior run verified but cut at capacity (or deferred as unverifiable), which Stage 11
+    records under a '## Carried dossier candidates' heading, one
+    '[<rung> sev<k>, CUT|DEFERRED — …]' line each (hard cap 10). A converged-looking
+    "0 pending" can silently sit on this backlog, so status surfaces the count.
+    Entry lines are recognised by their leading '[' (after an optional '- ' bullet);
+    the UNVERIFIED banner and prose never match. The section ends at the next '## '
+    heading. A missing/undecodable file or absent section degrades to 0 — the same
+    posture as the sibling readers. Routing/status only — never Evidence."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except (OSError, ValueError):
+        return 0
+    count, in_section = 0, False
+    for line in lines:
+        if line.startswith("## "):
+            in_section = line.strip() == _CARRIED_HEADING
+            continue
+        if not in_section or not line.strip():
+            continue
+        entry = line.strip()
+        if entry.startswith("- "):
+            entry = entry[2:].lstrip()
+        if entry.startswith("["):
+            count += 1
+    return count
+
+
 def _head_sha(root):
     """The target's current HEAD sha, or '' when git is unavailable / not a work tree."""
     try:
@@ -203,6 +236,7 @@ def collect(root: str) -> dict:
     # the loose `- [` prefix scan, so counts.rejected can never disagree with the rejected[]
     # array it accompanies on a non-canonical marker line (e.g. `- [-]`).
     rejected = len(rejected_items)
+    carried = _carried_count(os.path.join(pw, "digest.md"))
     head = _head_sha(root)
 
     final = _parse_final(os.path.join(pw, "final.md"))
@@ -283,6 +317,7 @@ def collect(root: str) -> dict:
         "completed_modes": completed_modes,
         "rejected": rejected,
         "rejected_items": rejected_items,
+        "carried": carried,
         "final_point": final_rec,
         "graph": graph_rec,
     }
@@ -305,6 +340,11 @@ def report(state, quiet):
     for item in state["rejected_items"]:
         suffix = " — " + item["reason"] if item["reason"] else ""
         print("    - " + item["title"] + suffix)
+    # Only when non-zero, so the common empty case adds no noise: a backlog of
+    # verified-but-cut findings is exactly what "0 pending" must not hide.
+    if state.get("carried"):
+        print("  carried:   %d (cut/deferred dossier candidates — routing only, see digest.md)"
+              % state["carried"])
 
     fp = state["final_point"]
     if fp is None:

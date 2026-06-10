@@ -525,3 +525,40 @@ if printf '%s' "$fr_rep" | grep -q 'audit frontier: 7 never-audited, 43 stale' \
 else
   bad "status.py audit frontier counts wrong (bad_rc=$fr_bad_rc)"
 fi
+
+# --- Test STS-CARRIED: the carried-candidate backlog count from the planning digest --
+# Stage 11 carries capacity-cut/deferred dossier findings under a "## Carried dossier
+# candidates" heading; a converged-looking "0 pending" must not hide that backlog. The
+# count tallies entry lines (a leading "[", optional "- " bullet) inside the section
+# only — the UNVERIFIED banner, prose, and later sections never count. Absent digest =>
+# carried 0 and NO carried line in the report (the common case stays noise-free).
+CAR="$TMP/status-carried"; mkdir -p "$CAR/.planwright"
+cat > "$CAR/.planwright/digest.md" <<'DIGEST'
+# planwright digest — UNVERIFIED, routing only (never Evidence)
+
+UNVERIFIED — routing only. Cluster summaries:
+
+- 0 core (3): engine scripts, all clean.
+
+## Carried dossier candidates
+
+[coverage sev2, CUT — capacity] scripts/a.py:10 — claim one; fix: add test
+- [repair sev1, DEFERRED — env] scripts/b.py:20 — claim two; fix: guard call
+
+## Some later section
+
+[not an entry — different section]
+DIGEST
+car_json="$(python3 "$STAT" --root "$CAR" --json)"
+car_rep="$(python3 "$STAT" --root "$CAR")"
+NOC="$TMP/status-nocarried"; mkdir -p "$NOC/.planwright"
+noc_json="$(python3 "$STAT" --root "$NOC" --json)"
+noc_rep="$(python3 "$STAT" --root "$NOC")"
+if printf '%s' "$car_json" | grep -q '"carried": 2' \
+   && printf '%s' "$car_rep" | grep -q '^  carried:   2 (cut/deferred dossier candidates' \
+   && printf '%s' "$noc_json" | grep -q '"carried": 0' \
+   && ! printf '%s' "$noc_rep" | grep -q 'carried:'; then
+  ok "status.py counts carried dossier candidates (section-scoped) and stays silent at zero"
+else
+  bad "status.py carried-count wrong (car=[$(printf '%s' "$car_json" | grep -o '"carried": [0-9]*')] rep=[$car_rep])"
+fi
