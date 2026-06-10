@@ -760,6 +760,16 @@ win.PW_VIEWS.console(idleC, Object.assign({}, state, {
 }), fullCtx);
 assert(/IDLE/.test(textOf(idleC)), "Reactor did not read IDLE on a drained plan with no final point");
 
+// Targeted: the structural count vitals derive from the fixture graph — 2 tracked files,
+// 1 articulation point (hot.py), 0 test files — and the cadence legend lists the accepted
+// modes plus the rejected bucket with their counts.
+var fcText = textOf(fc);
+assert(/files\s+2\s+tracked files/.test(fcText), "Console files vital did not show the fixture's 2 tracked files");
+assert(/articulation\s+1\s+cut vertices/.test(fcText), "Console articulation vital did not show the fixture's 1 cut vertex");
+assert(/tests\s+0\s+test files/.test(fcText), "Console tests vital did not show the fixture's 0 test files");
+assert(/develop 1/.test(fcText), "Cadence legend missed the develop accepted count");
+assert(/rejected 1/.test(fcText), "Cadence legend missed the rejected count");
+
 // Targeted: the Decision-timeline cumulative graph (timelineGraph) — header + accepted-rate
 // text, a legend entry per mode present in completed[] with its cumulative count, and the
 // no-accepted empty state (a rejected-only log plots no cumulative line).
