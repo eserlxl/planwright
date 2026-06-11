@@ -93,6 +93,13 @@ stay visible — a scoped run matures just that component without walling off it
 - **Context** — the directly-connected code (one hop away) that analysis still reads, so it
   understands cause and effect even though it won't plan changes there.
 
+A scoped cycle has its own terminal state: it stops at a **scoped final point**, recorded for that
+Focus only. Scoped final points never suppress a differently-scoped or whole-repo run, and they
+never add up to the global final point — however many components have individually converged, only
+a whole-repo round can declare the project done, because cross-component seams and project-wide
+opportunity/vision surveys are visible to no scoped run. This is why the natural composition
+pattern is to mature components with scoped cycles, then close with one whole-repo round.
+
 See [Scope design](scope-design.md) for the full model.
 
 ## The grounding guarantee
