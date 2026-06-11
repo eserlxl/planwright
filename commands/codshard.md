@@ -36,15 +36,18 @@ Resolve them in this order:
    (both `--opt <X>` and `--opt=<X>` spellings).
 
 1. **Peel `shards <a,b,c>`** (one comma-separated token, no spaces) from `<rest>`: an explicit shard
-   list. A bare-integer entry, or one matching an option keyword (`parallel`, `shards`, `help`), is
-   a malformed list — print the `Usage:` line and STOP. An entry containing `/` or naming an
+   list. A bare-integer entry, or one matching an option keyword (`parallel`, `shards`, `help`,
+   `path`, `lib`, `seed`, `explore`, `invent`), is a malformed list — print the `Usage:` line and
+   STOP (catching the `shards path` typo class upfront beats a mid-run scope no-match). An entry containing `/` or naming an
    existing directory is a `path` shard; any other entry is a `lib` shard (planwright resolves the
    logical name). If a scope was also peeled in step 0, it joins the front of this list.
 
 2. **Peel `parallel`** (optionally followed by an integer `J >= 1`, which binds to it) from
-   `<rest>`: enables the Claude-Code-only recon prefetch described below. Without `J`, recon agents
-   for all shards are launched at once and the host caps concurrency. Peel this *before*
-   classifying the remaining integers, so `J` is never mistaken for `M` or `D`.
+   `<rest>`: enables the Claude-Code-only recon prefetch described below. An integer below 1 does
+   **not** bind — it stays in `<rest>` and falls through to step 4, where it is an invalid `M` and
+   prints the `Usage:` line. Without `J`, recon agents for all shards are launched at once and the
+   host caps concurrency. Peel this *before* classifying the remaining integers, so `J` is never
+   mistaken for `M` or `D`.
 
 3. **Escalation flags are not composable here.** If `<rest>` still contains `explore`, `invent`, or
    `seed <S>`, print one line —
@@ -71,11 +74,13 @@ closing round instead of getting its own cycle (report which, in the banner's sh
 `folded: <dirs>`). When no shardable directory exists, K = 0: skip the shard loop and run only the
 closing whole-repo round, saying so in the banner.
 
-**Shard order** (deterministic): when `.planwright/graph.json` exists, order shards by staleness —
+**Shard order** (deterministic): when `.planwright/graph.json` exists and parses, order shards by
+staleness —
 descending count of the shard's never-audited graph nodes (the graph's `frontier.never_audited`
 predicate: non-test nodes with `branch_count > 0` and `last_audited_sha` null, restricted to the
 shard's path prefix), tiebroken lexicographically by shard name — computed with one small read-only
-pass over the file (use the ctx sandbox when available). Without a graph, order is lexicographic.
+pass over the file (use the ctx sandbox when available). Without a graph — or with a graph file
+that exists but cannot be parsed — order is lexicographic, exactly as if no graph were present.
 `lib` entries have no path prefix until planwright resolves them, so they keep their user-given
 order after all `path` shards. The graph steers *order only* — it is routing, never Evidence.
 
