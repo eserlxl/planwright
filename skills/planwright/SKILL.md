@@ -95,6 +95,20 @@ reliability → automation) so each cycle focuses a different region, and the me
 only when a full framing rotation comes up dry. Each phase is an ordinary cycle run of this `SKILL.md`;
 `codcycle` only sequences them.
 
+`codshard` is the other orchestration command. It partitions the repo into component shards
+(top-level directories holding tracked files by default, or an explicit `shards <a,b,c>` list of
+paths/lib names), runs one ordinary **scoped** round of this skill per shard — `cycle <M> depth <D>
+path <shard>`, defaulting to `cycle 3 depth 10`, sequentially, in staleness order (most never-audited
+graph nodes first; lexicographic without a graph) — then closes with a single **unscoped**
+`cycle <M> depth <D>` round for cross-shard seams, root-level files, and global concerns; only that
+closing round may declare the global final point (per-shard scoped final points never aggregate into
+one). The point is depth, not speed: a scoped round concentrates the whole depth budget on one
+component, and each shard's findings drain through execute before the next shard starts. Its opt-in
+`parallel` flag prefetches read-only recon leads via subagents on hosts that have a subagent
+primitive (Claude Code); the leads are routing-only re-verification seeds — never Evidence — the
+rounds themselves stay sequential, and every other host runs identically without recon. Each round
+is an ordinary run of this `SKILL.md`; `codshard` only sequences them.
+
 ## Invocation & help
 
 Before doing anything else, inspect the argument the skill was invoked with:

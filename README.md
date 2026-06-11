@@ -39,8 +39,9 @@ worthwhile work.
 | `/codvisor`    | Fixes real work, stops when clean. | Analyze and repair |
 | `/codinventor` | Discovers and adds grounded new capabilities. | Feature discovery  |
 | `/codcycle`    | Alternates repair and invention rounds.     | Autonomous improvement  |
+| `/codshard`    | Matures the repo shard by shard, then closes whole-repo. | Large codebases |
 
-All three are safe by default: planning never touches your source, and when planwright does start editing
+All four are safe by default: planning never touches your source, and when planwright does start editing
 (building items, committing), your normal edit/commit approval prompts still apply.
 
 It is autonomous in workflow, not unchecked in permissions: your host agent still controls file edits, terminal commands, and commits through its normal approval model.
@@ -49,7 +50,9 @@ It is autonomous in workflow, not unchecked in permissions: your host agent stil
 > `cycle 10 depth 10 invent`. You can pass numbers to tune them (`/codvisor 5 8` = 5 rounds at
 > depth 8) — see [Quick Start](#quick-start). `/codcycle` *orchestrates* many such runs — an explore
 > then a framing-rotated invent per outer cycle, with one closing explore — so reach for it when you want
-> codvisor and codinventor on a loop. The full vocabulary lives in [Concepts](docs/concepts.md).
+> codvisor and codinventor on a loop. `/codshard` is the other orchestrator: one scoped cycle per
+> top-level directory (so each shard gets the full depth budget), then one closing whole-repo round.
+> The full vocabulary lives in [Concepts](docs/concepts.md).
 
 ## How it works: three paths
 
@@ -193,7 +196,7 @@ Then invoke with `/planwright`, `/codvisor`, or `/codinventor`. Upgrade with `/p
 
 Claude Code namespaces every plugin command by the plugin name, so planwright's commands are invoked as `/planwright:codvisor`, `/planwright:codcycle`, and so on. That prefix is mandatory for plugin-provided commands — it prevents collisions between plugins, and a plugin has no way to register an unprefixed top-level command. Only the **user** (`~/.claude/commands/`) and **project** (`.claude/commands/`) scopes can hold unprefixed commands, and a plugin can't write into either.
 
-If you'd rather type the bare `/codvisor`, `/codinventor`, and `/codcycle`, install thin personal aliases that just forward to the real plugin commands:
+If you'd rather type the bare `/codvisor`, `/codinventor`, `/codcycle`, and `/codshard`, install thin personal aliases that just forward to the real plugin commands:
 
 ```bash
 scripts/install-aliases.sh              # → ~/.claude/commands/ (all your projects)
@@ -347,6 +350,12 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codcycle                  # 10 outer cycles, each: cycle 3 depth 10 explore then a framing-rotated invent; then one closing explore
 /codcycle 3                # 3 outer cycles (one integer = outer-cycle count) + a final closing explore
 /codcycle -1               # run the explore→invent rhythm forever (negative = infinite), closing with a final explore
+
+# /codshard — mature the repo shard by shard: one scoped cycle per top-level directory (staleness order), then one closing whole-repo round
+/codshard                  # auto-enumerated shards, cycle 3 depth 10 per shard + the closing whole-repo round
+/codshard 2 8              # cycle 2 depth 8 per shard (cycles, depth)
+/codshard shards src,tests # explicit shard list (paths or lib names)
+/codshard parallel         # Claude Code only: prefetch read-only recon leads per shard (routing-only; rounds stay sequential)
 
 # Maintenance
 /planwright doctor     # preflight: check git/rg/python3 + bundled-script resolution

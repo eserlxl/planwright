@@ -172,7 +172,7 @@ then ok "commands/codcycle.md peels a path/lib scope and trails it after seed <i
 # Test 13c checks only the bare `path <X>`/`lib <X>` tokens, never the `--`-aliases, so deleting the
 # alias sentence from any one file leaves the suite green. Guard the leniency contract in every file.
 al_cmd_ok=1
-for cmd in codvisor codinventor codcycle; do
+for cmd in codvisor codinventor codcycle codshard; do
   cf="$ROOT/commands/$cmd.md"
   python3 - "$cf" <<'PY' 2>/dev/null || al_cmd_ok=0
 import sys
@@ -188,7 +188,7 @@ if "--opt <X>" not in t or "--opt=<X>" not in t: need.append("opt-spellings")
 sys.exit(1 if need else 0)
 PY
 done
-if [ "$al_cmd_ok" = 1 ]; then ok "codvisor/codinventor/codcycle document the --path/--lib/--scope alias normalization"; else bad "a scope-aware command file lost its --path/--lib/--scope alias-normalization contract"; fi
+if [ "$al_cmd_ok" = 1 ]; then ok "codvisor/codinventor/codcycle/codshard document the --path/--lib/--scope alias normalization"; else bad "a scope-aware command file lost its --path/--lib/--scope alias-normalization contract"; fi
 
 # The canonical statement of the same rule lives in SKILL.md (uses ≡); guard it too. Anchor on the
 # "Flag aliases." paragraph itself (not the whole file) — `--scope` also appears far away in the
@@ -210,6 +210,145 @@ if "--opt <X>" not in para or "--opt=<X>" not in para: need.append("opt-spelling
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md states the canonical --path/--lib/--scope alias-normalization rule"; else bad "SKILL.md lost its canonical --path/--lib/--scope alias-normalization rule"; fi
+
+# --- Test 16: commands/codshard.md is a well-formed sharded-sweep orchestration command ---
+# /codshard partitions whole-repo maturity work into per-shard scoped cycles plus one closing
+# whole-repo round; guard the planwright delegation, the per-shard invocation form, the
+# sequential-rounds rule, the unscoped closing round (the only round that may declare the global
+# final point), the deterministic staleness/lexicographic shard order, the auto-enumeration rule,
+# the no-arg defaults, the Usage/STOP contract, and the explore/invent exclusion.
+CMD="$ROOT/commands/codshard.md"
+if [ -f "$CMD" ]; then ok "commands/codshard.md exists"; else bad "commands/codshard.md missing"; fi
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+assert m, "no YAML frontmatter"
+fm = m.group(1)
+assert re.search(r"(?m)^description:\s*\S", fm), "missing description"
+assert re.search(r"(?m)^argument-hint:\s*\S", fm), "missing argument-hint"
+# normalize whitespace so a legitimate paragraph rewrap can neither break nor save an assertion
+body = " ".join(t[m.end():].split())
+# the command must delegate to the planwright skill, not reimplement it (polarity pinned —
+# a "feel free to re-implement" rewrite must fail, not pass)
+assert "planwright:planwright" in body, "body does not invoke the planwright skill"
+assert "not** re-implement" in body, "do-not-reimplement rule missing or inverted"
+# the per-shard invocation, anchored to the invocation site (the Usage line and banner echo the
+# same token, so a site-only reorder would otherwise stay green), plus the codcycle-style
+# negative guard: `cycle` must stay the first token, the shard scope must trail
+assert "Invoke planwright with `cycle <M> depth <D> path <shard>`" in body, "per-shard invocation site missing or reworded"
+assert "path <shard> cycle" not in body, "shard scope ahead of cycle in an invocation"
+# the closing round is unscoped and comes AFTER the shard loop (header order, Test 15 style)
+assert "cycle <M> depth <D>` (unscoped)" in body, "closing round is not the unscoped invocation"
+si = body.index("=== codshard shard i/K")
+ci = body.index("=== codshard closing whole-repo round ===")
+assert si < ci, "closing round does not follow the shard loop"
+assert "global final point" in body, "global-final-point ownership not stated"
+assert "scoped final point" in body, "per-shard scoped final point not stated"
+# rounds are sequential — anchored to the shard loop so the clause can't be reattached to recon
+assert "shard loop** — always sequential" in body, "sequential-rounds rule missing or reattached"
+assert "never the rounds" in body, "recon-parallelises-reading-only clause missing"
+# stop conditions: a hard blocker / broken tree halts the loop AND withholds the closing round
+# (the Usage-line STOP must not alias these — they are asserted by their own vocabulary)
+assert "hard blocker" in body, "hard-blocker stop rule missing"
+assert "broken tree" in body, "broken-tree stop rule missing"
+assert "or the closing round" in body, "closing round not withheld on a broken tree"
+# deterministic shard order: staleness primary and descending, lexicographic fallback/tiebreak,
+# graph routing-only
+assert "order shards by staleness" in body, "staleness ordering missing or demoted"
+assert "descending count" in body, "staleness direction inverted or unpinned"
+assert "never-audited" in body, "never-audited predicate missing"
+assert "lexicographic" in body, "lexicographic fallback/tiebreak missing"
+# auto-enumeration and its edge rules (behavioral contract, not flavor)
+assert "top-level directories" in body, "top-level directory enumeration missing"
+assert "ls-files" in body, "git-tracked enumeration source missing"
+assert "fewer than 3 tracked files" in body, "small-directory fold rule missing"
+assert "folded" in body, "fold reporting missing"
+assert "K = 0" in body, "flat-repo (K = 0) rule missing"
+# the operative defaults in the classification step (the Usage echo alone must not satisfy this)
+assert "`M = 3`" in body, "operative default M missing from the classification step"
+assert "depth defaults to 10" in body, "operative default depth missing"
+assert "cycle 3 depth 10" in body, "no-arg default (cycle 3 depth 10 per shard) not stated"
+# help and malformed args print Usage and stop
+assert "Usage:" in body, "no Usage line"
+assert "STOP" in body, "no STOP rule for help/malformed args"
+# explicit shard list option
+assert "shards <a,b,c>" in body, "explicit shards <a,b,c> list option missing"
+# escalation flags are excluded with the printed note (pinned verbatim — not silently swallowed)
+assert "codshard: explore/invent are not composable" in body, "escalation-exclusion note missing"
+# the cost banner (both variants) and the cumulative summary are load-bearing output
+assert "codshard: sharded maturity sweep" in body, "cost banner missing"
+assert "no shardable top-level directory" in body, "K = 0 banner variant missing"
+assert "cumulative summary" in body, "final cumulative summary missing"
+assert "stop reason" in body, "stop-reason reporting missing"
+PY
+then ok "commands/codshard.md orchestrates per-shard scoped cycles with an unscoped closing round (sequential, ordered, stop-guarded, delegation intact)"; else bad "commands/codshard.md malformed or lost its shard-loop/closing-round/ordering/stop-rule/delegation contract"; fi
+
+# --- Test 16b: codshard's parallel recon contract (Claude-Code-only, routing-only, read-only) ---
+# The opt-in `parallel` flag may spawn subagents ONLY for read-only recon whose leads are
+# re-verification seeds — never Evidence — with a stated serial fallback on hosts without a
+# subagent primitive, and no state files of its own. Guard every clause: dropping any one of
+# them silently converts recon from a routing prefetch into a second source of truth (or breaks
+# the non-Claude hosts the skill promises to support).
+CMD="$ROOT/commands/codshard.md"
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import sys
+# normalize whitespace so a legitimate rewrap can neither break nor save an assertion
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+need = []
+# the flag and its J binding rule (J must not be mistaken for M or D)
+if "parallel [J]" not in t: need.append("parallel-flag")
+if "binds to it" not in t: need.append("J-binding-rule")
+# anchor every recon clause INSIDE the recon paragraph — 'never Evidence' and 'routing-only'
+# also appear in the graph-ordering paragraph, so a file-wide match would let the recon
+# clauses be inverted (leads promoted to Evidence) while the suite stays green
+a = t.find("**Parallel recon")
+b = t.find("Then run the **shard loop")
+if a < 0 or b < 0 or b <= a:
+    need.append("recon-paragraph-bounds")
+    para = ""
+else:
+    para = t[a:b]
+for tok, tag in (
+    ("read-only", "read-only"),
+    ("MUST state verbatim", "prompt-must-state"),
+    ("no file edits, no writes, no state, no mutating commands", "no-mutation-clause"),
+    ("at most 8 candidate leads", "lead-cap"),
+    ("routing-only", "routing-only"),
+    ("re-verification seeds", "reverification-seeds"),
+    ("never Evidence", "never-evidence"),
+    ("re-proven", "re-proven"),
+    ("writes no files of its own", "no-state-files"),
+    ("single-agent", "single-agent-charter"),
+    ("nothing is appended to the planwright argument string", "no-arg-injection"),
+    ("lib` shards get no recon", "lib-recon-skip"),
+    ("parallel recon unavailable on this host", "fallback-note"),
+    ("continuing sequential without recon", "fallback-continues"),
+):
+    if tok not in para: need.append(tag)
+sys.exit(1 if need else 0)
+PY
+then ok "commands/codshard.md keeps parallel recon read-only, routing-only, stateless, and host-degradable (clauses anchored in the recon paragraph)"; else bad "commands/codshard.md lost a parallel-recon guard (read-only/routing-only/never-Evidence/fallback/stateless)"; fi
+
+# --- Test 16c: codshard peels a path/lib scope into a single-entry shard list ---
+# Tests 13c/15b guard the scope-peel for the other commands, where the scope is appended after
+# the subcommand; codshard's contract differs — a peeled scope BECOMES the shard list — so guard
+# its own form: the peel step exists, the scope-to-shard-list rule is stated, and `cycle` stays
+# the first token of every planwright invocation.
+CMD="$ROOT/commands/codshard.md"
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import sys
+# normalize whitespace so a legitimate rewrap can neither break nor save an assertion
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+need = []
+if "Peel the scope first" not in t: need.append("peel-step")
+if "path <X>" not in t or "lib <X>" not in t: need.append("path/lib-doc")
+if "<rest>" not in t: need.append("rest-var")
+if "single-entry shard list" not in t: need.append("scope-becomes-shard-list")
+if "first token" not in t: need.append("first-token-order")
+sys.exit(1 if need else 0)
+PY
+then ok "commands/codshard.md peels a path/lib scope into a single-entry shard list (cycle stays first token)"; else bad "commands/codshard.md scope-peel missing or its scope-to-shard-list rule was dropped"; fi
 
 # --- commands/dashboard.md launches the bundled read-only dashboard server ---
 # /dashboard wraps `dashboard.py --open`; guard that it resolves the bundled <scripts>

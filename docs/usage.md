@@ -159,6 +159,28 @@ harden the net-new code — the invent tier's final burst never gets a later pla
 repair/coverage audit, and `codvisor` provides it. It is a **suggestion only**: planwright never auto-runs it, so you keep the beat to
 inspect or revert flagged invent-tier items before hardening them.
 
+`/codshard` is the other orchestration command: it partitions the repo into component shards —
+top-level directories holding tracked files by default, or an explicit `shards <a,b,c>` list of
+paths/lib names — and runs one ordinary **scoped** planwright round per shard
+(`cycle <M> depth <D> path <shard>`, defaults `cycle 3 depth 10`), sequentially, ordered by the
+graph's staleness frontier (most never-audited nodes first; lexicographic without a graph). The point
+is depth, not speed: a scoped run concentrates the whole depth budget on one component (Stage 2b
+reads its top function bodies *per shard* instead of *per repo*), and each shard's findings drain
+through execute before the next shard starts. A single closing **whole-repo** round
+(`cycle <M> depth <D>`, unscoped) then covers what no shard can see — cross-shard seams, root-level
+files, global concerns — and is the only round that may declare the global final point.
+`explore`/`invent` do not compose with sharding (ignored with a note). On Claude Code an opt-in
+`parallel [J]` flag prefetches read-only recon leads per shard via subagents before the loop; the
+leads are routing-only re-verification seeds (never Evidence), the rounds themselves stay
+sequential, and every other host simply runs without recon.
+
+```bash
+/codshard                  Auto-enumerated shards, cycle 3 depth 10 per shard + one closing whole-repo round
+/codshard 2 8              cycle 2 depth 8 per shard (cycles, depth)
+/codshard shards src,tests Explicit shard list (paths or lib names)
+/codshard parallel         Claude Code only: read-only recon prefetch per shard (routing-only; rounds stay sequential)
+```
+
 ## Maintenance
 
 ```bash
@@ -271,7 +293,9 @@ light/dark themes, full keyboard navigation, and seven views:
   frontier, tracked files, articulation points, test files, import cycles), a decision-cadence
   ribbon with a per-mode legend, a live session trend, and a dirty-files pulse.
 - **Commands** — the recommended next sweep for the current state (codvisor / codinventor / codcycle),
-  with a supplementary cold-start `/planwright reset` nudge once the tree has converged.
+  plus a codshard card for large repos (shown for copy, never auto-recommended — sharding is a size
+  call, not a state call), with a supplementary cold-start `/planwright reset` nudge once the tree
+  has converged.
 - **Plan** — pending / completed / rejected items (pending shown with all eight fields, filterable by Mode).
 - **Timeline** — a cumulative **Decision timeline** graph (accepted decisions by mode over the run,
   with the shared mode legend) above the accepted/killed item lists, from the completed/rejected logs.

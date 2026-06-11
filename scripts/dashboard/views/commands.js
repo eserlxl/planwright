@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Eser KUBALI
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Commands view — a coach for planwright's three sweeps. It reads the live planning state
+// Commands view — a coach for planwright's sweeps. It reads the live planning state
 // and recommends which command fits the project *right now*, with the actual numbers behind
 // the suggestion:
 //   • codvisor   (explore / harden) — when there is structural debt or queued work to fix.
 //   • codinventor (invent / grow)   — when the tree is clean and nothing is queued (dry/stuck).
 //   • codcycle   (explore→invent)   — the steady harden-then-grow rhythm for a healthy mix.
+//   • codshard   (shard-by-shard)   — card only, never coach-recommended: sharding is a repo-size
+//     call, not a planning-state call, so the heuristic has no signal for it.
 // Read-only: it *shows* the command to run (copyable) — it never runs anything. Derived
 // purely from /state.json + the graph metrics; the logs record no per-command attribution,
 // so "recent contributions" is honestly the run's completed-item track record, unattributed.
@@ -16,7 +18,7 @@
 
   window.PW_VIEWS = window.PW_VIEWS || {};
 
-  var ORDER = ["codvisor", "codinventor", "codcycle"];
+  var ORDER = ["codvisor", "codinventor", "codcycle", "codshard"];
   var COMMANDS = {
     codvisor: {
       name: "codvisor", tag: "explore · harden", cmd: "/planwright:codvisor",
@@ -36,6 +38,13 @@
       what: "Alternates explore→invent across 10 outer cycles — harden, then grow, repeated — " +
             "with a closing explore to settle whatever the last invent landed.",
       when: "For continuous progress: a healthy mix of work to harden and room to grow.",
+    },
+    codshard: {
+      name: "codshard", tag: "shard-by-shard sweep", cmd: "/planwright:codshard",
+      what: "Matures the repo shard by shard — one scoped cycle per top-level directory in " +
+            "staleness order (cycle 3 depth 10 each), then one closing whole-repo round.",
+      when: "For large codebases: every shard gets the full depth budget instead of sharing one " +
+            "whole-repo pass. (Never coach-recommended — size is your call, not the state's.)",
     },
   };
 
