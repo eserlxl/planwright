@@ -259,6 +259,15 @@ assert "order shards by staleness" in body, "staleness ordering missing or demot
 assert "descending count" in body, "staleness direction inverted or unpinned"
 assert "never-audited" in body, "never-audited predicate missing"
 assert "lexicographic" in body, "lexicographic fallback/tiebreak missing"
+# the three edge-contract clauses are executor behavior — deleting any must fail, not pass:
+# a present-but-unparseable graph falls back to lexicographic (not executor improvisation)
+assert "exists and parses" in body, "staleness precondition lost its parse requirement"
+assert "cannot be parsed" in body, "malformed-graph lexicographic fallback missing"
+# scope/escalation keywords as shards entries are a malformed list caught upfront
+assert "`path`, `lib`, `seed`, `explore`, `invent`" in body, "extended keyword-entry guard missing"
+# a sub-1 integer after parallel never binds to J — it falls through to the invalid-M Usage stop
+assert "does **not** bind" in body, "sub-1 parallel-J no-bind rule missing"
+assert "falls through to step 4" in body, "sub-1 parallel-J fall-through destination missing"
 # auto-enumeration and its edge rules (behavioral contract, not flavor)
 assert "top-level directories" in body, "top-level directory enumeration missing"
 assert "ls-files" in body, "git-tracked enumeration source missing"
