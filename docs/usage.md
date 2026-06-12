@@ -242,11 +242,16 @@ code, for a pristine-environment CI gate.
 
 `status` is read-only: it summarizes the current planning state from `.planwright/` — pending /
 completed / rejected item counts (with the pending items' titles listed under the count, also exposed
-as a `pending_titles` array in `--json`), the recorded final point (its sha, date, `deepest_tier`,
-whether it is **stale** relative to `HEAD`, and its recorded component **scope**, flagged
-`scoped to <X>` in the report), and the graph memory (node and dirty-node counts) — so a
+as a `pending_titles` array in `--json`), the carried-candidate backlog when one exists (the
+verified-but-cut dossier findings a bare "0 pending" would hide — shown only when non-zero, pointing
+at `digest.md`), the run-activity beacon when a command flow has stamped one (live: `<command> —
+<detail>`; **STALE** when it outlived `PW_ACTIVITY_TTL` without a re-stamp, with the
+`state.py activity stop` cleanup hint; silent when absent), the recorded final point (its sha, date,
+`deepest_tier`, whether it is **stale** relative to `HEAD`, and its recorded component **scope**,
+flagged `scoped to <X>` in the report), and the graph memory (node and dirty-node counts) — so a
 maintainer can see where a project stands without running a plan or cycle. `--json` emits the same
-state as a machine-readable object (including a canonical `converged` boolean). By default the exit
+state as a machine-readable object (including a canonical `converged` boolean, the `carried` count,
+and the `activity` block or `null`). By default the exit
 code is always 0 (an empty state is valid, not an error); the opt-in `--exit-code` flag is the one
 exception — it exits 0 only at a *current, valid, whole-repo* final point with nothing pending, else 1
 (composing with `--json`/`--quiet`), so a wrapper or CI gate can check convergence machine-readably.
