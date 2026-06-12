@@ -120,12 +120,15 @@ new warning — fails this gate.
 
 Two thin shortcuts forward to the planwright skill; any planwright arguments pass through verbatim.
 Use slash spelling on Claude Code and the bare names (`codvisor`, `codinventor`) or host dispatcher
-skills/instructions elsewhere.
+skills/instructions elsewhere. All four scope-aware helpers (`codvisor`, `codinventor`, `codcycle`,
+`codshard`) also peel a `path <X>` / `lib <X>` pair from anywhere in their arguments, so a scoped run
+is one flag away (see Component Scope above for what a scope does).
 
 ```bash
 /codvisor                  Flagship advisor run: cycle 10 depth 10 explore (prints a cost banner first)
 /codvisor 15               cycle 15 depth 10 explore (one number = cycles; depth defaults to 10)
 /codvisor 5 8              cycle 5 depth 8 explore (cycles, depth)
+/codvisor 15 path src/     cycle 15 depth 10 explore path src/ (a peeled scope is re-appended after the subcommand)
 /codinventor               Flagship inventor run: cycle 10 depth 10 invent (reaches the net-new invent tier)
 /codinventor 15            cycle 15 depth 10 invent
 /codinventor 5 8           cycle 5 depth 8 invent (cycles, depth)
@@ -140,7 +143,9 @@ fixed catalog `power-user → integration → onboarding → reliability → aut
 count is *not* the lever — invent is seam-bound, so more cycles only re-survey the same seams; rotating
 the framing instead forces each outer cycle to focus a genuinely different vantage (a seeded invent
 phase does not self-rotate) rather than re-derive the same comprehensive ranking. With no argument it
-runs 10 outer cycles; one integer sets the outer-cycle count, and a negative count runs forever. It
+runs 10 outer cycles; one integer sets the outer-cycle count, and a negative count runs forever. A
+peeled `path <X>` / `lib <X>` scope rides every phase (each explore and invent round runs `… path <X>`),
+so the whole rhythm matures one component. It
 stops early on a hard blocker, a failing broad verify, or — the breadth-earned convergence point — a
 **full framing rotation** (five consecutive outer cycles) that produces no new committed work (a stable
 meta-final-point), and runs the final explore afterward unless it stopped on a broken tree. Because
@@ -161,7 +166,8 @@ inspect or revert flagged invent-tier items before hardening them.
 
 `/codshard` is the other orchestration command: it partitions the repo into component shards —
 top-level directories holding tracked files by default, or an explicit `shards <a,b,c>` list of
-paths/lib names — and runs one ordinary **scoped** planwright round per shard
+paths/lib names (a peeled `path <X>` / `lib <X>` becomes a single-entry shard list, equivalent to
+`shards <X>`) — and runs one ordinary **scoped** planwright round per shard
 (`cycle <M> depth <D> path <shard>`, defaults `cycle 3 depth 10`), sequentially, ordered by the
 graph's staleness frontier (most never-audited nodes first; lexicographic without a graph). The point
 is depth, not speed: a scoped run concentrates the whole depth budget on one component (Stage 2b
