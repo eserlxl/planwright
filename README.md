@@ -3,10 +3,10 @@
 **A free, local control loop for AI coding agents: grounded planning, verification, execution, and repeatable codebase improvement.**
 
 > Use `/codvisor` to repair and harden a repo, `/codinventor` to add grounded new capability,
-> `/codcycle` to alternate both — or `/codmaster`, the front door that senses what the repo needs
-> and drives it, command by command, to a recorded final point. Planwright works through the AI
-> coding agent you already use: Claude Code, Codex, Cursor, Antigravity, Gemini, or any
-> AGENTS.md-aware agent.
+> `/codcycle` to alternate both, `/codshard` to mature a large repo shard by shard — or
+> `/codmaster`, the front door that senses what the repo needs and drives it, command by command,
+> to a recorded final point. Planwright works through the AI coding agent you already use:
+> Claude Code, Codex, Cursor, Antigravity, Gemini, or any AGENTS.md-aware agent.
 
 ![planwright's read-only dashboard — the Console view: a convergence reactor (56/66, 85%), accepted/pending/rejected tallies, coverage/hotspot/cycle/coupling vitals, a decision-cadence strip, and a live dirty-pulse of changed files](docs/images/dashboard-console.png)
 
