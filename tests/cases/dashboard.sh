@@ -866,10 +866,24 @@ assert(!/lexicographic order/.test(shChips), "Shards basis chip wrongly read lex
 assert(/misc/.test(shText), "Shards view omitted the folded-dirs note");
 assert(/Closing whole-repo round/.test(shText), "Shards view omitted the closing whole-repo round card");
 assert(/large repo/.test(shText), "Shards view omitted the large-repo chip on repo.large=true");
+// Every shard card carries its copyable single-shard invocation (codshard's explicit
+// `shards <X>` form), and the closing card keeps the bare whole-repo one. Anchored on
+// the pw-cmd-code elements, not the view text — the header prose also says
+// "/planwright:codshard", so a textOf count would be vacuous.
+var shInv = findByClass(shC, "pw-cmd-code").map(textOf);
+assert(shInv.indexOf("/planwright:codshard shards docs") >= 0
+    && shInv.indexOf("/planwright:codshard shards scripts") >= 0,
+  "shard cards lack their copyable single-shard codshard invocation");
+assert(shInv.indexOf("/planwright:codshard") >= 0,
+  "the closing card lost its bare whole-repo invocation");
+assert.strictEqual(shInv.length, 3,
+  "Shards view invocation count drifted (want per-shard scoped x2 + closing whole-repo x1)");
 var shBare = new El("section");
 win.PW_VIEWS.shards(shBare, shState, bareCtx);
 var shBareChips = findByClass(shBare, "pw-coach-pulse-chip").map(textOf).join(" | ");
 assert(/lexicographic order/.test(shBareChips), "Shards basis chip did not fall back to lexicographic without a graph");
+assert(findByClass(shBare, "pw-cmd-code").map(textOf).indexOf("/planwright:codshard shards docs") >= 0,
+  "graph-less shard cards lost the single-shard invocation");
 var shNo = new El("section");
 win.PW_VIEWS.shards(shNo, state, fullCtx);
 assert(/No shard enumeration/.test(textOf(shNo)), "Shards view did not degrade to the no-repo empty state");

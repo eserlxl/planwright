@@ -63,6 +63,7 @@
 
     if (!hasMetrics) {
       card.appendChild(elt("p", "pw-shard-meta", "no graph — staleness unknown"));
+      card.appendChild(invoke("/planwright:codshard shards " + s.name));
       return card;
     }
 
@@ -95,6 +96,10 @@
     card.appendChild(elt("p", "pw-shard-heat-label",
       debt ? debt + "/" + s.codeNodes + " code nodes on the audit frontier"
            : "frontier clear"));
+
+    // The single-shard sweep this card describes — codshard's explicit `shards <X>`
+    // form, the same copy-only affordance as the closing card's whole-repo invocation.
+    card.appendChild(invoke("/planwright:codshard shards " + s.name));
 
     return card;
   }
