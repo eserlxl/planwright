@@ -31,13 +31,13 @@ The difference is control. Planwright is local, free, agent-neutral, and file-ba
 
 ## Start here
 
-Don't know what to run? **`/codmaster`** — the front door. It senses your repo's planning state
-with the same coach the dashboard renders, then runs the required commands consecutively — sense,
-dispatch, re-sense — until your repo reaches a recorded final point, all at maximum depth (growth
-is taken at most once per lap; a 12-step-per-lap safety cap bounds it). Add `advise` to only be
-told what it would run next (with the evidence), `safe` to keep invention capability off, or
-`loop` for the infinite drive — each converged terminal triggers the cold-start reset itself
-(keeps `rejected.md`) and begins a new lap, until you interrupt it.
+Don't know what to run? **`/codmaster`** — the front door. It looks at your repo, picks the most
+useful next command, runs it, looks again, and repeats until nothing worth doing is left (the
+recorded *final point*). It finishes pending work first, fixes before it grows, explains every
+choice with the numbers behind it, and stops itself at hard blockers. Three words tune it:
+`advise` (just tell me what you'd run — run nothing), `safe` (never invent), and `loop` (never
+stop — start a fresh audit from scratch each time the repo converges). The plain-language tour
+lives in [Concepts → codmaster](docs/concepts.md#codmaster--the-front-door).
 
 The **direct dials**, when you want to choose yourself — run them with no arguments and planwright
 does the rest: it prints the estimated AI/session cost first, then works autonomously through

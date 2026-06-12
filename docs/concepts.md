@@ -1,7 +1,7 @@
 # Concepts
 
 This page explains *how planwright thinks* — the ideas behind the `cycle`, `explore`,
-`invent`, `seed`, and `path`/`lib` controls. The [README](../README.md) gives the short
+`invent`, `seed`, and `path`/`lib` controls, and the `codmaster` front door that drives them. The [README](../README.md) gives the short
 version; this is the full reference in plain language. For the exact CLI grammar, see
 [Usage](usage.md); for the design rationale behind each mechanism, see
 [Escalation design](escalation-design.md), [Invent exploration](invent-exploration-design.md),
@@ -18,6 +18,38 @@ Planwright operates using three distinct, partitioned paths:
 - **Execute** — implements the pending plan items, verifies each, commits the ones that pass, and
   records the rest. This is the only path that edits source.
 - **Cycle** — runs N plan→execute rounds unattended. See below.
+
+## codmaster — the front door
+
+If the controls on this page feel like a lot, you don't have to choose: **`codmaster`** picks for
+you. It reads the current planning state (the same signals the dashboard's coach shows), figures
+out the one most useful next command, runs it, looks again, and repeats — until the project
+reaches a **final point** (planwright's recorded "nothing worth doing is left" marker).
+
+In plain terms, one run behaves like a careful maintainer:
+
+- **Unfinished work first** — pending plan items get implemented before anything new is planned.
+- **Fix before growing** — structural debt (untested hotspots, import cycles, fragile chokepoints)
+  or an out-of-date "all done" marker triggers the deep repair sweep (`codvisor`; on a large repo,
+  the shard-by-shard `codshard`).
+- **Grow once it's clean** — a healthy, converged tree gets one `codinventor` burst of genuinely
+  new, grounded capability; codmaster then hardens that new work and stops.
+- **It always explains itself** — every step prints what it chose, why, and the numbers behind the
+  decision, and blockers (a dirty git tree, a broken environment) stop it before anything runs.
+
+Three words tune it:
+
+- `codmaster advise` — only *tell me* what you would run, and why; run nothing.
+- `codmaster safe` — the same drive, but never invent: it stops once the repo is clean and prints
+  the growth command for you to run yourself.
+- `codmaster loop` — never stop: each time the repo converges, it resets planwright's memory
+  (keeping the record of rejected ideas, so bad ideas stay buried) and starts a fresh lap, until
+  you interrupt it.
+
+codmaster adds no behavior of its own — everything it runs is an ordinary planwright command at
+full depth; it only chooses and sequences. And the choosing is mechanical, not vibes: a tested
+decision table (the same one the dashboard's Commands view renders) maps the repo's state to the
+next command.
 
 ## Cycle and the maturity ladder
 
