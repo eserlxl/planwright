@@ -278,6 +278,16 @@ if grep -q 'COACH\.reset(' "$ROOT/scripts/dashboard/views/commands.js"; then
 else
   bad "Commands view dropped the coach reset suggestion wiring (COACH.reset)"
 fi
+# The codmaster front-door card: present in the catalog (ORDER + COMMANDS entry) but never
+# coach-recommended — it dispatches the coach's own picks, so the table recommending it
+# would be circular. Same grep-able-guard posture as the COACH.reset pin above.
+if grep -q '"codmaster", "codvisor"' "$ROOT/scripts/dashboard/views/commands.js" \
+   && grep -q 'cmd: "/planwright:codmaster"' "$ROOT/scripts/dashboard/views/commands.js" \
+   && grep -q 'Never coach-recommended — it dispatches the' "$ROOT/scripts/dashboard/views/commands.js"; then
+  ok "Commands view carries the codmaster front-door card (first in ORDER, never coach-recommended)"
+else
+  bad "Commands view lost the codmaster front-door card or its never-coach-recommended note"
+fi
 if grep -q VIEW-insights-OK "$TMP/dash.out"; then
   ok "dashboard serves the Insights view (views/insights.js registers PW_VIEWS.insights)"
 else

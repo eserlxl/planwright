@@ -29,8 +29,9 @@ Stdlib only (no Flask/websocket libs, no build step). It exposes:
    verdict, the expanded health vitals row — coverage, hotspots, coupling, audit frontier, files,
    articulation, tests, cycles — cadence with a mode legend, session trend, dirty pulse),
    **Commands** (the recommended next sweep for the current state —
-   codvisor / codinventor / codcycle — plus a copy-only codshard card that is never
-   auto-recommended, with a cold-start reset nudge once converged), **Plan**,
+   codvisor / codinventor / codcycle — plus copy-only codmaster and codshard cards that are
+   never auto-recommended: the front door dispatches this coach's own picks, and sharding is
+   a repo-size call — with a cold-start reset nudge once converged), **Plan**,
    **Timeline** (a cumulative Decision timeline graph by mode above the accepted/killed lists),
    **Graph** (3D coupling globe), **Insights** (risk ledger, hotspot constellation,
    coverage, priorities, the explore escalation's cold-frontier sweep order, import cycles), and

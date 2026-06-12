@@ -4,6 +4,8 @@
 // Commands view — a coach for planwright's sweeps. It reads the live planning state
 // and recommends which command fits the project *right now*, with the actual numbers behind
 // the suggestion:
+//   • codmaster  (front door)       — card only, never coach-recommended: it dispatches the
+//     coach's own picks consecutively, so recommending it from this table would be circular.
 //   • codvisor   (explore / harden) — when there is structural debt or queued work to fix.
 //   • codinventor (invent / grow)   — when the tree is clean and nothing is queued (dry/stuck).
 //   • codcycle   (explore→invent)   — the steady harden-then-grow rhythm for a healthy mix.
@@ -18,8 +20,16 @@
 
   window.PW_VIEWS = window.PW_VIEWS || {};
 
-  var ORDER = ["codvisor", "codinventor", "codcycle", "codshard"];
+  var ORDER = ["codmaster", "codvisor", "codinventor", "codcycle", "codshard"];
   var COMMANDS = {
+    codmaster: {
+      name: "codmaster", tag: "front door · auto-drive", cmd: "/planwright:codmaster",
+      what: "Senses the planning state with this same coach and runs the required commands " +
+            "consecutively to the final point, at depth 10 (advise = tell only; safe = no " +
+            "invention; loop = infinite).",
+      when: "Not sure which to run? Start here. (Never coach-recommended — it dispatches the " +
+            "coach's own picks, so this table recommending it would be circular.)",
+    },
     codvisor: {
       name: "codvisor", tag: "explore · harden", cmd: "/planwright:codvisor",
       what: "Scans and audits the repo, then completes latent capability — the advisor sweep " +
