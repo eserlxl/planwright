@@ -1,6 +1,6 @@
 ---
-description: The front door. Senses the repo's planning state with the read-only coach engine (status.py --recommend — the same truth table the dashboard's Commands view renders), then dispatches exactly ONE recommended command at maximum depth (10) and reports — re-deciding from fresh state on every invocation instead of precomputing a chain. By default codmaster has full autonomy, growing included — when the tree is converged it dispatches codinventor (the banner discloses invent's rare, dwell-gated committed MISSION.md edits), and at the invent-dry point (deepest_tier invent — nothing groundable left to invent) it decides the cold-start reset itself, but only when really necessary — the point must be unseeded and the cold frontier shown drained; otherwise it re-surveys or hardens instead — and follows with a fresh harden sweep. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability (invent-class work is printed to paste, never dispatched).
-argument-hint: "advise | safe | (empty = sense, decide, dispatch the one right command)"
+description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is default-on and taken at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); the loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste.
+argument-hint: "advise | safe | (empty = sense → dispatch → re-sense, consecutively until the final point)"
 ---
 
 You are dispatching on behalf of the `/codmaster` helper command. Like `/codcycle` and
@@ -9,21 +9,21 @@ logic and no planning logic**. The decision table lives in the tested engine
 `status.py --recommend` (the same coach truth table the dashboard renders, cross-pinned via
 `tests/fixtures/coach-table.json`), and all planning/execute/cycle behaviour belongs to planwright.
 Do **not** re-implement either: never re-derive the recommendation in prose, and never improvise
-when the engine is unavailable. codmaster only senses, relays, dispatches, and reports.
+when the engine is unavailable. codmaster senses, relays, dispatches consecutively, and reports.
 
 Raw arguments: `$ARGUMENTS`
 
 Resolve them in this order:
 
 1. **`help` / `--help` / `-h` / `?`**: print
-   `Usage: /codmaster [advise|safe]   (empty = sense the repo and dispatch the one right command at depth 10; advise = print the recommendation only, dispatch nothing; safe = same loop without invention capability — invent-class work is printed to paste, never dispatched). One dispatch per invocation; run it again to take the next step.`
+   `Usage: /codmaster [advise|safe]   (empty = sense the repo and run the required commands consecutively, at depth 10, until a recorded final point; advise = print the recommendation only, dispatch nothing; safe = the same loop without invention capability — it stops at the first convergence and prints the growth command to paste).`
    and STOP — do not run anything.
 2. **`advise`**: run SENSE below, print the full recommendation report (command + args, why, the
    evidence chips, every note, every blocker verbatim, the invent-class notice when set, and the
    reset nudge when present), and STOP — dispatch nothing.
-3. **`safe`**: run the main flow below with **invention capability off** — identical in every way
-   except step 5's invent-class handling.
-4. **empty**: run the main flow below.
+3. **`safe`**: run the main loop below with **invention capability off** — identical in every way
+   except the growth step's handling.
+4. **empty**: run the main loop below.
 5. **Anything else**: print that same `Usage:` line and STOP.
 
 **SENSE (read-only).** Resolve `<scripts>` per planwright's **Procedure → Bundled scripts** rule
@@ -33,58 +33,74 @@ JSON record. If the engine cannot run (no `python3`, missing script), print
 `codmaster: recommendation engine unavailable — run planwright status and pick a direct dial (see README).`
 and STOP — never substitute a prose decision table.
 
-**Main flow** (cases 3 and 4):
+**Main loop** (cases 3 and 4). First print exactly one cost banner:
+`codmaster: autonomous drive to the final point — sense → dispatch → re-sense, at depth 10, until convergence (max 12 steps). Note: invent may make rare, small committed edits to repo files, including MISSION.md.`
+In `safe` mode, the trailing notice is replaced by:
+`safe: invention capability off — the loop stops at the first convergence.`
 
-1. **Blockers are mechanical.** If the record's `blockers` array is non-empty, print each entry
-   verbatim and STOP — no judgment call, no severity triage. (Doctor findings are read-only
-   sensing — codmaster never runs `doctor --fix`; its report may *suggest* `planwright doctor --fix`.)
-2. **Print exactly one banner** before any dispatch:
-   `codmaster: dispatching <command> <args> — <why> (coach: <base.key>) [evidence: <chips>]`
-   appending each `notes` entry on its own line (e.g. the repo-size override routing harden work to
-   codshard, or the drain-first rule shadowing the coach's codcycle row — a divergence from the
-   dashboard coach is always explained, never silent). When the dispatch is `execute`, the banner
-   also names the current branch and the pending item titles. When the dispatch is invent-class
-   (`codinventor`), the banner MUST include the awareness notice verbatim:
-   `Note: invent may make rare, small committed edits to repo files, including MISSION.md.`
-3. **Invent-class handling.** When the record says `invent_class: true`:
-   - **default (case 4)**: dispatch it — codmaster has growing authority by default; the banner
-     notice above is the disclosure.
-   - **`safe` (case 3)**: do NOT dispatch. Print the recommendation, the exact line to paste
-     (`/planwright:codinventor`, or the `/codinventor` alias), and the `reset_nudge` alternative
-     when present, then STOP. `safe` means without invention capability — everything else
-     (execute, codvisor, codshard, reset) still dispatches.
-4. **The reset decision — only when really necessary** (shown, not assumed; the engine's
-   `_reset_necessity` rule). The record says `reset` only when the invent-dry point is unseeded
-   AND the cold frontier is shown drained; a seed-scoped point routes to a re-survey and an
-   undrained (or unknown) frontier routes to a harden sweep instead, so audit memory is never
-   wiped while a non-destructive move remains. When the record's `command` IS `reset`, dispatch
-   planwright with `reset` (the cold-start wipe keeps `rejected.md`), then dispatch the record's
-   `follow_up` command as the fresh harden sweep. This pair is the one composite dispatch — the
-   banner announces both halves up front.
-5. **Dispatch exactly one command** (the composite reset pair counts as one), then wait for it to
-   finish. On Claude Code, `planwright`/`execute`/`codvisor`/`codinventor`/`reset` dispatches are
-   the Skill tool invocation `planwright:planwright` with the record's `args` string
-   (codvisor/codinventor resolve to their flagship `cycle 10 depth 10 explore` / `invent` forms);
-   a `codshard` dispatch follows `commands/codshard.md` with the record's `args` (default
-   `explore`). Every dispatch runs at maximum depth — depth 10 — by construction of those argument
-   strings; codmaster takes no depth knob. On other hosts, load `skills/planwright/SKILL.md` with
-   the same argument string (and the codshard recipe from its host-adapter paragraph).
-6. **One dispatch per invocation is absolute.** Never chain a second planning command — state
-   changes under every dispatch, so the honest next decision needs fresh sensing. Run `/codmaster`
-   again for the next step.
+Then repeat, for each step `i` (from 1, **never exceeding 12 steps** — the runaway safety cap):
 
-**REPORT** (after the dispatch finishes):
+1. **SENSE fresh.** Every step re-runs the engine on current state — the loop re-decides between
+   steps; it never precomputes a chain of commands.
+2. **Blockers are mechanical.** If the record's `blockers` array is non-empty, print each entry
+   verbatim and STOP the whole loop — no judgment call, no severity triage. (Doctor findings are
+   read-only sensing — codmaster never runs `doctor --fix`; its report may *suggest*
+   `planwright doctor --fix`.)
+3. **Terminal check.** If the record's `signals.converged` is true:
+   - in `safe` mode, or when the growth step was already taken this run: STOP the loop — the
+     recorded final point is the terminal state. (In `safe` mode print the growth recommendation
+     and the exact line to paste — `/planwright:codinventor`, or the `/codinventor` alias — plus
+     the `reset_nudge` alternative when present.)
+   - otherwise (case 4, growth not yet taken): take the **at-most-once growth burst** — dispatch
+     `codinventor` as this step and mark growth taken. One burst per run keeps the loop
+     convergent: invent's must-generate mandate means repeated growth never self-terminates, so
+     unbounded rhythm stays `/codcycle`'s job. The following steps harden the new work back to
+     convergence, and the loop stops at that deeper final point.
+4. **Dispatch the record's command** under a step header
+   `=== codmaster step i/12: <command> <args> ===` with a one-line why
+   (`<why> (coach: <base.key>)`, appending each `notes` entry — a divergence from the dashboard
+   coach is always explained, never silent; for `execute` also name the current branch and the
+   pending item titles). On Claude Code, `planwright`/`execute`/`codvisor`/`codinventor`/`reset`
+   dispatches are the Skill tool invocation `planwright:planwright` with the record's `args`
+   string (codvisor/codinventor resolve to their flagship `cycle 10 depth 10 explore` / `invent`
+   forms); a `codshard` dispatch follows `commands/codshard.md` with the record's `args` (default
+   `explore`). Every dispatch runs at maximum depth — depth 10 — by construction of those
+   argument strings; codmaster takes no depth knob. On other hosts, load
+   `skills/planwright/SKILL.md` with the same argument string (and the codshard recipe from its
+   host-adapter paragraph). Wait for the dispatched run to finish, and record its verified-commit
+   count as `commits_i`.
+5. **Honour the dispatched run's own stops.** A **hard blocker** or a **failing broad final
+   verification** STOPs the whole loop immediately — relay the stop reason verbatim and suppress
+   any next-step suggestion except the remediation for that stop.
+6. **No-progress guard.** If the step ended with HEAD unchanged AND the fresh SENSE yields the
+   identical recommendation (same command and args), STOP and report `no progress` — an honest
+   stall report beats spinning on the same dispatch.
 
-- Relay the dispatched command's own summary and stop reason **verbatim** — `completed`,
-  `final point reached`, `deep final point reached`, `hard blocker`, `broad-verify failed`, plan
-  capacity, or a dirty-tree stop. Never soften or reinterpret it.
-- On any non-clean stop (hard blocker, broad-verify failed, dirty tree), suppress the
-  suggested-next entirely except the remediation for that stop.
-- On a clean finish, re-run SENSE once and print the fresh recommendation as the suggested next
-  step, in both spellings: the concrete direct dial (e.g. `next: /codvisor — <why>`) and
-  `or just run /codmaster again`. This re-sense is advisory only — it never triggers a second
-  dispatch.
+**The reset decision — only when really necessary** (shown, not assumed; the engine's
+`_reset_necessity` rule). The record says `reset` only when the invent-dry point is unseeded
+AND the cold frontier is shown drained; a seed-scoped point routes to a re-survey and an
+undrained (or unknown) frontier routes to a harden sweep instead, so audit memory is never
+wiped while a non-destructive move remains. When the record's `command` IS `reset`, dispatch
+planwright with `reset` (the cold-start wipe keeps `rejected.md`), then dispatch the record's
+`follow_up` command as the fresh harden sweep. This pair is one composite dispatch — one step —
+and its header announces both halves up front.
+
+**Invention capability.** When the record says `invent_class: true`:
+- **default (case 4)**: dispatch it (subject to the at-most-once growth rule above) — codmaster
+  has growing authority by default; the cost banner's notice is the disclosure.
+- **`safe` (case 3)**: do NOT dispatch. `safe` means without invention capability — everything
+  else (execute, codvisor, codshard, reset) still dispatches; the growth recommendation is
+  printed to paste instead.
+
+**REPORT** (after the loop ends — terminal, cap, or early stop). Print a short cumulative
+summary: steps taken (out of 12), the per-step commands and verified-commit counts in order
+(e.g. `codvisor 3 → execute 2 → codinventor 1 → codvisor 0` ), whether the growth burst ran,
+the final-point state from the last SENSE relayed verbatim, and the stop reason (`converged at
+the final point`, `hard blocker`, `broad-verify failed`, `blockers`, `no progress`, or
+`step cap`). On a clean converged stop, also print the engine's steady-state recommendation as
+the suggested next step in both spellings (e.g. `next: /codinventor — <why>` and
+`or just run /codmaster again`), plus the `reset_nudge` when present.
 
 Print nothing of your own except the Usage line (case 1/5), the advise report (case 2), the
-banner, the safe-mode recommendation (step 3), and the final report; the dispatched command prints
-its own output, which stands as-is.
+cost banner, the per-step headers and one-line whys, the safe-mode growth recommendation, and
+the cumulative report; each dispatched command prints its own output, which stands as-is.

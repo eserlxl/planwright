@@ -388,16 +388,18 @@ sys.exit(1 if need else 0)
 PY
 then ok "commands/codshard.md peels a path/lib scope into a single-entry shard list (cycle stays first token)"; else bad "commands/codshard.md scope-peel missing or its scope-to-shard-list rule was dropped"; fi
 
-# --- Test 17: commands/codmaster.md is the thin front-door dispatcher ---
+# --- Test 17: commands/codmaster.md is the autonomous front-door driver ---
 # codmaster owns NO decision logic: the table lives in status.py --recommend (cross-pinned
-# against the dashboard coach via tests/fixtures/coach-table.json), and codmaster only
-# senses, relays, dispatches ONE command, and reports. Guard: the engine invocation and
-# the no-prose-table polarity (an unavailable engine STOPs, never improvises), the
-# three-word grammar, advise's dispatch-nothing rule, safe's no-invention contract,
-# the default growing authority WITH the verbatim MISSION.md disclosure, the composite
-# reset decision (reset keeps rejected.md, then the follow_up sweep), the mechanical
-# blocker stop, doctor read-only (never --fix), depth always 10, the one-dispatch rule,
-# and the stop-relay honesty (verbatim relay; suggested-next suppressed on a broken stop).
+# against the dashboard coach via tests/fixtures/coach-table.json), and codmaster senses,
+# relays, dispatches CONSECUTIVELY until a recorded final point, and reports. Guard: the
+# engine invocation and the no-prose-table polarity (an unavailable engine STOPs, never
+# improvises), the three-word grammar, advise's dispatch-nothing rule, safe's no-invention
+# contract (stops at the first convergence), the default growing authority WITH the verbatim
+# MISSION.md disclosure and the at-most-once growth bound (invent's must-generate mandate
+# never self-terminates), the composite reset decision (necessity shown, not assumed), the
+# mechanical blocker stop, doctor read-only (never --fix), depth always 10, the per-step
+# re-sense (never a precomputed chain), the no-progress stall guard, the 12-step safety cap,
+# and the stop-relay honesty (verbatim relay; next-step suggestion suppressed on a broken stop).
 CMD="$ROOT/commands/codmaster.md"
 if [ -f "$CMD" ]; then ok "commands/codmaster.md exists"; else bad "commands/codmaster.md missing"; fi
 if python3 - "$CMD" <<'PY' 2>/dev/null
@@ -439,13 +441,26 @@ assert "never wiped while a non-destructive move remains" in body, "reset non-de
 assert "no judgment call" in body, "mechanical blocker rule missing"
 assert "never runs `doctor --fix`" in body, "doctor read-only rule missing"
 assert "maximum depth — depth 10" in body, "depth-10 rule missing"
-assert "One dispatch per invocation is absolute" in body, "one-dispatch rule missing"
-assert "Never chain a second planning command" in body, "no-chaining polarity missing"
 assert "dispatch codcycle" not in body, "codcycle entered the dispatch vocabulary"
+# the loop contract: consecutive dispatch to the final point, fresh sensing between steps,
+# the at-most-once growth bound, the stall guard, and the runaway cap
+assert "run the required commands consecutively" in body, "consecutive-drive contract missing"
+assert "until a recorded final point" in body, "final-point terminal missing"
+assert "re-decides between steps" in body, "per-step re-sense rule missing"
+assert "never precomputes a chain" in body, "no-precomputed-chain polarity missing"
+assert "at-most-once growth burst" in body, "growth bound missing"
+assert "never self-terminates" in body, "growth-bound rationale missing"
+assert "stops at the first convergence" in body, "safe-mode terminal missing"
+assert "in `safe` mode, or when the growth step was already taken this run: STOP" in body, "converged terminal check not anchored at the step site"
+assert "=== codmaster step i/12:" in body, "per-step header missing"
+assert "never exceeding 12 steps" in body, "12-step safety cap missing"
+assert "HEAD unchanged" in body, "no-progress HEAD predicate missing"
+assert "identical recommendation" in body, "no-progress recommendation predicate missing"
+assert "no progress" in body, "no-progress stop reason missing"
+assert "step cap" in body, "step-cap stop reason missing"
 # report honesty
 assert "verbatim" in body, "stop-relay verbatim rule missing"
-assert "suppress the suggested-next" in body, "broken-stop suggested-next suppression missing"
-assert "never triggers a second dispatch" in body, "advisory re-sense polarity missing"
+assert "suppress any next-step suggestion" in body, "broken-stop suggestion suppression missing"
 assert "Print nothing of your own" in body, "print-nothing-else rule missing"
 PY
 then ok "commands/codmaster.md is a dumb dispatcher over the tested engine (one dispatch, safe word, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its engine-delegation/one-dispatch/safe/disclosure contract"; fi

@@ -192,9 +192,11 @@ sequential, and every other host simply runs without recon.
 
 `/codmaster` is the front door for all of the above: it runs the read-only coach engine
 (`status.py --recommend` — the same truth table the dashboard's Commands view renders, cross-pinned
-by the shared `tests/fixtures/coach-table.json`) and dispatches **exactly one** recommended command
-per invocation at maximum depth (10), re-deciding from fresh state each time instead of precomputing
-a chain. The lifecycle ladder: pending items → `execute`; structural debt, a stale final point, or a
+by the shared `tests/fixtures/coach-table.json`) and runs the required commands **consecutively** —
+dispatch, re-sense, dispatch — until the repo reaches a recorded final point, at maximum depth (10),
+re-deciding between steps instead of precomputing a chain (the growth burst is taken at most once
+per run — invent's must-generate mandate never self-terminates — and a no-progress stall or the
+12-step safety cap also stop it). The lifecycle ladder: pending items → `execute`; structural debt, a stale final point, or a
 carried backlog → `codvisor` (`codshard explore` on a mechanically large repo: ≥120 tracked files
 and ≥2 shardable dirs); a clean but unconverged tree → the same harden sweep; a converged tree →
 `codinventor` — growth is **default-on**, and the banner discloses invent's rare, dwell-gated
@@ -205,9 +207,9 @@ memory. Blockers (a dirty tree, doctor failures, a missing
 commit identity before a mutating run) stop it mechanically before any dispatch.
 
 ```bash
-/codmaster                 Sense + dispatch the one right command (depth 10); run again for the next step
+/codmaster                 Drive to the final point: sense → dispatch → re-sense (depth 10, max 12 steps)
 /codmaster advise          Print the recommendation, evidence, and blockers — dispatch nothing
-/codmaster safe            Full loop without invention capability (codinventor printed to paste, never run)
+/codmaster safe            Same loop without invention capability — stops at the first convergence
 ```
 
 `planwright advise` is the host-portable half of the same engine (Cursor/Codex/Gemini included):

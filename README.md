@@ -32,9 +32,10 @@ The difference is control. Planwright is local, free, agent-neutral, and file-ba
 ## Start here
 
 Don't know what to run? **`/codmaster`** — the front door. It senses your repo's planning state
-with the same coach the dashboard renders, then dispatches the one right command at maximum depth.
-Run it again after each step; it re-decides from fresh state every time. Add `advise` to only be
-told what it would run (with the evidence), or `safe` to keep invention capability off.
+with the same coach the dashboard renders, then runs the required commands consecutively — sense,
+dispatch, re-sense — until your repo reaches a recorded final point, all at maximum depth (growth
+is taken at most once per run; a 12-step safety cap bounds it). Add `advise` to only be told what
+it would run next (with the evidence), or `safe` to keep invention capability off.
 
 The **direct dials**, when you want to choose yourself — run them with no arguments and planwright
 does the rest: it prints the estimated AI/session cost first, then works autonomously through
@@ -46,7 +47,7 @@ plan→build→verify rounds until it runs out of worthwhile work.
 | `/codinventor` | Discovers and adds grounded new capabilities. | Feature discovery  |
 | `/codcycle`    | Alternates repair and invention rounds.     | Autonomous improvement  |
 | `/codshard`    | Matures the repo shard by shard, then closes whole-repo. | Large codebases |
-| `/codmaster`   | Senses the state, dispatches the one right command. | Not sure? Start here |
+| `/codmaster`   | Senses the state, drives to the final point. | Not sure? Start here |
 
 All five are safe by default: planning never touches your source, and when planwright does start editing
 (building items, committing), your normal edit/commit approval prompts still apply.
@@ -366,10 +367,10 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codshard explore          # escalate only the closing whole-repo round; shard rounds stay plain cycles
 /codshard parallel         # Claude Code only: prefetch read-only recon leads per shard (routing-only; rounds stay sequential)
 
-# /codmaster — the front door: sense the planning state, dispatch the one right command (always depth 10)
-/codmaster                 # decide + dispatch one step; run again for the next step
-/codmaster advise          # only print what it would run, with the evidence and blockers
-/codmaster safe            # same loop, but invention is never dispatched (printed to paste instead)
+# /codmaster — the front door: drive the repo to a recorded final point (always depth 10)
+/codmaster                 # sense → dispatch → re-sense, consecutively until convergence (max 12 steps)
+/codmaster advise          # only print what it would run next, with the evidence and blockers
+/codmaster safe            # same loop without invention; stops at the first convergence
 
 # Maintenance
 /planwright doctor     # preflight: check git/rg/python3 + bundled-script resolution

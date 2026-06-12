@@ -114,8 +114,10 @@ is an ordinary run of this `SKILL.md`; `codshard` only sequences them.
 
 `codmaster` is the front door — for anyone who does not want to choose among the commands above. It
 runs the read-only `advise` engine (`status.py --recommend`, the same truth table the dashboard
-coach renders) and then **dispatches exactly one** recommended command per invocation at maximum
-depth (10), re-deciding from fresh state each time instead of precomputing a chain: pending items →
+coach renders) and then **runs the required commands consecutively** — dispatch, re-sense,
+dispatch — until the repo reaches a recorded final point, at maximum depth (10), re-deciding from
+fresh state between steps instead of precomputing a chain (growth is taken at most once per run;
+a no-progress stall or the 12-step safety cap also stop the loop): pending items →
 `execute`; structural debt, a stale point, or a carried backlog → `codvisor` (`codshard explore` on
 a mechanically large repo); a clean tree without a current whole-repo final point → the same harden
 sweep; a converged tree → `codinventor` (growth — by default codmaster may dispatch it, banner
@@ -123,8 +125,8 @@ disclosing the rare dwell-gated `MISSION.md` edits); converged at `deepest_tier:
 earned empty) → `reset` plus a fresh harden sweep, but **only when really necessary** — the point
 must be unseeded and the cold frontier shown drained; a seed-scoped point re-surveys and an
 undrained frontier hardens instead. Its `advise` word prints the recommendation and
-stops; its `safe` word runs the same loop but never dispatches invent-class work (it prints the
-`codinventor` line to paste instead). The decision table lives in the tested Python engine, never
+stops; its `safe` word runs the same loop but never dispatches invent-class work, stopping at the
+first convergence (it prints the `codinventor` line to paste instead). The decision table lives in the tested Python engine, never
 in command prose; `codmaster` only relays and dispatches.
 
 ## Invocation & help
