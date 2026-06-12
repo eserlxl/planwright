@@ -22,19 +22,25 @@ Stdlib only (no Flask/websocket libs, no build step). It exposes:
 3. **`/doctor.json`** — the read-only environment preflight (`doctor.collect()`: tool availability,
    bundled-script presence, git work tree, `.planwright/` gitignored, commit identity) for the Doctor
    view. It only probes — it never reaches doctor's `--fix` write path.
-4. **`/events`** — a one-directional Server-Sent Events stream that mtime-polls `.planwright/` ~every
+4. **`/recommend.json`** — the dispatcher decision record (`status.recommend`: the same engine
+   `codmaster` and `planwright advise` consume), fetched by the Commands view's codmaster
+   front-door panel.
+5. **`/events`** — a one-directional Server-Sent Events stream that mtime-polls `.planwright/` ~every
    second and pushes a `change` event whenever a file changes, so the browser re-fetches `/state.json`.
-5. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
-   reactive console with seven views — **Console** (convergence reactor with a three-state resting
+6. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
+   reactive console with eight views — **Console** (convergence reactor with a three-state resting
    verdict, the expanded health vitals row — coverage, hotspots, coupling, audit frontier, files,
    articulation, tests, cycles — cadence with a mode legend, session trend, dirty pulse),
-   **Commands** (the recommended next sweep for the current state —
-   codvisor / codinventor / codcycle — plus copy-only codmaster and codshard cards that are
-   never auto-recommended: the front door dispatches this coach's own picks, and sharding is
-   a repo-size call — with a cold-start reset nudge once converged), **Plan**,
+   **Commands** (the codmaster front-door panel — the exact dispatch `/codmaster` would run next,
+   from `/recommend.json` — above the coach's recommended next sweep for the current state —
+   codvisor / codinventor / codcycle — plus copy-only codmaster and codshard cards the coach's
+   own card rows never auto-recommend: the front door dispatches this coach's picks, and sharding
+   is a repo-size call — with a cold-start reset nudge once converged), **Plan**,
    **Timeline** (a cumulative Decision timeline graph by mode above the accepted/killed lists),
    **Graph** (3D coupling globe), **Insights** (risk ledger, hotspot constellation,
-   coverage, priorities, the explore escalation's cold-frontier sweep order, import cycles), and
+   coverage, priorities, the explore escalation's cold-frontier sweep order, import cycles),
+   **Shards** (codshard's live shard map: the shardable top-level directories, per-shard
+   staleness, the order a sweep would walk, and copyable single-shard invocations), and
    **Doctor** — plus a command palette, light/dark themes, and full keyboard navigation.
 
 The view is **read-only and informational**, like Status: it is never valid Evidence, and it never
