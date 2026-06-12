@@ -89,7 +89,8 @@ order after all `path` shards. The graph steers *order only* — it is routing, 
 
 For runnable cases, **first print exactly one cost-banner line** so this heavy run is never silent:
 `codshard: sharded maturity sweep — <K> shard(s) in <staleness|lexicographic> order (<list>), each an ordinary scoped planwright run (cycle <M> depth <D> path|lib <shard>), then one closing whole-repo round (cycle <M> depth <D>) for cross-shard seams, root-level files, and global concerns.`
-— appending ` parallel recon: <J> read-only agent(s), routing-only.` when `parallel` is active, and
+— appending ` parallel recon: <J> read-only agent(s), routing-only.` when `parallel` is active
+(`<J>` prints as `all` when no count was given — the host caps concurrency), and
 swapping the closing round's parenthetical to `(cycle <M> depth <D> explore)` when `explore` is
 active (in both banner variants). At
 `K = 0` print this variant instead:
