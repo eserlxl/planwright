@@ -63,7 +63,7 @@ Resolve them in this order:
    - **one integer `M`** (`M >= 1`): per-shard cycle count; depth defaults to 10.
    - **two integers `M D`**: per-shard cycle count and depth. First number = cycles, second = depth.
    - **`help` / `--help` / `-h` / `?`**: print
-     `Usage: /codshard [M] [D] [shards <a,b,c>] [parallel [J]] [explore]   (M >= 1; defaults: auto-enumerated top-level shards, cycle 3 depth 10 per shard; parallel recon is Claude-Code-only and routing-only; explore escalates the closing round only). Runs cycle <M> depth <D> path <shard> per shard sequentially, then one closing whole-repo round.`
+     `Usage: /codshard [M] [D] [shards <a,b,c>] [path <X> | lib <X>] [parallel [J]] [explore]   (M >= 1; defaults: auto-enumerated top-level shards, cycle 3 depth 10 per shard; a path/lib scope becomes a single-entry shard list; parallel recon is Claude-Code-only and routing-only; explore escalates the closing round only). Runs cycle <M> depth <D> path <shard> per shard sequentially, then one closing whole-repo round.`
      and STOP — do not run anything.
    - **anything else** (including `M < 1` or a non-integer leftover): print that same `Usage:` line
      and STOP.

@@ -40,7 +40,7 @@ Resolve them in this order:
 2. **`<rest>` is a single integer `N`** (nothing else): run `N` outer cycles. `N` may be **negative**,
    which runs **forever** (until a stop condition fires or the user interrupts). `N` must be non-zero.
 3. **`<rest>` is `help` / `--help` / `-h` / `?`**: print
-   `Usage: /codcycle [N]   (N != 0; negative = infinite; default 10). Each outer cycle = explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed; the meta-final-point needs a full framing rotation to come up dry; one final explore closes the whole run.`
+   `Usage: /codcycle [N] [path <X> | lib <X>]   (N != 0; negative = infinite; default 10; a path/lib scope aims every phase at one component). Each outer cycle = explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed; the meta-final-point needs a full framing rotation to come up dry; one final explore closes the whole run.`
    and STOP — do not run anything.
 4. **Anything else** (including `N == 0` or a non-integer): print that same `Usage:` line and STOP.
 
