@@ -352,7 +352,9 @@ light/dark themes, full keyboard navigation, and eight views:
   frontier (never-audited / stale code nodes, the builder's exact predicates), the predicted sweep
   order (descending never-audited count, lexicographic tiebreak — or plain lexicographic without a
   graph, exactly like codshard itself), the folded small directories, and the closing whole-repo
-  round card (the only round that may declare the global final point). codshard persists no sweep
+  round card (the only round that may declare the global final point). Each shard card carries a
+  copy-only `/planwright:codshard shards <name>` invocation and the closing card the whole-repo
+  `/planwright:codshard` — shown for copy, never run from the page. codshard persists no sweep
   ledger, so the map shows where the debt lives and what a sweep *would* do — never a fabricated
   "shard 3 of 7" progress claim.
 - **Doctor** — the read-only environment preflight (`/doctor.json`).
