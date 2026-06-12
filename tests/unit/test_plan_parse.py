@@ -113,6 +113,16 @@ class TestParseItems(unittest.TestCase):
         self.assertNotIn("Note", items[0]["fields"])
         self.assertEqual(items[0]["fields"]["Evidence"], "real Note: stray")
 
+    def test_commit_provenance_stamp_is_a_first_class_field(self):
+        # The execute path stamps `Commit: <short-sha>` on a passing item before
+        # draining it to completed.md. The label must be in KNOWN_FIELDS: were it
+        # unknown, the wrap rule above would silently absorb the stamp into the
+        # preceding field's value (corrupting Verification) instead of recording it.
+        items = plan_parse.parse_items(
+            "- [x] t\n      Verification: bash tests/run.sh\n      Commit: be77dbd\n")
+        self.assertEqual(items[0]["fields"]["Commit"], "be77dbd")
+        self.assertEqual(items[0]["fields"]["Verification"], "bash tests/run.sh")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -19,12 +19,13 @@ from collections.abc import Container
 from typing import TypedDict
 
 # Every continuation field the OUTPUT FORMAT defines (the eight plan fields) plus the
-# lifecycle fields the execute/reject path appends (Status / Rejection). This is the
-# default recognised-field set; lint-plan passes its own (identical) set so the Stage
+# lifecycle fields the execute/reject path appends (Status / Rejection on a rejection,
+# Commit — the landing commit's short sha — on a pass). This is the default
+# recognised-field set; lint-plan passes its own (identical) set so the Stage
 # 10 gate keeps ownership of REQUIRED_FIELDS.
 KNOWN_FIELDS = frozenset({
     "Mode", "Rationale", "Evidence", "Surfaces", "New Surfaces",
-    "Development", "Acceptance", "Verification", "Status", "Rejection",
+    "Development", "Acceptance", "Verification", "Status", "Rejection", "Commit",
 })
 
 

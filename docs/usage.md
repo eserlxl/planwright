@@ -512,6 +512,7 @@ Stage 2b uses `ranked_code`.
 
 - `.planwright/plan.md` — pending + completed items.
 - `.planwright/completed.md` / `rejected.md` — drained history (FIFO-capped at 100); rejected reasons feed
-  the next run.
+  the next run. Completed items carry a `Commit: <short-sha>` provenance stamp (appended by the
+  execute path on pass), so each traces to the exact commit that landed it.
 - `.planwright/graph.json` / `digest.md` — audit routing memory. **Routing only — never valid Evidence.**
 - `.planwright/final.md` — the recorded final point.

@@ -66,7 +66,7 @@ from plan_parse import parse_items  # noqa: E402  (after the sys.path bootstrap 
 VALID_MODES = {"develop", "improve", "repair", "docs", "reorganize"}
 REQUIRED_FIELDS = ("Mode", "Rationale", "Evidence", "Surfaces",
                    "Development", "Acceptance", "Verification")
-KNOWN_FIELDS = set(REQUIRED_FIELDS) | {"New Surfaces", "Status", "Rejection"}
+KNOWN_FIELDS = set(REQUIRED_FIELDS) | {"New Surfaces", "Status", "Rejection", "Commit"}
 # Graph-memory artifacts Stage 10 bars from Evidence (routing only, never proof).
 GRAPH_MEMORY = (".planwright/graph.json", ".planwright/digest.md",
                 "graph.json", "digest.md")

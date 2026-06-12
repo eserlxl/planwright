@@ -1184,8 +1184,11 @@ For each targeted pending item, in plan order:
 4. **On PASS** — flip `- [ ]` to `- [x]` in `plan.md`, then commit on the current branch with a message
    that describes the change itself — typically the `<item title>` as the subject (use the Haiku commit
    convention if configured). Do **not** prefix the subject with `planwright:` or otherwise name the
-   tool; the commit should read as a normal change to the repo. Move the completed item to
-   `completed.md` and enforce the FIFO cap of 100.
+   tool; the commit should read as a normal change to the repo. Then stamp provenance: append a
+   `Commit: <short-sha>` continuation line (the landing commit's `git rev-parse --short HEAD`) to the
+   item, so its completed record traces back to the exact change without git-log archaeology
+   (`Commit` is a recognised lifecycle field in `plan_parse.py`'s KNOWN_FIELDS, like
+   `Status`/`Rejection`). Move the stamped item to `completed.md` and enforce the FIFO cap of 100.
 5. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
    fails, **reject**: revert this item's edits (`git restore` / `git checkout --` the touched paths so
    no partial change is committed), append a `Status:Rejected` and `Rejection: <one-line reason>` to
