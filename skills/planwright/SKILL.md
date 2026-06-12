@@ -487,6 +487,14 @@ directory, so a bare path fails for every user except when planning planwright's
 absolute script cannot be located or executed, fall back to the documented by-hand procedure for that
 stage (Stage 1.5 for the graph; do the Stage 10 structural checks by hand for the linter) — never block.
 
+**Run-activity beacon (mechanical).** At the start of the run — before Stage 0, and even when
+`no-compact` skips that stage — stamp the beacon the dashboard's reactor reads:
+`python3 <scripts>/state.py activity start plan --if-absent --root <target>` (resolve `<scripts>` per
+**Procedure → Bundled scripts**), appending `--detail "<the run's argument string>"` when one was
+given. `--if-absent` keeps the beacon of an orchestrator that dispatched this run (codmaster,
+codshard, and codcycle stamp their own names; a stale leftover counts as absent). The beacon is
+best-effort telemetry — if the script cannot run, skip it and proceed; never block on it.
+
 ### Stage 0 — Lifecycle housekeeping (mechanical)
 
 If `no-compact` was passed, skip this entire stage (still read pending items in step 4).
@@ -1034,8 +1042,11 @@ something to diff against:
    a *valid* floor/ceiling/justified-trivial reason). Both are status/record only — **never** Evidence —
    and exist so a future run (or reviewer) can see the empty was earned, not asserted.
 
-Print a short summary: counts proposed/written, pending total, nodes restamped, clusters digested,
-rungs surveyed (lowest non-empty / final-point), and any capacity stop.
+First remove the run-activity beacon this flow may own:
+`python3 <scripts>/state.py activity stop plan --root <target>` (a beacon owned by a different
+command — the orchestrator that dispatched this run — is left untouched for its owner; best-effort,
+never block). Then print a short summary: counts proposed/written, pending total, nodes restamped,
+clusters digested, rungs surveyed (lowest non-empty / final-point), and any capacity stop.
 
 **Zero-item diagnostic.** When a run writes **0 items**, a bare "Plan is at capacity" / "final point
 reached" is opaque — the user cannot tell a justified stop from a missed survey. So whenever
@@ -1122,7 +1133,9 @@ planning Procedure.
    dirty tree (do not entangle the user's uncommitted work with per-item commits). Exception: ignored
    paths such as `.planwright/` do not count.
 4. **Announce the branch** — print the current branch (`git branch --show-current`); per-item commits
-   land here. There is no safety branch by design.
+   land here. There is no safety branch by design. Then stamp the run-activity beacon:
+   `python3 <scripts>/state.py activity start execute --if-absent --root <target>` (`--if-absent`
+   keeps a dispatching orchestrator's beacon; best-effort, never block).
 
 ## Modes and scope
 
@@ -1212,8 +1225,10 @@ work, which is how rejections trend down over time.
 
 ## Final report
 
-Print: items completed (with commit short-SHAs), items rejected (with reasons), items left pending or
-blocked, and the broad final-verify result.
+First remove the run-activity beacon this flow may own:
+`python3 <scripts>/state.py activity stop execute --root <target>` (an orchestrator's beacon is left
+untouched; best-effort, never block). Then print: items completed (with commit short-SHAs), items
+rejected (with reasons), items left pending or blocked, and the broad final-verify result.
 
 # Cycle (plan → execute, repeated)
 
@@ -1252,7 +1267,12 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
    on (`explore`, `invent`, or none) before starting any work; if a seed is active, also print
    `seed <S> (framing: <key>)`. **Under `invent`, also warn up front** that invent may make rare, small,
    committed edits to repo files **including `MISSION.md`** (dwell-gated — see Stage 5's mission
-   amendment), so whoever runs `invent` is on notice that the charter itself can change.
+   amendment), so whoever runs `invent` is on notice that the charter itself can change. Then stamp
+   the run-activity beacon: `python3 <scripts>/state.py activity start cycle --if-absent --root <target>`
+   (`--if-absent` keeps a dispatching orchestrator's beacon; best-effort, never block). Each cycle
+   header (per-cycle loop step 1) may refresh its detail the same way —
+   `activity start cycle --if-absent --detail "cycle i/N"` — which writes through only when this
+   flow owns the beacon.
 
 ## Per-cycle loop (repeat up to N times, or indefinitely when N < 0)
 
@@ -1297,7 +1317,9 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
 
 ## After all cycles (or early stop)
 
-Print a cumulative summary:
+First remove the run-activity beacon this flow may own:
+`python3 <scripts>/state.py activity stop cycle --root <target>` (an orchestrator's beacon is left
+untouched; best-effort, never block). Then print a cumulative summary:
 - Total cycles completed (out of N requested, or `∞` for unlimited mode)
 - Total items implemented (with all commit short-SHAs)
 - Total items rejected (titles + one-line reasons)

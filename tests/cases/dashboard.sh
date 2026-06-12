@@ -812,6 +812,30 @@ win.PW_VIEWS.console(idleC, Object.assign({}, state, {
 }), fullCtx);
 assert(/IDLE/.test(textOf(idleC)), "Reactor did not read IDLE on a drained plan with no final point");
 
+// Targeted: the run-activity beacon line (under the reactor note) appears ONLY when
+// state.activity carries a well-formed beacon — the base fixture omits the field (an
+// older snapshot) and must render the reactor unchanged; a stale beacon reads "stale?"
+// instead of asserting a long-dead run is live; an explicit null (no beacon stamped)
+// renders nothing either. "· since" is the line's unique marker in the Console text.
+assert(!/· since /.test(textOf(fc)), "Console rendered an activity line without state.activity");
+var actC = new El("section");
+win.PW_VIEWS.console(actC, Object.assign({}, state, {
+  activity: { command: "codshard", detail: "shard 3/5: scripts/", started: "2026-06-12T18:42:00Z", age_seconds: 30, stale: false },
+}), fullCtx);
+var actText = textOf(actC);
+assert(/codshard — shard 3\/5: scripts\//.test(actText), "Console omitted the running-command line on a live beacon");
+assert(/· since \d\d:\d\d/.test(actText), "activity line missed the since HH:MM stamp");
+assert(!/stale\?/.test(actText), "a fresh beacon must not read stale?");
+var staleActC = new El("section");
+win.PW_VIEWS.console(staleActC, Object.assign({}, state, {
+  activity: { command: "codmaster", detail: null, started: "2026-06-12T08:00:00Z", age_seconds: 7200, stale: true },
+}), fullCtx);
+assert(/codmaster/.test(textOf(staleActC)) && /stale\?/.test(textOf(staleActC)),
+  "a stale beacon must render with the stale? caveat");
+var nullActC = new El("section");
+win.PW_VIEWS.console(nullActC, Object.assign({}, state, { activity: null }), fullCtx);
+assert(!/· since /.test(textOf(nullActC)), "Console rendered an activity line on a null beacon");
+
 // Targeted: the structural count vitals derive from the fixture graph — 2 tracked files,
 // 1 articulation point (hot.py), 0 test files — and the cadence legend lists the accepted
 // modes plus the rejected bucket with their counts.
@@ -957,4 +981,46 @@ JS
   fi
 else
   ok "dashboard view render() check skipped (node not installed)"
+fi
+
+# --- Test DASH-ACT-SIG: the beacon's TTL crossing changes the /events signature ------
+# The activity beacon's stale flip happens by TTL, not by a file write — an interrupted
+# run leaves activity.json untouched, so without a derived bit in _mtime_signature the
+# one scenario the stale flag exists for would never fire an SSE change event and an
+# open dashboard would keep pulsing "live" over a dead run. Pin the bit: with the SAME
+# file and SAME mtime, signatures must differ purely on the TTL verdict, and only the
+# activity.json entry carries the extra element.
+DAS="$TMP/dash-act-sig"; mkdir -p "$DAS/.planwright"
+python3 "$ROOT/scripts/state.py" activity start codmaster --root "$DAS" >/dev/null
+printf -- '- [ ] x\n      Mode: repair\n' > "$DAS/.planwright/plan.md"
+if python3 - "$ROOT" "$DAS" <<'PY' 2>/dev/null
+import importlib.util, os, sys
+root, fixture = sys.argv[1], sys.argv[2]
+scripts = os.path.join(root, "scripts")
+sys.path.insert(0, scripts)
+spec = importlib.util.spec_from_file_location("pw_dashboard", os.path.join(scripts, "dashboard.py"))
+dash = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(dash)
+# age the beacon 2h with an explicit utime so both signature reads see ONE mtime;
+# only the env TTL differs between them — any signature difference is the derived bit
+beacon = os.path.join(fixture, ".planwright", "activity.json")
+st = os.stat(beacon)
+os.utime(beacon, (st.st_mtime - 7200, st.st_mtime - 7200))
+os.environ["PW_ACTIVITY_TTL"] = "999999"
+sig_live = dash._mtime_signature(fixture)
+os.environ["PW_ACTIVITY_TTL"] = "60"
+sig_dead = dash._mtime_signature(fixture)
+del os.environ["PW_ACTIVITY_TTL"]
+assert sig_live != sig_dead, "TTL crossing did not change the signature (no SSE change would fire)"
+live_entry = [e for e in sig_live if e[0] == "activity.json"][0]
+dead_entry = [e for e in sig_dead if e[0] == "activity.json"][0]
+assert len(live_entry) == 4 and live_entry[3] is False, live_entry
+assert len(dead_entry) == 4 and dead_entry[3] is True, dead_entry
+plan_entry = [e for e in sig_live if e[0] == "plan.md"][0]
+assert len(plan_entry) == 3, plan_entry  # only the beacon carries the derived bit
+PY
+then
+  ok "dashboard _mtime_signature folds the beacon's TTL verdict in (stale flip fires exactly one SSE change)"
+else
+  bad "dashboard _mtime_signature misses the beacon TTL bit (an open dashboard would pulse 'live' over a dead run forever)"
 fi

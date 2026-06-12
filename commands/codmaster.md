@@ -44,6 +44,11 @@ In `safe` mode (either banner), the trailing invent notice is replaced by:
 `safe: invention capability off — the loop stops at the first convergence.`
 (in `safe loop`, by: `safe: invention capability off — each lap runs harden-only.`)
 
+Then stamp the run-activity beacon so the dashboard's reactor names this run: run
+`python3 <scripts>/state.py activity start codmaster --root .` in the ctx sandbox when available
+(same `<scripts>` as SENSE). The beacon is best-effort telemetry — if the script cannot run, skip
+it and proceed; never block on it.
+
 Then repeat, for each step `i` (from 1, **never exceeding 12 steps** per lap — the runaway
 safety cap; a bare run is a single lap, and in `loop` mode the counter restarts each lap):
 
@@ -71,7 +76,10 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
      and the exact line to paste — `/planwright:codinventor`, or the `/codinventor` alias — plus
      the `reset_nudge` alternative when present.)
 4. **Dispatch the record's command** under a step header
-   `=== codmaster step i/12: <command> <args> ===` with a one-line why
+   `=== codmaster step i/12: <command> <args> ===`. Before the dispatch, re-stamp the beacon
+   with the step as its detail —
+   `python3 <scripts>/state.py activity start codmaster --detail "step i/12: <command> <args>" --root .`
+   (best-effort, never block) — then print the header with a one-line why
    (`<why> (coach: <base.key>)`, appending each `notes` entry — a divergence from the dashboard
    coach is always explained, never silent; for `execute` also name the current branch and the
    pending item titles). On Claude Code, `planwright`/`execute`/`codvisor`/`codinventor`/`reset`
@@ -106,7 +114,9 @@ and its header announces both halves up front.
   else (execute, codvisor, codshard, reset) still dispatches; the growth recommendation is
   printed to paste instead.
 
-**REPORT** (after the loop ends — terminal, cap, or early stop). Print a short cumulative
+**REPORT** (after the loop ends — terminal, cap, or early stop). First remove the run-activity
+beacon: `python3 <scripts>/state.py activity stop --root .` (best-effort, never block — this
+applies to every way the loop ends, including hard stops). Then print a short cumulative
 summary: steps taken (out of 12 for the lap), the per-step commands and verified-commit counts in
 order (e.g. `codvisor 3 → execute 2 → codinventor 1 → codvisor 0` ), whether the growth burst
 ran, the final-point state from the last SENSE relayed verbatim, and the stop reason (`converged

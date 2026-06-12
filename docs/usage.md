@@ -330,7 +330,12 @@ light/dark themes, full keyboard navigation, and eight views:
 - **Console** — the glance-once landing: a convergence reactor with a three-state resting verdict
   (CONVERGED / IN PROGRESS / STALE-or-IDLE), health vitals (coverage, hotspots, coupling, the audit
   frontier, tracked files, articulation points, test files, import cycles), a decision-cadence
-  ribbon with a per-mode legend, a live session trend, and a dirty-files pulse.
+  ribbon with a per-mode legend, a live session trend, and a dirty-files pulse. Under the reactor
+  note, a run-activity beacon names the command flow executing right now (`codmaster — step 3/12:
+  execute · since 18:42`) — the command flows stamp it via `state.py activity start|stop`, and a
+  leftover that outlives `PW_ACTIVITY_TTL` (default 3600 s) without a re-stamp renders as `stale?`
+  instead of asserting a dead run is live. Distinct from the reactor's IN PROGRESS verdict: that
+  means pending items exist; the beacon means a run is executing this second.
 - **Commands** — the recommended next sweep for the current state (codvisor / codinventor / codcycle),
   plus a codshard card for large repos (shown for copy, never auto-recommended — sharding is a size
   call, not a state call), with a supplementary cold-start `/planwright reset` nudge once the tree

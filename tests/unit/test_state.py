@@ -34,6 +34,7 @@ CONSUMED_KEYS = {
 # the consumer file (relative to scripts/dashboard/) and the reference it must contain.
 VIEW_CONSUMED_KEYS = {
     "repo": ("views/shards.js", "state.repo"),
+    "activity": ("views/console.js", "state.activity"),
 }
 
 

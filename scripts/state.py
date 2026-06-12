@@ -19,12 +19,24 @@
 # Read-only and derived: it reads only the gitignored .planwright/ tool-state plus
 # git HEAD (via status.py), and writes nothing except its own output artifact. The
 # markdown remains the source of truth; state.json is a rendered view of it.
+#
+# The one deliberate exception is the run-activity beacon — the command flows
+# (codmaster/codshard/codcycle and the skill's plan/execute/cycle paths) stamp
+# .planwright/activity.json at start and remove it at end, so the dashboard's
+# reactor can show WHICH command is running right now (plan counts alone cannot
+# tell "pending work exists" apart from "a run is executing this second"):
+#
+#   python3 scripts/state.py activity start <command> [--detail TEXT] [--if-absent] --root .
+#   python3 scripts/state.py activity stop [<command>] --root .
 
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
+import time
+from datetime import datetime, timezone
 
 # state.py lives beside status.py in scripts/; when run as a script that directory is
 # sys.path[0], so a plain import resolves it without any package machinery.
@@ -100,6 +112,200 @@ def _completed_item(item):
     return {"title": item["title"], "mode": item.get("mode", "")}
 
 
+# ---- run-activity beacon ---------------------------------------------------------------
+# The beacon is a deliberately tiny contract: one JSON object {command, started,
+# updated[, detail]} in .planwright/activity.json. Freshness comes from the file
+# MTIME, not the recorded fields — an interrupted agent run leaves the file behind
+# with no process to clean it up, and the mtime is the one signal a leftover cannot
+# keep current. A beacon that has not been (re-)stamped within PW_ACTIVITY_TTL
+# seconds reads as stale, and stale counts as absent for `start --if-absent`, so an
+# abandoned run never blocks the next one from taking the beacon over.
+
+_ACTIVITY_TTL_DEFAULT = 3600.0
+# Command names are short lowercase tokens (codmaster, plan, execute…); the bound
+# keeps a typo'd shell fragment from becoming the dashboard's headline.
+_ACTIVITY_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,39}$")
+_ACTIVITY_DETAIL_MAX = 160
+
+
+def _activity_ttl() -> float:
+    """Stale cutoff in seconds (PW_ACTIVITY_TTL, positive float, silent fallback to
+    3600 — the same read-validate-fallback shape as dashboard._env_float)."""
+    raw = os.environ.get("PW_ACTIVITY_TTL")
+    if raw:
+        try:
+            value = float(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    return _ACTIVITY_TTL_DEFAULT
+
+
+def _activity_path(root):
+    return os.path.join(root, ".planwright", "activity.json")
+
+
+def _read_activity(path):
+    """The raw beacon dict plus its mtime, or (None, None) when absent, unreadable,
+    malformed, or missing a usable command — every degradation reads as 'no beacon'
+    because the dashboard surface must survive a torn or hand-edited file."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        mtime = os.stat(path).st_mtime
+    except (OSError, ValueError):
+        return None, None
+    if not isinstance(data, dict):
+        return None, None
+    command = data.get("command")
+    if not isinstance(command, str) or not command.strip():
+        return None, None
+    return data, mtime
+
+
+def _activity_block(root):
+    """Shape the beacon for state.json: {command, detail, started, age_seconds,
+    stale} or None. age_seconds counts from the last stamp (file mtime); `stale`
+    flips past the TTL so the Console can stop asserting a long-dead run is live."""
+    data, mtime = _read_activity(_activity_path(root))
+    if data is None or mtime is None:
+        return None
+    age = max(0, int(time.time() - mtime))
+    detail = data.get("detail")
+    started = data.get("started")
+    return {
+        "command": data["command"].strip(),
+        "detail": detail.strip() if isinstance(detail, str) and detail.strip() else None,
+        "started": started if isinstance(started, str) else None,
+        "age_seconds": age,
+        "stale": age > _activity_ttl(),
+    }
+
+
+def _utc_now() -> str:
+    # Matches build-graph.py's built_at convention (UTC ISO-8601, Z, second precision).
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _write_activity(path, record):
+    """Atomic write (mirrors the state.json write below): same-directory temp +
+    os.replace, temp removed on any failure."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".",
+                               prefix=".activity-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, indent=2) + "\n")
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def activity_start(root, name, detail=None, if_absent=False):
+    """Stamp the beacon. With if_absent, ANOTHER command's live beacon (fresh within
+    the TTL) is kept untouched — that is how an inner skill flow avoids clobbering
+    the orchestrator that dispatched it — while the same command refreshing its own
+    beacon, or a stale leftover, writes through. Re-stamping the same command
+    preserves its original `started` (an orchestrator updating --detail between
+    steps keeps one run clock) — but only while the beacon is FRESH: a stale
+    same-name leftover is a dead run, so its takeover gets a new clock instead of
+    wearing the dead run's `since` stamp. Returns the one-line report to print."""
+    path = _activity_path(root)
+    existing, mtime = _read_activity(path)
+    fresh = False
+    if existing is not None and mtime is not None:
+        fresh = (time.time() - mtime) <= _activity_ttl()
+        if if_absent and fresh and existing["command"].strip() != name:
+            return "activity: kept %s (already running)" % existing["command"].strip()
+    now = _utc_now()
+    started = now
+    if fresh and existing is not None and existing["command"].strip() == name:
+        prev = existing.get("started")
+        if isinstance(prev, str) and prev:
+            started = prev
+    record = {"command": name, "started": started, "updated": now}
+    if detail:
+        record["detail"] = detail
+    _write_activity(path, record)
+    return "activity: started %s" % name
+
+
+def activity_stop(root, name=None):
+    """Remove the beacon. With a name, remove only a beacon that command owns —
+    an inner flow's stop must not erase its orchestrator's beacon — while a
+    malformed file is removed regardless (it is noise, not anyone's run). Always
+    succeeds: a missing beacon is already the goal state."""
+    path = _activity_path(root)
+    existing, _mtime = _read_activity(path)
+    if existing is None:
+        if os.path.exists(path):
+            # unreadable/malformed beacon: self-heal by clearing it
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+            return "activity: cleared malformed beacon"
+        return "activity: none"
+    current = existing["command"].strip()
+    if name is not None and current != name:
+        return "activity: kept %s (not %s)" % (current, name)
+    try:
+        os.remove(path)
+    except OSError:
+        return "activity: none"
+    return "activity: stopped %s" % current
+
+
+def _sanitize_detail(detail):
+    """One display line: whitespace collapsed, capped at _ACTIVITY_DETAIL_MAX. The
+    dashboard renders via textContent so this is a UI bound, not an escape."""
+    if detail is None:
+        return None
+    flat = " ".join(detail.split())
+    return flat[:_ACTIVITY_DETAIL_MAX] if flat else None
+
+
+def activity_main(argv):
+    """CLI for the beacon (state.py activity …). Positional action+name, mirroring
+    lifecycle.py's positional-choices style rather than argparse subparsers."""
+    ap = argparse.ArgumentParser(
+        prog="state.py activity",
+        description="stamp/clear the run-activity beacon the dashboard reactor shows.")
+    ap.add_argument("action", choices=["start", "stop"],
+                    help="start: stamp .planwright/activity.json; stop: remove it")
+    ap.add_argument("name", nargs="?", default=None,
+                    help="command name (required for start; for stop, remove only "
+                         "a beacon owned by this name)")
+    ap.add_argument("--detail", default=None,
+                    help="free-text progress line shown next to the command "
+                         "(e.g. 'shard 3/5: scripts/')")
+    ap.add_argument("--if-absent", action="store_true",
+                    help="start only when no OTHER live beacon exists (a stale one "
+                         "counts as absent, and the same command may refresh its "
+                         "own); inner flows use this so they never clobber the "
+                         "orchestrator that dispatched them")
+    ap.add_argument("--root", default=".",
+                    help="the target repo (default: current directory)")
+    args = ap.parse_args(argv)
+
+    if args.action == "start":
+        if not args.name:
+            ap.error("start requires a command name")
+        if not _ACTIVITY_NAME_RE.match(args.name):
+            ap.error("invalid command name %r (want a short lowercase token)" % args.name)
+        print(activity_start(args.root, args.name,
+                             detail=_sanitize_detail(args.detail),
+                             if_absent=args.if_absent))
+        return 0
+    print(activity_stop(args.root, args.name))
+    return 0
+
+
 def collect(root: str) -> dict:
     """Build the full dashboard state record from <root>/.planwright/, reusing
     status.collect() for the summary and adding the full pending/completed bodies."""
@@ -142,11 +348,20 @@ def collect(root: str) -> dict:
         # view shows the same partition codshard would sweep instead of re-deriving an
         # approximation from graph node paths (graph nodes ≠ git-tracked files).
         "repo": status._repo_block(root),
+        # The run-activity beacon ({command, detail, started, age_seconds, stale},
+        # or null when no command flow has stamped one) — the Console reactor's
+        # "which command is running right now" line. Distinct from the pending-work
+        # verdict: IN PROGRESS means items exist, activity means a run is executing.
+        "activity": _activity_block(root),
         "converged": status._converged(base),
     }
 
 
 def main():
+    # The activity subcommand peels off before the flat snapshot parser so the
+    # historical flag-only invocation (`state.py --root .`) keeps working unchanged.
+    if len(sys.argv) > 1 and sys.argv[1] == "activity":
+        return activity_main(sys.argv[2:])
     ap = argparse.ArgumentParser(
         description="planwright machine-readable state snapshot (read-only).")
     ap.add_argument("--root", default=".",

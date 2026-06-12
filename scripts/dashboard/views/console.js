@@ -170,6 +170,24 @@
     }
     panel.appendChild(sats);
     panel.appendChild(elt("div", "pw-reactor-note", noteText));
+    // Run-activity beacon: WHICH command is executing right now (state.activity,
+    // stamped by the command flows via `state.py activity`). Rendered only for a
+    // well-formed beacon — an older snapshot without the field leaves the reactor
+    // unchanged — and never reuses the IN PROGRESS vocabulary: that verdict means
+    // pending items exist, this line means a run is live this second.
+    var act = state.activity;
+    if (window.PW_DERIVE.activityShown(act)) {
+      var live = elt("div", "pw-reactor-activity" + (act.stale ? " is-stale" : ""));
+      live.appendChild(elt("span", "pw-reactor-activity-dot"));
+      live.appendChild(elt("span", "pw-reactor-activity-text",
+        window.PW_DERIVE.activityLabel(act)));
+      live.title = act.stale
+        ? "beacon last stamped " + (act.started || "?") +
+          " and not refreshed within its TTL — the run may have been interrupted " +
+          "(state.py activity stop clears a leftover)"
+        : "a command flow stamped this run at " + (act.started || "?");
+      panel.appendChild(live);
+    }
     return panel;
   }
 

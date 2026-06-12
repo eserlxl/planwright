@@ -49,9 +49,18 @@ also doubles as the `invent` awareness notice — the invent phase may make rare
 to repo files, including `MISSION.md`):
 `codcycle: max-intensity framing-rotated sweep — <N or ∞> outer cycle(s), each running explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed that sweeps the vantage catalog (power-user → integration → onboarding → reliability → automation), then one final explore phase to close the run. Note: the invent phase may make rare, small committed edits to repo files, including MISSION.md.`
 
+Then stamp the run-activity beacon so the dashboard's reactor names this run: resolve `<scripts>`
+per planwright's **Procedure → Bundled scripts** rule (the skill base directory's
+`../../scripts/`) and run `python3 <scripts>/state.py activity start codcycle --root .` in the ctx
+sandbox when available. The beacon is best-effort telemetry — if the script cannot run, skip it
+and proceed; never block on it.
+
 Then run the loop. For each outer cycle `i` (from 1 to `N`, or unbounded when `N` is negative):
 
-- Print a header line `=== codcycle i/N ===` (use `i/∞` when `N` is negative).
+- Print a header line `=== codcycle i/N ===` (use `i/∞` when `N` is negative), re-stamping the
+  beacon with the cycle as its detail first:
+  `python3 <scripts>/state.py activity start codcycle --detail "cycle i/N" --root .`
+  (best-effort, never block).
 - **Phase A (harden):** invoke planwright with `cycle 3 depth 10 explore <scope>`. Wait for it to finish.
 - **Phase B (grow):** invoke planwright with `cycle 3 depth 10 invent seed <i> <scope>` — a fixed 3-cycle
   invent burst under the **framing seed `<i>`** (the outer-cycle index), which rotates the invent
@@ -84,7 +93,8 @@ After the outer loop ends — whether it completed `N` cycles, was interrupted, 
 meta-final-point (but **not** when it stopped on a broken tree, see below) — run the closing phase
 **exactly once**:
 
-- Print a header line `=== codcycle final explore ===`.
+- Print a header line `=== codcycle final explore ===`, re-stamping the beacon's detail to
+  `final explore` first (same invocation shape; best-effort, never block).
 - **Final phase (closing harden):** invoke planwright with `cycle 3 depth 10 explore <scope>`. Wait for
   it to finish. This is the single final explore that ends the whole run; it hardens whatever the last
   invent landed (and, when the loop already converged, simply confirms the stable meta-final-point).
@@ -104,7 +114,9 @@ Between and after phases, honour planwright's own stop conditions — do not pap
   still runs once** afterward as the closing harden. (On a finite `N` shorter than a full rotation the
   loop may end first; that is an `N`-budget stop, not a meta-final-point.)
 
-After the loop and the final explore (or an early stop), print a short cumulative summary: outer cycles
+After the loop and the final explore (or an early stop), first remove the run-activity beacon:
+`python3 <scripts>/state.py activity stop --root .` (best-effort, never block — this applies to
+every way the run ends, including hard stops). Then print a short cumulative summary: outer cycles
 completed (out of `N`, or `∞`), whether the final explore ran, total items implemented across all phases,
 the **per-cycle verified-commit counts and the framing each cycle surveyed** (e.g.
 `commits 2 → 0 → 0 across framings power-user → integration → onboarding`), and the stop reason

@@ -459,9 +459,38 @@
     return !!(fp && (fp.sha || fp.date || fp.deepest_tier));
   }
 
+  // Whether the run-activity beacon (state.activity from /state.json) should render
+  // at all. Presence check, not a default object: an older snapshot without the
+  // field — or a degraded/malformed beacon the server nulled out — renders the
+  // reactor exactly as before (the carried counter's zero-silence precedent).
+  function activityShown(act) {
+    return !!(act && typeof act.command === "string" && act.command);
+  }
+
+  // The dynamic line under the reactor note: "codshard — shard 3/5 · since 18:42",
+  // plus " · stale?" when the beacon outlived its TTL without a re-stamp (an
+  // interrupted run leaves the file behind with no process to clean it up — the
+  // line must stop asserting a long-dead run is live). Pure so the suite can pin
+  // it under node. Wording is deliberately distinct from the reactor's
+  // "IN PROGRESS" verdict: that means pending items exist; this means a command
+  // is executing right now.
+  function activityLabel(act) {
+    var label = act.command + (act.detail ? " — " + act.detail : "");
+    if (act.started) {
+      var t = new Date(act.started);
+      if (!isNaN(t.getTime())) {
+        label += " · since " + ("0" + t.getHours()).slice(-2) + ":" +
+          ("0" + t.getMinutes()).slice(-2);
+      }
+    }
+    if (act.stale) { label += " · stale?"; }
+    return label;
+  }
+
   window.PW_DERIVE = {
     metrics: metrics, pctRank: pctRank, quantile: quantile, pendingModes: pendingModes,
     staleCast: staleCast, finalFlag: finalFlag, finalPointShown: finalPointShown,
+    activityShown: activityShown, activityLabel: activityLabel,
     coach: { signals: coachSignals, recommend: coachRecommend, evidence: coachEvidence, reset: coachReset },
     graph: { adapt: graphAdapt, cycleMembers: cycleMembers },
     shards: { map: shardMap },

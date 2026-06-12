@@ -501,3 +501,41 @@ assert "background" in body.lower(), "does not launch in the background (would b
 assert "read-only" in body.lower(), "read-only contract not stated"
 PY
 then ok "commands/dashboard.md launches the bundled read-only dashboard (resolved <scripts>, --open, non-blocking)"; else bad "commands/dashboard.md malformed or lost its dashboard-launch contract"; fi
+
+# --- Test 18: the run-activity beacon wiring (orchestrators stamp, skill flows guard) ---
+# The dashboard reactor's "which command is running" line reads .planwright/activity.json,
+# stamped via `state.py activity`. The nesting rule keeps it truthful: the three
+# orchestrators (codmaster/codshard/codcycle) stamp their own names unconditionally at
+# start, re-stamp --detail at their step/shard/cycle headers, and stop at the end; the
+# skill's inner plan/execute/cycle flows stamp only `--if-absent` (never clobbering the
+# orchestrator that dispatched them) and stop only the beacon they own (`stop <name>`).
+# Every call site must stay best-effort ("never block") — the beacon is telemetry, not a
+# gate. dashboard.md stays read-only and must never stamp.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import os, re, sys
+root = sys.argv[1]
+def body(rel):
+    t = open(os.path.join(root, rel), encoding="utf-8").read()
+    m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+    return t[m.end():] if m else t
+def flat(s):
+    return " ".join(s.split())
+for name in ("codmaster", "codshard", "codcycle"):
+    b = flat(body("commands/%s.md" % name))
+    assert "state.py activity start %s" % name in b, "%s: no unconditional start stamp" % name
+    assert "--if-absent" not in b.split("state.py activity start %s" % name)[1][:40], \
+        "%s: the orchestrator stamp must be unconditional" % name
+    assert 'activity start %s --detail' % name in b, "%s: no --detail re-stamp at step headers" % name
+    assert "state.py activity stop --root ." in b, "%s: no beacon removal at the end" % name
+    assert "never block" in b, "%s: beacon not marked best-effort/never-block" % name
+skill = flat(open(os.path.join(root, "skills/planwright/SKILL.md"), encoding="utf-8").read())
+for flow in ("plan", "execute", "cycle"):
+    assert "activity start %s --if-absent" % flow in skill, \
+        "SKILL.md %s flow: start must be --if-absent (inner flows never clobber)" % flow
+    assert "activity stop %s" % flow in skill, \
+        "SKILL.md %s flow: stop must be owner-guarded (stop %s)" % (flow, flow)
+assert "never block" in skill, "SKILL.md: beacon not marked best-effort"
+dash = flat(body("commands/dashboard.md"))
+assert "activity start" not in dash, "dashboard.md must stay read-only (no beacon stamp)"
+PY
+then ok "run-activity beacon wiring: orchestrators stamp/re-stamp/stop, skill flows use --if-absent and owner-guarded stop, dashboard.md never stamps"; else bad "run-activity beacon wiring drifted (unconditional orchestrator stamp, --if-absent inner stamp, owner-guarded stop, or never-block clause missing)"; fi

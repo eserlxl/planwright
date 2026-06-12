@@ -374,6 +374,19 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
 .pw-sat.is-stale { border-color: rgba(245,158,11,0.35); }
 .pw-sat.is-stale .pw-sat-v { color: var(--pw-warn); }
 .pw-reactor-note { font-size: var(--pw-fs-xs); color: var(--pw-faint); text-align: center; }
+/* Run-activity beacon — the "which command is running" line under the note. Live
+   uses the --pw-live semantic (distinct from the amber pending-work verdict); a
+   stale beacon dims to warn and its dot stops pulsing (a dead run must not blink). */
+.pw-reactor-activity {
+  display: flex; align-items: center; justify-content: center; gap: var(--pw-s2);
+  font-size: var(--pw-fs-xs); font-family: var(--pw-font-mono); color: var(--pw-live);
+}
+.pw-reactor-activity-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--pw-live);
+  flex: none; animation: pw-breathe 1.8s ease-in-out infinite;
+}
+.pw-reactor-activity.is-stale { color: var(--pw-warn); }
+.pw-reactor-activity.is-stale .pw-reactor-activity-dot { background: var(--pw-warn); animation: none; }
 
 /* Health Vitals */
 .pw-vitals { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--pw-s4); }
@@ -927,6 +940,7 @@ body.pw-glance .pw-overview { display: flex; }
 @media (prefers-reduced-motion: reduce) {
   .aurora-bg, .pw-pulse-ripple, .pw-pulse-ripple.is-active,
   .pw-reactor-spin, .pw-reactor-core.is-converged, .pw-coupling-edge.is-cycle,
+  .pw-reactor-activity-dot,
   .pw-bloom, .pw-banner-dot, .pw-status.ok::before, .pw-web-spin.active svg {
     animation: none !important;
   }

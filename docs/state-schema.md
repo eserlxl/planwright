@@ -29,6 +29,7 @@ straight from `status`, and `state.py` adds the full pending/completed item bodi
 | `final_point` | object\|null | `status` | Recorded final point (`{sha, date, deepest_tier, stale, scope, valid, invent_seed, invent_framing}`) or `null`. `valid` = `final.md` passes lint-final's contract; `scope` = the recorded component scope (`"path:<X>"`/`"lib:<X>"`) or `null` for whole-repo; `invent_seed`/`invent_framing` = the seeded-invent replay record or `null` when unseeded. |
 | `graph` | object\|null | `status` | Graph summary (`{built_at_sha, node_count, dirty_node_count, stale, frontier}`) or `null`. `stale` = the build sha lags `HEAD` (the same sha-lag predicate as `final_point.stale`); `frontier` = the builder's audit-backlog counts (`{never_audited, stale}`) or `null` on a pre-frontier graph. |
 | `repo` | object\|null | `status` | codshard's shard enumeration (`{tracked_files, shardable_dirs, folded_dirs, large}`) or `null` when git is unavailable. The same git-tracked rule `commands/codshard.md` applies (top-level dirs holding ≥3 tracked files shard, smaller ones fold, dot-dirs excluded) — surfaced so the dashboard's Shards view renders the partition a sweep would walk instead of approximating it from graph node paths. |
+| `activity` | object\|null | `state.py` | The run-activity beacon (`{command, detail, started, age_seconds, stale}`) or `null` when no command flow has stamped `.planwright/activity.json` (or the file is malformed). `command` = the running flow's name (`codmaster`, `codshard`, `codcycle`, `plan`, `execute`, `cycle`); `detail` = its free-text progress line or `null`; `started` = the run's first stamp (UTC ISO-8601) or `null`; `age_seconds` = seconds since the last (re-)stamp, from the file mtime; `stale` = the beacon outlived `PW_ACTIVITY_TTL` (default 3600 s) without a re-stamp — an interrupted run leaves the file behind, so a stale beacon must not be read as live. Distinct from the pending-work verdict: "IN PROGRESS" means items exist; `activity` means a run is executing right now. |
 | `converged` | bool | `status` | True at a current, **valid**, **whole-repo** final point with nothing pending (an invalid `final.md` never converges; a component-scoped point asserts dryness only for its component). |
 
 ## Item shape (`pending[]`)
@@ -53,10 +54,16 @@ A missing string field defaults to `""`; a missing list field defaults to `[]`.
 ## Notes
 
 - **Read-only / derived.** `state.py` reads only the gitignored `.planwright/` tree
-  (plus git HEAD via `status.py`) and writes nothing but its own output artifact.
-- **Determinism.** The snapshot carries no timestamp, so two runs over an unchanged
-  tree produce byte-identical output; freshness is the dashboard's concern (it re-fetches
-  on each SSE event).
+  (plus git HEAD via `status.py`) and writes nothing but its own output artifact. The
+  one exception is the `state.py activity start|stop` subcommand, which the command
+  flows use to stamp/clear the `.planwright/activity.json` beacon the `activity`
+  field reads.
+- **Determinism.** The snapshot itself carries no timestamp, so two runs over an
+  unchanged tree produce byte-identical output — except while a run-activity beacon
+  is present: `activity.age_seconds` counts wall-clock seconds since the last stamp
+  (and `stale` flips past the TTL), which is exactly the freshness signal the
+  dashboard needs about a live run. With no beacon (the steady state between runs)
+  the byte-identical guarantee holds unchanged.
 
 ## status --json
 

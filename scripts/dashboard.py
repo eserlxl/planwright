@@ -99,7 +99,13 @@ def _planwright_dir(root):
 def _mtime_signature(root):
     """A cheap change signature for .planwright/: the sorted (name, mtime, size) of its
     files. Comparing successive signatures detects any add/remove/modify without reading
-    file contents. A missing directory yields an empty signature (a valid state)."""
+    file contents. A missing directory yields an empty signature (a valid state).
+
+    The run-activity beacon gets one derived bit on top: its stale flip happens by TTL,
+    not by a file change — an interrupted run leaves activity.json untouched, so without
+    this bit the one scenario the stale flag exists for would never fire a change event
+    and an open dashboard would keep pulsing "live" over a dead run. The bit makes the
+    signature change exactly once when the beacon crosses PW_ACTIVITY_TTL."""
     pw = _planwright_dir(root)
     sig = []
     try:
@@ -109,7 +115,10 @@ def _mtime_signature(root):
                 st = os.stat(fp)
             except OSError:
                 continue
-            sig.append((name, st.st_mtime_ns, st.st_size))
+            entry = (name, st.st_mtime_ns, st.st_size)
+            if name == "activity.json":
+                entry += ((time.time() - st.st_mtime) > state._activity_ttl(),)
+            sig.append(entry)
     except OSError:
         return ()
     return tuple(sig)

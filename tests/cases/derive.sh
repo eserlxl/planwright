@@ -758,3 +758,52 @@ JS
 else
   ok "shards.map real-builder cross-pin skipped (node not installed)"
 fi
+
+# --- Test DRV6: activityShown/activityLabel — the run-activity beacon line is pure logic ---
+# The Console's "which command is running" line derives entirely from state.activity;
+# the shown-guard and the label format live in PW_DERIVE so this suite can pin them:
+# a malformed/absent beacon renders nothing (older snapshots stay unchanged), the label
+# carries command — detail · since HH:MM, and a stale beacon appends "stale?" instead of
+# asserting a long-dead run is live.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/derive_activity_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+global.window = {};
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+const D = global.window.PW_DERIVE;
+assert(typeof D.activityShown === "function", "PW_DERIVE.activityShown missing");
+assert(typeof D.activityLabel === "function", "PW_DERIVE.activityLabel missing");
+// shown: presence check on a well-formed beacon only
+assert.strictEqual(D.activityShown(null), false, "null beacon hidden");
+assert.strictEqual(D.activityShown(undefined), false, "absent field (older snapshot) hidden");
+assert.strictEqual(D.activityShown({}), false, "commandless beacon hidden");
+assert.strictEqual(D.activityShown({ command: "" }), false, "empty command hidden");
+assert.strictEqual(D.activityShown({ command: 42 }), false, "non-string command hidden");
+assert.strictEqual(D.activityShown({ command: "codshard" }), true, "well-formed beacon shows");
+// label: command — detail · since HH:MM (· stale? only past the TTL)
+const live = D.activityLabel({ command: "codshard", detail: "shard 3/5: scripts/", started: "2026-06-12T18:42:00Z", stale: false });
+assert(/^codshard — shard 3\/5: scripts\/ · since \d\d:\d\d$/.test(live), "live label format: " + live);
+const bare = D.activityLabel({ command: "plan", detail: null, started: null, stale: false });
+assert.strictEqual(bare, "plan", "detail-less, started-less label is just the command");
+const stale = D.activityLabel({ command: "codmaster", detail: null, started: "2026-06-12T08:00:00Z", stale: true });
+assert(/ · stale\?$/.test(stale), "stale beacon appends the stale? caveat: " + stale);
+const badDate = D.activityLabel({ command: "cycle", detail: "cycle 2/3", started: "not-a-date", stale: false });
+assert.strictEqual(badDate, "cycle — cycle 2/3", "an unparseable started drops the since stamp, not the line");
+console.log("ACTIVITY-OK");
+JS
+  if node "$TMP/derive_activity_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive_act.out" 2>"$TMP/derive_act.err" && grep -q ACTIVITY-OK "$TMP/derive_act.out"; then
+    ok "PW_DERIVE.activityShown/activityLabel: guard hides malformed beacons, label formats live/stale runs"
+  else
+    bad "PW_DERIVE activity helpers wrong: $(cat "$TMP/derive_act.err" 2>/dev/null)"
+  fi
+  if grep -q 'PW_DERIVE.activityShown(act)' "$ROOT/scripts/dashboard/views/console.js" \
+     && grep -q 'PW_DERIVE.activityLabel(act)' "$ROOT/scripts/dashboard/views/console.js"; then
+    ok "console routes the activity line through PW_DERIVE.activityShown/activityLabel"
+  else
+    bad "console renders the activity line without the PW_DERIVE activity helpers"
+  fi
+else
+  ok "PW_DERIVE activity helpers check skipped (node not installed)"
+fi

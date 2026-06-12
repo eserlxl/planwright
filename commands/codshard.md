@@ -95,6 +95,12 @@ active (in both banner variants). At
 `K = 0` print this variant instead:
 `codshard: no shardable top-level directory — running only the closing whole-repo round (cycle <M> depth <D>).`
 
+Then stamp the run-activity beacon so the dashboard's reactor names this run: resolve `<scripts>`
+per planwright's **Procedure → Bundled scripts** rule (the skill base directory's
+`../../scripts/`) and run `python3 <scripts>/state.py activity start codshard --root .` in the ctx
+sandbox when available. The beacon is best-effort telemetry — if the script cannot run, skip it
+and proceed; never block on it.
+
 **Parallel recon (opt-in, Claude Code only).** When `parallel` was passed and the host exposes a
 subagent primitive (Claude Code's Agent tool), launch — before the shard loop — one recon subagent
 per selected `path` shard (`lib` shards get no recon — their paths resolve only inside planwright),
@@ -117,7 +123,9 @@ and continue — recon never changes *what* is audited, only how fast attention 
 Then run the **shard loop** — always sequential (recon parallelises reading, never the rounds). For
 each shard `i` (from 1 to `K`, in the order above):
 
-- Print a header line `=== codshard shard i/K: <shard> ===`.
+- Print a header line `=== codshard shard i/K: <shard> ===`, re-stamping the beacon with the
+  shard as its detail first: `python3 <scripts>/state.py activity start codshard --detail "shard i/K: <shard>" --root .`
+  (best-effort, never block).
 - Invoke planwright with `cycle <M> depth <D> path <shard>` (or `lib <shard>` for a lib entry).
   Wait for it to finish.
 - A shard that converges records its **scoped final point**; by planwright's own rule that never
@@ -132,7 +140,8 @@ start the next shard **or the closing round** on a broken tree.
 After the shard loop — whether it completed all `K` shards or was interrupted (but **not** when it
 stopped on a broken tree) — run the closing phase **exactly once**:
 
-- Print a header line `=== codshard closing whole-repo round ===`.
+- Print a header line `=== codshard closing whole-repo round ===`, re-stamping the beacon's
+  detail to `closing whole-repo round` first (same invocation shape; best-effort, never block).
 - Invoke planwright with `cycle <M> depth <D>` (unscoped) — or `cycle <M> depth <D> explore`
   (unscoped) when the `explore` flag was peeled in step 3. This round sees what no shard can:
   cross-shard seams, root-level files, build/CI/docs and other global concerns, and the
@@ -144,7 +153,9 @@ stopped on a broken tree) — run the closing phase **exactly once**:
   flag would only double-spend on the attention redistribution sharding itself provides, which
   is why the shard loop never escalates.
 
-After the closing round (or an early stop), print a short cumulative summary: shards completed (out
+After the closing round (or an early stop), first remove the run-activity beacon:
+`python3 <scripts>/state.py activity stop --root .` (best-effort, never block — this applies to
+every way the run ends, including hard stops). Then print a short cumulative summary: shards completed (out
 of `K`), the per-shard verified-commit counts in order (e.g. `commits 2 → 0 → 1 across shards
 scripts → docs → tests`), whether the closing round ran and what it reported, total items
 implemented across all rounds, whether the closing round escalated with `explore`, and the stop

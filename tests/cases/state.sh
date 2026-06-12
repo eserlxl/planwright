@@ -16,6 +16,7 @@ if [ "$rc" = "0" ] \
    && printf '%s' "$out" | grep -q '"rejected":' \
    && printf '%s' "$out" | grep -q '"final_point":' \
    && printf '%s' "$out" | grep -q '"graph":' \
+   && printf '%s' "$out" | grep -q '"activity":' \
    && printf '%s' "$out" | grep -q '"counts":'; then
   ok "state.py --out - is exit 0 and carries schema_version + all top-level keys"
 else
@@ -261,4 +262,129 @@ if [ "$gc_rc" = 0 ] && printf '%s' "$gc_out" | python3 -c 'import json,sys; asse
   ok "state.py degrades a corrupt (non-object) graph.json to a null graph block (exit 0)"
 else
   bad "state.py did not degrade a corrupt graph.json to null (rc=$gc_rc)"
+fi
+
+# --- Test ST9: the run-activity beacon round-trip (start -> state.json -> stop) -----
+# `state.py activity` is the writer the command flows use to tell the dashboard WHICH
+# command is running; collect() shapes it into state.activity. Pin the whole loop:
+# stamp, snapshot, clear, and the no-beacon null.
+ABX="$TMP/state-activity"; mkdir -p "$ABX/.planwright"
+if python3 "$STATE" activity start codmaster --detail "step 3/12: execute" --root "$ABX" >/dev/null \
+   && python3 "$STATE" --root "$ABX" --out - | python3 -c '
+import json, sys
+a = json.load(sys.stdin)["activity"]
+assert a is not None, "activity block missing while a beacon is stamped"
+assert a["command"] == "codmaster", a
+assert a["detail"] == "step 3/12: execute", a
+assert isinstance(a["started"], str) and a["started"].endswith("Z"), a
+assert a["stale"] is False and a["age_seconds"] >= 0, a
+' \
+   && python3 "$STATE" activity stop --root "$ABX" >/dev/null \
+   && python3 "$STATE" --root "$ABX" --out - | python3 -c '
+import json, sys
+assert json.load(sys.stdin)["activity"] is None, "activity must be null after stop"
+'; then
+  ok "state.py activity start/stop round-trips through state.activity (command, detail, started, stale)"
+else
+  bad "state.py activity beacon round-trip wrong"
+fi
+
+# --- Test ST9b: re-stamp preserves started; --if-absent guards the orchestrator ----
+# An orchestrator updating --detail between steps keeps one run clock (started is
+# preserved on a same-command re-stamp); an inner flow's `start --if-absent` must
+# never clobber another command's live beacon, while the same command writes through.
+AB2="$TMP/state-activity-nest"; mkdir -p "$AB2/.planwright"
+python3 "$STATE" activity start codshard --root "$AB2" >/dev/null
+ab2_started="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["started"])' "$AB2/.planwright/activity.json")"
+python3 "$STATE" activity start codshard --detail "shard 2/5: docs/" --root "$AB2" >/dev/null
+ab2_kept="$(python3 "$STATE" activity start plan --if-absent --root "$AB2")"
+ab2_refresh="$(python3 "$STATE" activity start codshard --if-absent --detail "shard 3/5: tests/" --root "$AB2")"
+if python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["command"] == "codshard", d
+assert d["started"] == sys.argv[2], (d["started"], sys.argv[2])
+assert d["detail"] == "shard 3/5: tests/", d
+' "$AB2/.planwright/activity.json" "$ab2_started" \
+   && printf '%s' "$ab2_kept" | grep -q "kept codshard" \
+   && printf '%s' "$ab2_refresh" | grep -q "started codshard"; then
+  ok "state.py activity re-stamp keeps started; --if-absent keeps another live beacon but lets the owner refresh"
+else
+  bad "state.py activity nesting semantics wrong (kept='$ab2_kept' refresh='$ab2_refresh')"
+fi
+
+# --- Test ST9c: a guarded stop never erases the orchestrator's beacon ---------------
+# SKILL.md's inner flows run `activity stop <name>`: it removes only a beacon that
+# command owns, so a plan flow finishing under codmaster leaves codmaster's beacon up.
+ab3_kept="$(python3 "$STATE" activity stop plan --root "$AB2")"
+ab3_kept_file=0; [ -f "$AB2/.planwright/activity.json" ] && ab3_kept_file=1
+ab3_gone="$(python3 "$STATE" activity stop codshard --root "$AB2")"
+ab3_none="$(python3 "$STATE" activity stop --root "$AB2")"
+if printf '%s' "$ab3_kept" | grep -q "kept codshard" \
+   && [ "$ab3_kept_file" = "1" ] \
+   && printf '%s' "$ab3_gone" | grep -q "stopped codshard" \
+   && [ ! -f "$AB2/.planwright/activity.json" ] \
+   && printf '%s' "$ab3_none" | grep -q "none"; then
+  ok "state.py activity stop is owner-guarded with a name, unconditional bare, idempotent when absent"
+else
+  bad "state.py activity stop guard wrong (kept='$ab3_kept' gone='$ab3_gone' none='$ab3_none')"
+fi
+
+# --- Test ST9d: staleness — TTL from mtime, PW_ACTIVITY_TTL override, stale takeover ---
+# An interrupted run leaves activity.json behind with no process to clean it up; the
+# mtime is the one signal a leftover cannot keep current. Past the TTL the block reads
+# stale, and `start --if-absent` treats it as absent (the next run takes the beacon over).
+AB4="$TMP/state-activity-stale"; mkdir -p "$AB4/.planwright"
+python3 "$STATE" activity start codcycle --root "$AB4" >/dev/null
+touch -d '2 hours ago' "$AB4/.planwright/activity.json" 2>/dev/null || touch -t 202601010000 "$AB4/.planwright/activity.json"
+ab4_stale="$(python3 "$STATE" --root "$AB4" --out - | python3 -c 'import json,sys; print(json.load(sys.stdin)["activity"]["stale"])')"
+ab4_fresh="$(PW_ACTIVITY_TTL=999999 python3 "$STATE" --root "$AB4" --out - | python3 -c 'import json,sys; print(json.load(sys.stdin)["activity"]["stale"])')"
+ab4_takeover="$(python3 "$STATE" activity start plan --if-absent --root "$AB4")"
+if [ "$ab4_stale" = "True" ] && [ "$ab4_fresh" = "False" ] \
+   && printf '%s' "$ab4_takeover" | grep -q "started plan"; then
+  ok "state.py activity stale flips past the TTL (PW_ACTIVITY_TTL overrides) and --if-absent takes a stale beacon over"
+else
+  bad "state.py activity staleness wrong (stale=$ab4_stale fresh=$ab4_fresh takeover='$ab4_takeover')"
+fi
+
+# --- Test ST9d2: a same-name re-stamp over a STALE leftover resets started ----------
+# started-preservation exists so an orchestrator's --detail re-stamps keep one run
+# clock — within a LIVE run. A stale same-name leftover is a dead run; the next run
+# wearing the same name must get a fresh clock, never the dead run's `since` stamp.
+AB4B="$TMP/state-activity-stale-samename"; mkdir -p "$AB4B/.planwright"
+python3 "$STATE" activity start codmaster --root "$AB4B" >/dev/null
+python3 - "$AB4B/.planwright/activity.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p)); d["started"] = "2026-06-11T03:00:00Z"
+json.dump(d, open(p, "w"))
+PY
+touch -d '2 hours ago' "$AB4B/.planwright/activity.json" 2>/dev/null || touch -t 202601010000 "$AB4B/.planwright/activity.json"
+python3 "$STATE" activity start codmaster --root "$AB4B" >/dev/null
+ab4b_started="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["started"])' "$AB4B/.planwright/activity.json")"
+if [ "$ab4b_started" != "2026-06-11T03:00:00Z" ]; then
+  ok "state.py activity same-name re-stamp over a stale leftover resets started (no dead run's clock)"
+else
+  bad "state.py activity inherited a dead run's started across the TTL ($ab4b_started)"
+fi
+
+# --- Test ST9e: degradation + hygiene — malformed beacon, atomic write, bad name ----
+# A torn/hand-edited beacon must read as "no beacon" in the snapshot (the dashboard
+# survives corrupt input), a bare stop self-heals it, the writer leaves no temp
+# residue, and a shell-fragment command name is refused (exit 2) before it can become
+# the dashboard's headline.
+AB5="$TMP/state-activity-bad"; mkdir -p "$AB5/.planwright"
+printf '{broken' > "$AB5/.planwright/activity.json"
+ab5_null="$(python3 "$STATE" --root "$AB5" --out - | python3 -c 'import json,sys; print(json.load(sys.stdin)["activity"])')"
+ab5_heal="$(python3 "$STATE" activity stop --root "$AB5")"
+python3 "$STATE" activity start execute --root "$AB5" >/dev/null
+ab5_badname_rc=0; python3 "$STATE" activity start 'BAD NAME!' --root "$AB5" >/dev/null 2>&1 || ab5_badname_rc=$?
+if [ "$ab5_null" = "None" ] \
+   && printf '%s' "$ab5_heal" | grep -q "cleared malformed" \
+   && ! ls "$AB5/.planwright"/.activity-*.tmp >/dev/null 2>&1 \
+   && [ "$ab5_badname_rc" = "2" ] \
+   && python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["command"]=="execute"' "$AB5/.planwright/activity.json"; then
+  ok "state.py activity degrades a malformed beacon to null, self-heals on stop, writes atomically, refuses a bad name (exit 2)"
+else
+  bad "state.py activity degradation/hygiene wrong (null='$ab5_null' heal='$ab5_heal' badname_rc=$ab5_badname_rc)"
 fi
