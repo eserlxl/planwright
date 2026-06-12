@@ -169,7 +169,15 @@ reads its top function bodies *per shard* instead of *per repo*), and each shard
 through execute before the next shard starts. A single closing **whole-repo** round
 (`cycle <M> depth <D>`, unscoped) then covers what no shard can see — cross-shard seams, root-level
 files, global concerns — and is the only round that may declare the global final point.
-`explore`/`invent` do not compose with sharding (ignored with a note). On Claude Code an opt-in
+An opt-in `explore` flag escalates the **closing round only** (`cycle <M> depth <D> explore`) — the
+shard loop never escalates; `invent`/`seed` do not compose with sharding (ignored with a note). The
+closing escalation shares `M` (default 3): explore engages only if the closing round converges
+within that budget, and the expand tier gets at most `M - 1` cycles — for a codvisor-grade
+escalation, follow `/codshard` with `/codvisor` rather than raising `M`, which multiplies the whole
+shard loop by `K`. An escalated closing round can also spend its budget on swept work and finish
+*without* recording a final point where the plain round would have — it converted the would-be stop
+into landed items; re-run (or follow with `/codvisor`) to earn the deeper recorded point. On
+Claude Code an opt-in
 `parallel [J]` flag prefetches read-only recon leads per shard via subagents before the loop; the
 leads are routing-only re-verification seeds (never Evidence), the rounds themselves stay
 sequential, and every other host simply runs without recon.
@@ -178,6 +186,7 @@ sequential, and every other host simply runs without recon.
 /codshard                  Auto-enumerated shards, cycle 3 depth 10 per shard + one closing whole-repo round
 /codshard 2 8              cycle 2 depth 8 per shard (cycles, depth)
 /codshard shards src,tests Explicit shard list (paths or lib names)
+/codshard explore          Escalate only the closing whole-repo round (cycle 3 depth 10 explore); shard rounds stay plain
 /codshard parallel         Claude Code only: read-only recon prefetch per shard (routing-only; rounds stay sequential)
 ```
 

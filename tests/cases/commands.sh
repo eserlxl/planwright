@@ -216,7 +216,8 @@ then ok "SKILL.md states the canonical --path/--lib/--scope alias-normalization 
 # whole-repo round; guard the planwright delegation, the per-shard invocation form, the
 # sequential-rounds rule, the unscoped closing round (the only round that may declare the global
 # final point), the deterministic staleness/lexicographic shard order, the auto-enumeration rule,
-# the no-arg defaults, the Usage/STOP contract, and the explore/invent exclusion.
+# the no-arg defaults, the Usage/STOP contract, the closing-round-only explore escalation, and
+# the invent/seed exclusion.
 CMD="$ROOT/commands/codshard.md"
 if [ -f "$CMD" ]; then ok "commands/codshard.md exists"; else bad "commands/codshard.md missing"; fi
 if python3 - "$CMD" <<'PY' 2>/dev/null
@@ -283,8 +284,36 @@ assert "Usage:" in body, "no Usage line"
 assert "STOP" in body, "no STOP rule for help/malformed args"
 # explicit shard list option
 assert "shards <a,b,c>" in body, "explicit shards <a,b,c> list option missing"
-# escalation flags are excluded with the printed note (pinned verbatim — not silently swallowed)
-assert "codshard: explore/invent are not composable" in body, "escalation-exclusion note missing"
+# invent/seed are excluded with the printed note (pinned verbatim — not silently swallowed),
+# and no invocation token may quietly gain them: all invocations share the `depth <D> ...`
+# shape, while the legitimate text only ever uses bare `invent`/`seed <S>`
+assert "codshard: invent/seed are not composable" in body, "invent/seed-exclusion note missing"
+assert "<D> invent" not in body, "an invocation gained invent"
+assert "<D> seed" not in body, "an invocation gained seed"
+# explore composes with the CLOSING round only. Pin: the peel step itself (deleting it kills
+# the feature while the Usage echo stays green), the escalated invocation at the closing-round
+# site AND gated on the peeled flag (position alone survives an opt-out polarity swap), the
+# shard-loop polarity (no per-shard invocation gains explore — path or lib, either token
+# order, plus a whole-section sweep from the loop intro to the closing header), the Usage-line
+# flag, the banner swap pinned to the closing round's parenthetical in both variants, and the
+# summary's escalation-report field
+assert "Peel `explore`** from `<rest>`" in body, "explore peel step missing"
+assert "closing round only" in body, "explore closing-round-only rule missing"
+assert "never escalated" in body, "shard-loop-never-escalated polarity missing"
+ei = body.index("`cycle <M> depth <D> explore` (unscoped)")
+assert ci < ei, "escalated closing invocation not at the closing-round site"
+assert "`cycle <M> depth <D> explore` (unscoped) when the `explore` flag was peeled" in body, "escalated closing invocation not gated on the peeled flag"
+assert "explore path <shard>" not in body, "a per-shard invocation gained explore (leading)"
+assert "path <shard> explore" not in body, "a per-shard invocation gained explore (trailing)"
+assert "explore lib <shard>" not in body, "a per-shard lib invocation gained explore (leading)"
+assert "lib <shard> explore" not in body, "a per-shard lib invocation gained explore (trailing)"
+li = body.index("Then run the **shard loop")
+assert "explore" not in body[li:ci], "explore leaked into the shard-loop section"
+assert "[explore]" in body, "Usage line lost the explore flag"
+assert "explore escalates the closing round only" in body, "Usage explore clause missing"
+assert "swapping the closing round's parenthetical to `(cycle <M> depth <D> explore)`" in body, "banner explore swap not pinned to the closing round"
+assert "(in both banner variants)" in body, "explore banner swap lost the K = 0 variant"
+assert "escalated with `explore`" in body, "summary lost the explore-escalation field"
 # the cost banner (both variants) and the cumulative summary are load-bearing output
 assert "codshard: sharded maturity sweep" in body, "cost banner missing"
 assert "no shardable top-level directory" in body, "K = 0 banner variant missing"

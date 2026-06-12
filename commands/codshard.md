@@ -1,6 +1,6 @@
 ---
-description: Run planwright shard-by-shard. Partitions the repo into component shards (top-level directories by default, or an explicit shards list), runs an ordinary scoped planwright cycle per shard sequentially in staleness order, then closes with a single whole-repo round that covers what no shard can see — cross-shard seams, root-level files, global concerns, and the only legitimate global final point. An opt-in `parallel` flag (Claude Code only) prefetches read-only recon leads per shard via subagents; the leads are routing-only re-verification seeds, never Evidence, and every other host simply runs without recon. With no arguments it auto-enumerates shards and runs cycle 3 depth 10 per shard.
-argument-hint: "[M] [D] | shards <a,b,c> | parallel [J] | (empty = auto-shards, cycle 3 depth 10 per shard)"
+description: Run planwright shard-by-shard. Partitions the repo into component shards (top-level directories by default, or an explicit shards list), runs an ordinary scoped planwright cycle per shard sequentially in staleness order, then closes with a single whole-repo round that covers what no shard can see — cross-shard seams, root-level files, global concerns, and the only legitimate global final point. An opt-in `parallel` flag (Claude Code only) prefetches read-only recon leads per shard via subagents; the leads are routing-only re-verification seeds, never Evidence, and every other host simply runs without recon. An opt-in `explore` flag escalates the closing round only (`cycle <M> depth <D> explore`) — the shard loop never escalates, and `invent`/`seed` stay non-composable. With no arguments it auto-enumerates shards and runs cycle 3 depth 10 per shard.
+argument-hint: "[M] [D] | shards <a,b,c> | parallel [J] | explore | (empty = auto-shards, cycle 3 depth 10 per shard)"
 ---
 
 You are dispatching the **planwright** skill on behalf of the `/codshard` helper command.
@@ -49,9 +49,12 @@ Resolve them in this order:
    host caps concurrency. Peel this *before* classifying the remaining integers, so `J` is never
    mistaken for `M` or `D`.
 
-3. **Escalation flags are not composable here.** If `<rest>` still contains `explore`, `invent`, or
-   `seed <S>`, print one line —
-   `codshard: explore/invent are not composable with sharding (escalation is whole-repo by design) — ignored; use /codvisor or /codcycle for escalation.`
+3. **Peel `explore`** from `<rest>`: opt-in escalation for the **closing round only**. When
+   present, the closing whole-repo round runs `cycle <M> depth <D> explore` instead of the plain
+   closing cycle; the shard loop is never escalated — every per-shard round stays an ordinary
+   scoped cycle. `invent` and `seed <S>` remain non-composable: if `<rest>` still contains either,
+   print one line —
+   `codshard: invent/seed are not composable with sharding (invent grows and runs to budget; the closing round exists to converge) — ignored; use /codinventor or /codcycle for invent.`
    — drop those tokens, and continue.
 
 4. Classify what remains of `<rest>`:
@@ -60,7 +63,7 @@ Resolve them in this order:
    - **one integer `M`** (`M >= 1`): per-shard cycle count; depth defaults to 10.
    - **two integers `M D`**: per-shard cycle count and depth. First number = cycles, second = depth.
    - **`help` / `--help` / `-h` / `?`**: print
-     `Usage: /codshard [M] [D] [shards <a,b,c>] [parallel [J]]   (M >= 1; defaults: auto-enumerated top-level shards, cycle 3 depth 10 per shard; parallel recon is Claude-Code-only and routing-only). Runs cycle <M> depth <D> path <shard> per shard sequentially, then one closing whole-repo round.`
+     `Usage: /codshard [M] [D] [shards <a,b,c>] [parallel [J]] [explore]   (M >= 1; defaults: auto-enumerated top-level shards, cycle 3 depth 10 per shard; parallel recon is Claude-Code-only and routing-only; explore escalates the closing round only). Runs cycle <M> depth <D> path <shard> per shard sequentially, then one closing whole-repo round.`
      and STOP — do not run anything.
    - **anything else** (including `M < 1` or a non-integer leftover): print that same `Usage:` line
      and STOP.
@@ -86,7 +89,9 @@ order after all `path` shards. The graph steers *order only* — it is routing, 
 
 For runnable cases, **first print exactly one cost-banner line** so this heavy run is never silent:
 `codshard: sharded maturity sweep — <K> shard(s) in <staleness|lexicographic> order (<list>), each an ordinary scoped planwright run (cycle <M> depth <D> path|lib <shard>), then one closing whole-repo round (cycle <M> depth <D>) for cross-shard seams, root-level files, and global concerns.`
-— appending ` parallel recon: <J> read-only agent(s), routing-only.` when `parallel` is active. At
+— appending ` parallel recon: <J> read-only agent(s), routing-only.` when `parallel` is active, and
+swapping the closing round's parenthetical to `(cycle <M> depth <D> explore)` when `explore` is
+active (in both banner variants). At
 `K = 0` print this variant instead:
 `codshard: no shardable top-level directory — running only the closing whole-repo round (cycle <M> depth <D>).`
 
@@ -128,17 +133,23 @@ After the shard loop — whether it completed all `K` shards or was interrupted 
 stopped on a broken tree) — run the closing phase **exactly once**:
 
 - Print a header line `=== codshard closing whole-repo round ===`.
-- Invoke planwright with `cycle <M> depth <D>` (unscoped). This round sees what no shard can:
+- Invoke planwright with `cycle <M> depth <D>` (unscoped) — or `cycle <M> depth <D> explore`
+  (unscoped) when the `explore` flag was peeled in step 3. This round sees what no shard can:
   cross-shard seams, root-level files, build/CI/docs and other global concerns, and the
   project-wide opportunity/vision survey — so it is the **only** round that may legitimately
   declare the **global final point**. Per-shard scoped final points never aggregate into one.
+  Explore composes here and only here because this round is already at the altitude escalation
+  needs: its cold-frontier sweep and expand tier survey the whole repo — cross-shard seams
+  included — and deepen the same global final point this round owns. Inside a shard, the same
+  flag would only double-spend on the attention redistribution sharding itself provides, which
+  is why the shard loop never escalates.
 
 After the closing round (or an early stop), print a short cumulative summary: shards completed (out
 of `K`), the per-shard verified-commit counts in order (e.g. `commits 2 → 0 → 1 across shards
 scripts → docs → tests`), whether the closing round ran and what it reported, total items
-implemented across all rounds, and the stop reason (`completed`, `hard blocker`, or `broad-verify
-failed`).
+implemented across all rounds, whether the closing round escalated with `explore`, and the stop
+reason (`completed`, `hard blocker`, or `broad-verify failed`).
 
-Print nothing of your own except the cost banner, the one-line notes (escalation-ignored,
+Print nothing of your own except the cost banner, the one-line notes (invent/seed-ignored,
 recon-unavailable), the per-shard and closing headers, and the final summary; each planwright round
 prints its own per-cycle output, which stands as-is.

@@ -107,7 +107,7 @@ arghint_for() {
     codcycle)   echo "[N] | <N> (negative = infinite) | (empty = 10 outer cycles)" ;;
     codvisor)   echo "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 explore)" ;;
     codinventor) echo "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 invent)" ;;
-    codshard)   echo "[M] [D] | shards <a,b,c> | parallel [J] | (empty = auto-shards, cycle 3 depth 10 per shard)" ;;
+    codshard)   echo "[M] [D] | shards <a,b,c> | parallel [J] | explore | (empty = auto-shards, cycle 3 depth 10 per shard)" ;;
   esac
 }
 

@@ -51,7 +51,8 @@ It is autonomous in workflow, not unchecked in permissions: your host agent stil
 > depth 8) — see [Quick Start](#quick-start). `/codcycle` *orchestrates* many such runs — an explore
 > then a framing-rotated invent per outer cycle, with one closing explore — so reach for it when you want
 > codvisor and codinventor on a loop. `/codshard` is the other orchestrator: one scoped cycle per
-> top-level directory (so each shard gets the full depth budget), then one closing whole-repo round.
+> top-level directory (so each shard gets the full depth budget), then one closing whole-repo round
+> (add `explore` to escalate just that closing round).
 > The full vocabulary lives in [Concepts](docs/concepts.md).
 
 ## How it works: three paths
@@ -355,6 +356,7 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codshard                  # auto-enumerated shards, cycle 3 depth 10 per shard + the closing whole-repo round
 /codshard 2 8              # cycle 2 depth 8 per shard (cycles, depth)
 /codshard shards src,tests # explicit shard list (paths or lib names)
+/codshard explore          # escalate only the closing whole-repo round; shard rounds stay plain cycles
 /codshard parallel         # Claude Code only: prefetch read-only recon leads per shard (routing-only; rounds stay sequential)
 
 # Maintenance

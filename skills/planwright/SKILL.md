@@ -102,7 +102,9 @@ path <shard>`, defaulting to `cycle 3 depth 10`, sequentially, in staleness orde
 graph nodes first; lexicographic without a graph) — then closes with a single **unscoped**
 `cycle <M> depth <D>` round for cross-shard seams, root-level files, and global concerns; only that
 closing round may declare the global final point (per-shard scoped final points never aggregate into
-one). The point is depth, not speed: a scoped round concentrates the whole depth budget on one
+one). An opt-in `explore` flag escalates **only that closing round** (`cycle <M> depth <D> explore`)
+— per-shard rounds never escalate, and `invent`/`seed` do not compose with sharding at all. The
+point is depth, not speed: a scoped round concentrates the whole depth budget on one
 component, and each shard's findings drain through execute before the next shard starts. Its opt-in
 `parallel` flag prefetches read-only recon leads via subagents on hosts that have a subagent
 primitive (Claude Code); the leads are routing-only re-verification seeds — never Evidence — the
