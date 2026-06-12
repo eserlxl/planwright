@@ -92,6 +92,11 @@ def _parse_items(path):
             if label in it["fields"]:
                 value = it["fields"][label]
                 rec[key] = _split_paths(value) if key in _LIST_FIELDS else value
+        # The Commit: provenance stamp the execute path appends on pass. Captured
+        # outside _FIELD_KEYS so the pending-item shape (which whitelists that map's
+        # keys) stays the eight plan fields; only _completed_item surfaces it.
+        if "Commit" in it["fields"]:
+            rec["commit"] = it["fields"]["Commit"]
         items.append(rec)
     return items
 
@@ -108,8 +113,10 @@ def _pending_item(item):
 
 def _completed_item(item):
     """Shape a parsed completed.md item into the dashboard's completed record: the
-    title and its Mode (the only field the timeline/plan views need for a done item)."""
-    return {"title": item["title"], "mode": item.get("mode", "")}
+    title, its Mode, and the Commit: provenance stamp ("" for history that predates
+    the stamp — the execute path only began appending it once the field landed)."""
+    return {"title": item["title"], "mode": item.get("mode", ""),
+            "commit": item.get("commit", "")}
 
 
 # ---- run-activity beacon (write side) ----------------------------------------------------

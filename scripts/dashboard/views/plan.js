@@ -90,10 +90,17 @@
     return card;
   }
 
-  function simpleCard(title, mode, reason) {
+  function simpleCard(title, mode, reason, commit) {
     var card = elt("div", "pw-card" + (mode ? " mode-" + mode : ""));
     var h = elt("h4", null, title || "(untitled)");
     if (mode) h.appendChild(elt("span", "pw-badge", mode));
+    if (commit) {
+      // The Commit: provenance stamp (state.json completed[].commit; "" on
+      // pre-stamp history, which skips the badge). textContent only — safe sink.
+      var c = elt("span", "pw-badge", commit);
+      c.title = "landing commit";
+      h.appendChild(c);
+    }
     card.appendChild(h);
     if (reason) card.appendChild(elt("div", "pw-reason", reason));
     return card;
@@ -144,7 +151,7 @@
       container.appendChild(elt("div", "pw-empty", "Nothing completed yet."));
     } else {
       completed.forEach(function (c) {
-        container.appendChild(simpleCard(c.title, c.mode, null));
+        container.appendChild(simpleCard(c.title, c.mode, null, c.commit));
       });
     }
 

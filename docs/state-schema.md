@@ -24,7 +24,7 @@ straight from `status`, and `state.py` adds the full pending/completed item bodi
 | `counts` | object | `status` | `{pending, completed, rejected, carried}` integer counts. `carried` = verified-but-cut dossier candidates recorded in the planning digest's carried section (0 when absent) — the backlog a bare `pending: 0` can hide. |
 | `pending_modes` | object | `status` | `{mode: count}` breakdown of pending items, canonical order. |
 | `pending` | array | `state.py` | Full pending item bodies — see **Item shape**. |
-| `completed` | array | `state.py` | Completed items: `{title, mode}`. |
+| `completed` | array | `state.py` | Completed items: `{title, mode, commit}`. `commit` = the `Commit: <short-sha>` provenance stamp the execute path appends on pass (`""` for history that predates the stamp). |
 | `rejected` | array | `status` | Rejected items: `{title, reason}` (reason `""` when absent). |
 | `final_point` | object\|null | `status` | Recorded final point (`{sha, date, deepest_tier, stale, scope, valid, invent_seed, invent_framing}`) or `null`. `valid` = `final.md` passes lint-final's contract; `scope` = the recorded component scope (`"path:<X>"`/`"lib:<X>"`) or `null` for whole-repo; `invent_seed`/`invent_framing` = the seeded-invent replay record or `null` when unseeded. |
 | `graph` | object\|null | `status` | Graph summary (`{built_at_sha, node_count, dirty_node_count, stale, frontier}`) or `null`. `stale` = the build sha lags `HEAD` (the same sha-lag predicate as `final_point.stale`); `frontier` = the builder's audit-backlog counts (`{never_audited, stale}`) or `null` on a pre-frontier graph. |

@@ -48,22 +48,31 @@ else
 fi
 
 # --- Test ST3: completed items are listed; rejected carry their reason -------------
+# The first completed item carries the Commit: provenance stamp the execute path
+# appends on pass; the second predates the stamp and must degrade to commit "".
+# The stamped sha must round-trip as its own field, NOT corrupt the prior field's
+# value, and must never leak into the pending[] item shape (eight plan fields only).
 CFX="$TMP/state-completed"; mkdir -p "$CFX/.planwright"
-printf -- '- [x] shipped it\n      Mode: develop\n' > "$CFX/.planwright/completed.md"
+printf -- '- [x] shipped it\n      Mode: develop\n      Commit: abc1234\n- [x] old ship\n      Mode: docs\n' \
+  > "$CFX/.planwright/completed.md"
+printf -- '- [ ] still open\n      Mode: improve\n' > "$CFX/.planwright/plan.md"
 printf -- '- [ ] bad idea\n      Status: Rejected\n      Rejection: value-gate: no consumer\n' \
   > "$CFX/.planwright/rejected.md"
 if python3 "$STATE" --root "$CFX" --out - | python3 -c '
 import json, sys
 s = json.load(sys.stdin)
-assert [c["title"] for c in s["completed"]] == ["shipped it"], s["completed"]
+assert [c["title"] for c in s["completed"]] == ["shipped it", "old ship"], s["completed"]
 assert s["completed"][0]["mode"] == "develop", s["completed"]
+assert s["completed"][0]["commit"] == "abc1234", s["completed"]
+assert s["completed"][1]["commit"] == "", s["completed"]
+assert "commit" not in s["pending"][0], s["pending"]
 assert s["rejected"][0]["title"] == "bad idea", s["rejected"]
 assert "value-gate" in s["rejected"][0]["reason"], s["rejected"]
-assert s["counts"]["completed"] == 1 and s["counts"]["rejected"] == 1, s["counts"]
+assert s["counts"]["completed"] == 2 and s["counts"]["rejected"] == 1, s["counts"]
 '; then
-  ok "state.py lists completed items with mode and rejected items with reason"
+  ok "state.py lists completed items with mode + commit provenance and rejected items with reason"
 else
-  bad "state.py mis-listed completed/rejected items"
+  bad "state.py mis-listed completed/rejected items (or the Commit stamp did not round-trip)"
 fi
 
 # --- Test ST3b: rejected count reconciles with the rejected[] array on a bad marker ----
