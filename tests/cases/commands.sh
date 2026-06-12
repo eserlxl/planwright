@@ -388,6 +388,68 @@ sys.exit(1 if need else 0)
 PY
 then ok "commands/codshard.md peels a path/lib scope into a single-entry shard list (cycle stays first token)"; else bad "commands/codshard.md scope-peel missing or its scope-to-shard-list rule was dropped"; fi
 
+# --- Test 17: commands/codmaster.md is the thin front-door dispatcher ---
+# codmaster owns NO decision logic: the table lives in status.py --recommend (cross-pinned
+# against the dashboard coach via tests/fixtures/coach-table.json), and codmaster only
+# senses, relays, dispatches ONE command, and reports. Guard: the engine invocation and
+# the no-prose-table polarity (an unavailable engine STOPs, never improvises), the
+# three-word grammar, advise's dispatch-nothing rule, safe's no-invention contract,
+# the default growing authority WITH the verbatim MISSION.md disclosure, the composite
+# reset decision (reset keeps rejected.md, then the follow_up sweep), the mechanical
+# blocker stop, doctor read-only (never --fix), depth always 10, the one-dispatch rule,
+# and the stop-relay honesty (verbatim relay; suggested-next suppressed on a broken stop).
+CMD="$ROOT/commands/codmaster.md"
+if [ -f "$CMD" ]; then ok "commands/codmaster.md exists"; else bad "commands/codmaster.md missing"; fi
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+assert m, "no YAML frontmatter"
+fm = m.group(1)
+assert re.search(r"(?m)^description:\s*\S", fm), "missing description"
+assert re.search(r"(?m)^argument-hint:\s*\S", fm), "missing argument-hint"
+# normalize whitespace so a legitimate paragraph rewrap can neither break nor save an assertion
+body = " ".join(t[m.end():].split())
+# the dumb-dispatcher delegation: the brain is the tested engine, never command prose
+assert "status.py --root . --recommend" in body, "engine invocation missing"
+assert "no decision logic and no planning logic" in body, "dumb-dispatcher rule missing"
+assert "never re-derive the recommendation in prose" in body, "no-prose-table rule missing"
+assert "recommendation engine unavailable" in body, "engine-unavailable stop missing"
+assert "never substitute a prose decision table" in body, "engine-unavailable polarity missing"
+assert "coach-table.json" in body, "cross-pin fixture not named"
+assert "planwright:planwright" in body, "skill dispatch missing"
+# three-word grammar, advise tells only
+assert "Usage: /codmaster [advise|safe]" in body, "Usage line missing or the grammar grew"
+assert "STOP" in body, "no STOP rule"
+assert "STOP — dispatch nothing" in body, "advise dispatch-nothing rule missing"
+# safe = without invention capability; default = growing authority + verbatim disclosure
+assert "without invention capability" in body, "safe-mode contract missing"
+assert "do NOT dispatch" in body, "safe-mode no-dispatch polarity missing"
+assert "growing authority by default" in body, "default grow authority missing"
+assert "Note: invent may make rare, small committed edits to repo files, including MISSION.md." in body, "MISSION.md disclosure not verbatim"
+# the reset decision is a single composite dispatch, keeps rejected.md, and fires only
+# when really necessary (shown, not assumed) — never while a non-destructive move remains
+assert "keeps `rejected.md`" in body, "reset rejected.md retention missing"
+assert "follow_up" in body, "reset follow-up sweep missing"
+assert "one composite dispatch" in body, "composite-dispatch rule missing"
+assert "only when really necessary" in body, "reset necessity rule missing"
+assert "shown, not assumed" in body, "reset necessity polarity missing"
+assert "never wiped while a non-destructive move remains" in body, "reset non-destructive-first rule missing"
+# mechanical gates and dispatch discipline
+assert "no judgment call" in body, "mechanical blocker rule missing"
+assert "never runs `doctor --fix`" in body, "doctor read-only rule missing"
+assert "maximum depth — depth 10" in body, "depth-10 rule missing"
+assert "One dispatch per invocation is absolute" in body, "one-dispatch rule missing"
+assert "Never chain a second planning command" in body, "no-chaining polarity missing"
+assert "dispatch codcycle" not in body, "codcycle entered the dispatch vocabulary"
+# report honesty
+assert "verbatim" in body, "stop-relay verbatim rule missing"
+assert "suppress the suggested-next" in body, "broken-stop suggested-next suppression missing"
+assert "never triggers a second dispatch" in body, "advisory re-sense polarity missing"
+assert "Print nothing of your own" in body, "print-nothing-else rule missing"
+PY
+then ok "commands/codmaster.md is a dumb dispatcher over the tested engine (one dispatch, safe word, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its engine-delegation/one-dispatch/safe/disclosure contract"; fi
+
 # --- commands/dashboard.md launches the bundled read-only dashboard server ---
 # /dashboard wraps `dashboard.py --open`; guard that it resolves the bundled <scripts>
 # path, launches non-blocking (background) so the turn does not hang, opens the browser,

@@ -133,6 +133,24 @@ const rsug = C.reset({ converged: true });
 assert(rsug && rsug.cmd === "/planwright reset", "reset suggestion names `/planwright reset` (Claude Code slash form) when converged");
 assert(/reset/i.test(rsug.why) && /rejected\.md/i.test(rsug.why) && /codvisor/i.test(rsug.why), "reset suggestion explains the cold-start, that rejected.md is kept, and points to the /codvisor follow-up");
 
+// shared truth-table fixture — the SAME rows tests/unit/test_status.py pins against the
+// Python port (scripts/status.py coach_recommend), so the two brains cannot drift: a
+// one-sided behavior change fails one of the two suites.
+const TBL = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+TBL.rows.forEach(function (r) {
+  assert.strictEqual(C.recommend(r.signals).key, r.expect, "coach-table row: " + r.name);
+});
+
+// shared graph fixture — the debt-signal DERIVATION (hot-tercile tie semantics included)
+// pinned to the same ground truth the Python port (_graph_signals) asserts.
+const GFX = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
+const gfxM = D.metrics(JSON.stringify(GFX.graph));
+assert.strictEqual(gfxM.cycles.length, GFX.expected.import_cycles, "coach-graph: import cycles");
+assert.strictEqual(gfxM.hotUncovered.length, GFX.expected.hot_uncovered, "coach-graph: hot uncovered");
+const gfxS = C.signals({ pending: [], completed: [], rejected: [] }, gfxM);
+assert.strictEqual(gfxS.articulation, GFX.expected.articulation, "coach-graph: articulation");
+assert.strictEqual(gfxS.coveragePct, GFX.expected.coverage_pct, "coach-graph: coverage pct");
+
 // graph.adapt: the Coupling Web's data contract — top-N selection + keepSet pruning
 assert(D.graph && typeof D.graph.adapt === "function", "PW_DERIVE.graph.adapt missing");
 const N = 62;
@@ -288,7 +306,7 @@ assert.strictEqual(mDC.clusters[0].label, "two", "the surviving cluster is the >
 
 console.log("DERIVE-OK");
 JS
-  if node "$TMP/derive_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive.out" 2>"$TMP/derive.err" && grep -q DERIVE-OK "$TMP/derive.out"; then
+  if node "$TMP/derive_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" "$ROOT/tests/fixtures/coach-table.json" "$ROOT/tests/fixtures/coach-graph.json" >"$TMP/derive.out" 2>"$TMP/derive.err" && grep -q DERIVE-OK "$TMP/derive.out"; then
     ok "PW_DERIVE metrics engine: pctRank/quantile + null-degrade + risk ordering + memoize (derive.js)"
   else
     bad "PW_DERIVE metrics engine check failed: $(cat "$TMP/derive.err" 2>/dev/null)"

@@ -62,7 +62,8 @@ thereafter jump to the path you are running.
   [Per-cycle loop](#per-cycle-loop-repeat-up-to-n-times-or-indefinitely-when-n--0) ·
   [Stop conditions](#stop-conditions)
 - **Maintenance** (loaded on demand from `references/`) — [Doctor](references/doctor.md) ·
-  [Status](references/status.md) · [Dashboard](references/dashboard.md) ·
+  [Status](references/status.md) · [Advise](references/advise.md) ·
+  [Dashboard](references/dashboard.md) ·
   [Reset](references/reset.md) · [Upgrade](references/upgrade.md) · [Version](references/version.md)
 
 ## Host command adapter
@@ -111,6 +112,21 @@ primitive (Claude Code); the leads are routing-only re-verification seeds — ne
 rounds themselves stay sequential, and every other host runs identically without recon. Each round
 is an ordinary run of this `SKILL.md`; `codshard` only sequences them.
 
+`codmaster` is the front door — for anyone who does not want to choose among the commands above. It
+runs the read-only `advise` engine (`status.py --recommend`, the same truth table the dashboard
+coach renders) and then **dispatches exactly one** recommended command per invocation at maximum
+depth (10), re-deciding from fresh state each time instead of precomputing a chain: pending items →
+`execute`; structural debt, a stale point, or a carried backlog → `codvisor` (`codshard explore` on
+a mechanically large repo); a clean tree without a current whole-repo final point → the same harden
+sweep; a converged tree → `codinventor` (growth — by default codmaster may dispatch it, banner
+disclosing the rare dwell-gated `MISSION.md` edits); converged at `deepest_tier: invent` (the
+earned empty) → `reset` plus a fresh harden sweep, but **only when really necessary** — the point
+must be unseeded and the cold frontier shown drained; a seed-scoped point re-surveys and an
+undrained frontier hardens instead. Its `advise` word prints the recommendation and
+stops; its `safe` word runs the same loop but never dispatches invent-class work (it prints the
+`codinventor` line to paste instead). The decision table lives in the tested Python engine, never
+in command prose; `codmaster` only relays and dispatches.
+
 ## Invocation & help
 
 Before doing anything else, inspect the argument the skill was invoked with:
@@ -132,6 +148,8 @@ Before doing anything else, inspect the argument the skill was invoked with:
   per **Procedure → Bundled scripts**) and follow that preflight procedure instead of the planning Procedure.
 - If the first token is `status`, read `skills/planwright/references/status.md` (resolve `<scripts>`
   per **Procedure → Bundled scripts**) and follow that read-only summary procedure instead of the planning Procedure.
+- If the first token is `advise`, read `skills/planwright/references/advise.md` (resolve `<scripts>`
+  per **Procedure → Bundled scripts**) and follow that read-only recommendation procedure instead of the planning Procedure.
 - If the first token is `dashboard`, read `skills/planwright/references/dashboard.md` (resolve `<scripts>`
   per **Procedure → Bundled scripts**) and follow that read-only server procedure instead of the planning Procedure.
 - If the first token is `reset` (or the aliases `fresh` / `clean`), read `skills/planwright/references/reset.md`
@@ -180,6 +198,7 @@ CYCLE (automated plan → execute loops)
 MAINTENANCE
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
 /planwright status               Read-only: summarize plan/final-point/graph state (--json)
+/planwright advise               Read-only: recommend the next command (the coach as a CLI; never dispatches)
 /planwright dashboard            Read-only: serve a live local web view of the planning state
 /planwright reset                Cold start: clear .planwright/ but keep rejected.md (fresh/clean aliases)
 /planwright version              Show the current and latest available version

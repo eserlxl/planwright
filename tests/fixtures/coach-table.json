@@ -1,0 +1,15 @@
+{
+  "comment": "The shared coach truth table — one row set consumed by BOTH brains: tests/cases/derive.sh iterates it against derive.js coachRecommend (camelCase signals, JS-native), and tests/unit/test_status.py iterates it against scripts/status.py coach_recommend (the same keys snake_cased). Editing a row forces both implementations to move together; a one-sided behavior change fails one of the two suites.",
+  "rows": [
+    {"name": "debt-import-cycles", "signals": {"cycles": 1, "hotUncovered": 0, "articulation": 0, "pendRepairImprove": 0, "pending": 5, "fpFlag": ""}, "expect": "codvisor"},
+    {"name": "debt-hot-uncovered-at-threshold", "signals": {"cycles": 0, "hotUncovered": 3, "articulation": 0, "pendRepairImprove": 0, "pending": 5, "fpFlag": ""}, "expect": "codvisor"},
+    {"name": "hot-uncovered-below-threshold-is-not-debt", "signals": {"cycles": 0, "hotUncovered": 2, "articulation": 0, "pendRepairImprove": 0, "pending": 4, "fpFlag": ""}, "expect": "codcycle"},
+    {"name": "debt-articulation", "signals": {"cycles": 0, "hotUncovered": 0, "articulation": 1, "pendRepairImprove": 0, "pending": 5, "fpFlag": ""}, "expect": "codvisor"},
+    {"name": "debt-pending-repair-improve", "signals": {"cycles": 0, "hotUncovered": 0, "articulation": 0, "pendRepairImprove": 2, "pending": 5, "fpFlag": ""}, "expect": "codvisor"},
+    {"name": "stale-final-point", "signals": {"cycles": 0, "hotUncovered": 0, "articulation": 0, "pendRepairImprove": 0, "pending": 0, "fpFlag": "stale"}, "expect": "codvisor"},
+    {"name": "invalid-final-point", "signals": {"cycles": 0, "hotUncovered": 0, "articulation": 0, "pendRepairImprove": 0, "pending": 0, "fpFlag": "invalid"}, "expect": "codvisor"},
+    {"name": "scoped-point-is-not-a-trust-failure", "signals": {"cycles": 0, "hotUncovered": 0, "articulation": 0, "pendRepairImprove": 0, "pending": 0, "fpFlag": "scoped"}, "expect": "codinventor"},
+    {"name": "clean-and-empty-grows", "signals": {"cycles": 0, "hotUncovered": 0, "articulation": 0, "pendRepairImprove": 0, "pending": 0, "fpFlag": ""}, "expect": "codinventor"},
+    {"name": "healthy-mix-keeps-the-rhythm", "signals": {"cycles": 0, "hotUncovered": 0, "articulation": 0, "pendRepairImprove": 0, "pending": 4, "fpFlag": ""}, "expect": "codcycle"}
+  ]
+}

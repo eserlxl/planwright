@@ -190,11 +190,35 @@ sequential, and every other host simply runs without recon.
 /codshard parallel         Claude Code only: read-only recon prefetch per shard (routing-only; rounds stay sequential)
 ```
 
+`/codmaster` is the front door for all of the above: it runs the read-only coach engine
+(`status.py --recommend` — the same truth table the dashboard's Commands view renders, cross-pinned
+by the shared `tests/fixtures/coach-table.json`) and dispatches **exactly one** recommended command
+per invocation at maximum depth (10), re-deciding from fresh state each time instead of precomputing
+a chain. The lifecycle ladder: pending items → `execute`; structural debt, a stale final point, or a
+carried backlog → `codvisor` (`codshard explore` on a mechanically large repo: ≥120 tracked files
+and ≥2 shardable dirs); a clean but unconverged tree → the same harden sweep; a converged tree →
+`codinventor` — growth is **default-on**, and the banner discloses invent's rare, dwell-gated
+committed `MISSION.md` edits; converged at `deepest_tier: invent` (the earned empty) → the
+cold-start `reset` plus a fresh harden sweep, but only when really necessary — the point must be
+unseeded and the cold frontier shown drained, else it re-surveys or hardens without wiping audit
+memory. Blockers (a dirty tree, doctor failures, a missing
+commit identity before a mutating run) stop it mechanically before any dispatch.
+
+```bash
+/codmaster                 Sense + dispatch the one right command (depth 10); run again for the next step
+/codmaster advise          Print the recommendation, evidence, and blockers — dispatch nothing
+/codmaster safe            Full loop without invention capability (codinventor printed to paste, never run)
+```
+
+`planwright advise` is the host-portable half of the same engine (Cursor/Codex/Gemini included):
+recommendation-only, never dispatching — see Maintenance below.
+
 ## Maintenance
 
 ```bash
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
 /planwright status               Read-only: summarize plan / final-point / graph state (--json)
+/planwright advise               Read-only: recommend the next command (the coach as a CLI; never dispatches)
 /planwright reset                Cold start: clear .planwright/ but keep rejected.md (aliases: fresh, clean)
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version (alias: update)

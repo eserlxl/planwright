@@ -29,10 +29,16 @@ Planwright brings the same pattern to ordinary repositories: your agent inspects
 
 The difference is control. Planwright is local, free, agent-neutral, and file-based. You can inspect the plan, reject weak items, keep normal approval prompts, and move the same workflow between Claude Code, Codex, Cursor, Gemini, Antigravity, or any AGENTS.md-aware agent.
 
-## Start here: the three commands
+## Start here
 
-Most people only need these three. Run them with no arguments and planwright does the rest — it prints the estimated AI/session cost first, then works autonomously through plan→build→verify rounds until it runs out of
-worthwhile work.
+Don't know what to run? **`/codmaster`** — the front door. It senses your repo's planning state
+with the same coach the dashboard renders, then dispatches the one right command at maximum depth.
+Run it again after each step; it re-decides from fresh state every time. Add `advise` to only be
+told what it would run (with the evidence), or `safe` to keep invention capability off.
+
+The **direct dials**, when you want to choose yourself — run them with no arguments and planwright
+does the rest: it prints the estimated AI/session cost first, then works autonomously through
+plan→build→verify rounds until it runs out of worthwhile work.
 
 | Command        | What it does                       | Best for           |
 |----------------|------------------------------------|--------------------|
@@ -40,8 +46,9 @@ worthwhile work.
 | `/codinventor` | Discovers and adds grounded new capabilities. | Feature discovery  |
 | `/codcycle`    | Alternates repair and invention rounds.     | Autonomous improvement  |
 | `/codshard`    | Matures the repo shard by shard, then closes whole-repo. | Large codebases |
+| `/codmaster`   | Senses the state, dispatches the one right command. | Not sure? Start here |
 
-All four are safe by default: planning never touches your source, and when planwright does start editing
+All five are safe by default: planning never touches your source, and when planwright does start editing
 (building items, committing), your normal edit/commit approval prompts still apply.
 
 It is autonomous in workflow, not unchecked in permissions: your host agent still controls file edits, terminal commands, and commits through its normal approval model.
@@ -197,7 +204,7 @@ Then invoke with `/planwright`, `/codvisor`, or `/codinventor`. Upgrade with `/p
 
 Claude Code namespaces every plugin command by the plugin name, so planwright's commands are invoked as `/planwright:codvisor`, `/planwright:codcycle`, and so on. That prefix is mandatory for plugin-provided commands — it prevents collisions between plugins, and a plugin has no way to register an unprefixed top-level command. Only the **user** (`~/.claude/commands/`) and **project** (`.claude/commands/`) scopes can hold unprefixed commands, and a plugin can't write into either.
 
-If you'd rather type the bare `/codvisor`, `/codinventor`, `/codcycle`, and `/codshard`, install thin personal aliases that just forward to the real plugin commands:
+If you'd rather type the bare `/codvisor`, `/codinventor`, `/codcycle`, `/codshard`, and `/codmaster`, install thin personal aliases that just forward to the real plugin commands:
 
 ```bash
 scripts/install-aliases.sh              # → ~/.claude/commands/ (all your projects)
@@ -358,6 +365,11 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codshard shards src,tests # explicit shard list (paths or lib names)
 /codshard explore          # escalate only the closing whole-repo round; shard rounds stay plain cycles
 /codshard parallel         # Claude Code only: prefetch read-only recon leads per shard (routing-only; rounds stay sequential)
+
+# /codmaster — the front door: sense the planning state, dispatch the one right command (always depth 10)
+/codmaster                 # decide + dispatch one step; run again for the next step
+/codmaster advise          # only print what it would run, with the evidence and blockers
+/codmaster safe            # same loop, but invention is never dispatched (printed to paste instead)
 
 # Maintenance
 /planwright doctor     # preflight: check git/rg/python3 + bundled-script resolution

@@ -9,7 +9,7 @@
 # cannot register an unprefixed top-level command — those only exist in the user
 # (~/.claude/commands/) or project (.claude/commands/) scopes, which a plugin
 # can't write into. This script drops thin delegator commands into one of those
-# scopes so you can type `/codcycle`, `/codvisor`, `/codinventor`, `/codshard`.
+# scopes so you can type `/codcycle`, `/codvisor`, `/codinventor`, `/codshard`, `/codmaster`.
 #
 # Each alias only forwards its arguments to the real `/planwright:<name>` command
 # (it does NOT copy the logic), so the aliases never drift out of sync with the
@@ -28,7 +28,7 @@
 #   -h, --help       show this help
 set -euo pipefail
 
-ALIASES=(codcycle codvisor codinventor codshard)
+ALIASES=(codcycle codvisor codinventor codshard codmaster)
 
 usage() {
   echo "Usage: $(basename "$0") [--project] [--dir <path>] [--uninstall]"
@@ -100,6 +100,7 @@ desc_for() {
     codvisor)   echo "Personal alias for /planwright:codvisor — planwright advisor shorthand (explore) without the plugin prefix." ;;
     codinventor) echo "Personal alias for /planwright:codinventor — planwright inventor shorthand (invent) without the plugin prefix." ;;
     codshard)   echo "Personal alias for /planwright:codshard — planwright's sharded maturity sweep (per-shard scoped cycles, then one closing whole-repo round) without the plugin prefix." ;;
+    codmaster)  echo "Personal alias for /planwright:codmaster — the front door: senses the planning state and dispatches the one right command (advise = tell only; safe = no invention) without the plugin prefix." ;;
   esac
 }
 arghint_for() {
@@ -108,6 +109,7 @@ arghint_for() {
     codvisor)   echo "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 explore)" ;;
     codinventor) echo "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 invent)" ;;
     codshard)   echo "[M] [D] | shards <a,b,c> | parallel [J] | explore | (empty = auto-shards, cycle 3 depth 10 per shard)" ;;
+    codmaster)  echo "advise | safe | (empty = sense, decide, dispatch the one right command)" ;;
   esac
 }
 
@@ -130,4 +132,4 @@ done
 
 echo
 echo "Installed ${#ALIASES[@]} aliases into $TARGET_DIR"
-echo "Restart Claude Code (or /clear), then use: /codcycle  /codvisor  /codinventor  /codshard"
+echo "Restart Claude Code (or /clear), then use: /codcycle  /codvisor  /codinventor  /codshard  /codmaster"

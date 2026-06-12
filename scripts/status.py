@@ -337,6 +337,354 @@ def collect(root: str) -> dict:
     }
 
 
+# ---- the coach, mechanized (the codmaster / `planwright advise` decision surface) ----------
+#
+# The dashboard's Commands-view coach (scripts/dashboard/vendor/derive.js coachSignals /
+# coachRecommend) is browser JS, so the command layer cannot call it. This block is the
+# stdlib Python port of the SAME truth table, cross-pinned against the JS via the shared
+# fixture tests/fixtures/coach-table.json (iterated by BOTH tests/unit/test_status.py and
+# tests/cases/derive.sh) so the two brains cannot drift. recommend() wraps the shared base
+# with the dispatcher-only overlay rows (first contact, drain-first, carried backlog,
+# repo-size override, invent gating) that the dashboard deliberately does not make.
+# Read-only throughout: the command layer consumes this JSON verbatim and never re-derives
+# the table in prose.
+
+# Named constants — boundary-pinned by tests/unit/test_status.py.
+LARGE_REPO_TRACKED_FILES = 120  # depth 10 reads 12 Stage-2b bodies/round, so one flagship
+                                # codvisor (cycle 10 depth 10) deep-reads <=120 files: a repo
+                                # bigger than that cannot be deep-read by one whole-repo run
+SHARD_MIN_DIRS = 2              # sharding fewer than 2 dirs is just a scoped run
+HOT_UNCOVERED_DEBT = 3          # coach debt threshold (matches derive.js coachRecommend)
+
+
+def _pct_rank(sorted_asc, v):
+    """Port of derive.js pctRank: strictly-less count / (n-1); n<=1 -> 0."""
+    n = len(sorted_asc)
+    if n <= 1:
+        return 0.0
+    lo = 0
+    while lo < n and sorted_asc[lo] < v:
+        lo += 1
+    return lo / (n - 1)
+
+
+def _graph_signals(root):
+    """Port of derive.js metrics()'s coach-facing subset — byte-identical tie semantics
+    (stable risk-desc sort over node insertion order, hot set = max(1, ceil(n/3)) by risk
+    RANK), stdlib only. None when no readable graph (callers must not read absence as
+    cleanliness — that is the first-contact row's job)."""
+    try:
+        with open(os.path.join(root, ".planwright", "graph.json"), encoding="utf-8") as fh:
+            g = json.load(fh)
+        nodes = g.get("nodes")
+        if not isinstance(nodes, dict) or not nodes:
+            return None
+        arr = []
+        for _path, n in nodes.items():  # insertion order == derive.js Object.keys order
+            n = n if isinstance(n, dict) else {}
+            arr.append({
+                "churn": float(n.get("git_churn") or 0),
+                "pagerank": float(n.get("pagerank") or 0),
+                "covered": bool(n.get("covered_by_test")),
+                "is_test": bool(n.get("is_test")),
+                "articulation": bool(n.get("is_articulation")),
+            })
+        churns = sorted(a["churn"] for a in arr)
+        prs = sorted(a["pagerank"] for a in arr)
+        for a in arr:
+            a["risk"] = _pct_rank(churns, a["churn"]) * _pct_rank(prs, a["pagerank"])
+        hotspots = sorted(arr, key=lambda a: -a["risk"])  # stable: ties keep node order
+        hot_count = max(1, -(-len(hotspots) // 3))  # ceil(n/3), like derive.js
+        hot_uncovered = sum(1 for a in hotspots[:hot_count]
+                            if not a["covered"] and not a["is_test"])
+        covered = sum(1 for a in arr if a["covered"])
+        # JS Math.round (half away from zero), not Python banker's rounding
+        coverage_pct = int(covered / len(arr) * 100 + 0.5) if arr else None
+        return {
+            "import_cycles": len(g.get("import_cycles") or []),
+            "articulation": sum(1 for a in arr if a["articulation"]),
+            "hot_uncovered": hot_uncovered,
+            "coverage_pct": coverage_pct,
+        }
+    except (OSError, ValueError, AttributeError, TypeError):
+        return None
+
+
+def _is_large(tracked_files, shardable_count):
+    """The mechanical repo-size call (never an LLM judgment): big enough that one flagship
+    whole-repo run cannot deep-read the code surface once, AND partitionable into at least
+    SHARD_MIN_DIRS real shards."""
+    return tracked_files >= LARGE_REPO_TRACKED_FILES and shardable_count >= SHARD_MIN_DIRS
+
+
+def _repo_block(root):
+    """codshard's shard enumeration, mechanized with the same rule as commands/codshard.md:
+    top-level directories holding >=3 tracked files are shardable, smaller ones fold, dot-dirs
+    and .planwright/ are excluded, root-level loose files are not a shard. None when git is
+    unavailable."""
+    try:
+        out = subprocess.run(["git", "-C", root, "ls-files"],
+                             capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    counts = {}
+    tracked = 0
+    for line in out.splitlines():
+        if not line:
+            continue
+        tracked += 1
+        if "/" not in line:
+            continue
+        seg = line.split("/", 1)[0]
+        if seg.startswith("."):
+            continue
+        counts[seg] = counts.get(seg, 0) + 1
+    shardable = sorted(d for d, c in counts.items() if c >= 3)
+    return {
+        "tracked_files": tracked,
+        "shardable_dirs": shardable,
+        "folded_dirs": sorted(d for d, c in counts.items() if c < 3),
+        "large": _is_large(tracked, len(shardable)),
+    }
+
+
+def _dirty_paths(root):
+    """Uncommitted paths (git status --porcelain), excluding the tool-owned .planwright/ —
+    the same exception planwright's own execute/cycle preconditions carve out."""
+    try:
+        out = subprocess.run(["git", "-C", root, "status", "--porcelain"],
+                             capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    dirty = []
+    for line in out.splitlines():
+        path = line[3:] if len(line) > 3 else ""
+        if path.startswith(".planwright/") or path == ".planwright" or not line.strip():
+            continue
+        dirty.append(line.strip())
+    return dirty
+
+
+def _final_flag(fp):
+    """Port of derive.js finalFlag — precedence stale > invalid > scoped > ''."""
+    if not fp:
+        return ""
+    if fp.get("stale"):
+        return "stale"
+    if not fp.get("valid", True):
+        return "invalid"
+    if fp.get("scope"):
+        return "scoped"
+    return ""
+
+
+def coach_signals(state, gsig):
+    """Port of derive.js coachSignals over the collect() record plus _graph_signals()."""
+    pm = state.get("pending_modes") or {}
+    return {
+        "has_graph": gsig is not None,
+        "pending": state["pending"],
+        "pend_repair_improve": int(pm.get("repair", 0)) + int(pm.get("improve", 0)),
+        "completed": state["completed"],
+        "rejected": state["rejected"],
+        "carried": state.get("carried", 0),
+        "converged": bool(state.get("converged")),
+        "fp_flag": _final_flag(state.get("final_point")),
+        "cycles": gsig["import_cycles"] if gsig else 0,
+        "hot_uncovered": gsig["hot_uncovered"] if gsig else 0,
+        "articulation": gsig["articulation"] if gsig else 0,
+        "coverage_pct": gsig["coverage_pct"] if gsig else None,
+    }
+
+
+def coach_recommend(s):
+    """The SHARED coach base — a row-for-row port of derive.js coachRecommend, cross-pinned
+    via tests/fixtures/coach-table.json. Do not add rows here without adding them to the
+    fixture (both test harnesses iterate it, so a one-sided edit fails a suite)."""
+    has_debt = (s["cycles"] > 0 or s["hot_uncovered"] >= HOT_UNCOVERED_DEBT
+                or s["articulation"] > 0 or s["pend_repair_improve"] > 0)
+    if has_debt:
+        return {"key": "codvisor",
+                "why": "There's structural debt to harden before growing — clear it first."}
+    if s["fp_flag"] in ("stale", "invalid"):
+        return {"key": "codvisor",
+                "why": "The recorded final point no longer holds (%s) — re-audit before "
+                       "growing net-new." % s["fp_flag"]}
+    if s["pending"] == 0:
+        return {"key": "codinventor",
+                "why": "Nothing's queued and the tree is clean — latent capability looks "
+                       "complete, so grow net-new."}
+    return {"key": "codcycle",
+            "why": "A healthy mix — planned work to finish and room to grow. Keep the "
+                   "harden→grow rhythm."}
+
+
+def _doctor_blockers(root, mutating):
+    """Mechanical dispatch gate from the sibling doctor.py: any FAIL always blocks; the
+    git-commit-identity WARN blocks only a mutating dispatch (per-item commits need an
+    identity). Degrades to [] when doctor.py is unavailable — planwright's own
+    preconditions still apply downstream."""
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "doctor.py")
+    if not os.path.exists(path):
+        return []
+    try:
+        spec = importlib.util.spec_from_file_location("planwright_doctor", path)
+        if spec is None or spec.loader is None:
+            return []
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        payload = mod.collect(root)
+    except Exception:
+        return []
+    blockers = []
+    for c in payload.get("checks", []):
+        name = str(c.get("name", "?"))
+        if c.get("status") == "fail":
+            blockers.append({"kind": "doctor-fail",
+                             "detail": "%s — %s" % (name, c.get("detail", ""))})
+        elif (mutating and c.get("status") == "warn"
+              and "identity" in name):
+            blockers.append({"kind": "doctor-warn-identity",
+                             "detail": "%s — %s (commits need an identity; blocks only "
+                                       "mutating dispatch)" % (name, c.get("detail", ""))})
+    return blockers
+
+
+def _evidence(command, s):
+    """Port of derive.js coachEvidence — the numbers shown beneath the recommendation."""
+    if not s["has_graph"]:
+        return ["%d pending" % s["pending"], "%d accepted" % s["completed"],
+                "%d rejected" % s["rejected"]]
+    if command in ("codvisor", "codshard"):
+        return ["%d import cycles" % s["cycles"],
+                "%d untested hotspots" % s["hot_uncovered"],
+                "%d articulation risks" % s["articulation"],
+                "%d repair/improve pending" % s["pend_repair_improve"]]
+    if command == "codinventor":
+        return ["%d pending" % s["pending"], "%d cycles" % s["cycles"],
+                "converged" if s["converged"] else "no open debt"]
+    return ["%d pending" % s["pending"], "%d accepted so far" % s["completed"]]
+
+
+def _reset_necessity(fp, frontier):
+    """The reset decision fires only when REALLY necessary — shown, not assumed. A seeded
+    invent-dry point is seed-scoped (SKILL.md: a different framing may still find groundable
+    invention), so the non-destructive move is to re-survey -> 'reinvent'. An undrained (or
+    unknown) cold frontier means an ordinary harden sweep can still re-read code without
+    wiping audit memory -> 'harden'. Only an UNSEEDED invent-dry point with the frontier
+    shown drained (never_audited == 0) leaves nothing non-destructive -> 'reset'."""
+    if fp.get("invent_seed"):
+        return "reinvent"
+    never = (frontier or {}).get("never_audited")
+    if never is None or never > 0:
+        return "harden"
+    return "reset"
+
+
+def recommend(root):
+    """The full decision record: shared coach base + the dispatcher overlay. The overlay is
+    codmaster's lifecycle ladder, ordered: first contact -> full harden sweep (codvisor, or
+    codshard on a mechanically large repo); pending -> execute (drain first); debt / stale
+    point / carried backlog -> codvisor|codshard; clean but no current whole-repo final
+    point -> codvisor|codshard (earn convergence before growing); converged -> codinventor
+    (grow — marked invent_class so the command layer's `safe` word can stop instead);
+    converged at deepest_tier invent (the rare earned empty) -> _reset_necessity decides:
+    reset + a fresh harden sweep only when really necessary (unseeded AND frontier drained),
+    else the non-destructive re-survey or harden sweep. Blockers (dirty tree, doctor) are
+    emitted alongside, mechanical and judgment-free."""
+    state = collect(root)
+    state["converged"] = _converged(state)
+    gsig = _graph_signals(root)
+    repo = _repo_block(root)
+    s = coach_signals(state, gsig)
+    base = coach_recommend(s)
+    large = bool(repo and repo["large"])
+    # codmaster always dispatches at maximum depth (10): codvisor/codinventor are the
+    # depth-10 flagships, and codshard runs depth 10 per shard with the closing round
+    # escalated (`explore`).
+    harden = ({"command": "codshard", "args": "explore"} if large
+              else {"command": "codvisor", "args": "cycle 10 depth 10 explore"})
+    notes = []
+    if large:
+        notes.append("repo large (%d tracked files, %d shardable dirs) — harden work routes "
+                     "to codshard so every shard gets the full depth budget"
+                     % (repo["tracked_files"], len(repo["shardable_dirs"])))
+
+    fp = state.get("final_point") or {}
+    if not s["has_graph"] and s["completed"] == 0:
+        rec = dict(harden, mutating=True, invent_class=False,
+                   why="first contact — never audited; a full harden sweep builds the graph "
+                       "memory and earns the first final point")
+    elif s["pending"] > 0:
+        rec = {"command": "execute", "args": "execute", "mutating": True,
+               "invent_class": False,
+               "why": "%d pending item(s) — drain the plan before planning more"
+                      % s["pending"]}
+        if base["key"] == "codcycle":
+            notes.append("coach: codcycle — codmaster drains via execute first, then "
+                         "re-decides; codcycle stays a direct dial")
+    elif base["key"] == "codvisor" or s["carried"] > 0:
+        why = (base["why"] if base["key"] == "codvisor"
+               else "cut/deferred dossier backlog (carried %d) — drain it before growing"
+                    % s["carried"])
+        rec = dict(harden, mutating=True, invent_class=False, why=why)
+    elif not s["converged"]:
+        rec = dict(harden, mutating=True, invent_class=False,
+                   why="clean tree but no current whole-repo final point — earn convergence "
+                       "before growing")
+    elif (fp.get("deepest_tier") or "") == "invent":
+        necessity = _reset_necessity(fp, (state.get("graph") or {}).get("frontier"))
+        if necessity == "reinvent":
+            rec = {"command": "codinventor", "args": "cycle 10 depth 10 invent",
+                   "mutating": True, "invent_class": True,
+                   "why": "converged at a SEED-SCOPED invent-dry point (seed %s) — a "
+                          "different framing may still find groundable invention; "
+                          "re-survey before any reset" % fp.get("invent_seed")}
+        elif necessity == "harden":
+            rec = dict(harden, mutating=True, invent_class=False,
+                       why="converged at the invent-dry point, but the cold frontier is "
+                           "not shown drained — a harden sweep re-reads it without wiping "
+                           "audit memory; reset only when really necessary")
+        else:
+            rec = {"command": "reset", "args": "reset", "mutating": True,
+                   "invent_class": False, "follow_up": harden,
+                   "why": "reset is really necessary: the invent-dry point is unseeded "
+                          "(comprehensive) AND the cold frontier is drained — nothing "
+                          "non-destructive is left, so a cold-start re-audit (reset keeps "
+                          "rejected.md, then a fresh harden sweep) is the one remaining "
+                          "move"}
+    else:
+        rec = {"command": "codinventor", "args": "cycle 10 depth 10 invent",
+               "mutating": True, "invent_class": True, "why": base["why"]}
+
+    blockers = []
+    dirty = _dirty_paths(root)
+    if dirty and rec["mutating"]:
+        blockers.append({"kind": "dirty-tree",
+                         "detail": "uncommitted paths — planwright will not entangle them "
+                                   "with per-item commits: " + ", ".join(dirty[:8])})
+    blockers += _doctor_blockers(root, rec["mutating"])
+
+    reset_nudge = None
+    if s["converged"] and rec["command"] != "reset":
+        reset_nudge = {"command": "reset",
+                       "why": "the recorded final point is incremental — a cold-start "
+                              "re-audit (reset, then a fresh round) can re-surface work "
+                              "the dirty-set gating skipped"}
+
+    return {
+        "base": base,
+        "command": rec["command"], "args": rec["args"], "why": rec["why"],
+        "mutating": rec["mutating"], "invent_class": rec["invent_class"],
+        "follow_up": rec.get("follow_up"),
+        "notes": notes, "blockers": blockers,
+        "evidence": _evidence(rec["command"], s),
+        "reset_nudge": reset_nudge,
+        "signals": s, "repo": repo,
+    }
+
+
 def report(state, quiet):
     """Print the human-readable status report. Always returns 0 (read-only)."""
     if quiet:
@@ -423,7 +771,15 @@ def main():
     ap.add_argument("--exit-code", action="store_true",
                     help="exit 0 only at a current final point with no pending items, "
                          "else 1 (composes with --json/--quiet; off by default)")
+    ap.add_argument("--recommend", action="store_true",
+                    help="emit the coach recommendation as JSON (read-only; the canonical "
+                         "decision surface for `planwright advise` and /codmaster — the "
+                         "command layer never re-derives this table in prose)")
     args = ap.parse_args()
+
+    if args.recommend:
+        print(json.dumps(recommend(args.root), indent=2))
+        return 0
 
     state = collect(args.root)
     # Surface the convergence verdict as a first-class field so a JSON consumer reads one
