@@ -261,6 +261,20 @@ class TestRecommendOverlay(unittest.TestCase):
         self.assertEqual(rec["args"], "explore")
         self.assertTrue(any("codshard" in n for n in rec["notes"]))
 
+    def test_first_contact_shadows_drain_first(self):
+        # A never-audited root (no graph, zero completed) hardens BEFORE executing
+        # hand-seeded pending items — deliberate (the dispatched cycle drains them
+        # anyway); one completed item exits first contact and drain-first takes over.
+        root = self._root(plan=self._pending("develop"))
+        rec = self._recommend(root, gsig=None)
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertIn("first contact", rec["why"])
+        with open(os.path.join(root, ".planwright", "completed.md"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("- [x] Done thing\n      Mode: develop\n")
+        rec = self._recommend(root, gsig=None)
+        self.assertEqual(rec["command"], "execute")
+
     def test_dirty_tree_blocks_a_mutating_dispatch(self):
         rec = self._recommend(self._root(), dirty=["?? wip.c"])
         self.assertTrue(rec["mutating"])
