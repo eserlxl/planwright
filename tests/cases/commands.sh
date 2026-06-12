@@ -83,10 +83,11 @@ for tok in ["path <X>", "lib <X>", "peel", "append",
             # the CLI-habit flag aliases the command adapters tolerate must resolve
             # identically on AGENTS.md/Gemini hosts (commands/*.md step-0 parity)
             "--path <X>", "--lib <X>", "--scope <X>", "--opt=<X>",
-            # the orchestration pair must stay discoverable on non-Claude hosts:
-            # each template names both helpers, the codshard recipe file, and the
-            # codmaster sense engine (never a prose decision table)
-            "codshard", "codmaster", "commands/codshard.md", "status.py"]:
+            # the orchestrators must stay discoverable on non-Claude hosts:
+            # each template names all three, the codcycle/codshard recipe files, and
+            # the codmaster sense engine (never a prose decision table)
+            "codcycle", "codshard", "codmaster",
+            "commands/codcycle.md", "commands/codshard.md", "status.py"]:
     if tok not in t:
         need.append(tok)
 for resolved in ["cycle 10 depth 10 explore path", "cycle 5 depth 8 invent lib"]:
@@ -95,7 +96,7 @@ for resolved in ["cycle 10 depth 10 explore path", "cycle 5 depth 8 invent lib"]
 sys.exit(1 if need else 0)
 PY
 done
-if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates carry the five-helper family with scoped codvisor/codinventor resolution"; else bad "host instruction templates lost a helper (codshard/codmaster) or the scoped resolution rules"; fi
+if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates carry the six-helper family with scoped codvisor/codinventor resolution"; else bad "host instruction templates lost a helper (codcycle/codshard/codmaster) or the scoped resolution rules"; fi
 
 # --- Test 15: commands/codcycle.md is a well-formed planwright orchestration command ---
 # /codcycle drives planwright across an explore→invent rhythm per outer cycle (both phases fixed at

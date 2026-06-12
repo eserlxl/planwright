@@ -88,7 +88,7 @@ is preferred here because Planwright resolves bundled scripts from `../../script
    ln -s /absolute/path/to/planwright/skills/planwright ~/.agents/skills/planwright
    ```
 
-*(Optional)* For `codvisor` / `codinventor` shortcuts without an `AGENTS.md` block, add small dispatcher skills under the host's skill directory that read `commands/codvisor.md` or `commands/codinventor.md` for argument resolution, then load `skills/planwright/SKILL.md` with the resolved planwright argument string. The bundled command files include the Claude Code `planwright:planwright` hand-off as one adapter; on Cursor or Codex, read the planwright `SKILL.md` directly or use the host's native skill invocation.
+*(Optional)* For `cod*` shortcuts without an `AGENTS.md` block, add small dispatcher skills under the host's skill directory that read the matching `commands/<name>.md` for argument resolution, then load `skills/planwright/SKILL.md` with the resolved planwright argument string. The bundled command files include the Claude Code `planwright:planwright` hand-off as one adapter; on Cursor or Codex, read the planwright `SKILL.md` directly or use the host's native skill invocation.
 
 **Invoke in chat:**
 
@@ -96,6 +96,7 @@ is preferred here because Planwright resolves bundled scripts from `../../script
 - Codex: `planwright cycle 3`, `planwright execute`, or `planwright depth 9 add OAuth login`
 - `@codvisor` / `codvisor` — flagship advisor run (`cycle 10 depth 10 explore`)
 - `@codinventor` / `codinventor` — flagship inventor run (`cycle 10 depth 10 invent`)
+- `@codcycle` / `codcycle` — explore→invent alternation: each outer cycle runs one `cycle 3 depth 10 explore` then a framing-rotated `cycle 3 depth 10 invent`, with one closing explore (recipe in `commands/codcycle.md`)
 - `@codshard` / `codshard` — sharded maturity sweep: one scoped `cycle 3 depth 10` round per shard in staleness order, then one closing whole-repo round (recipe in `commands/codshard.md`)
 - `@codmaster` / `codmaster` — the front door: sense the planning state via `scripts/status.py --recommend`, then run the required commands consecutively to the final point at depth 10 (`advise` = tell only; `safe` = no invention; `loop` = infinite; recipe in `commands/codmaster.md`)
 
@@ -107,12 +108,12 @@ Run `planwright help` (or `@planwright help`) for the full option reference.
 
 ## Alternative: project `AGENTS.md` pointer
 
-If a machine-wide skill install is not desired, copy the block below into a file named `AGENTS.md` in the **root of the target project** (the repo being planned, not the planwright clone). This is also the supported path for **Windsurf, Cline, Roo Code, Amp, Zed**, and any other agent that reads a project `AGENTS.md` — they all dispatch `planwright`, `codvisor`, `codinventor`, `codshard`, and `codmaster` through the same shared skill.
+If a machine-wide skill install is not desired, copy the block below into a file named `AGENTS.md` in the **root of the target project** (the repo being planned, not the planwright clone). This is also the supported path for **Windsurf, Cline, Roo Code, Amp, Zed**, and any other agent that reads a project `AGENTS.md` — they all dispatch `planwright`, `codvisor`, `codinventor`, `codcycle`, `codshard`, and `codmaster` through the same shared skill.
 
 ```markdown
 ## planwright
 
-When the user invokes **planwright**, **codvisor**, **codinventor**, **codshard**, or **codmaster** (with or without a leading `@`), act as the planwright agent:
+When the user invokes **planwright**, **codvisor**, **codinventor**, **codcycle**, **codshard**, or **codmaster** (with or without a leading `@`), act as the planwright agent:
 
 1. Read `/absolute/path/to/planwright/skills/planwright/SKILL.md` and follow it exactly for the resolved arguments.
 2. Do not re-implement planwright logic inline — the skill owns all planning, execute, and cycle behaviour.
@@ -127,6 +128,7 @@ When the user invokes **planwright**, **codvisor**, **codinventor**, **codshard*
 - `codinventor N D` → `cycle N depth D invent`
 - If a `codvisor` / `codinventor` invocation includes `path <X>` or `lib <X>`, peel that scope pair first, resolve the remaining shortcut form, then append the scope after the resolved subcommand (`codvisor path src/auth/` → `cycle 10 depth 10 explore path src/auth/`; `codinventor 5 8 lib parser` → `cycle 5 depth 8 invent lib parser`). Also accept the `--`-prefixed aliases, normalising to the bare form first: `--path <X>` → `path <X>`, `--lib <X>` → `lib <X>`, `--scope <X>` → `path <X>` (both `--opt <X>` and `--opt=<X>` spellings)
 - Any other `codvisor` / `codinventor` remainder → verbatim passthrough to planwright (same arguments as `planwright <args>`)
+- `codcycle [N]` → follow the orchestration recipe in `commands/codcycle.md`: N outer cycles (default 10; negative = infinite), each an explore phase (`cycle 3 depth 10 explore`) then a framing-rotated invent phase (`cycle 3 depth 10 invent`), with one closing explore — each phase is an ordinary run of SKILL.md
 - `codshard [args]` → follow the orchestration recipe in `commands/codshard.md`: partition the repo into shards, run one scoped `cycle 3 depth 10` round per shard sequentially (staleness order), then one closing whole-repo round (`explore` escalates only that closing round; `shards <a,b,c>` lists shards explicitly) — each round is an ordinary run of SKILL.md
 - `codmaster [advise | [safe] [loop]]` → follow the orchestration recipe in `commands/codmaster.md`: sense via `scripts/status.py --root . --recommend`, dispatch the record's command as an ordinary SKILL.md run, re-sense, and repeat to the final point at depth 10 (never re-derive the recommendation in prose; if the engine cannot run, stop)
 - `planwright <args>` → pass `<args>` to the skill dispatcher described in SKILL.md

@@ -8,7 +8,7 @@
 > to a recorded final point. Planwright works through the AI coding agent you already use:
 > Claude Code, Codex, Cursor, Antigravity, Gemini, or any AGENTS.md-aware agent.
 
-![planwright's read-only dashboard — the Console view: a convergence reactor (56/66, 85%), accepted/pending/rejected tallies, coverage/hotspot/cycle/coupling vitals, a decision-cadence strip, and a live dirty-pulse of changed files](docs/images/dashboard-console.png)
+![Planwright's read-only dashboard — the Console view: a convergence reactor (56/66, 85%), accepted/pending/rejected tallies, coverage/hotspot/cycle/coupling vitals, a decision-cadence strip, and a live dirty-pulse of changed files](docs/images/dashboard-console.png)
 
 > The read-only [dashboard](docs/usage.md#dashboard-live-read-only-web-view) (`planwright dashboard`) — a live mirror of the `.planwright/` planning state. It watches; it never drives.
 
@@ -34,7 +34,7 @@ The difference is control. Planwright is local, free, agent-neutral, and file-ba
 ## Start here
 
 The four **direct dials** each drive one motion — repair, invention, alternation, scale. Run any
-of them with no arguments and planwright does the rest: it prints the estimated AI/session cost
+of them with no arguments and Planwright does the rest: it prints the estimated AI/session cost
 first, then works autonomously through plan→build→verify rounds until it runs out of worthwhile
 work.
 
@@ -49,8 +49,8 @@ work.
 read-only decision engine senses the repo's planning state, and codmaster dispatches whatever
 that state calls for: pending plan items to finish, a `/codvisor` repair sweep, a shard-by-shard
 `/codshard` pass on a large repo, one `/codinventor` growth burst once the tree is clean. Then it
-re-senses and dispatches again, until the repo reaches its recorded *final point* — planwright's
-written-down marker that nothing worth doing is left. One run behaves like a careful maintainer:
+re-senses and dispatches again, until the repo reaches its recorded *final point* — Planwright's
+written-down marker (`.planwright/final.md`) that nothing worth doing is left. One run behaves like a careful maintainer:
 unfinished work first, repair before growth, at most one invention burst per run (which the
 following steps harden back to convergence), every choice explained with the numbers behind it —
 and it stops itself on hard blockers, a failing broad verification, no progress, or the 12-step
@@ -68,20 +68,23 @@ Three words tune it:
 The plain-language tour lives in [Concepts → codmaster](docs/concepts.md#codmaster--the-front-door).
 
 All five are autonomous in workflow, not unchecked in permissions: planning never touches your
-source, and when planwright does start editing — building items, committing — your host agent's
+source, and when Planwright does start editing — building items, committing — your host agent's
 normal edit, terminal, and commit approval prompts still apply.
 
-> Under the hood, `/codvisor` is shorthand for `cycle 10 depth 10 explore` and `/codinventor` for
-> `cycle 10 depth 10 invent`. You can pass numbers to tune them (`/codvisor 5 8` = 5 rounds at
-> depth 8) — see [Quick Start](#quick-start). `/codcycle` *orchestrates* many such runs — an explore
-> then a framing-rotated invent per outer cycle, with one closing explore — so reach for it when you want
-> codvisor and codinventor on a loop. `/codshard` is the other orchestrator: one scoped cycle per
-> top-level directory (so each shard gets the full depth budget), then one closing whole-repo round
-> (add `explore` to escalate just that closing round). `/codmaster` sits above all of these and
-> owns no logic of its own: a tested decision table (`status.py --recommend`, the same table the
-> dashboard's Commands view renders) maps repo state to the next command, and codmaster dispatches
-> it at depth 10 — where `/codcycle` runs a fixed rhythm, codmaster re-decides every step from
-> fresh state.
+> Under the hood:
+>
+> - `/codvisor` = `cycle 10 depth 10 explore`; `/codinventor` = `cycle 10 depth 10 invent`. Pass
+>   numbers to tune either (`/codvisor 5 8` = 5 rounds at depth 8) — see [Quick Start](#quick-start).
+> - `/codcycle` *orchestrates* many such runs — an explore then a framing-rotated invent per outer
+>   cycle, with one closing explore — so reach for it when you want codvisor and codinventor on a loop.
+> - `/codshard` is the other orchestrator: one scoped cycle per top-level directory (so each shard
+>   gets the full depth budget), then one closing whole-repo round (add `explore` to escalate just
+>   that closing round).
+> - `/codmaster` sits above all of these and owns no logic of its own: a tested decision table
+>   (`status.py --recommend`, the same table the dashboard's Commands view renders) maps repo state
+>   to the next command, and codmaster dispatches it at depth 10 — where `/codcycle` runs a fixed
+>   rhythm, codmaster re-decides every step from fresh state.
+>
 > The full vocabulary lives in [Concepts](docs/concepts.md).
 
 ## How it works: three paths
@@ -114,7 +117,7 @@ flowchart LR
     Cycle -->|nothing left| Done[Done]
 ```
 
-Your AI coding agent runs every stage through the skill, so planwright needs no external binary and
+Your AI coding agent runs every stage through the skill, so Planwright needs no external binary and
 makes no separate API/model calls beyond the active session.
 
 On larger codebases it keeps audits efficient with a **graph memory** under the gitignored
@@ -122,27 +125,28 @@ On larger codebases it keeps audits efficient with a **graph memory** under the 
 matters most and re-audits only what changed between runs. See
 [Graph memory](docs/graph-memory-schema.md) for the schema and details.
 
-**Watch it work (optional).** `planwright dashboard` serves a **read-only** local web view of that
+**Watch it work (optional).** The `planwright dashboard` command serves a **read-only** local web view of that
 `.planwright/` state — convergence, plan progress, the coupling graph, cadence, and environment
 preflight — so you can watch an unattended `cycle` evolve in a browser instead of re-running
-summaries. It is a mirror, never a remote control: it launches no agent and edits nothing. On Claude
-Code, the **`/planwright:dashboard`** command opens it for you. See
-[Usage → Dashboard](docs/usage.md#dashboard-live-read-only-web-view).
+summaries. It is a mirror, never a remote control: it launches no agent and edits nothing. `dashboard` is an
+ordinary subcommand on every host — ask your agent to run `planwright dashboard` (Cursor:
+`@planwright dashboard`); on Claude Code, the **`/planwright:dashboard`** command opens it for
+you. See [Usage → Dashboard](docs/usage.md#dashboard-live-read-only-web-view).
 
 > **Note on safety:** Planning never edits your application source — only `execute` and `cycle` do,
 > and your normal edit/commit approval prompts still apply. Protected paths (`.git/`,
 > `.planwright/` internals, `LICENSE`, secrets) are never touched. (The one rare exception —
 > `invent` editing `MISSION.md` — is explained in [Concepts](docs/concepts.md#missionmd-edits-under-invent).)
 
-## How planwright differs from `/plan` and `/ultraplan`
+## How Planwright differs from `/plan` and `/ultraplan`
 
 Claude Code already ships built-in planning: **`/plan`** enters *plan mode* — Claude proposes a plan, blocks edits until you approve, then executes in the same session.
 
 **`/ultraplan`** is currently a research-preview Claude Code feature, so its behavior may change. It refines a plan with a heavier, cloud-backed remote session.
 
-Both are general-purpose, session-scoped plans. planwright is a different shape of tool: it produces a **grounded, verifiable, persistent plan artifact** for codebase work.
+Both are general-purpose, session-scoped plans. Planwright is a different shape of tool: it produces a **grounded, verifiable, persistent plan artifact** for codebase work.
 
-| | `/plan` (built-in mode) | `/ultraplan` (built-in, cloud) | **planwright** |
+| | `/plan` (built-in mode) | `/ultraplan` (built-in, cloud) | **Planwright** |
 |---|---|---|---|
 | Nature | Session *mode* | Cloud plan *refinement* | Pipeline that emits a plan *file* |
 | Plan lives | Ephemeral (approval modal) | Remote session | Persistent `.planwright/plan.md` (+ completed/rejected/graph) |
@@ -152,7 +156,7 @@ Both are general-purpose, session-scoped plans. planwright is a different shape 
 | Iteration | One-shot | One-shot refine | `cycle N` climbs a maturity ladder to a recorded **final point** |
 | Runs | Local | Cloud (web auth) | Runs inside the active AI coding agent — no extra binary, daemon, server, or separate API/model integration |
 
-**Rules of thumb:** reach for **`/plan`** to think through any task you'll execute right away; **`/ultraplan`** when you want cloud-grade refinement on a hard problem; **planwright** when you want a grounded, verifiable plan of *codebase* work — especially unattended multi-round progress (`cycle`) with per-item verification and commits. They compose, too: design with `/plan`, then let planwright drive the verified execution.
+**Rules of thumb:** reach for **`/plan`** to think through any task you'll execute right away; **`/ultraplan`** when you want cloud-grade refinement on a hard problem; **Planwright** when you want a grounded, verifiable plan of *codebase* work — especially unattended multi-round progress (`cycle`) with per-item verification and commits. They compose, too: design with `/plan`, then let Planwright drive the verified execution.
 
 ## Example Plan Item
 
@@ -171,9 +175,9 @@ A plan item has this 8-field shape (title plus seven required fields):
 
 ## Documentation
 
-For deep dives into how `planwright` operates, refer to the documentation:
+For deep dives into how Planwright operates, refer to the documentation:
 
-- [Concepts](docs/concepts.md): How planwright thinks — `cycle`, `explore`, `invent`, `seed`, and scoping, in plain language. **Start here if the flags above are new to you.**
+- [Concepts](docs/concepts.md): How Planwright thinks — `cycle`, `explore`, `invent`, `seed`, and scoping, in plain language. **Start here if the flags above are new to you.**
 - [Mission](MISSION.md): Purpose, scope, and non-goals — the charter the maturity ladder aligns to.
 - [Usage](docs/usage.md): Detailed CLI reference, options, execute modes, the read-only `status`/`dashboard` views, and a troubleshooting guide (reading `final.md`, why a run wrote 0 items, scope no-match, and `build-graph.py --debug` for routing surprises).
 - [Architecture](docs/architecture.md): Explanation of the 11-stage planning pipeline and execute loop.
@@ -191,16 +195,16 @@ The workflow has one argument grammar: `planwright <args>`. Each host only chang
 
 | Host | Use this trigger | Shortcut spelling |
 |------|------------------|-------------------|
-| Claude Code | `/planwright <args>` | `/codvisor`, `/codinventor` |
-| Codex | `planwright <args>` after installing/loading the skill | `codvisor`, `codinventor` |
-| Cursor | `@planwright <args>` or `planwright <args>` | `@codvisor`/`codvisor`, `@codinventor`/`codinventor` |
-| Antigravity / Gemini | `planwright <args>` from the `GEMINI.md` project instruction | `codvisor`, `codinventor` |
+| Claude Code | `/planwright <args>` | `/codvisor`, `/codinventor`, `/codcycle`, `/codshard`, `/codmaster` |
+| Codex | `planwright <args>` after installing/loading the skill | `codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster` |
+| Cursor | `@planwright <args>` or `planwright <args>` | `@codvisor`/`codvisor` — likewise `codinventor`, `codcycle`, `codshard`, `codmaster` |
+| Antigravity / Gemini | `planwright <args>` from the `GEMINI.md` project instruction | `codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster` |
 
 ### Why any agent can host it
 
 Planwright is not re-implemented per agent. The entire workflow lives in one agent-neutral file, `skills/planwright/SKILL.md`, backed by stdlib-only Python helpers in `scripts/`. Everything host-specific is a **thin adapter** — a plugin manifest or a pointer file whose only job is "read `SKILL.md`, resolve helper scripts from `../../scripts/`." The named hosts above just differ in how that adapter is delivered (a `.claude-plugin/`/`.codex-plugin/` manifest, a Cursor skill symlink, or a `GEMINI.md` instruction).
 
-Because of this, any agent that reliably reads a project `AGENTS.md` file can host Planwright without a dedicated adapter. Drop the block from [`AGENTS.example.md`](AGENTS.example.md) into the target repo's `AGENTS.md` and the agent will dispatch `planwright`, `codvisor`, and `codinventor` through the same shared skill. This covers AGENTS.md-aware agents such as Windsurf, Cline, Roo Code, Amp, and Zed in addition to the first-class hosts above. The only requirement for full fidelity is that the host can run the bundled Python helpers; agents that cannot execute scripts get the planning prose but not the graph-backed grounding.
+Because of this, any agent that reliably reads a project `AGENTS.md` file can host Planwright without a dedicated adapter. Drop the block from [`AGENTS.example.md`](AGENTS.example.md) into the target repo's `AGENTS.md` and the agent will dispatch `planwright` and all five `cod*` shortcuts through the same shared skill. This covers AGENTS.md-aware agents such as Windsurf, Cline, Roo Code, Amp, and Zed in addition to the first-class hosts above. The only requirement for full fidelity is that the host can run the bundled Python helpers; agents that cannot execute scripts get the planning prose but not the graph-backed grounding.
 
 ### Claude Code
 
@@ -224,7 +228,7 @@ Then invoke with `/planwright`, `/codvisor`, or `/codinventor`. Upgrade with `/p
 
 #### Local shortcut aliases (drop the `planwright:` prefix)
 
-Claude Code namespaces every plugin command by the plugin name, so planwright's commands are invoked as `/planwright:codvisor`, `/planwright:codcycle`, and so on. That prefix is mandatory for plugin-provided commands — it prevents collisions between plugins, and a plugin has no way to register an unprefixed top-level command. Only the **user** (`~/.claude/commands/`) and **project** (`.claude/commands/`) scopes can hold unprefixed commands, and a plugin can't write into either.
+Claude Code namespaces every plugin command by the plugin name, so Planwright's commands are invoked as `/planwright:codvisor`, `/planwright:codcycle`, and so on. That prefix is mandatory for plugin-provided commands — it prevents collisions between plugins, and a plugin has no way to register an unprefixed top-level command. Only the **user** (`~/.claude/commands/`) and **project** (`.claude/commands/`) scopes can hold unprefixed commands, and a plugin can't write into either.
 
 If you'd rather type the bare `/codvisor`, `/codinventor`, `/codcycle`, `/codshard`, and `/codmaster`, install thin personal aliases that just forward to the real plugin commands:
 
@@ -247,11 +251,11 @@ mkdir -p ~/.cursor/skills
 ln -s <PLANWRIGHT_FOLDER>/skills/planwright ~/.cursor/skills/planwright
 ```
 
-For `codvisor` / `codinventor` shortcuts, use the `AGENTS.md` block in [`AGENTS.example.md`](AGENTS.example.md) or add thin dispatcher skills (see that file for details).
+For the `cod*` shortcuts (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`), use the `AGENTS.md` block in [`AGENTS.example.md`](AGENTS.example.md) or add thin dispatcher skills (see that file for details).
 
 **Lightweight alternative:** copy the `AGENTS.md` block from [`AGENTS.example.md`](AGENTS.example.md) into the root of each target project.
 
-Then invoke in chat with `@planwright`, natural-language `planwright …` arguments, or the `codvisor` / `codinventor` shortcuts. Cursor's normal edit and terminal approval prompts apply on the execute and cycle paths. Upgrade by `git pull` in the planwright clone (there is no `/plugin upgrade` on Cursor).
+Then invoke in chat with `@planwright`, natural-language `planwright …` arguments, or the `cod*` shortcuts. Cursor's normal edit and terminal approval prompts apply on the execute and cycle paths. Upgrade by `git pull` in the Planwright clone (there is no `/plugin upgrade` on Cursor).
 
 ### Codex
 
@@ -314,20 +318,20 @@ scripts from `../../scripts/` relative to `skills/planwright`. If you copy inste
 that layout intact or use the plugin path above.
 
 Invoke in chat with `planwright`, for example `planwright depth 8`, `planwright execute`, or
-`planwright cycle 3`. You can also explicitly mention the skill as `$planwright`. Use `codvisor` /
-`codinventor` as natural-language shortcuts or add a small dispatcher skill that reads
-`commands/codvisor.md` / `commands/codinventor.md` and then loads `skills/planwright/SKILL.md` with
-the resolved argument string.
+`planwright cycle 3`. You can also explicitly mention the skill as `$planwright`. Use the `cod*`
+shortcuts (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`) as natural-language
+commands, or add a small dispatcher skill that reads the matching `commands/<name>.md` and then
+loads `skills/planwright/SKILL.md` with the resolved argument string.
 
 ### Antigravity / Gemini
 
-Planwright can be run directly via Antigravity or Gemini project instructions. Copy the contents of [`GEMINI.example.md`](GEMINI.example.md) into a `GEMINI.md` file in the root of each target project, and update the absolute path to point to the planwright clone.
+Planwright can be run directly via Antigravity or Gemini project instructions. Copy the contents of [`GEMINI.example.md`](GEMINI.example.md) into a `GEMINI.md` file in the root of each target project, and update the absolute path to point to the Planwright clone.
 
-Then ask the assistant to run `planwright` or use the `codvisor` and `codinventor` shortcut commands.
+Then ask the assistant to run `planwright` or use the `cod*` shortcut commands (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`).
 
 ## Optional: context-mode
 
-On large repos or at higher planning depths, the plan path's mechanical stages (especially Stage 1 scan and Stage 1.5 graph build) can emit bulky `rg`/`git` output. The skill can route that through [context-mode](https://github.com/mksglu/context-mode) (`ctx_execute` / `ctx_batch_execute`) so only summarized results enter the session. context-mode is optional on every host; without it, planwright falls back to capped Shell output or the by-hand fallbacks in the skill.
+On large repos or at higher planning depths, the plan path's mechanical stages (especially Stage 1 scan and Stage 1.5 graph build) can emit bulky `rg`/`git` output. The skill can route that through [context-mode](https://github.com/mksglu/context-mode) (`ctx_execute` / `ctx_batch_execute`) so only summarized results enter the session. The integration is optional on every host; without it, Planwright falls back to capped Shell output or the by-hand fallbacks in the skill.
 
 ## Quick Start
 

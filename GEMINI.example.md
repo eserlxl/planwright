@@ -11,6 +11,7 @@ If you want to use the `planwright` workflow with Antigravity or Gemini in **oth
 In addition, support these shortcut commands:
 - `codvisor [cycles] [depth]`: This is a helper command that forwards to `planwright cycle <cycles> depth <depth> explore` (defaults to cycles=10, depth=10 if omitted).
 - `codinventor [cycles] [depth]`: This is the invent twin of codvisor. It forwards to `planwright cycle <cycles> depth <depth> invent` (defaults to cycles=10, depth=10 if omitted).
+- `codcycle [N]`: The explore→invent alternator. Follow the orchestration recipe in `/absolute/path/to/planwright/commands/codcycle.md`: N outer cycles (default 10; negative = infinite), each one `cycle 3 depth 10 explore` then a framing-rotated `cycle 3 depth 10 invent`, with one closing explore; each phase is an ordinary planwright run.
 - `codshard [args]`: The sharded maturity sweep. Follow the orchestration recipe in `/absolute/path/to/planwright/commands/codshard.md`: one scoped `cycle 3 depth 10` round per shard sequentially (staleness order), then one closing whole-repo round; each round is an ordinary planwright run.
 - `codmaster [advise | [safe] [loop]]`: The front door. Follow the orchestration recipe in `/absolute/path/to/planwright/commands/codmaster.md`: sense via `python3 /absolute/path/to/planwright/scripts/status.py --root . --recommend`, dispatch the record's command as an ordinary planwright run, re-sense, and repeat to the final point at depth 10 (never re-derive the recommendation in prose; if the engine cannot run, stop).
 
