@@ -577,3 +577,22 @@ if [ "$sbv_rc" = 0 ] && printf '%s' "$sbv_err" | grep -q "failed to load"; then
 else
   bad "status.py did not warn on a present-but-broken sibling lint-final.py (rc=$sbv_rc): $sbv_err"
 fi
+
+# --- Test STS17: the advise reference's by-hand fallback mirrors _reset_necessity ----
+# references/advise.md carries a no-python3 fallback of the recommend() table in prose.
+# Its invent-dry row must state the engine's reset-necessity ladder (_reset_necessity:
+# seeded -> re-survey; undrained/unknown frontier -> harden; only unseeded AND drained ->
+# reset) — a blanket "invent-dry -> reset" recommends a destructive move where the engine
+# would not, the exact failure the "only when really necessary" design guards against.
+ADV="$ROOT/skills/planwright/references/advise.md"
+if python3 - "$ADV" <<'PY' 2>/dev/null
+import sys
+body = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+assert "reset-necessity ladder, never a blanket reset" in body, "necessity ladder missing"
+assert "re-survey via `codinventor`" in body, "seeded re-survey row missing"
+assert "without wiping audit memory" in body, "undrained-frontier harden row missing"
+assert "unseeded AND the frontier shown drained" in body, "reset precondition missing"
+assert "`never_audited` == 0" in body, "drained-frontier predicate missing"
+assert "nothing non-destructive remains" in body, "necessity polarity missing"
+PY
+then ok "advise.md by-hand fallback states the reset-necessity ladder (mirrors status.py _reset_necessity)"; else bad "advise.md by-hand fallback lost the reset-necessity ladder (blanket invent-dry reset)"; fi

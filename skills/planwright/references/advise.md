@@ -33,8 +33,13 @@ only — **never** valid Evidence, exactly like `status` and the graph.
 **By-hand fallback** (no `python3`): run the Status procedure's by-hand summary, then apply the
 table in plain words — pending items → `execute`; structural debt or a stale/invalid final point →
 `codvisor` (a large repo shards instead via `codshard`); a clean, converged tree → `codinventor`;
-converged at `deepest_tier: invent` → `reset` then a fresh harden sweep — and recommend the result
-without running it.
+converged at `deepest_tier: invent` → the reset-necessity ladder, never a blanket reset: a
+**seeded** point (an `invent_seed` is recorded) → re-survey via `codinventor` (a different framing
+may still find groundable invention); a cold frontier **undrained or unknown** (`never_audited` > 0,
+or no readable count) → a harden sweep (`codvisor`, or `codshard` on a large repo), which re-reads
+the frontier without wiping audit memory; only **unseeded AND the frontier shown drained**
+(`never_audited` == 0) → `reset` then a fresh harden sweep, because nothing non-destructive
+remains — and recommend the result without running it.
 
 STOP after reporting. Advise never dispatches; dispatching is `/codmaster`'s job (Claude Code) or
 the user's.
