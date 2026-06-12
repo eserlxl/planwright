@@ -969,6 +969,35 @@ setTimeout(function () {
     assert(/blocked: uncommitted paths/.test(fdText), "front-door panel omitted the dirty-tree blocker");
     assert(/3 import cycles/.test(fdText), "front-door panel omitted the evidence chips");
     assert(/\/planwright:codshard explore/.test(fdText), "front-door invocation did not map codshard+explore to its helper command");
+
+    // The kicker is beacon-aware: while state.activity carries a live (fresh) beacon
+    // the heading reads "run in progress" with the Console beacon's running-command
+    // line, and the pick is re-labelled as the dispatch once the run settles; with no
+    // beacon — or a stale one (a dead run must not re-frame the panel as live) — the
+    // heading stays "next dispatch" with no running line.
+    function kickerOf(panel) { return textOf(findByClass(panel, "pw-coach-kicker")[0]); }
+    assert(/next dispatch/.test(kickerOf(fd[0])), "beacon-less front-door kicker lost its next-dispatch heading");
+    assert(!/run in progress/.test(fdText), "beacon-less front-door panel rendered the run-in-progress framing");
+    var cmdLive = new El("section");
+    win.PW_VIEWS.commands(cmdLive, Object.assign({}, state, {
+      activity: { command: "codmaster", detail: "step 3/12: execute", started: "2026-06-12T18:42:00Z", age_seconds: 30, stale: false },
+    }), fullCtx);
+    var fdLive = frontDoorPanels(cmdLive);
+    assert(fdLive.length === 1, "front-door panel missing on a live-beacon render");
+    var liveKicker = kickerOf(fdLive[0]);
+    assert(/run in progress/.test(liveKicker) && !/next dispatch/.test(liveKicker),
+      "front-door kicker did not flip to run-in-progress on a live beacon");
+    var liveText = textOf(fdLive[0]);
+    assert(/codmaster — step 3\/12: execute/.test(liveText), "live front-door panel omitted the running-command line");
+    assert(/next dispatch once this run settles/.test(liveText), "live front-door panel lost the next-dispatch re-label on the pick");
+    var cmdStale = new El("section");
+    win.PW_VIEWS.commands(cmdStale, Object.assign({}, state, {
+      activity: { command: "codmaster", detail: null, started: "2026-06-12T08:00:00Z", age_seconds: 7200, stale: true },
+    }), fullCtx);
+    var fdStale = frontDoorPanels(cmdStale);
+    assert(fdStale.length === 1, "front-door panel missing on a stale-beacon render");
+    assert(/next dispatch/.test(kickerOf(fdStale[0])), "a stale beacon re-framed the front-door heading as a live run");
+    assert(!/run in progress/.test(textOf(fdStale[0])), "a stale beacon rendered the run-in-progress framing");
     console.log("VIEWS-FN-OK");
   }, 0);
 }, 0);

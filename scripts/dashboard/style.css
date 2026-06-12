@@ -744,6 +744,10 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
 /* codmaster front-door panel (the /recommend.json dispatcher overlay) */
 .pw-frontdoor { position: relative; background: var(--pw-panel-2); border: 1px solid var(--pw-border-2); border-left: 4px solid var(--pw-warn); border-radius: var(--pw-r-lg); padding: var(--pw-s5) var(--pw-s6); margin-bottom: var(--pw-s5); box-shadow: var(--pw-shadow-1); overflow: hidden; }
 .pw-frontdoor .pw-cmd-invoke { max-width: 440px; }
+/* The live-run line reuses the Console reactor's activity styling (same beacon contract),
+   left-aligned to the panel flow instead of reactor-centred. */
+.pw-frontdoor .pw-reactor-activity { justify-content: flex-start; margin: var(--pw-s2) 0 var(--pw-s3); }
+.pw-frontdoor .pw-coach-alt-kicker { margin-bottom: var(--pw-s1); }
 .pw-frontdoor-pick { display: flex; align-items: baseline; gap: var(--pw-s3); flex-wrap: wrap; }
 .pw-frontdoor-args { font-family: var(--pw-font-mono); font-size: var(--pw-fs-sm); color: var(--pw-muted); }
 .pw-frontdoor-flags { display: flex; flex-wrap: wrap; gap: var(--pw-s2); margin-bottom: var(--pw-s3); }

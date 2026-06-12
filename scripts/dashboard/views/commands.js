@@ -22,6 +22,14 @@
 // reset follow-up. The base coach below stays browser-derived (PW_DERIVE.coach); the panel
 // degrades to absent — never to an error — on an older server or a failed fetch, so the
 // view keeps its zero-endpoint contract when the overlay is unavailable.
+//
+// The panel heading is beacon-aware: while the run-activity beacon (state.activity, the
+// same contract the Console reactor renders) shows a live run, "next dispatch" would
+// mislabel the panel — a command is executing right now — so the kicker flips to
+// "run in progress", the running command renders on the Console's exact label, and the
+// pick beneath is re-labelled as the dispatch once the run settles. A stale beacon (an
+// interrupted run's leftover) keeps the next-dispatch framing: a dead run must not
+// re-frame the panel as live — the Console carries the stale? warning.
 
 (function () {
   "use strict";
@@ -104,13 +112,24 @@
     return !!(d && typeof d.command === "string" && d.base && Array.isArray(d.blockers));
   }
 
-  function paintFrontDoor(slot) {
+  function paintFrontDoor(slot, act) {
     slot.textContent = "";
     if (!recUsable(recData)) return;   // absent panel, never an error state
     var d = recData;
+    var live = window.PW_DERIVE.activityShown(act) && !act.stale;
 
     var panel = elt("div", "pw-frontdoor");
-    panel.appendChild(elt("span", "pw-coach-kicker", "codmaster front door — next dispatch"));
+    panel.appendChild(elt("span", "pw-coach-kicker",
+      "codmaster front door — " + (live ? "run in progress" : "next dispatch")));
+    if (live) {
+      var run = elt("div", "pw-reactor-activity");
+      run.appendChild(elt("span", "pw-reactor-activity-dot"));
+      run.appendChild(elt("span", "pw-reactor-activity-text",
+        window.PW_DERIVE.activityLabel(act)));
+      panel.appendChild(run);
+      panel.appendChild(elt("span", "pw-coach-alt-kicker",
+        "next dispatch once this run settles"));
+    }
     var pick = elt("div", "pw-frontdoor-pick");
     pick.appendChild(elt("span", "pw-coach-pick", d.command));
     if (d.args && d.args !== d.command) {
@@ -149,16 +168,17 @@
 
   // Paint what we have, then refresh from the server. The slot belongs to the current
   // render; a response landing after a newer render paints a detached node (harmless)
-  // and the refreshed recData shows on the next SSE-driven render.
-  function loadFrontDoor(slot) {
-    paintFrontDoor(slot);
+  // and the refreshed recData shows on the next SSE-driven render. The beacon rides
+  // along: it came from the same /state.json snapshot as this render.
+  function loadFrontDoor(slot, act) {
+    paintFrontDoor(slot, act);
     if (recInflight || typeof fetch !== "function") return;
     recInflight = true;
     fetch("/recommend.json")
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         recInflight = false;
-        if (recUsable(d)) { recData = d; paintFrontDoor(slot); }
+        if (recUsable(d)) { recData = d; paintFrontDoor(slot, act); }
       })
       .catch(function () { recInflight = false; });
   }
@@ -216,7 +236,7 @@
     // endpoint is unavailable — the base coach hero below is the degraded surface)
     var fdSlot = elt("div", "pw-frontdoor-slot");
     container.appendChild(fdSlot);
-    loadFrontDoor(fdSlot);
+    loadFrontDoor(fdSlot, state.activity);
 
     // hero recommendation
     var hero = elt("div", "pw-coach-hero");
