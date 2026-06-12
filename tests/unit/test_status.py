@@ -133,5 +133,140 @@ class TestRepoSizeCall(unittest.TestCase):
         self.assertAlmostEqual(st._pct_rank([1, 2, 2, 4], 2), 1 / 3)
 
 
+class TestRecommendOverlay(unittest.TestCase):
+    """Pin recommend()'s dispatcher overlay — the ladder codmaster dispatches mutating
+    commands from. The shared coach base is fixture-pinned (TestCoachTable); these pin
+    the overlay rows' precedence, routing, invent_class marking, follow_up composite,
+    blockers, and the reset nudge, with the mechanical sensors (graph signals, repo
+    size, dirty tree, doctor) patched so each row is driven deterministically."""
+
+    HEAD = "f" * 40
+    GSIG_CLEAN = {"import_cycles": 0, "hot_uncovered": 0, "articulation": 0,
+                  "coverage_pct": 100}
+    REPO_SMALL = {"tracked_files": 10, "shardable_dirs": ["a", "b"],
+                  "folded_dirs": [], "large": False}
+    REPO_LARGE = {"tracked_files": 200, "shardable_dirs": ["a", "b", "c"],
+                  "folded_dirs": [], "large": True}
+
+    def _recommend(self, root, gsig=GSIG_CLEAN, repo=REPO_SMALL, dirty=(), doctor=()):
+        from unittest import mock
+        with mock.patch.object(st, "_graph_signals", lambda r: gsig), \
+             mock.patch.object(st, "_repo_block", lambda r: repo), \
+             mock.patch.object(st, "_dirty_paths", lambda r: list(dirty)), \
+             mock.patch.object(st, "_doctor_blockers", lambda r, m: list(doctor)), \
+             mock.patch.object(st, "_head_sha", lambda r: self.HEAD), \
+             mock.patch.object(st, "_final_valid", lambda r: True):
+            return st.recommend(root)
+
+    def _root(self, plan=None, final=None, digest=None, graph=None):
+        root = tempfile.mkdtemp(prefix="pw-overlay-")
+        self.addCleanup(__import__("shutil").rmtree, root, True)
+        pw = os.path.join(root, ".planwright")
+        os.makedirs(pw)
+        for name, text in (("plan.md", plan), ("final.md", final), ("digest.md", digest)):
+            if text is not None:
+                with open(os.path.join(pw, name), "w", encoding="utf-8") as fh:
+                    fh.write(text)
+        if graph is not None:
+            with open(os.path.join(pw, "graph.json"), "w", encoding="utf-8") as fh:
+                json.dump(graph, fh)
+        return root
+
+    def _pending(self, mode):
+        return ("- [ ] An item\n      Mode: %s\n      Verification: true\n" % mode)
+
+    def _final(self, tier, seed=None):
+        text = "sha: %s\ndate: 2026-06-12\ndeepest_tier: %s\n" % (self.HEAD, tier)
+        if seed is not None:
+            text += "invent_seed: %s\ninvent_framing: power-user\n" % seed
+        return text
+
+    def _graph(self, never_audited):
+        return {"graph_built_at_sha": self.HEAD, "nodes": {},
+                "dirty": {"nodes": []},
+                "frontier": {"never_audited": never_audited, "stale": 1}}
+
+    def test_first_contact_routes_to_harden(self):
+        rec = self._recommend(self._root(), gsig=None)
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertEqual(rec["args"], "cycle 10 depth 10 explore")
+        self.assertIn("first contact", rec["why"])
+        self.assertFalse(rec["invent_class"])
+
+    def test_pending_drains_first_even_with_debt(self):
+        # A repair-mode pending item is itself coach debt — execute still wins the row.
+        rec = self._recommend(self._root(plan=self._pending("repair")))
+        self.assertEqual(rec["command"], "execute")
+        self.assertIn("1 pending", rec["why"])
+        self.assertEqual(rec["base"]["key"], "codvisor")
+
+    def test_pending_healthy_mix_notes_the_codcycle_shadow(self):
+        # base says codcycle (pending, no debt); the drain-first rule shadows it and the
+        # divergence is explained in notes, never silent.
+        rec = self._recommend(self._root(plan=self._pending("develop")))
+        self.assertEqual(rec["command"], "execute")
+        self.assertEqual(rec["base"]["key"], "codcycle")
+        self.assertTrue(any("codcycle" in n for n in rec["notes"]))
+
+    def test_carried_backlog_hardens_before_growing(self):
+        digest = ("# digest\n\n## Carried dossier candidates\n"
+                  "[repair sev2, CUT — capacity] foo.py:10 — claim; fix: bar\n")
+        rec = self._recommend(self._root(digest=digest))
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertIn("carried 1", rec["why"])
+
+    def test_clean_but_unconverged_earns_convergence(self):
+        rec = self._recommend(self._root())
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertIn("earn convergence", rec["why"])
+        self.assertIsNone(rec["reset_nudge"])
+
+    def test_converged_grows_with_invent_class_and_nudge(self):
+        rec = self._recommend(self._root(final=self._final("expand")))
+        self.assertEqual(rec["command"], "codinventor")
+        self.assertEqual(rec["args"], "cycle 10 depth 10 invent")
+        self.assertTrue(rec["invent_class"])
+        self.assertIsNotNone(rec["reset_nudge"])
+
+    def test_invent_dry_seeded_resurveys(self):
+        rec = self._recommend(self._root(final=self._final("invent", seed=3)))
+        self.assertEqual(rec["command"], "codinventor")
+        self.assertTrue(rec["invent_class"])
+        self.assertIn("SEED-SCOPED", rec["why"])
+
+    def test_invent_dry_undrained_frontier_hardens(self):
+        rec = self._recommend(self._root(final=self._final("invent"),
+                                         graph=self._graph(never_audited=2)))
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertFalse(rec["invent_class"])
+        self.assertIn("not shown drained", rec["why"])
+
+    def test_invent_dry_unknown_frontier_hardens(self):
+        # No graph.json at all: the frontier is unknown, so reset is NOT shown necessary.
+        rec = self._recommend(self._root(final=self._final("invent")))
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertIn("not shown drained", rec["why"])
+
+    def test_invent_dry_unseeded_drained_resets_with_follow_up(self):
+        rec = self._recommend(self._root(final=self._final("invent"),
+                                         graph=self._graph(never_audited=0)))
+        self.assertEqual(rec["command"], "reset")
+        self.assertIn("really necessary", rec["why"])
+        self.assertEqual(rec["follow_up"]["command"], "codvisor")
+        self.assertIsNone(rec["reset_nudge"])  # the rec IS the reset — no nudge on top
+
+    def test_large_repo_routes_harden_to_codshard(self):
+        rec = self._recommend(self._root(), repo=self.REPO_LARGE)
+        self.assertEqual(rec["command"], "codshard")
+        self.assertEqual(rec["args"], "explore")
+        self.assertTrue(any("codshard" in n for n in rec["notes"]))
+
+    def test_dirty_tree_blocks_a_mutating_dispatch(self):
+        rec = self._recommend(self._root(), dirty=["?? wip.c"])
+        self.assertTrue(rec["mutating"])
+        self.assertEqual([b["kind"] for b in rec["blockers"]], ["dirty-tree"])
+        self.assertIn("wip.c", rec["blockers"][0]["detail"])
+
+
 if __name__ == "__main__":
     unittest.main()
