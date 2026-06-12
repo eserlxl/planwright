@@ -20,11 +20,13 @@
 # failure: anything it cannot resolve confidently (a non-.md anchor target, a multi-line
 # link, an unparseable heading) is skipped rather than flagged. It only reads the tree.
 #
-#   python3 scripts/check-links.py [--root DIR] [--quiet]
+#   python3 scripts/check-links.py [--root DIR] [--quiet] [--json]
 #
 # Exit status: 0 when every intra-repo link/anchor resolves, 1 when any is broken (each
 # printed as `file:line: broken link -> target (reason)`), 2 on a usage/enumeration error.
 # --quiet suppresses all output and sets only the exit code (parity with the siblings).
+# --json emits the broken-link records as a structured JSON array instead of the plain
+# lines (parity with the lint-plan.py/status.py siblings); --quiet still wins.
 import argparse
 import json
 import os
