@@ -45,6 +45,17 @@ else
   ok "dashboard JS syntax check skipped (node not installed)"
 fi
 
+# --- Test 0d: the suite stays BSD-coreutils-clean (no GNU in-place sed) ----
+# macOS/BSD sed has no extensionless -i and no 0,/re/ address, so a GNU-style
+# in-place sed anywhere in the harness silently re-breaks `bash tests/run.sh`
+# on those hosts. The pattern is split so this guard never matches itself.
+inplace_pat='sed'' -i'
+if grep -rn "$inplace_pat" "$ROOT"/tests/ "$ROOT"/scripts/*.sh >/dev/null 2>&1; then
+  bad "GNU in-place sed crept back into the harness: $(grep -rln "$inplace_pat" "$ROOT"/tests/ "$ROOT"/scripts/*.sh | tr '\n' ' ')"
+else
+  ok "no GNU in-place sed in tests/ or scripts/*.sh (BSD-coreutils-clean)"
+fi
+
 # --- Test 1: bump-version.sh syncs version across all three files ----------
 WORK="$TMP/repo"
 mkdir -p "$WORK"
@@ -72,7 +83,13 @@ if [ "$sv" = "$pj" ]; then ok "skill frontmatter in lockstep ($sv)"; else bad "s
 # The preview must predict the real run. The real rewrite only touches a QUOTED metadata
 # version, so an unquoted (YAML-legal) `  version: X` is skipped — and --dry-run must report
 # it skipped too, not falsely "would sync" (regression: a looser dry-run probe regex).
-sed -i -E '0,/^  version:/ s/^(  version:)[[:space:]]*"[^"]*"/\1 9.9.9/' "$WORK/skills/planwright/SKILL.md"
+python3 - "$WORK/skills/planwright/SKILL.md" <<'PY'
+import re, sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+text = re.sub(r'(?m)^(  version:)[ \t]*"[^"]*"', r'\1 9.9.9', text, count=1)
+open(path, "w", encoding="utf-8").write(text)
+PY
 dry_out="$("$WORK/scripts/bump-version.sh" patch --dry-run 2>&1 || true)"
 dry_rc=0; "$WORK/scripts/bump-version.sh" patch --dry-run >/dev/null 2>&1 || dry_rc=$?
 real_out="$("$WORK/scripts/bump-version.sh" patch 2>&1 || true)"
@@ -241,7 +258,13 @@ WREPO="$TMP/warnrepo"
 mkdir -p "$WREPO"
 ( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$WREPO" && tar -xf - )
 # Make the frontmatter version line unmatchable (unquoted) so the regex skips it.
-sed -i -E 's/^(  version:).*/\1 9.9.9/' "$WREPO/skills/planwright/SKILL.md"
+python3 - "$WREPO/skills/planwright/SKILL.md" <<'PY'
+import re, sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+text = re.sub(r'(?m)^(  version:).*$', r'\1 9.9.9', text)
+open(path, "w", encoding="utf-8").write(text)
+PY
 warn_err="$("$WREPO/scripts/bump-version.sh" patch -m "warn-path test" 2>&1 >/dev/null)"; warn_rc=$?
 if [ "$warn_rc" -eq 0 ]; then ok "bump still succeeds when a skill has no version: line"; else bad "bump failed (rc=$warn_rc) on unmatchable skill version"; fi
 if printf '%s' "$warn_err" | grep -q "no metadata 'version:' line"; then ok "skill-sync warns on unmatchable version line"; else bad "expected skip warning not emitted"; fi

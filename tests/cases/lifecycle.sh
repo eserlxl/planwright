@@ -47,7 +47,8 @@ fi
 # Mark the surviving pending item done, housekeep again -> no pending remains ->
 # plan.md is deleted and no plans/ archive directory is created (the user's rule:
 # an empty plan is clutter, overwrite fresh).
-sed -i 's/^- \[ \] A pending item/- [x] A pending item/' "$LCD/plan.md"
+sed 's/^- \[ \] A pending item/- [x] A pending item/' "$LCD/plan.md" > "$LCD/plan.md.tmp" \
+  && mv "$LCD/plan.md.tmp" "$LCD/plan.md"
 out="$(python3 "$LC" housekeep --root "$LCD")"
 if [ ! -f "$LCD/plan.md" ] && [ ! -d "$LCD/plans" ] \
    && printf '%s' "$out" | grep -q 'plan deleted (empty)'; then
