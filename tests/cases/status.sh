@@ -596,3 +596,38 @@ assert "`never_audited` == 0" in body, "drained-frontier predicate missing"
 assert "nothing non-destructive remains" in body, "necessity polarity missing"
 PY
 then ok "advise.md by-hand fallback states the reset-necessity ladder (mirrors status.py _reset_necessity)"; else bad "advise.md by-hand fallback lost the reset-necessity ladder (blanket invent-dry reset)"; fi
+
+# --- Test STS16: --recommend emits the full coach record end-to-end (CLI smoke) ------
+# The canonical decision surface for `planwright advise` and /codmaster: the flag must
+# emit parseable JSON carrying every record key, with the command inside the known
+# dispatch vocabulary; a pending plan must route to execute (the drain-first row),
+# exercising collect() through the CLI rather than the imported module.
+REC="$TMP/status-recommend"; mkdir -p "$REC/.planwright"
+PEN="$TMP/status-recommend-pending"; mkdir -p "$PEN/.planwright"
+printf -- '- [ ] Drain me\n      Mode: develop\n      Verification: true\n' > "$PEN/.planwright/plan.md"
+# One completed item exits the first-contact row (no graph + 0 completed deliberately
+# shadows drain-first: a never-audited repo audits before executing hand-seeded items),
+# so the pending fixture reaches the drain-first row it is pinning.
+printf -- '- [x] Done thing\n      Mode: develop\n' > "$PEN/.planwright/completed.md"
+rec_rc=0
+python3 "$STAT" --root "$REC" --recommend >"$TMP/rec.json" 2>"$TMP/rec.err" || rec_rc=$?
+python3 "$STAT" --root "$PEN" --recommend >"$TMP/rec-pending.json" 2>/dev/null || rec_rc=$?
+if [ "$rec_rc" = 0 ] && python3 - "$TMP/rec.json" "$TMP/rec-pending.json" <<'PY' 2>/dev/null
+import json, sys
+r = json.load(open(sys.argv[1], encoding="utf-8"))
+keys = {"base", "command", "args", "why", "mutating", "invent_class", "follow_up",
+        "notes", "blockers", "evidence", "reset_nudge", "signals", "repo"}
+missing = keys - set(r)
+assert not missing, "missing record keys: %s" % sorted(missing)
+known = {"execute", "codvisor", "codshard", "codinventor", "reset"}
+assert r["command"] in known, "unknown dispatch: %r" % r["command"]
+assert isinstance(r["mutating"], bool) and isinstance(r["invent_class"], bool)
+assert isinstance(r["evidence"], list) and r["evidence"], "evidence chips empty"
+pen = json.load(open(sys.argv[2], encoding="utf-8"))
+assert pen["command"] == "execute", "drain-first row misrouted: %r" % pen["command"]
+PY
+then
+  ok "status.py --recommend emits the full coach record (keys, known dispatch, drain-first row) via the CLI"
+else
+  bad "status.py --recommend CLI smoke failed (rc=$rec_rc): $(cat "$TMP/rec.err" 2>/dev/null)"
+fi
