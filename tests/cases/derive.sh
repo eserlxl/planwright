@@ -689,3 +689,72 @@ JS
 else
   ok "PW_DERIVE.shards.map check skipped (node not installed)"
 fi
+
+# --- Test DRV10: shards.map totals reconcile with a REAL build-graph.py frontier ------
+# DRV9 pins the JS predicates on a synthetic graph; this feeds the actual builder's
+# emitted graph.json into shards.map so the two brains (build-graph.py's frontier block
+# and derive.js's shardMap) cannot drift apart silently: totals (shards + residue) must
+# equal the builder's path-agnostic frontier counts EXACTLY, on a fixture that exercises
+# never-audited, stale, and dirty-excluded nodes at once.
+if command -v node >/dev/null 2>&1; then
+  XREPO="$TMP/xpinrepo"
+  mkdir -p "$XREPO/alpha" "$XREPO/beta"
+  printf '#!/usr/bin/env bash\none() { if true; then echo a1; fi; }\n' > "$XREPO/alpha/one.sh"
+  printf '#!/usr/bin/env bash\ntwo() { if true; then echo a2; fi; }\n' > "$XREPO/alpha/two.sh"
+  printf '#!/usr/bin/env bash\nthree() { if true; then echo b1; fi; }\n' > "$XREPO/beta/three.sh"
+  printf '#!/usr/bin/env bash\nfour() { if true; then echo b2; fi; }\n' > "$XREPO/beta/four.sh"
+  printf 'plain notes, no branches\n' > "$XREPO/notes.md"
+  git -C "$XREPO" init -q
+  git -C "$XREPO" add -A
+  git -C "$XREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+  xg1="$TMP/xpin_graph1.json"
+  python3 "$ROOT/scripts/build-graph.py" --root "$XREPO" > "$xg1" 2>/dev/null
+  # Stamp two nodes as audited at HEAD1, then land a second commit touching alpha/one.sh,
+  # so the --prior rebuild ages the stamps: alpha/one.sh turns dirty (stale-excluded on
+  # both sides), beta/three.sh turns genuinely stale, and the two unstamped code nodes
+  # stay never-audited — the builder's frontier must read {never_audited: 2, stale: 1}.
+  python3 - "$xg1" <<'PY'
+import json, sys
+g = json.load(open(sys.argv[1]))
+for f in ("alpha/one.sh", "beta/three.sh"):
+    g["nodes"][f]["last_audited_sha"] = g["graph_built_at_sha"]
+json.dump(g, open(sys.argv[1], "w"))
+PY
+  printf '#!/usr/bin/env bash\none() { if true; then echo a1 edited; fi; }\n' > "$XREPO/alpha/one.sh"
+  git -C "$XREPO" add -A
+  git -C "$XREPO" -c user.name=t -c user.email=t@e.com commit -qm edit
+  xg2="$TMP/xpin_graph2.json"
+  python3 "$ROOT/scripts/build-graph.py" --root "$XREPO" --prior "$xg1" > "$xg2" 2>/dev/null
+  cat > "$TMP/derive_xpin_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+global.window = {};
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+const D = global.window.PW_DERIVE;
+const raw = fs.readFileSync(process.argv[3], "utf8");
+const g = JSON.parse(raw);
+// the fixture must really exercise the frontier mix on the builder's side first
+assert(g.frontier && g.frontier.never_audited > 0 && g.frontier.stale > 0,
+  "fixture lost its frontier mix: " + JSON.stringify(g.frontier));
+const m = D.metrics(raw);
+assert(m, "metrics rejected the real builder output");
+const SH = D.shards.map(
+  { tracked_files: 5, shardable_dirs: ["alpha", "beta"], folded_dirs: [], large: false }, m);
+assert(SH, "shards.map rejected the real builder output");
+// THE cross-pin: the JS totals must equal the Python builder's frontier verbatim
+assert.strictEqual(SH.totals.neverAudited, g.frontier.never_audited,
+  "never-audited drift: js " + SH.totals.neverAudited + " vs builder " + g.frontier.never_audited);
+assert.strictEqual(SH.totals.stale, g.frontier.stale,
+  "stale drift: js " + SH.totals.stale + " vs builder " + g.frontier.stale);
+console.log("XPIN-OK");
+JS
+  if node "$TMP/derive_xpin_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" "$xg2" >"$TMP/derive_xpin.out" 2>"$TMP/derive_xpin.err" \
+     && grep -q XPIN-OK "$TMP/derive_xpin.out"; then
+    ok "shards.map totals reconcile exactly with a real build-graph.py frontier (cross-brain pin)"
+  else
+    bad "shards.map drifted from build-graph.py's frontier: $(cat "$TMP/derive_xpin.err" 2>/dev/null)"
+  fi
+else
+  ok "shards.map real-builder cross-pin skipped (node not installed)"
+fi
