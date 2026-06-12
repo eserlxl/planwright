@@ -349,9 +349,9 @@ light/dark themes, full keyboard navigation, and eight views:
   command layer consumes), with its overlay notes, mutating/invent-class flags, and mechanical
   blockers (dirty tree, doctor); the panel simply disappears on an older server. While the
   run-activity beacon shows a live run, the panel heading flips from **next dispatch** to
-  **run in progress**, carries the Console beacon's running-command line, and re-labels the
-  pick beneath as the dispatch once the run settles; a stale beacon (a dead run's leftover)
-  keeps the next-dispatch framing.
+  **run in progress**, carries the Console beacon's running-command line, and frames the
+  pick beneath with a **next dispatch once this run settles** label; a stale beacon (a dead
+  run's leftover) keeps the next-dispatch framing.
 - **Plan** — pending / completed / rejected items (pending shown with all eight fields, filterable by Mode).
 - **Timeline** — a cumulative **Decision timeline** graph (accepted decisions by mode over the run,
   with the shared mode legend) above the accepted/killed item lists, from the completed/rejected logs.

@@ -972,9 +972,9 @@ setTimeout(function () {
 
     // The kicker is beacon-aware: while state.activity carries a live (fresh) beacon
     // the heading reads "run in progress" with the Console beacon's running-command
-    // line, and the pick is re-labelled as the dispatch once the run settles; with no
-    // beacon — or a stale one (a dead run must not re-frame the panel as live) — the
-    // heading stays "next dispatch" with no running line.
+    // line, and a label above the pick re-frames it as the dispatch once the run
+    // settles; with no beacon — or a stale one (a dead run must not re-frame the
+    // panel as live) — the heading stays "next dispatch" with no running line.
     function kickerOf(panel) { return textOf(findByClass(panel, "pw-coach-kicker")[0]); }
     assert(/next dispatch/.test(kickerOf(fd[0])), "beacon-less front-door kicker lost its next-dispatch heading");
     assert(!/run in progress/.test(fdText), "beacon-less front-door panel rendered the run-in-progress framing");
@@ -989,7 +989,7 @@ setTimeout(function () {
       "front-door kicker did not flip to run-in-progress on a live beacon");
     var liveText = textOf(fdLive[0]);
     assert(/codmaster — step 3\/12: execute/.test(liveText), "live front-door panel omitted the running-command line");
-    assert(/next dispatch once this run settles/.test(liveText), "live front-door panel lost the next-dispatch re-label on the pick");
+    assert(/next dispatch once this run settles/.test(liveText), "live front-door panel lost the next-dispatch label above the pick");
     var cmdStale = new El("section");
     win.PW_VIEWS.commands(cmdStale, Object.assign({}, state, {
       activity: { command: "codmaster", detail: null, started: "2026-06-12T08:00:00Z", age_seconds: 7200, stale: true },

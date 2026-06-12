@@ -26,8 +26,8 @@
 // The panel heading is beacon-aware: while the run-activity beacon (state.activity, the
 // same contract the Console reactor renders) shows a live run, "next dispatch" would
 // mislabel the panel — a command is executing right now — so the kicker flips to
-// "run in progress", the running command renders on the Console's exact label, and the
-// pick beneath is re-labelled as the dispatch once the run settles. A stale beacon (an
+// "run in progress", the running command renders on the Console's exact label, and a
+// label above the pick re-frames it as the dispatch once the run settles. A stale beacon (an
 // interrupted run's leftover) keeps the next-dispatch framing: a dead run must not
 // re-frame the panel as live — the Console carries the stale? warning.
 
