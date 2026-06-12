@@ -116,8 +116,8 @@ is an ordinary run of this `SKILL.md`; `codshard` only sequences them.
 runs the read-only `advise` engine (`status.py --recommend`, the same truth table the dashboard
 coach renders) and then **runs the required commands consecutively** — dispatch, re-sense,
 dispatch — until the repo reaches a recorded final point, at maximum depth (10), re-deciding from
-fresh state between steps instead of precomputing a chain (growth is taken at most once per run;
-a no-progress stall or the 12-step safety cap also stop the loop): pending items →
+fresh state between steps instead of precomputing a chain (growth is taken at most once per lap;
+a no-progress stall or the 12-step-per-lap safety cap also stop the loop): pending items →
 `execute`; structural debt, a stale point, or a carried backlog → `codvisor` (`codshard explore` on
 a mechanically large repo); a clean tree without a current whole-repo final point → the same harden
 sweep; a converged tree → `codinventor` (growth — by default codmaster may dispatch it, banner
@@ -126,7 +126,9 @@ earned empty) → `reset` plus a fresh harden sweep, but **only when really nece
 must be unseeded and the cold frontier shown drained; a seed-scoped point re-surveys and an
 undrained frontier hardens instead. Its `advise` word prints the recommendation and
 stops; its `safe` word runs the same loop but never dispatches invent-class work, stopping at the
-first convergence (it prints the `codinventor` line to paste instead). The decision table lives in the tested Python engine, never
+first convergence (it prints the `codinventor` line to paste instead); its `loop` word makes the
+drive infinite — each converged terminal triggers the cold-start reset (keeps `rejected.md`) and
+begins a new lap with growth re-armed, until interrupted or a hard stop (`safe loop` composes). The decision table lives in the tested Python engine, never
 in command prose; `codmaster` only relays and dispatches.
 
 ## Invocation & help

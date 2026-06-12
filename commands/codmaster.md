@@ -1,6 +1,6 @@
 ---
-description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is default-on and taken at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); the loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste.
-argument-hint: "advise | safe | (empty = sense → dispatch → re-sense, consecutively until the final point)"
+description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is default-on and taken at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); the loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step-per-lap safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; `loop` makes the drive infinite — each converged terminal triggers the cold-start reset itself (keeps rejected.md) and begins a new lap with the growth burst re-armed, until interrupted or a hard stop (`safe loop` composes).
+argument-hint: "advise | safe | loop | (empty = sense → dispatch → re-sense, consecutively until the final point)"
 ---
 
 You are dispatching on behalf of the `/codmaster` helper command. Like `/codcycle` and
@@ -16,15 +16,18 @@ Raw arguments: `$ARGUMENTS`
 Resolve them in this order:
 
 1. **`help` / `--help` / `-h` / `?`**: print
-   `Usage: /codmaster [advise|safe]   (empty = sense the repo and run the required commands consecutively, at depth 10, until a recorded final point; advise = print the recommendation only, dispatch nothing; safe = the same loop without invention capability — it stops at the first convergence and prints the growth command to paste).`
+   `Usage: /codmaster [advise | [safe] [loop]]   (empty = sense the repo and run the required commands consecutively, at depth 10, until a recorded final point; advise = print the recommendation only, dispatch nothing; safe = the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; loop = infinite — each converged terminal triggers the cold-start reset and begins a new lap; safe loop composes).`
    and STOP — do not run anything.
 2. **`advise`**: run SENSE below, print the full recommendation report (command + args, why, the
    evidence chips, every note, every blocker verbatim, the invent-class notice when set, and the
    reset nudge when present), and STOP — dispatch nothing.
-3. **`safe`**: run the main loop below with **invention capability off** — identical in every way
-   except the growth step's handling.
-4. **empty**: run the main loop below.
-5. **Anything else**: print that same `Usage:` line and STOP.
+3. **Peel the mode flags** from the remaining tokens, in any order — they compose:
+   - **`safe`**: invention capability off — identical in every way except the growth step's
+     handling.
+   - **`loop`**: infinite mode — the converged terminal does not stop the run; it triggers the
+     cold-start reset and begins a new lap (see the terminal check below).
+   Any other leftover token: print that same `Usage:` line and STOP.
+4. **Then run the main loop below** under the peeled flags (empty = neither flag).
 
 **SENSE (read-only).** Resolve `<scripts>` per planwright's **Procedure → Bundled scripts** rule
 (the skill base directory's `../../scripts/`). Run
@@ -35,10 +38,14 @@ and STOP — never substitute a prose decision table.
 
 **Main loop** (cases 3 and 4). First print exactly one cost banner:
 `codmaster: autonomous drive to the final point — sense → dispatch → re-sense, at depth 10, until convergence (max 12 steps). Note: invent may make rare, small committed edits to repo files, including MISSION.md.`
-In `safe` mode, the trailing notice is replaced by:
+In `loop` mode print this first clause instead:
+`codmaster: infinite drive — laps of sense → dispatch → re-sense at depth 10; each converged terminal triggers the cold-start reset (keeps rejected.md) and begins a new lap, until interrupted or a hard stop (max 12 steps per lap).`
+In `safe` mode (either banner), the trailing invent notice is replaced by:
 `safe: invention capability off — the loop stops at the first convergence.`
+(in `safe loop`, by: `safe: invention capability off — each lap runs harden-only.`)
 
-Then repeat, for each step `i` (from 1, **never exceeding 12 steps** — the runaway safety cap):
+Then repeat, for each step `i` (from 1, **never exceeding 12 steps** per lap — the runaway
+safety cap; a bare run is a single lap, and in `loop` mode the counter restarts each lap):
 
 1. **SENSE fresh.** Every step re-runs the engine on current state — the loop re-decides between
    steps; it never precomputes a chain of commands.
@@ -47,15 +54,22 @@ Then repeat, for each step `i` (from 1, **never exceeding 12 steps** — the run
    read-only sensing — codmaster never runs `doctor --fix`; its report may *suggest*
    `planwright doctor --fix`.)
 3. **Terminal check.** If the record's `signals.converged` is true:
-   - in `safe` mode, or when the growth step was already taken this run: STOP the loop — the
+   - when the growth step was not yet taken this lap (and `safe` is off): take the
+     **at-most-once growth burst** — dispatch `codinventor` as this step and mark growth taken.
+     One burst per lap keeps each lap convergent: invent's must-generate mandate means repeated
+     growth never self-terminates, so unbounded rhythm stays `/codcycle`'s job. The following
+     steps harden the new work back to convergence.
+   - otherwise, in `loop` mode: the converged terminal continues instead of stopping — print the
+     next lap's header `=== codmaster lap L ===`, dispatch planwright with `reset` as this step
+     (typing `loop` is the consent for repeated cold starts; `reset` keeps `rejected.md`, so
+     rejected work stays suppressed across laps), restart the step counter, re-arm the growth
+     burst, and continue — the next SENSE reads first contact and routes to a fresh harden
+     sweep. The infinite drive ends only on interruption or a hard stop (blockers, a hard
+     blocker, a broad-verify failure, or no progress).
+   - otherwise, in `safe` mode or with the growth step already taken: STOP the loop — the
      recorded final point is the terminal state. (In `safe` mode print the growth recommendation
      and the exact line to paste — `/planwright:codinventor`, or the `/codinventor` alias — plus
      the `reset_nudge` alternative when present.)
-   - otherwise (case 4, growth not yet taken): take the **at-most-once growth burst** — dispatch
-     `codinventor` as this step and mark growth taken. One burst per run keeps the loop
-     convergent: invent's must-generate mandate means repeated growth never self-terminates, so
-     unbounded rhythm stays `/codcycle`'s job. The following steps harden the new work back to
-     convergence, and the loop stops at that deeper final point.
 4. **Dispatch the record's command** under a step header
    `=== codmaster step i/12: <command> <args> ===` with a one-line why
    (`<why> (coach: <base.key>)`, appending each `notes` entry — a divergence from the dashboard
@@ -93,11 +107,13 @@ and its header announces both halves up front.
   printed to paste instead.
 
 **REPORT** (after the loop ends — terminal, cap, or early stop). Print a short cumulative
-summary: steps taken (out of 12), the per-step commands and verified-commit counts in order
-(e.g. `codvisor 3 → execute 2 → codinventor 1 → codvisor 0` ), whether the growth burst ran,
-the final-point state from the last SENSE relayed verbatim, and the stop reason (`converged at
-the final point`, `hard blocker`, `broad-verify failed`, `blockers`, `no progress`, or
-`step cap`). On a clean converged stop, also print the engine's steady-state recommendation as
+summary: steps taken (out of 12 for the lap), the per-step commands and verified-commit counts in
+order (e.g. `codvisor 3 → execute 2 → codinventor 1 → codvisor 0` ), whether the growth burst
+ran, the final-point state from the last SENSE relayed verbatim, and the stop reason (`converged
+at the final point`, `hard blocker`, `broad-verify failed`, `blockers`, `no progress`,
+`step cap`, or — in `loop` mode — `interrupted`). In `loop` mode also print this summary at the
+end of every lap (just before its reset step), and a final overall line when the drive ends:
+laps completed, total steps, total verified commits. On a clean converged stop, also print the engine's steady-state recommendation as
 the suggested next step in both spellings (e.g. `next: /codinventor — <why>` and
 `or just run /codmaster again`), plus the `reset_nudge` when present.
 

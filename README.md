@@ -34,8 +34,10 @@ The difference is control. Planwright is local, free, agent-neutral, and file-ba
 Don't know what to run? **`/codmaster`** — the front door. It senses your repo's planning state
 with the same coach the dashboard renders, then runs the required commands consecutively — sense,
 dispatch, re-sense — until your repo reaches a recorded final point, all at maximum depth (growth
-is taken at most once per run; a 12-step safety cap bounds it). Add `advise` to only be told what
-it would run next (with the evidence), or `safe` to keep invention capability off.
+is taken at most once per lap; a 12-step-per-lap safety cap bounds it). Add `advise` to only be
+told what it would run next (with the evidence), `safe` to keep invention capability off, or
+`loop` for the infinite drive — each converged terminal triggers the cold-start reset itself
+(keeps `rejected.md`) and begins a new lap, until you interrupt it.
 
 The **direct dials**, when you want to choose yourself — run them with no arguments and planwright
 does the rest: it prints the estimated AI/session cost first, then works autonomously through
@@ -371,6 +373,7 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codmaster                 # sense → dispatch → re-sense, consecutively until convergence (max 12 steps)
 /codmaster advise          # only print what it would run next, with the evidence and blockers
 /codmaster safe            # same loop without invention; stops at the first convergence
+/codmaster loop            # infinite: each converged terminal resets (keeps rejected.md) and starts a new lap
 
 # Maintenance
 /planwright doctor     # preflight: check git/rg/python3 + bundled-script resolution

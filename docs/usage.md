@@ -195,8 +195,11 @@ sequential, and every other host simply runs without recon.
 by the shared `tests/fixtures/coach-table.json`) and runs the required commands **consecutively** —
 dispatch, re-sense, dispatch — until the repo reaches a recorded final point, at maximum depth (10),
 re-deciding between steps instead of precomputing a chain (the growth burst is taken at most once
-per run — invent's must-generate mandate never self-terminates — and a no-progress stall or the
-12-step safety cap also stop it). The lifecycle ladder: pending items → `execute`; structural debt, a stale final point, or a
+per lap — invent's must-generate mandate never self-terminates — and a no-progress stall or the
+12-step-per-lap safety cap also stop it). With `loop` the drive is infinite: each converged
+terminal triggers the cold-start `reset` itself (typing `loop` is the consent for repeated cold
+starts; `rejected.md` survives, so rejected work stays suppressed across laps) and begins a new
+lap with the growth burst re-armed — only an interruption or a hard stop ends it. The lifecycle ladder: pending items → `execute`; structural debt, a stale final point, or a
 carried backlog → `codvisor` (`codshard explore` on a mechanically large repo: ≥120 tracked files
 and ≥2 shardable dirs); a clean but unconverged tree → the same harden sweep; a converged tree →
 `codinventor` — growth is **default-on**, and the banner discloses invent's rare, dwell-gated
@@ -210,6 +213,7 @@ commit identity before a mutating run) stop it mechanically before any dispatch.
 /codmaster                 Drive to the final point: sense → dispatch → re-sense (depth 10, max 12 steps)
 /codmaster advise          Print the recommendation, evidence, and blockers — dispatch nothing
 /codmaster safe            Same loop without invention capability — stops at the first convergence
+/codmaster loop            Infinite: each converged terminal resets (keeps rejected.md) and starts a new lap
 ```
 
 `planwright advise` is the host-portable half of the same engine (Cursor/Codex/Gemini included):

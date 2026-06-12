@@ -420,8 +420,8 @@ assert "recommendation engine unavailable" in body, "engine-unavailable stop mis
 assert "never substitute a prose decision table" in body, "engine-unavailable polarity missing"
 assert "coach-table.json" in body, "cross-pin fixture not named"
 assert "planwright:planwright" in body, "skill dispatch missing"
-# three-word grammar, advise tells only
-assert "Usage: /codmaster [advise|safe]" in body, "Usage line missing or the grammar grew"
+# four-word grammar (advise stands alone; safe/loop compose), advise tells only
+assert "Usage: /codmaster [advise | [safe] [loop]]" in body, "Usage line missing or the grammar grew"
 assert "STOP" in body, "no STOP rule"
 assert "STOP — dispatch nothing" in body, "advise dispatch-nothing rule missing"
 # safe = without invention capability; default = growing authority + verbatim disclosure
@@ -451,7 +451,17 @@ assert "never precomputes a chain" in body, "no-precomputed-chain polarity missi
 assert "at-most-once growth burst" in body, "growth bound missing"
 assert "never self-terminates" in body, "growth-bound rationale missing"
 assert "stops at the first convergence" in body, "safe-mode terminal missing"
-assert "in `safe` mode, or when the growth step was already taken this run: STOP" in body, "converged terminal check not anchored at the step site"
+assert "in `safe` mode or with the growth step already taken: STOP" in body, "converged terminal check not anchored at the step site"
+# loop mode: the converged terminal CONTINUES via a user-consented cold-start reset, laps
+# re-arm growth and the step counter, rejected.md survives across laps, and only an
+# interruption or a hard stop ends the infinite drive
+assert "converged terminal continues instead of stopping" in body, "loop continuation missing"
+assert "consent for repeated cold starts" in body, "loop reset-consent rationale missing"
+assert "rejected work stays suppressed across laps" in body, "cross-lap rejected.md retention missing"
+assert "re-arm the growth burst" in body, "per-lap growth re-arm missing"
+assert "restart the step counter" in body, "per-lap step-counter restart missing"
+assert "ends only on interruption or a hard stop" in body, "infinite-drive stop set missing"
+assert "=== codmaster lap L ===" in body, "lap header missing"
 assert "=== codmaster step i/12:" in body, "per-step header missing"
 assert "never exceeding 12 steps" in body, "12-step safety cap missing"
 assert "HEAD unchanged" in body, "no-progress HEAD predicate missing"
