@@ -7,8 +7,10 @@
 In addition, support these shortcut commands:
 - `codvisor [cycles] [depth]`: This is a helper command that forwards to `planwright cycle <cycles> depth <depth> explore` (defaults to cycles=10, depth=10 if omitted).
 - `codinventor [cycles] [depth]`: This is the invent twin of codvisor. It forwards to `planwright cycle <cycles> depth <depth> invent` (defaults to cycles=10, depth=10 if omitted).
+- `codshard [args]`: The sharded maturity sweep. Follow the orchestration recipe in `/absolute/path/to/planwright/commands/codshard.md`: one scoped `cycle 3 depth 10` round per shard sequentially (staleness order), then one closing whole-repo round; each round is an ordinary planwright run.
+- `codmaster [advise | [safe] [loop]]`: The front door. Follow the orchestration recipe in `/absolute/path/to/planwright/commands/codmaster.md`: sense via `python3 /absolute/path/to/planwright/scripts/status.py --root . --recommend`, dispatch the record's command as an ordinary planwright run, re-sense, and repeat to the final point at depth 10 (never re-derive the recommendation in prose; if the engine cannot run, stop).
 
-For both shortcuts, first peel any `path <X>` or `lib <X>` pair from the arguments, resolve the remaining shortcut form, then append that scope after the resolved subcommand. Also accept the `--`-prefixed aliases, normalising to the bare form first: `--path <X>` → `path <X>`, `--lib <X>` → `lib <X>`, `--scope <X>` → `path <X>` (both `--opt <X>` and `--opt=<X>` spellings). Examples: `codvisor path src/auth/` resolves to `planwright cycle 10 depth 10 explore path src/auth/`; `codinventor 5 8 lib parser` resolves to `planwright cycle 5 depth 8 invent lib parser`.
+For the codvisor/codinventor shortcuts, first peel any `path <X>` or `lib <X>` pair from the arguments, resolve the remaining shortcut form, then append that scope after the resolved subcommand. Also accept the `--`-prefixed aliases, normalising to the bare form first: `--path <X>` → `path <X>`, `--lib <X>` → `lib <X>`, `--scope <X>` → `path <X>` (both `--opt <X>` and `--opt=<X>` spellings). Examples: `codvisor path src/auth/` resolves to `planwright cycle 10 depth 10 explore path src/auth/`; `codinventor 5 8 lib parser` resolves to `planwright cycle 5 depth 8 invent lib parser`.
 
 # context-mode — MANDATORY routing rules
 
