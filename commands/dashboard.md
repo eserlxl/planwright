@@ -57,5 +57,5 @@ construction.
 Report the exact bound URL, that the view is **read-only and live** (it re-fetches whenever
 `.planwright/` changes via a Server-Sent-Events stream), and how to stop it (Ctrl-C in its
 terminal, or kill the backgrounded process / end the session). Then **STOP** — do not tail the
-server log or block waiting on it. The dashboard keeps running on its own; its seven views —
-**Console / Commands / Plan / Timeline / Graph / Insights / Doctor** — update live as the plan evolves.
+server log or block waiting on it. The dashboard keeps running on its own; its eight views —
+**Console / Commands / Plan / Timeline / Graph / Insights / Shards / Doctor** — update live as the plan evolves.
