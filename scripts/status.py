@@ -30,6 +30,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 # status.py lives in scripts/; when run as a script (or imported by state.py) that
 # directory is sys.path[0], so the canonical plan parser imports directly.
@@ -237,6 +238,75 @@ def _shas_match(a, b):
     return a.startswith(b) or b.startswith(a)
 
 
+# ---- run-activity beacon (read side) -----------------------------------------------------
+# The beacon is a deliberately tiny contract: one JSON object {command, started,
+# updated[, detail]} in .planwright/activity.json. Freshness comes from the file
+# MTIME, not the recorded fields — an interrupted agent run leaves the file behind
+# with no process to clean it up, and the mtime is the one signal a leftover cannot
+# keep current. A beacon that has not been (re-)stamped within PW_ACTIVITY_TTL
+# seconds reads as stale. The read side lives HERE (not state.py) so this no-browser
+# status surface can report a live or interrupted run without inverting the import
+# direction: state.py imports status, never the reverse. The write path
+# (state.py activity start|stop) delegates to these readers.
+
+_ACTIVITY_TTL_DEFAULT = 3600.0
+
+
+def _activity_ttl() -> float:
+    """Stale cutoff in seconds (PW_ACTIVITY_TTL, positive float, silent fallback to
+    3600 — the same read-validate-fallback shape as dashboard._env_float)."""
+    raw = os.environ.get("PW_ACTIVITY_TTL")
+    if raw:
+        try:
+            value = float(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    return _ACTIVITY_TTL_DEFAULT
+
+
+def _activity_path(root):
+    return os.path.join(root, ".planwright", "activity.json")
+
+
+def _read_activity(path):
+    """The raw beacon dict plus its mtime, or (None, None) when absent, unreadable,
+    malformed, or missing a usable command — every degradation reads as 'no beacon'
+    because the dashboard surface must survive a torn or hand-edited file."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        mtime = os.stat(path).st_mtime
+    except (OSError, ValueError):
+        return None, None
+    if not isinstance(data, dict):
+        return None, None
+    command = data.get("command")
+    if not isinstance(command, str) or not command.strip():
+        return None, None
+    return data, mtime
+
+
+def _activity_block(root):
+    """Shape the beacon for state.json / status --json: {command, detail, started,
+    age_seconds, stale} or None. age_seconds counts from the last stamp (file mtime);
+    `stale` flips past the TTL so a reader can stop asserting a long-dead run is live."""
+    data, mtime = _read_activity(_activity_path(root))
+    if data is None or mtime is None:
+        return None
+    age = max(0, int(time.time() - mtime))
+    detail = data.get("detail")
+    started = data.get("started")
+    return {
+        "command": data["command"].strip(),
+        "detail": detail.strip() if isinstance(detail, str) and detail.strip() else None,
+        "started": started if isinstance(started, str) else None,
+        "age_seconds": age,
+        "stale": age > _activity_ttl(),
+    }
+
+
 def collect(root: str) -> dict:
     """Build the read-only state record from <root>/.planwright/."""
     pw = os.path.join(root, ".planwright")
@@ -334,6 +404,11 @@ def collect(root: str) -> dict:
         "carried": carried,
         "final_point": final_rec,
         "graph": graph_rec,
+        # The run-activity beacon ({command, detail, started, age_seconds, stale}, or
+        # None when no command flow has stamped one) — the same object the dashboard
+        # reads via state.collect(), so the no-browser surface can see a live or
+        # interrupted run.
+        "activity": _activity_block(root),
     }
 
 
@@ -729,6 +804,20 @@ def report(state, quiet):
     if state.get("carried"):
         print("  carried:   %d (cut/deferred dossier candidates — routing only, see digest.md)"
               % state["carried"])
+
+    # Only when a beacon exists, mirroring the carried counter's zero-silence: the
+    # steady state between runs adds no line. A stale beacon is an interrupted run's
+    # leftover — say so instead of asserting a long-dead run is live.
+    act = state.get("activity")
+    if act:
+        age = act.get("age_seconds") or 0
+        if act.get("stale"):
+            print("  activity:  STALE beacon '%s' — stamped %ds ago and not refreshed "
+                  "within its TTL; an interrupted run leaves it behind "
+                  "(state.py activity stop clears it)" % (act["command"], age))
+        else:
+            label = act["command"] + (" — " + act["detail"] if act.get("detail") else "")
+            print("  activity:  %s (run live — stamped %ds ago)" % (label, age))
 
     fp = state["final_point"]
     if fp is None:

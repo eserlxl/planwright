@@ -112,7 +112,7 @@ def _completed_item(item):
     return {"title": item["title"], "mode": item.get("mode", "")}
 
 
-# ---- run-activity beacon ---------------------------------------------------------------
+# ---- run-activity beacon (write side) ----------------------------------------------------
 # The beacon is a deliberately tiny contract: one JSON object {command, started,
 # updated[, detail]} in .planwright/activity.json. Freshness comes from the file
 # MTIME, not the recorded fields — an interrupted agent run leaves the file behind
@@ -120,67 +120,21 @@ def _completed_item(item):
 # keep current. A beacon that has not been (re-)stamped within PW_ACTIVITY_TTL
 # seconds reads as stale, and stale counts as absent for `start --if-absent`, so an
 # abandoned run never blocks the next one from taking the beacon over.
+#
+# The READ side (_activity_ttl/_activity_path/_read_activity/_activity_block) lives
+# in status.py so the no-browser `planwright status` surface reports the beacon too;
+# the import direction (state imports status, never the reverse) puts the canonical
+# readers there. These aliases keep the write path below — and existing consumers
+# such as dashboard._mtime_signature — on the same single implementation.
+_activity_ttl = status._activity_ttl
+_activity_path = status._activity_path
+_read_activity = status._read_activity
+_activity_block = status._activity_block
 
-_ACTIVITY_TTL_DEFAULT = 3600.0
 # Command names are short lowercase tokens (codmaster, plan, execute…); the bound
 # keeps a typo'd shell fragment from becoming the dashboard's headline.
 _ACTIVITY_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,39}$")
 _ACTIVITY_DETAIL_MAX = 160
-
-
-def _activity_ttl() -> float:
-    """Stale cutoff in seconds (PW_ACTIVITY_TTL, positive float, silent fallback to
-    3600 — the same read-validate-fallback shape as dashboard._env_float)."""
-    raw = os.environ.get("PW_ACTIVITY_TTL")
-    if raw:
-        try:
-            value = float(raw)
-            if value > 0:
-                return value
-        except ValueError:
-            pass
-    return _ACTIVITY_TTL_DEFAULT
-
-
-def _activity_path(root):
-    return os.path.join(root, ".planwright", "activity.json")
-
-
-def _read_activity(path):
-    """The raw beacon dict plus its mtime, or (None, None) when absent, unreadable,
-    malformed, or missing a usable command — every degradation reads as 'no beacon'
-    because the dashboard surface must survive a torn or hand-edited file."""
-    try:
-        with open(path, encoding="utf-8") as fh:
-            data = json.load(fh)
-        mtime = os.stat(path).st_mtime
-    except (OSError, ValueError):
-        return None, None
-    if not isinstance(data, dict):
-        return None, None
-    command = data.get("command")
-    if not isinstance(command, str) or not command.strip():
-        return None, None
-    return data, mtime
-
-
-def _activity_block(root):
-    """Shape the beacon for state.json: {command, detail, started, age_seconds,
-    stale} or None. age_seconds counts from the last stamp (file mtime); `stale`
-    flips past the TTL so the Console can stop asserting a long-dead run is live."""
-    data, mtime = _read_activity(_activity_path(root))
-    if data is None or mtime is None:
-        return None
-    age = max(0, int(time.time() - mtime))
-    detail = data.get("detail")
-    started = data.get("started")
-    return {
-        "command": data["command"].strip(),
-        "detail": detail.strip() if isinstance(detail, str) and detail.strip() else None,
-        "started": started if isinstance(started, str) else None,
-        "age_seconds": age,
-        "stale": age > _activity_ttl(),
-    }
 
 
 def _utc_now() -> str:
@@ -352,7 +306,8 @@ def collect(root: str) -> dict:
         # or null when no command flow has stamped one) — the Console reactor's
         # "which command is running right now" line. Distinct from the pending-work
         # verdict: IN PROGRESS means items exist, activity means a run is executing.
-        "activity": _activity_block(root),
+        # Reused from status.collect() (the canonical read side) rather than re-read.
+        "activity": base["activity"],
         "converged": status._converged(base),
     }
 

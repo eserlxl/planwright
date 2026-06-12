@@ -631,3 +631,32 @@ then
 else
   bad "status.py --recommend CLI smoke failed (rc=$rec_rc): $(cat "$TMP/rec.err" 2>/dev/null)"
 fi
+
+# --- Test STS18: the run-activity beacon surfaces in the report and --json ----------
+# Live: the report gains an `activity:` line naming the command/detail; --json carries
+# the block. Stale (mtime pushed past the TTL): the line reads STALE with the cleanup
+# hint. Absent: no line (the carried counter's zero-silence precedent), --json null.
+AB="$TMP/status-activity"
+mkdir -p "$AB/.planwright"
+python3 "$ROOT/scripts/state.py" activity start codshard --detail "shard 3/5: scripts/" --root "$AB" >/dev/null
+live_rep="$(python3 "$STAT" --root "$AB")"
+live_cmd="$(python3 "$STAT" --root "$AB" --json | python3 -c 'import json,sys; a=json.load(sys.stdin)["activity"]; print(a["command"], a["stale"])')"
+python3 - "$AB/.planwright/activity.json" <<'PY'
+import os, sys, time
+old = time.time() - 7200  # two hours back: past the default 3600 s TTL
+os.utime(sys.argv[1], (old, old))
+PY
+stale_rep="$(python3 "$STAT" --root "$AB")"
+python3 "$ROOT/scripts/state.py" activity stop --root "$AB" >/dev/null
+gone_rep="$(python3 "$STAT" --root "$AB")"
+gone_json="$(python3 "$STAT" --root "$AB" --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["activity"])')"
+if printf '%s' "$live_rep" | grep -q 'activity:  codshard — shard 3/5: scripts/ (run live — stamped' \
+   && [ "$live_cmd" = "codshard False" ] \
+   && printf '%s' "$stale_rep" | grep -q "activity:  STALE beacon 'codshard'" \
+   && printf '%s' "$stale_rep" | grep -q 'state.py activity stop clears it' \
+   && ! printf '%s' "$gone_rep" | grep -q 'activity:' \
+   && [ "$gone_json" = "None" ]; then
+  ok "status.py surfaces the run-activity beacon (live line, STALE past TTL, silent when absent)"
+else
+  bad "status.py beacon surfacing wrong (live=[$(printf '%s' "$live_rep" | grep 'activity:' || true)] stale=[$(printf '%s' "$stale_rep" | grep 'activity:' || true)])"
+fi

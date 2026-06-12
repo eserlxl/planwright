@@ -18,6 +18,12 @@ in the sandbox and relay its report (`--json` for machine output, `--quiet` for 
    point**). Reports "none recorded" when there is no final point.
 3. **Graph memory** — from `graph.json`: the sha it was built at, its node count, and how many nodes
    the last build marked dirty.
+4. **Run activity** — from `activity.json`: the run-activity beacon, when one is stamped. A live
+   beacon reads `activity: <command> — <detail> (run live — stamped <N>s ago)`; one that outlived
+   `PW_ACTIVITY_TTL` (default 3600 s) without a re-stamp reads **STALE** with the cleanup hint
+   (`state.py activity stop` clears an interrupted run's leftover). No line when no beacon exists.
+   The same `{command, detail, started, age_seconds, stale}` object the dashboard shows, carried
+   in `--json` as `activity` (or `null`).
 
 By default the exit code is always `0` — status is informational, and "no plan / no final point" is a
 valid state, not an error (unlike Doctor, which fails on a broken environment). The opt-in
