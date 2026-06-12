@@ -52,20 +52,24 @@ def parse_items(text: str | list[str],
     {checked: bool, title: str, line: int (1-based), fields: {name: value},
      span: (first_line_index, last_attached_line_index) — 0-based, inclusive}.
 
-    A field's value joins any wrapped continuation lines (a following indented line
-    that is not itself a recognised `Field:`). Only labels in `known_fields` are
-    captured; a later occurrence of a field overwrites the earlier one. `text` may be
-    a string or an already-split list of lines.
+    A field's value joins any wrapped continuation lines (a following non-blank
+    line — indented or at column 0 — that is not itself a recognised `Field:`,
+    while a field block is open; a blank line ends the block). The column-0 join
+    is deliberate and pinned: a value that wraps to column 0 drains with its item
+    (tests/cases/lifecycle.sh L16, tests/unit/test_plan_parse.py span test). Only
+    labels in `known_fields` are captured; a later occurrence of a field overwrites
+    the earlier one. `text` may be a string or an already-split list of lines.
 
     `span` is the verbatim text block the item owns — the boundary primitive
     lifecycle.py slices on, so block recognition lives here and cannot drift from
     field recognition. It advances on the head line, every recognised field line,
     every wrapped continuation, and any indented orphan line while the item is open
     (so a post-blank indented line stays with its item); interior blank lines sit
-    inside it but never advance it. A non-blank column-0 line that is not a field
-    continuation permanently CLOSES the span (it is interstitial text, and a later
-    indented line must not swallow it into the item's slice) — field capture after
-    that point still works as before, only the boundary stops."""
+    inside it but never advance it. A non-blank column-0 line with NO field open
+    (i.e. after a blank line ended the field block) permanently CLOSES the span
+    (it is interstitial text, and a later indented line must not swallow it into
+    the item's slice) — field capture after that point still works as before, only
+    the boundary stops."""
     lines = text if isinstance(text, list) else text.splitlines()
     items: list[Item] = []
     cur: Item | None = None
