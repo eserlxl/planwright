@@ -8,9 +8,9 @@
 > to a recorded final point. Planwright works through the AI coding agent you already use:
 > Claude Code, Codex, Cursor, Antigravity, Gemini, or any AGENTS.md-aware agent.
 
-![Planwright's read-only dashboard — the Console view: a convergence reactor (56/66, 85%), accepted/pending/rejected tallies, coverage/hotspot/cycle/coupling vitals, a decision-cadence strip, and a live dirty-pulse of changed files](docs/images/dashboard-console.png)
+![Planwright's read-only dashboard — Console view](docs/images/dashboard-console.png)
 
-> The read-only [dashboard](docs/usage.md#dashboard-live-read-only-web-view) (`planwright dashboard`) — a live mirror of the `.planwright/` planning state. It watches; it never drives.
+> The read-only [dashboard](docs/usage.md#dashboard-live-read-only-web-view) (`planwright dashboard`) — a live mirror of the `.planwright/` planning state: convergence reactor, plan tallies, code vitals, decision cadence, and a dirty-pulse of changed files. It watches; it never drives.
 
 Planwright is a planning-first control loop for codebase work. It reads your project, finds work worth
 doing, and writes it down as a checklist of concrete, verifiable steps in `.planwright/plan.md`. It
@@ -31,6 +31,22 @@ Planwright brings the same pattern to ordinary repositories: your agent inspects
 
 The difference is control. Planwright is local, free, agent-neutral, and file-based. You can inspect the plan, reject weak items, keep normal approval prompts, and move the same workflow between Claude Code, Codex, Cursor, Gemini, Antigravity, or any AGENTS.md-aware agent.
 
+## Install in 60 seconds
+
+On Claude Code:
+
+```bash
+/plugin marketplace add eserlxl/planwright
+/plugin install planwright@eserlxl
+```
+
+Plugin commands are namespaced: `/planwright:codvisor`, `/planwright:codmaster`, and so on
+(`/planwright` itself works as typed — the prefix applies to the five shortcuts). This README's
+examples use the short spellings (`/codvisor`, `/codmaster`) — install them as
+[local aliases](#local-shortcut-aliases-drop-the-planwright-prefix), or mentally prefix
+`planwright:`. For Codex, Cursor, Antigravity/Gemini, and AGENTS.md-aware agents, see
+[Install](#install).
+
 ## Start here
 
 The four **direct dials** each drive one motion — repair, invention, alternation, scale. Run any
@@ -46,26 +62,18 @@ work.
 | `/codshard`    | Matures the repo shard by shard, then closes whole-repo. | Large codebases |
 
 **`/codmaster`** — the front door — folds all of the above into one autonomous drive. A tested,
-read-only decision engine senses the repo's planning state, and codmaster dispatches whatever
-that state calls for: pending plan items to finish, a `/codvisor` repair sweep, a shard-by-shard
-`/codshard` pass on a large repo, one `/codinventor` growth burst once the tree is clean. Then it
-re-senses and dispatches again, until the repo reaches its recorded *final point* — Planwright's
-written-down marker (`.planwright/final.md`) that nothing worth doing is left. One run behaves like a careful maintainer:
-unfinished work first, repair before growth, at most one invention burst per run (which the
-following steps harden back to convergence), every choice explained with the numbers behind it —
-and it stops itself on hard blockers, a failing broad verification, no progress, or the 12-step
-safety cap.
+read-only decision engine senses the repo's planning state, and codmaster dispatches whatever it
+calls for — pending items to finish, a `/codvisor` repair sweep, a `/codshard` pass on a large
+repo, one `/codinventor` growth burst once the tree is clean, or (rarely) a cold-start reset —
+re-sensing after every step until
+the repo reaches its recorded *final point* (`.planwright/final.md`: the written-down marker that
+nothing worth doing is left). It repairs before it grows, explains every choice with the numbers
+behind it, and stops itself on blockers, failed verification, stalls, or the 12-step safety cap.
 
-Three words tune it:
-
-- `advise` — print the recommendation, the evidence, and any blockers; run nothing.
-- `safe` — the same drive without invention; it stops the first time the repo reaches a final
-  point and prints the growth command for you to run yourself.
-- `loop` — never stop: each time the repo gets there, it resets the planning memory (keeping the
-  record of rejected ideas, so bad ideas stay buried) and starts a fresh lap, until you interrupt
-  it or a hard stop ends the drive.
-
-The plain-language tour lives in [Concepts → codmaster](docs/concepts.md#codmaster--the-front-door).
+Three words tune it: `advise` (report what it would run — run nothing), `safe` (the same drive,
+never inventing), and `loop` (reset and start a fresh lap at every convergence, until interrupted
+or hard-stopped). The full tour — what each mode prints, the growth-once-per-run rule, lap
+mechanics — lives in [Concepts → codmaster](docs/concepts.md#codmaster--the-front-door).
 
 All five are autonomous in workflow, not unchecked in permissions: planning never touches your
 source, and when Planwright does start editing — building items, committing — your host agent's
@@ -74,7 +82,7 @@ normal edit, terminal, and commit approval prompts still apply.
 > Under the hood:
 >
 > - `/codvisor` = `cycle 10 depth 10 explore`; `/codinventor` = `cycle 10 depth 10 invent`. Pass
->   numbers to tune either (`/codvisor 5 8` = 5 rounds at depth 8) — see [Quick Start](#quick-start).
+>   numbers to tune either (`/codvisor 5 8` = 5 rounds at depth 8) — see [Usage](docs/usage.md).
 > - `/codcycle` *orchestrates* many such runs — an explore then a framing-rotated invent per outer
 >   cycle, with one closing explore — so reach for it when you want codvisor and codinventor on a loop.
 > - `/codshard` is the other orchestrator: one scoped cycle per top-level directory (so each shard
@@ -117,8 +125,9 @@ flowchart LR
     Cycle -->|nothing left| Done[Done]
 ```
 
-Your AI coding agent runs every stage through the skill, so Planwright needs no external binary and
-makes no separate API/model calls beyond the active session.
+Your AI coding agent runs every stage through the skill. Planwright ships no background daemon,
+hosted service, or separate model integration — the mechanical stages run through bundled stdlib-only Python
+helpers — and it makes no API/model calls beyond the active session.
 
 On larger codebases it keeps audits efficient with a **graph memory** under the gitignored
 `.planwright/` — a map of how files import and change together, so it focuses on the code that
@@ -154,19 +163,20 @@ Both are general-purpose, session-scoped plans. Planwright is a different shape 
 | Output | Free-form prose | Free-form prose | Exact 8-field checkbox items, each with a runnable `Verification:` |
 | Execution | Exit mode → implement now | Same | Separate `execute` path: implements, **runs each item's verification, commits per item**, records pass/fail |
 | Iteration | One-shot | One-shot refine | `cycle N` climbs a maturity ladder to a recorded **final point** |
-| Runs | Local | Cloud (web auth) | Runs inside the active AI coding agent — no extra binary, daemon, server, or separate API/model integration |
+| Runs | Local | Cloud (web auth) | Runs inside the active AI coding agent — no required daemon, server, or API/model integration (bundled Python helpers) |
 
 **Rules of thumb:** reach for **`/plan`** to think through any task you'll execute right away; **`/ultraplan`** when you want cloud-grade refinement on a hard problem; **Planwright** when you want a grounded, verifiable plan of *codebase* work — especially unattended multi-round progress (`cycle`) with per-item verification and commits. They compose, too: design with `/plan`, then let Planwright drive the verified execution.
 
 ## Example Plan Item
 
-A plan item has this 8-field shape (title plus seven required fields):
+A plan item is a checkbox title plus seven required continuation fields (an optional eighth,
+`New Surfaces:`, lists files the item is allowed to create):
 
 ```md
 - [ ] Guard README plan examples against schema drift
       Mode: docs
       Rationale: The README teaches the plan item format users copy into `.planwright/plan.md`.
-      Evidence: README.md:102 names the required shape for plan items.
+      Evidence: README.md:172 names the required shape for plan items.
       Surfaces: README.md, tests/run.sh
       Development: Keep the example aligned with the SKILL.md OUTPUT FORMAT and lint-plan.py checks.
       Acceptance: The example shows the checkbox title and every required continuation field.
@@ -187,7 +197,7 @@ For deep dives into how Planwright operates, refer to the documentation:
 
 ## Install
 
-Planwright runs inside an AI coding assistant — no external binary. Install the skill for the host in use.
+Planwright runs inside an AI coding assistant — no background daemon or hosted service; bundled stdlib-only Python helper scripts do the mechanical work. Install the skill for the host in use.
 
 ### Command adapters
 
@@ -208,14 +218,9 @@ Because of this, any agent that reliably reads a project `AGENTS.md` file can ho
 
 ### Claude Code
 
-The plugin install path is recommended; manual skill copy is only for users not using the plugin system.
-
-```bash
-/plugin marketplace add eserlxl/planwright
-/plugin install planwright@eserlxl
-```
-
-Or add a local clone as a marketplace:
+The recommended path is the plugin install — the same two commands as
+[Install in 60 seconds](#install-in-60-seconds); manual skill copy is only for users not using
+the plugin system. To work from a local clone instead, add the clone as a marketplace:
 
 ```bash
 /plugin marketplace add <PLANWRIGHT_FOLDER>
@@ -224,7 +229,7 @@ Or add a local clone as a marketplace:
 
 To use it without the plugin system, copy `skills/planwright/` into `~/.claude/skills/`.
 
-Then invoke with `/planwright`, `/codvisor`, or `/codinventor`. Upgrade with `/planwright upgrade`.
+Then invoke with `/planwright` — and the shortcuts as `/planwright:codvisor`, `/planwright:codmaster`, and so on, or bare after [installing the aliases](#local-shortcut-aliases-drop-the-planwright-prefix). Upgrade with `/planwright upgrade`.
 
 #### Local shortcut aliases (drop the `planwright:` prefix)
 
@@ -238,7 +243,7 @@ scripts/install-aliases.sh --project    # → ./.claude/commands/ (this repo onl
 scripts/install-aliases.sh --uninstall  # remove them again
 ```
 
-Each alias only forwards its arguments to `/planwright:<name>`, so they never duplicate or drift from the plugin's logic. Restart Claude Code (or `/clear`) after installing. These aliases are per-machine — they aren't (and can't be) shipped inside the plugin itself.
+Each alias only forwards its arguments to `/planwright:<name>`, so they never duplicate or drift from the plugin's logic. Restart Claude Code (or `/clear`) after installing. These aliases are per-machine — they aren't (and can't be) shipped inside the plugin itself. Installed from the GitHub marketplace with no local clone? Clone the repo once just to run the installer — the generated aliases are self-contained, so the clone can be removed afterwards.
 
 ### Cursor
 
@@ -340,71 +345,36 @@ the equivalent trigger from the command adapter table and keep the arguments the
 
 ```bash
 # First run: preflight git/rg/python3, the .planwright/ gitignore, and your commit
-# identity up front (--fix adds the gitignore rule); degradations surface here, not mid-run
+# identity up front (--fix adds the gitignore rule)
 /planwright doctor
 
-# Generate a plan for your project
+# Generate a plan (read-only), then execute the pending items
 /planwright
-
-# Break a specific request into plan items
-/planwright "add OAuth login"
-
-# Tune analysis depth 1..10 (intensity + audit thoroughness; default 6)
-/planwright depth 9          # exhaustive audit
-/planwright depth 2          # quick cosmetic pass
-
-# Execute the pending plan items automatically
 /planwright execute
 
-# Run plan→execute in a loop
-/planwright cycle 3            # exactly 3 rounds
-/planwright cycle 3 depth 8    # 3 rounds, deep planning each round
-/planwright cycle -1           # repeat until every maturity rung produces no actionable work
-/planwright cycle 10 depth 10 explore  # at the final point, escalate: cold-frontier sweep → expand (complete latent capability)
-/planwright cycle 10 depth 10 invent   # …and, with permission, a net-new seam-bound invent burst after expand is dry
-/planwright cycle 10 invent seed 7     # focus the invent burst through one seeded framing; new seeds explore new angles
+# Or run plan→execute rounds in a loop, tuning depth 1..10 (default 6)
+/planwright cycle 3 depth 8
 
-# Aim a run at one component instead of the whole repo (composes with execute/cycle)
+# The dials and the front door, in their flagship forms
+/codvisor                  # repair: cycle 10 depth 10 explore
+/codinventor               # invent: cycle 10 depth 10 invent
+/codcycle                  # 10 outer cycles of explore → framing-rotated invent, one closing explore
+/codshard                  # cycle 3 depth 10 per shard (staleness order), then a closing whole-repo round
+/codmaster                 # sense → dispatch → re-sense at depth 10 until the final point (advise | safe | loop)
+
+# Aim any run at one component (composes with execute/cycle)
 /planwright path src/auth/      # plan only the auth subtree (Focus); still reads its 1-hop deps (Context)
-/planwright lib parser cycle 5  # mature just the 'parser' component (cluster/build-target/dir) over 5 cycles
-
-# /codvisor — a short helper command that forwards to planwright
-/codvisor                  # flagship advisor run: cycle 10 depth 10 explore (prints the cost first)
-/codvisor 15               # cycle 15 depth 10 explore (one number = cycles; depth defaults to 10)
-/codvisor 5 8              # cycle 5 depth 8 explore (cycles, depth)
-/codvisor help             # passthrough: same as /planwright help (any planwright args work)
-
-# /codinventor — the invent twin of /codvisor (permits net-new, seam-bound features)
-/codinventor               # flagship inventor run: cycle 10 depth 10 invent (prints the cost first)
-/codinventor 15            # cycle 15 depth 10 invent (one number = cycles; depth defaults to 10)
-/codinventor 5 8           # cycle 5 depth 8 invent (cycles, depth)
-
-# /codcycle — alternate hardening and growth: explore → invent per outer cycle, one final explore closes the run
-# (both phases fixed at cycle 3 depth 10; successive cycles rotate the invent framing: power-user → integration → onboarding → reliability → automation)
-/codcycle                  # 10 outer cycles, each: cycle 3 depth 10 explore then a framing-rotated invent; then one closing explore
-/codcycle 3                # 3 outer cycles (one integer = outer-cycle count) + a final closing explore
-/codcycle -1               # run the explore→invent rhythm forever (negative = infinite), closing with a final explore
-
-# /codshard — mature the repo shard by shard: one scoped cycle per top-level directory (staleness order), then one closing whole-repo round
-/codshard                  # auto-enumerated shards, cycle 3 depth 10 per shard + the closing whole-repo round
-/codshard 2 8              # cycle 2 depth 8 per shard (cycles, depth)
-/codshard shards src,tests # explicit shard list (paths or lib names)
-/codshard explore          # escalate only the closing whole-repo round; shard rounds stay plain cycles
-/codshard parallel         # Claude Code only: prefetch read-only recon leads per shard (routing-only; rounds stay sequential)
-
-# /codmaster — the front door: an autonomous driver over the whole toolset (always depth 10)
-/codmaster                 # sense → dispatch → re-sense, consecutively until convergence (max 12 steps)
-/codmaster advise          # only print what it would run next, with the evidence and blockers
-/codmaster safe            # same loop without invention; stops at the first convergence
-/codmaster loop            # infinite: each converged terminal resets (keeps rejected.md) and starts a new lap
+/planwright lib parser cycle 5  # mature just the 'parser' component over 5 cycles
 
 # Maintenance
-/planwright doctor     # preflight: check git/rg/python3 + bundled-script resolution
 /planwright status     # read-only: summarize plan / final-point / graph state (--json)
-/planwright reset      # cold start: clear .planwright/ but keep rejected.md (aliases: fresh, clean)
-/planwright version    # show current and latest available version
-/planwright upgrade    # update planwright itself to the latest version (alias: update)
+/planwright upgrade    # update planwright itself (alias: update)
 ```
+
+The full reference — request-seeded plans (`/planwright "add OAuth login"`), the
+`explore`/`invent`/`seed` escalation flags, numeric dial forms (`/codvisor 5 8`),
+`codshard shards`/`parallel`, infinite cycles, `reset`, `version` — lives in
+[Usage](docs/usage.md).
 
 ## Development & Releasing
 
