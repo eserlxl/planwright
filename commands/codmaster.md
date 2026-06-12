@@ -127,6 +127,6 @@ laps completed, total steps, total verified commits. On a clean converged stop, 
 the suggested next step in both spellings (e.g. `next: /codinventor — <why>` and
 `or just run /codmaster again`), plus the `reset_nudge` when present.
 
-Print nothing of your own except the Usage line (case 1/5), the advise report (case 2), the
+Print nothing of your own except the Usage line (cases 1 and 3), the advise report (case 2), the
 cost banner, the per-step headers and one-line whys, the safe-mode growth recommendation, and
 the cumulative report; each dispatched command prints its own output, which stands as-is.
