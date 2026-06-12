@@ -424,8 +424,9 @@ def _repo_block(root):
     unavailable."""
     try:
         out = subprocess.run(["git", "-C", root, "ls-files"],
-                             capture_output=True, text=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
+                             capture_output=True, text=True, check=True,
+                             timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):  # TimeoutExpired is not CalledProcessError
         return None
     counts = {}
     tracked = 0
@@ -453,8 +454,9 @@ def _dirty_paths(root):
     the same exception planwright's own execute/cycle preconditions carve out."""
     try:
         out = subprocess.run(["git", "-C", root, "status", "--porcelain"],
-                             capture_output=True, text=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
+                             capture_output=True, text=True, check=True,
+                             timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):  # TimeoutExpired is not CalledProcessError
         return []
     dirty = []
     for line in out.splitlines():

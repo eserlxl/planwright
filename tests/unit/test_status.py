@@ -268,5 +268,25 @@ class TestRecommendOverlay(unittest.TestCase):
         self.assertIn("wip.c", rec["blockers"][0]["detail"])
 
 
+class TestGitSensorTimeouts(unittest.TestCase):
+    """A hung git must degrade the read-only sensors exactly as their docstrings
+    document (None / empty list), never stall the sense surface or raise: the
+    timeout=5 guard matches _head_sha, and TimeoutExpired is a SubprocessError,
+    not a CalledProcessError, so the except clauses must stay widened."""
+
+    def _timeout_run(self, *a, **kw):
+        raise st.subprocess.TimeoutExpired(cmd="git", timeout=5)
+
+    def test_repo_block_degrades_on_timeout(self):
+        from unittest import mock
+        with mock.patch.object(st.subprocess, "run", self._timeout_run):
+            self.assertIsNone(st._repo_block("."))
+
+    def test_dirty_paths_degrade_on_timeout(self):
+        from unittest import mock
+        with mock.patch.object(st.subprocess, "run", self._timeout_run):
+            self.assertEqual(st._dirty_paths("."), [])
+
+
 if __name__ == "__main__":
     unittest.main()
