@@ -46,6 +46,27 @@ else
   bad "install-aliases delegator content is malformed"
 fi
 
+# --- Test IA2b: each alias argument-hint byte-mirrors the plugin command's ---
+# install-aliases.sh promises its per-alias frontmatter "mirrors the plugin
+# commands"; IA2 only checks the hint line EXISTS, so a command grammar change
+# could ship while the installed aliases silently advertise the stale grammar.
+# Pin equality between the source-of-truth commands/<name>.md frontmatter and
+# what the installer writes (description is deliberately alias-flavored prose,
+# so only the argument-hint is a byte mirror).
+ia_mirror=""
+for n in codcycle codvisor codinventor codshard codmaster; do
+  src_hint="$(grep -m1 '^argument-hint: ' "$ROOT/commands/$n.md" 2>/dev/null)"
+  ali_hint="$(grep -m1 '^argument-hint: ' "$IADIR/$n.md" 2>/dev/null)"
+  if [ -z "$src_hint" ] || [ "$src_hint" != "$ali_hint" ]; then
+    ia_mirror="$ia_mirror $n"
+  fi
+done
+if [ -z "$ia_mirror" ]; then
+  ok "install-aliases argument-hints byte-mirror the plugin command frontmatter"
+else
+  bad "install-aliases argument-hint drifted from commands/<name>.md for:$ia_mirror"
+fi
+
 # --- Test IA3: --uninstall removes only the five aliases, leaving other files -
 printf 'keep me\n' > "$IADIR/other.md"
 if bash "$IA" --dir "$IADIR" --uninstall >"$TMP/ia.un" 2>&1; then
