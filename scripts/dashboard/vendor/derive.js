@@ -84,6 +84,10 @@
         defines: (n.defines || []).length,
         branchCount: +n.branch_count || 0,
         imports: n.imports || [],
+        // Audit-frontier stamp age (commits since last_audited_sha). null is meaningful —
+        // never audited / unreachable stamp, the build-graph frontier.never_audited
+        // predicate — so it must survive (no || 0 coercion: 0 = audited at HEAD).
+        auditAge: (n.audit_age_commits == null ? null : +n.audit_age_commits),
       };
     });
 
@@ -356,6 +360,74 @@
     };
   }
 
+  // ---- shards: the Shards view's shard map (codshard's partition + sweep order) --------
+  // Pure (DOM-free) aggregation kept here next to metrics (which it consumes) so the sweep
+  // ordering and the frontier predicates can be node-tested rather than living in the view.
+  //
+  // Enumeration comes from state.json's `repo` block (status.py _repo_block — git-tracked
+  // truth, the same rule commands/codshard.md applies), NEVER re-derived from graph node
+  // paths (graph nodes ≠ git-tracked files). Staleness comes from the graph metrics using
+  // build-graph.py's exact frontier predicates over non-test code nodes (branchCount > 0):
+  //   never-audited: auditAge == null (no stamp / unreachable stamp)
+  //   stale:         auditAge not in (null, 0) AND not in this build's dirty set
+  // The builder's frontier is path-agnostic, so nodes under no shard prefix (root-level
+  // files, folded/dot dirs) are aggregated into a `residue` bucket — the closing
+  // whole-repo round's exclusive territory — and totals = shards + residue, so the
+  // numbers reconcile exactly with the whole-repo frontier counts the Insights view shows.
+  //
+  // Sweep order mirrors commands/codshard.md exactly: with a usable graph, descending
+  // never-audited count per shard ("staleness" basis), tiebroken lexicographically by
+  // shard name; without one, plain lexicographic — exactly as if no graph were present.
+  // Returns null when the snapshot carries no repo block (older server / git unavailable).
+  function shardMap(repo, metrics) {
+    if (!repo || !repo.shardable_dirs) return null;
+
+    function bucket(name) {
+      return { name: name, nodes: 0, codeNodes: 0, loc: 0,
+               neverAudited: 0, stale: 0, maxAge: 0 };
+    }
+    var shards = repo.shardable_dirs.map(bucket);
+    var residue = bucket("");
+    if (metrics) {
+      var byPrefix = {};
+      shards.forEach(function (s) { byPrefix[s.name] = s; });
+      metrics.nodesArr.forEach(function (n) {
+        var cut = n.path.indexOf("/");
+        var s = (cut > 0 && byPrefix[n.path.slice(0, cut)]) || residue;
+        s.nodes++;
+        s.loc += n.loc;
+        if (n.isTest || n.branchCount <= 0) return;   // frontier counts code nodes only
+        s.codeNodes++;
+        if (n.auditAge == null) s.neverAudited++;
+        else if (n.auditAge !== 0 && !metrics.dirtySet[n.path]) s.stale++;
+        if (n.auditAge != null && n.auditAge > s.maxAge) s.maxAge = n.auditAge;
+      });
+    }
+
+    var basis = metrics ? "staleness" : "lexicographic";
+    shards.sort(function (a, b) {
+      if (basis === "staleness" && a.neverAudited !== b.neverAudited) {
+        return b.neverAudited - a.neverAudited;
+      }
+      return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+    });
+    shards.forEach(function (s, i) { s.order = i + 1; });
+
+    return {
+      shards: shards,
+      residue: residue,
+      folded: repo.folded_dirs || [],
+      basis: basis,
+      large: !!repo.large,
+      trackedFiles: +repo.tracked_files || 0,
+      totals: {
+        neverAudited: shards.reduce(function (t, s) { return t + s.neverAudited; },
+                                    residue.neverAudited),
+        stale: shards.reduce(function (t, s) { return t + s.stale; }, residue.stale),
+      },
+    };
+  }
+
   // Whether the body-level "stale data" cast applies. Stale strictly means "sha lags
   // HEAD" (a stale graph ctx, or a recorded final point whose sha moved on) — never
   // structural debt like import cycles, which Insights renders as such. Pure so the
@@ -392,6 +464,7 @@
     staleCast: staleCast, finalFlag: finalFlag, finalPointShown: finalPointShown,
     coach: { signals: coachSignals, recommend: coachRecommend, evidence: coachEvidence, reset: coachReset },
     graph: { adapt: graphAdapt, cycleMembers: cycleMembers },
+    shards: { map: shardMap },
   };
 
   // ---- PW_BUS: cross-view selection (view-state only) ----------------------------------

@@ -137,6 +137,11 @@ def collect(root: str) -> dict:
         "rejected": base["rejected_items"],
         "final_point": base["final_point"],
         "graph": base["graph"],
+        # codshard's shard enumeration ({tracked_files, shardable_dirs, folded_dirs,
+        # large}, or null when git is unavailable), surfaced so the dashboard's Shards
+        # view shows the same partition codshard would sweep instead of re-deriving an
+        # approximation from graph node paths (graph nodes ≠ git-tracked files).
+        "repo": status._repo_block(root),
         "converged": status._converged(base),
     }
 

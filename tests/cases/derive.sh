@@ -591,3 +591,101 @@ JS
 else
   ok "PW_GRAPH._math check skipped (node not installed)"
 fi
+
+
+# --- Test DRV9: shards.map — codshard's shard map (enumeration + frontier + order) ----
+# The Shards view's data is pure derivation: enumeration from state.json's repo block
+# (git-tracked truth, never graph node paths), per-shard staleness via build-graph.py's
+# exact frontier predicates (never-audited: code node with a null audit stamp; stale:
+# stamped, aged, and NOT in the dirty set), and codshard.md's sweep order (descending
+# never-audited, lexicographic tiebreak; plain lexicographic without a graph).
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/derive_shards_test.js" <<'JS'
+const fs = require("fs");
+const vm = require("vm");
+const assert = require("assert");
+global.window = {};
+vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+const D = global.window.PW_DERIVE;
+assert(D.shards && typeof D.shards.map === "function", "PW_DERIVE.shards.map missing");
+
+// metrics.auditAge: null is meaningful (never audited) and 0 must survive (audited at
+// HEAD) — the `== null` construction a truthiness rewrite (|| 0) would break.
+const gSh = JSON.stringify({
+  graph_built_at_sha: "shard01",
+  dirty: { nodes: ["b/dirty.py"] },
+  nodes: {
+    "a/x.py":      { branch_count: 2, is_test: false, loc: 10, pagerank: 0.1, git_churn: 1 },
+    "a/y.py":      { branch_count: 1, is_test: false, loc: 5,  pagerank: 0.1, git_churn: 1, audit_age_commits: 4, last_audited_sha: "s1" },
+    "a/t_test.py": { branch_count: 3, is_test: true,  loc: 5,  pagerank: 0.1, git_churn: 1 },
+    "a/data.md":   { branch_count: 0, is_test: false, loc: 50, pagerank: 0.1, git_churn: 1 },
+    "b/z.py":      { branch_count: 2, is_test: false, loc: 8,  pagerank: 0.1, git_churn: 1, audit_age_commits: 0, last_audited_sha: "s2" },
+    "b/dirty.py":  { branch_count: 2, is_test: false, loc: 8,  pagerank: 0.1, git_churn: 1, audit_age_commits: 9, last_audited_sha: "s3" },
+    "c/q.py":      { branch_count: 2, is_test: false, loc: 4,  pagerank: 0.1, git_churn: 1 },
+  },
+});
+const mSh = D.metrics(gSh);
+assert.strictEqual(mSh.byPath["a/x.py"].auditAge, null, "no stamp -> auditAge null");
+assert.strictEqual(mSh.byPath["a/y.py"].auditAge, 4, "audit_age_commits passthrough");
+assert.strictEqual(mSh.byPath["b/z.py"].auditAge, 0, "age 0 survives (== null, not truthiness)");
+
+const repo = { tracked_files: 9, shardable_dirs: ["a", "b"], folded_dirs: ["z"], large: false };
+const SH = D.shards.map(repo, mSh);
+assert(SH, "shards.map returns a record for a repo block + metrics");
+assert.strictEqual(SH.basis, "staleness", "basis is staleness with a usable graph");
+assert.strictEqual(SH.trackedFiles, 9, "tracked_files passthrough");
+assert.deepStrictEqual(SH.folded, ["z"], "folded_dirs passthrough");
+// order: shard a has 1 never-audited (a/x.py), b has 0 -> a sweeps first
+assert.deepStrictEqual(SH.shards.map(function (s) { return s.name; }), ["a", "b"], "descending never-audited order");
+assert.deepStrictEqual(SH.shards.map(function (s) { return s.order; }), [1, 2], "order numbers assigned");
+const a = SH.shards[0], b = SH.shards[1];
+// shard a: 4 graph nodes, 2 code nodes (the test file and the branchless doc are excluded)
+assert.strictEqual(a.nodes, 4, "shard a node count");
+assert.strictEqual(a.codeNodes, 2, "shard a code nodes exclude tests and branchless nodes");
+assert.strictEqual(a.neverAudited, 1, "shard a never-audited (null stamp)");
+assert.strictEqual(a.stale, 1, "shard a stale (aged stamp)");
+assert.strictEqual(a.maxAge, 4, "shard a oldest stamp age");
+// shard b: the age-0 node is clean and the aged node is in the dirty set -> stale 0
+assert.strictEqual(b.neverAudited, 0, "shard b never-audited");
+assert.strictEqual(b.stale, 0, "shard b stale excludes dirty-set and age-0 nodes");
+assert.strictEqual(b.maxAge, 9, "shard b oldest stamp age still reported");
+// c/q.py is under no listed shard -> the residue bucket (the closing round's territory),
+// so totals = shards + residue reconcile EXACTLY with the builder's path-agnostic
+// whole-repo frontier over the same nodes ({never_audited: 2, stale: 1} here).
+assert.strictEqual(SH.residue.nodes, 1, "residue holds the out-of-shard node");
+assert.strictEqual(SH.residue.neverAudited, 1, "residue never-audited (c/q.py, null stamp)");
+assert.strictEqual(SH.residue.stale, 0, "residue stale");
+assert.deepStrictEqual(SH.totals, { neverAudited: 2, stale: 1 },
+  "totals (shards + residue) reconcile with the whole-repo frontier");
+
+// no graph: lexicographic order, zeroed stats — exactly codshard's no-graph fallback
+const SHL = D.shards.map({ tracked_files: 9, shardable_dirs: ["b", "a"], folded_dirs: [], large: false }, null);
+assert.strictEqual(SHL.basis, "lexicographic", "basis falls back without a graph");
+assert.deepStrictEqual(SHL.shards.map(function (s) { return s.name; }), ["a", "b"], "lexicographic fallback order");
+assert.strictEqual(SHL.shards[0].neverAudited, 0, "no graph -> zeroed staleness");
+assert.strictEqual(SHL.residue.neverAudited, 0, "no graph -> zeroed residue");
+
+// staleness ties break lexicographically: shards b and z both have 0 never-audited
+// nodes (z has no graph nodes at all), so the input order ["z", "b"] must not survive
+const SHT = D.shards.map({ tracked_files: 9, shardable_dirs: ["z", "b"], folded_dirs: [], large: false }, mSh);
+assert.deepStrictEqual(SHT.shards.map(function (s) { return s.name; }), ["b", "z"],
+  "a never-audited tie breaks lexicographically by shard name");
+
+// degraded inputs: no repo block (older snapshot / git unavailable) -> null, never a throw
+assert.strictEqual(D.shards.map(null, mSh), null, "no repo block -> null");
+assert.strictEqual(D.shards.map({}, mSh), null, "repo without shardable_dirs -> null");
+console.log("SHARDS-OK");
+JS
+  if node "$TMP/derive_shards_test.js" "$ROOT/scripts/dashboard/vendor/derive.js" >"$TMP/derive_sh.out" 2>"$TMP/derive_sh.err" && grep -q SHARDS-OK "$TMP/derive_sh.out"; then
+    ok "PW_DERIVE.shards.map: repo-block enumeration, frontier predicates (dirty-set excluded), staleness order + lexicographic fallback"
+  else
+    bad "PW_DERIVE.shards.map wrong: $(cat "$TMP/derive_sh.err" 2>/dev/null)"
+  fi
+  if grep -q 'PW_DERIVE.shards.map(state.repo, metrics)' "$ROOT/scripts/dashboard/views/shards.js"; then
+    ok "Shards view derives the shard map through PW_DERIVE.shards.map (state.repo, never graph paths)"
+  else
+    bad "Shards view does not route the shard map through PW_DERIVE.shards.map"
+  fi
+else
+  ok "PW_DERIVE.shards.map check skipped (node not installed)"
+fi

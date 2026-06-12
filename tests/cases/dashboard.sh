@@ -180,6 +180,22 @@ try:
     assert "fixed" not in doc, "the dashboard endpoint must never trigger doctor --fix"
     print("DOCTOR-JSON-OK")
 
+    # /recommend.json — the dispatcher decision record the Commands front-door panel
+    # consumes (status.recommend, read-only). The fixture has exactly 1 pending item,
+    # so the drain-first overlay row makes the dispatch deterministic (execute,
+    # mutating); blockers/doctor content varies by machine, so pin only its shape.
+    with urllib.request.urlopen(base + "/recommend.json", timeout=10) as r:
+        assert r.headers.get_content_type() == "application/json", r.headers.get_content_type()
+        assert r.headers.get("Cache-Control") == "no-store", r.headers.get("Cache-Control")
+        rec = json.load(r)
+    assert rec.get("command") == "execute", rec
+    assert rec.get("mutating") is True, rec
+    assert isinstance(rec.get("why"), str) and rec["why"], rec
+    assert isinstance(rec.get("base"), dict) and rec["base"].get("key"), rec
+    assert isinstance(rec.get("blockers"), list), rec
+    assert isinstance(rec.get("evidence"), list) and rec["evidence"], rec
+    print("RECOMMEND-JSON-OK")
+
     # Each view module: served with 200, registers into PW_VIEWS, referenced by the shell.
     def check_view(name):
         with urllib.request.urlopen(base + "/views/" + name + ".js", timeout=5) as r:
@@ -212,7 +228,7 @@ PY
 # --- Tests DSH1/DSH2/DSH3: endpoints + the static UI shell + the view modules -------
 # PW_TEST_VIEWS lists the view modules to assert are served+registered (grows as each
 # view lands), so every view ships with a runnable served+referenced check.
-PW_TEST_VIEWS="console commands plan timeline graph insights doctor" \
+PW_TEST_VIEWS="console commands plan timeline graph insights shards doctor" \
   python3 "$TMP/dash_client.py" "$DFX" "$DASH" >"$TMP/dash.out" 2>"$TMP/dash.err" || true
 if grep -q DASH-OK "$TMP/dash.out"; then
   ok "dashboard.py serves /state.json (JSON) + /events (text/event-stream), refuses traversal + foreign Host"
@@ -307,6 +323,25 @@ if grep -q VIEW-doctor-OK "$TMP/dash.out"; then
   ok "dashboard serves the Doctor view (views/doctor.js registers PW_VIEWS.doctor)"
 else
   bad "dashboard Doctor view check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q RECOMMEND-JSON-OK "$TMP/dash.out"; then
+  ok "dashboard.py /recommend.json serves the dispatcher decision record (drain-first dispatch on a pending fixture)"
+else
+  bad "dashboard.py /recommend.json failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q VIEW-shards-OK "$TMP/dash.out"; then
+  ok "dashboard serves the Shards view (views/shards.js registers PW_VIEWS.shards)"
+else
+  bad "dashboard Shards view check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+# The Commands view's codmaster front-door panel must consume /recommend.json and gate the
+# paint on the recUsable shape guard (an error body / older server degrades to an absent
+# panel, never an error state). Same grep-able-guard posture as the COACH.reset pin.
+if grep -q 'fetch("/recommend.json")' "$ROOT/scripts/dashboard/views/commands.js" \
+   && grep -q 'function recUsable' "$ROOT/scripts/dashboard/views/commands.js"; then
+  ok "Commands view wires the codmaster front-door panel (/recommend.json + recUsable shape guard)"
+else
+  bad "Commands view lost the front-door panel wiring (/recommend.json fetch or its shape guard)"
 fi
 
 # --- Test DASH-SSE-PING: an idle /events stream emits the keep-alive `: ping` ----------
@@ -601,9 +636,9 @@ fi
 # deref on a graph-less snapshot, an unshimmed DOM call) ships green. Load the real derive
 # engine + the vendored coupling renderer + each view against the El/doc shim and call
 # render() for a full state+graph snapshot AND a degraded graph-less (metrics=null) snapshot.
-# Covers all seven views: the four state-driven ones, timeline + graph (graph's full path
-# drives PW_GRAPH.renderCoupling, its bare path the graph-less guard), and the fetch-based
-# doctor view (stubbed fetch -> async paint). Node-gated.
+# Covers all eight views: the state-driven ones (shards included), timeline + graph (graph's
+# full path drives PW_GRAPH.renderCoupling, its bare path the graph-less guard), and the
+# fetch-based doctor view (stubbed fetch -> async paint). Node-gated.
 if command -v node >/dev/null 2>&1; then
   cat > "$TMP/views_fn_test.js" <<'JS'
 const fs = require("fs");
@@ -663,9 +698,16 @@ const win = {
     setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } },
   console: console,
 };
-// doctor.js is the one view that fetches its own data (/doctor.json) instead of rendering
-// from the passed state; stub fetch so its render()+paint() path is exercisable here.
-win.fetch = function () {
+// doctor.js fetches /doctor.json and commands.js fetches /recommend.json instead of
+// rendering only from the passed state; stub fetch per-URL so both async paint paths are
+// exercisable here. REC_BODY starts as a WRONG-shaped body (a doctor-ish payload), so the
+// commands front-door recUsable guard is behaviorally exercised before the usable record
+// is swapped in below.
+let REC_BODY = { total: 1, checks: [] };
+win.fetch = function (url) {
+  if (url === "/recommend.json") {
+    return Promise.resolve({ ok: true, json: function () { return Promise.resolve(REC_BODY); } });
+  }
   return Promise.resolve({ ok: true, json: function () {
     return Promise.resolve({ total: 5, warn: 1, fail: 0, checks: [
       { name: "git", status: "ok", detail: "2.40" },
@@ -679,7 +721,7 @@ global.window = win; global.document = doc; global.location = win.location; glob
 // view drives on a full snapshot), then each view (each registers window.PW_VIEWS.<name>).
 vm.runInThisContext(fs.readFileSync(BASE + "/vendor/derive.js", "utf8"));
 vm.runInThisContext(fs.readFileSync(BASE + "/vendor/graph.js", "utf8"));
-const VIEWS = ["console", "plan", "commands", "insights", "timeline", "graph"];
+const VIEWS = ["console", "plan", "commands", "insights", "shards", "timeline", "graph"];
 VIEWS.forEach(function (v) {
   vm.runInThisContext(fs.readFileSync(BASE + "/views/" + v + ".js", "utf8"));
   assert(typeof win.PW_VIEWS[v] === "function", "view " + v + " did not register render()");
@@ -804,6 +846,34 @@ assert(/none accepted yet/.test(textOf(tlEmpty)), "Timeline graph empty state mi
 assert(findByClass(tlEmpty, "pw-tlgraph-line").length === 0,
   "Timeline graph plotted cumulative lines with no accepted entries");
 
+// Targeted: the Shards view renders the shard map from state.repo (the codshard
+// enumeration) — shard cards in sweep order, the folded-dirs note, and the closing
+// whole-repo round — and degrades to the no-enumeration empty state when the snapshot
+// carries no repo block (an older server / git unavailable), exactly the state the
+// VIEWS loop above already exercised (the base fixture has no repo key).
+var shState = Object.assign({}, state, {
+  repo: { tracked_files: 240, shardable_dirs: ["docs", "scripts"], folded_dirs: ["misc"], large: true },
+});
+var shC = new El("section");
+win.PW_VIEWS.shards(shC, shState, fullCtx);
+var shText = textOf(shC);
+assert(/docs\//.test(shText) && /scripts\//.test(shText), "Shards view did not render the shard cards from state.repo");
+// Basis is asserted on the pulse CHIPS, not the whole view text — the static header copy
+// contains the phrase "staleness order" verbatim, so a textOf match would be vacuous.
+var shChips = findByClass(shC, "pw-coach-pulse-chip").map(textOf).join(" | ");
+assert(/staleness order/.test(shChips), "Shards basis chip did not read staleness with a graph present");
+assert(!/lexicographic order/.test(shChips), "Shards basis chip wrongly read lexicographic with a graph present");
+assert(/misc/.test(shText), "Shards view omitted the folded-dirs note");
+assert(/Closing whole-repo round/.test(shText), "Shards view omitted the closing whole-repo round card");
+assert(/large repo/.test(shText), "Shards view omitted the large-repo chip on repo.large=true");
+var shBare = new El("section");
+win.PW_VIEWS.shards(shBare, shState, bareCtx);
+var shBareChips = findByClass(shBare, "pw-coach-pulse-chip").map(textOf).join(" | ");
+assert(/lexicographic order/.test(shBareChips), "Shards basis chip did not fall back to lexicographic without a graph");
+var shNo = new El("section");
+win.PW_VIEWS.shards(shNo, state, fullCtx);
+assert(/No shard enumeration/.test(textOf(shNo)), "Shards view did not degrade to the no-repo empty state");
+
 // doctor view: fetch-based (not state-driven), so it sits outside the VIEWS render loop —
 // load its file here (registers PW_VIEWS.doctor) and cover it explicitly: render() must show
 // the sync placeholder immediately, and once the stubbed /doctor.json promise flushes,
@@ -813,15 +883,61 @@ assert(typeof win.PW_VIEWS.doctor === "function", "view doctor did not register 
 var docC = new El("section");
 win.PW_VIEWS.doctor(docC, state, fullCtx);
 assert(textOf(docC).length > 0, "doctor render() produced no DOM synchronously");
+
+// Targeted: the Commands codmaster front-door panel — behavioral, not just grep-pinned.
+// The panel element's class is exactly "pw-frontdoor"; the always-present slot is
+// "pw-frontdoor-slot", so count exact matches only.
+function frontDoorPanels(node) {
+  return findByClass(node, "pw-frontdoor").filter(function (n) { return classOf(n) === "pw-frontdoor"; });
+}
+// Synchronously (no /recommend.json resolved yet) the panel must be absent, not erroring.
+var cmdC = new El("section");
+win.PW_VIEWS.commands(cmdC, state, fullCtx);
+assert(frontDoorPanels(cmdC).length === 0, "front-door panel painted before any /recommend.json resolved");
+
 setTimeout(function () {
   assert(/Environment preflight/.test(textOf(docC)),
     "doctor paint() did not render the preflight after /doctor.json resolved");
-  console.log("VIEWS-FN-OK");
+
+  // The initial WRONG-shaped /recommend.json body (REC_BODY above) has resolved by now;
+  // the recUsable guard must have rejected it — still no panel on a fresh render.
+  var cmdBad = new El("section");
+  win.PW_VIEWS.commands(cmdBad, state, fullCtx);
+  assert(frontDoorPanels(cmdBad).length === 0,
+    "a wrong-shaped /recommend.json body was painted as a front-door panel");
+
+  // Swap in a usable dispatcher record and let a render fetch + cache it.
+  REC_BODY = {
+    base: { key: "codvisor", why: "structural debt" },
+    command: "codshard", args: "explore",
+    why: "repo large — harden work routes to codshard",
+    mutating: true, invent_class: false, follow_up: null,
+    notes: ["coach: codvisor — routed to codshard"],
+    blockers: [{ kind: "dirty-tree", detail: "uncommitted paths: x.py" }],
+    evidence: ["3 import cycles"], reset_nudge: null, signals: {}, repo: {},
+  };
+  var cmdSeed = new El("section");
+  win.PW_VIEWS.commands(cmdSeed, state, fullCtx);
+
+  setTimeout(function () {
+    var cmdOk = new El("section");
+    win.PW_VIEWS.commands(cmdOk, state, fullCtx);   // paints synchronously from the cached record
+    var fd = frontDoorPanels(cmdOk);
+    assert(fd.length === 1, "front-door panel did not paint from a usable /recommend.json record");
+    var fdText = textOf(fd[0]);
+    assert(/codmaster front door/.test(fdText), "front-door panel kicker missing");
+    assert(/codshard/.test(fdText) && /explore/.test(fdText), "front-door panel does not show the dispatch command + args");
+    assert(/mutating/.test(fdText), "front-door panel omitted the mutating flag chip");
+    assert(/blocked: uncommitted paths/.test(fdText), "front-door panel omitted the dirty-tree blocker");
+    assert(/3 import cycles/.test(fdText), "front-door panel omitted the evidence chips");
+    assert(/\/planwright:codshard explore/.test(fdText), "front-door invocation did not map codshard+explore to its helper command");
+    console.log("VIEWS-FN-OK");
+  }, 0);
 }, 0);
 JS
   if node "$TMP/views_fn_test.js" "$ROOT/scripts/dashboard" >"$TMP/views_fn.out" 2>"$TMP/views_fn.err" \
      && grep -q VIEWS-FN-OK "$TMP/views_fn.out"; then
-    ok "dashboard render() runs for all seven views (incl. doctor/graph/timeline) on full + graph-less snapshots (no throw, non-empty DOM)"
+    ok "dashboard render() runs for all eight views (incl. shards/doctor/graph/timeline) on full + graph-less snapshots (no throw, non-empty DOM)"
   else
     bad "a dashboard view render() failed: $(cat "$TMP/views_fn.err" 2>/dev/null)"
   fi

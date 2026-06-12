@@ -29,6 +29,13 @@ CONSUMED_KEYS = {
     "final_point", "graph", "converged",
 }
 
+# Keys consumed by a specific view module rather than the app.js shell (views receive
+# the state record directly, so a rename breaks them just as silently). Maps the key to
+# the consumer file (relative to scripts/dashboard/) and the reference it must contain.
+VIEW_CONSUMED_KEYS = {
+    "repo": ("views/shards.js", "state.repo"),
+}
+
 
 def _load_state():
     if _SCRIPTS not in sys.path:
@@ -57,6 +64,13 @@ class TestDashboardStateContract(unittest.TestCase):
                           f"state.collect() no longer emits '{key}' the dashboard reads")
             self.assertIn("." + key, app_js,
                           f"app.js no longer references state.{key}")
+        for key, (view_rel, ref) in VIEW_CONSUMED_KEYS.items():
+            self.assertIn(key, snapshot,
+                          f"state.collect() no longer emits '{key}' the {view_rel} view reads")
+            view_path = os.path.join(_SCRIPTS, "dashboard", *view_rel.split("/"))
+            with open(view_path, encoding="utf-8") as fh:
+                self.assertIn(ref, fh.read(),
+                              f"{view_rel} no longer references {ref}")
 
 
 if __name__ == "__main__":

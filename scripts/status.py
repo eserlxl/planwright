@@ -451,9 +451,15 @@ def _repo_block(root):
 
 def _dirty_paths(root):
     """Uncommitted paths (git status --porcelain), excluding the tool-owned .planwright/ —
-    the same exception planwright's own execute/cycle preconditions carve out."""
+    the same exception planwright's own execute/cycle preconditions carve out.
+
+    --no-optional-locks keeps the probe genuinely read-only: a plain `git status`
+    opportunistically refreshes the index under .git/index.lock, and this function sits
+    on the dashboard's /recommend.json hot path (SSE-driven refetches) — exactly when a
+    live execute run is issuing per-item commits that would flake on a held lock."""
     try:
-        out = subprocess.run(["git", "-C", root, "status", "--porcelain"],
+        out = subprocess.run(["git", "--no-optional-locks", "-C", root,
+                              "status", "--porcelain"],
                              capture_output=True, text=True, check=True,
                              timeout=5).stdout
     except (OSError, subprocess.SubprocessError):  # TimeoutExpired is not CalledProcessError

@@ -728,6 +728,39 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
 .pw-coach-alt-kicker { display: block; font-size: var(--pw-fs-xs); text-transform: uppercase; letter-spacing: 1px; color: var(--pw-muted); font-weight: 600; }
 .pw-coach-alt-why { margin: var(--pw-s1) 0 var(--pw-s2); font-size: var(--pw-fs-sm); color: var(--pw-fg-2); max-width: 62ch; }
 
+/* codmaster front-door panel (the /recommend.json dispatcher overlay) */
+.pw-frontdoor { position: relative; background: var(--pw-panel-2); border: 1px solid var(--pw-border-2); border-left: 4px solid var(--pw-warn); border-radius: var(--pw-r-lg); padding: var(--pw-s5) var(--pw-s6); margin-bottom: var(--pw-s5); box-shadow: var(--pw-shadow-1); overflow: hidden; }
+.pw-frontdoor .pw-cmd-invoke { max-width: 440px; }
+.pw-frontdoor-pick { display: flex; align-items: baseline; gap: var(--pw-s3); flex-wrap: wrap; }
+.pw-frontdoor-args { font-family: var(--pw-font-mono); font-size: var(--pw-fs-sm); color: var(--pw-muted); }
+.pw-frontdoor-flags { display: flex; flex-wrap: wrap; gap: var(--pw-s2); margin-bottom: var(--pw-s3); }
+.pw-frontdoor-note { margin: 0 0 var(--pw-s2); font-size: var(--pw-fs-sm); color: var(--pw-muted); max-width: 72ch; }
+.pw-frontdoor-blocker { margin: 0 0 var(--pw-s2); font-size: var(--pw-fs-sm); color: var(--pw-warn); background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: var(--pw-r-sm); padding: var(--pw-s2) var(--pw-s3); word-break: break-word; }
+
+/* ====================================================================================
+   SHARDS — codshard's shard map (sweep order + per-shard audit frontier)
+   ==================================================================================== */
+.pw-shard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--pw-s4); margin-bottom: var(--pw-s5); }
+.pw-shard-card { display: flex; flex-direction: column; gap: var(--pw-s2); background: var(--pw-panel); border: 1px solid var(--pw-border); border-radius: var(--pw-r-md); padding: var(--pw-s4) var(--pw-s5); backdrop-filter: blur(10px); }
+.pw-shard-card.is-frontier { border-color: rgba(245,158,11,0.35); }
+.pw-shard-top { display: flex; align-items: center; gap: var(--pw-s3); }
+.pw-shard-order { flex: none; min-width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-size: var(--pw-fs-sm); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--pw-fg); background: var(--pw-panel-2); border: 1px solid var(--pw-border-2); border-radius: 50%; }
+.pw-shard-name { font-size: var(--pw-fs-lg); font-weight: 700; font-family: var(--pw-font-mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pw-shard-meta { margin: 0; font-size: var(--pw-fs-sm); color: var(--pw-muted); font-variant-numeric: tabular-nums; }
+.pw-shard-chips { display: flex; flex-wrap: wrap; gap: var(--pw-s2); }
+.pw-shard-chip { font-size: var(--pw-fs-xs); color: var(--pw-muted); background: rgba(0,0,0,0.2); border: 1px solid var(--pw-border); border-radius: var(--pw-r-sm); padding: 2px var(--pw-s2); font-variant-numeric: tabular-nums; }
+[data-theme="light"] .pw-shard-chip { background: rgba(15,23,42,0.04); }
+.pw-shard-chip.warn { color: var(--pw-warn); border-color: rgba(245,158,11,0.3); }
+.pw-shard-chip.ok { color: var(--pw-ok); border-color: rgba(16,185,129,0.3); }
+.pw-shard-heat { height: 6px; border-radius: var(--pw-r-pill); background: rgba(255,255,255,0.06); overflow: hidden; margin-top: var(--pw-s1); }
+[data-theme="light"] .pw-shard-heat { background: rgba(15,23,42,0.08); }
+.pw-shard-heat-fill { display: block; height: 100%; border-radius: var(--pw-r-pill); background: var(--pw-warn); transition: width var(--pw-dur) var(--pw-ease); }
+.pw-shard-heat-fill.is-never { background: var(--pw-err); }
+.pw-shard-heat-label { margin: 0; font-size: var(--pw-fs-xs); color: var(--pw-faint); font-variant-numeric: tabular-nums; }
+.pw-shard-note { margin: 0 0 var(--pw-s4); font-size: var(--pw-fs-sm); color: var(--pw-muted); max-width: 72ch; }
+.pw-shard-closing { margin-bottom: var(--pw-s5); }
+.pw-shard-closing .pw-cmd-invoke { max-width: 440px; }
+
 /* ====================================================================================
    DOCTOR — environment preflight
    ==================================================================================== */

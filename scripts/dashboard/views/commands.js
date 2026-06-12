@@ -14,6 +14,14 @@
 // Read-only: it *shows* the command to run (copyable) — it never runs anything. Derived
 // purely from /state.json + the graph metrics; the logs record no per-command attribution,
 // so "recent contributions" is honestly the run's completed-item track record, unattributed.
+//
+// Front-door panel: when the server exposes /recommend.json (status.recommend — the same
+// canonical decision record `planwright advise` and /codmaster consume), the view renders
+// the full dispatcher overlay above the base coach hero: the exact next dispatch with its
+// args, the overlay's divergence notes, mechanical blockers (dirty tree / doctor), and the
+// reset follow-up. The base coach below stays browser-derived (PW_DERIVE.coach); the panel
+// degrades to absent — never to an error — on an older server or a failed fetch, so the
+// view keeps its zero-endpoint contract when the overlay is unavailable.
 
 (function () {
   "use strict";
@@ -69,6 +77,92 @@
   // in PW_DERIVE so it can be unit-tested; this view only renders its results.
   var COACH = window.PW_DERIVE.coach;
 
+  // ---- the codmaster front-door panel (/recommend.json, optional) ----------------------
+
+  var recData = null, recInflight = false;
+
+  // The human-runnable spelling of a dispatcher pick. codvisor/codinventor/codcycle map
+  // to their helper commands (whose bodies carry the depth-10 flagship args); codshard
+  // keeps its explore escalation; execute/reset (and anything unrecognised) fall through
+  // to the plain planwright invocation with the record's own args.
+  var HELPERS = {
+    codvisor: "/planwright:codvisor",
+    codinventor: "/planwright:codinventor",
+    codcycle: "/planwright:codcycle",
+  };
+  function dispatchInvocation(d) {
+    if (d.command === "codshard") {
+      return "/planwright:codshard" + (d.args === "explore" ? " explore" : "");
+    }
+    if (HELPERS[d.command]) return HELPERS[d.command];
+    return "/planwright:planwright " + (d.args || d.command);
+  }
+
+  // A usable decision record: the endpoint exists and returned the recommend() shape
+  // (an error body, a doctor payload, or an older server's 404 must all read as absent).
+  function recUsable(d) {
+    return !!(d && typeof d.command === "string" && d.base && Array.isArray(d.blockers));
+  }
+
+  function paintFrontDoor(slot) {
+    slot.textContent = "";
+    if (!recUsable(recData)) return;   // absent panel, never an error state
+    var d = recData;
+
+    var panel = elt("div", "pw-frontdoor");
+    panel.appendChild(elt("span", "pw-coach-kicker", "codmaster front door — next dispatch"));
+    var pick = elt("div", "pw-frontdoor-pick");
+    pick.appendChild(elt("span", "pw-coach-pick", d.command));
+    if (d.args && d.args !== d.command) {
+      pick.appendChild(elt("span", "pw-frontdoor-args", d.args));
+    }
+    panel.appendChild(pick);
+    panel.appendChild(elt("p", "pw-coach-why", d.why || ""));
+
+    var flags = elt("div", "pw-frontdoor-flags");
+    flags.appendChild(elt("span", "pw-shard-chip" + (d.mutating ? " warn" : " ok"),
+      d.mutating ? "mutating" : "read-only"));
+    if (d.invent_class) {
+      flags.appendChild(elt("span", "pw-shard-chip warn", "invent-class (`safe` stops here)"));
+    }
+    panel.appendChild(flags);
+
+    var ev = elt("div", "pw-coach-evidence");
+    (d.evidence || []).forEach(function (e) { ev.appendChild(elt("span", "pw-coach-ev", e)); });
+    panel.appendChild(ev);
+
+    (d.notes || []).forEach(function (n) {
+      panel.appendChild(elt("p", "pw-frontdoor-note", n));
+    });
+    (d.blockers || []).forEach(function (b) {
+      panel.appendChild(elt("p", "pw-frontdoor-blocker",
+        "blocked: " + (b && b.detail ? b.detail : String(b))));
+    });
+    if (d.follow_up && d.follow_up.command) {
+      panel.appendChild(elt("p", "pw-frontdoor-note",
+        "then: " + d.follow_up.command + (d.follow_up.args ? " " + d.follow_up.args : "")));
+    }
+
+    panel.appendChild(invoke(dispatchInvocation(d)));
+    slot.appendChild(panel);
+  }
+
+  // Paint what we have, then refresh from the server. The slot belongs to the current
+  // render; a response landing after a newer render paints a detached node (harmless)
+  // and the refreshed recData shows on the next SSE-driven render.
+  function loadFrontDoor(slot) {
+    paintFrontDoor(slot);
+    if (recInflight || typeof fetch !== "function") return;
+    recInflight = true;
+    fetch("/recommend.json")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        recInflight = false;
+        if (recUsable(d)) { recData = d; paintFrontDoor(slot); }
+      })
+      .catch(function () { recInflight = false; });
+  }
+
   function pulseChip(label, cls) {
     return elt("span", "pw-coach-pulse-chip" + (cls ? " " + cls : ""), label);
   }
@@ -117,6 +211,12 @@
     pulse.appendChild(pulseChip(s.completed + " accepted", "ok"));
     pulse.appendChild(pulseChip(s.rejected + " rejected"));
     container.appendChild(pulse);
+
+    // codmaster front-door panel (server-side dispatcher overlay; absent when the
+    // endpoint is unavailable — the base coach hero below is the degraded surface)
+    var fdSlot = elt("div", "pw-frontdoor-slot");
+    container.appendChild(fdSlot);
+    loadFrontDoor(fdSlot);
 
     // hero recommendation
     var hero = elt("div", "pw-coach-hero");

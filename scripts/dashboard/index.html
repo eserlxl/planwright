@@ -52,6 +52,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="12"></line><line x1="10" y1="20" x2="10" y2="4"></line><line x1="16" y1="20" x2="16" y2="9"></line><line x1="22" y1="20" x2="2" y2="20"></line></svg>
           <span>Insights</span>
         </button>
+        <button class="pw-tab" id="tab-shards" data-view="shards" role="tab" aria-selected="false" aria-controls="view-shards" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+          <span>Shards</span>
+        </button>
         <button class="pw-tab" id="tab-doctor" data-view="doctor" role="tab" aria-selected="false" aria-controls="view-doctor" tabindex="-1">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>
           <span>Doctor</span>
@@ -91,6 +95,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
         <section id="view-timeline" class="pw-view" role="tabpanel" aria-labelledby="tab-timeline" hidden></section>
         <section id="view-graph" class="pw-view" role="tabpanel" aria-labelledby="tab-graph" hidden></section>
         <section id="view-insights" class="pw-view" role="tabpanel" aria-labelledby="tab-insights" hidden></section>
+        <section id="view-shards" class="pw-view" role="tabpanel" aria-labelledby="tab-shards" hidden></section>
         <section id="view-doctor" class="pw-view" role="tabpanel" aria-labelledby="tab-doctor" hidden></section>
       </div>
     </main>
@@ -121,8 +126,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
       </div>
       <dl class="pw-shortcuts-list">
         <div><dt><kbd class="pw-kbd">⌘K</kbd> / <kbd class="pw-kbd">/</kbd></dt><dd>command palette</dd></div>
-        <div><dt><kbd class="pw-kbd">1</kbd>–<kbd class="pw-kbd">7</kbd></dt><dd>jump to a tab</dd></div>
-        <div><dt><kbd class="pw-kbd">g</kbd> <kbd class="pw-kbd">c/m/p/t/w/i/d</kbd></dt><dd>console / commands / plan / timeline / web / insights / doctor</dd></div>
+        <div><dt><kbd class="pw-kbd">1</kbd>–<kbd class="pw-kbd">8</kbd></dt><dd>jump to a tab</dd></div>
+        <div><dt><kbd class="pw-kbd">g</kbd> <kbd class="pw-kbd">c/m/p/t/w/i/s/d</kbd></dt><dd>console / commands / plan / timeline / web / insights / shards / doctor</dd></div>
         <div><dt><kbd class="pw-kbd">j</kbd> / <kbd class="pw-kbd">k</kbd></dt><dd>move within the Risk Ledger</dd></div>
         <div><dt><kbd class="pw-kbd">←↑↓→</kbd></dt><dd>rotate the 3D globe (on Graph)</dd></div>
         <div><dt><kbd class="pw-kbd">+</kbd> / <kbd class="pw-kbd">−</kbd> / <kbd class="pw-kbd">r</kbd></dt><dd>zoom in / out / reset view (on Graph)</dd></div>
@@ -146,6 +151,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
   <script src="/views/console.js"></script>
   <script src="/views/commands.js"></script>
   <script src="/views/insights.js"></script>
+  <script src="/views/shards.js"></script>
   <script src="/views/doctor.js"></script>
   <!-- The shell: data fetch, SSE client, tab routing, palette, theme, keyboard. -->
   <script src="/app.js"></script>

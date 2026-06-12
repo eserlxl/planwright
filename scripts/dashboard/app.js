@@ -3,7 +3,7 @@
 //
 // planwright dashboard shell. Read-only: it fetches /state.json + /graph.json, derives
 // the metrics cache (PW_DERIVE), renders the at-a-glance overview strip, routes between
-// five tab views, and re-fetches whenever the /events SSE stream reports a change. It
+// the tab views, and re-fetches whenever the /events SSE stream reports a change. It
 // never mutates anything — there are no action controls, by design.
 //
 // Beyond routing it owns the chrome that makes the page feel live: the reactive aurora
@@ -27,6 +27,7 @@
     { key: "timeline", container: "view-timeline" },
     { key: "graph", container: "view-graph" },
     { key: "insights", container: "view-insights" },
+    { key: "shards", container: "view-shards" },
     { key: "doctor", container: "view-doctor" },
   ];
   var KEYS = VIEWS.map(function (v) { return v.key; });
@@ -557,7 +558,7 @@
     // g-chord (g then a letter within 600ms)
     if (gPending && Date.now() - gPending < 600) {
       gPending = 0;
-      var map = { c: "console", m: "commands", p: "plan", i: "insights", w: "graph", t: "timeline", d: "doctor" };
+      var map = { c: "console", m: "commands", p: "plan", i: "insights", w: "graph", t: "timeline", s: "shards", d: "doctor" };
       if (map[k]) { selectTab(map[k]); ev.preventDefault(); return; }
     }
     if (k === "g") { gPending = Date.now(); return; }
@@ -568,7 +569,7 @@
     if (k === "d") { toggleTheme(); ev.preventDefault(); return; }
     if (k === "u") { var b = byId("pw-banner"); if (b && !b.hidden && b.focus) b.focus(); return; }
 
-    if (k >= "1" && k <= "7") {
+    if (k >= "1" && k <= "8") {
       var idx = (+k) - 1;
       if (KEYS[idx]) { selectTab(KEYS[idx]); ev.preventDefault(); }
       return;

@@ -12,6 +12,9 @@
 #   GET /<asset>     -> static assets under scripts/dashboard/ (app.js, views/*.js, ...)
 #   GET /state.json  -> the current state snapshot (built on demand via state.collect)
 #   GET /graph.json  -> a passthrough of .planwright/graph.json (for the graph view)
+#   GET /recommend.json -> the dispatcher decision record (status.recommend: the same
+#                       read-only JSON `planwright advise` and /codmaster consume), so
+#                       the Commands view can show what codmaster would dispatch next
 #   GET /events      -> a Server-Sent Events stream that mtime-polls .planwright/ ~1s
 #                       and pushes a `change` event whenever a file changes, so the
 #                       browser re-fetches /state.json. One-directional (server->client).
@@ -37,6 +40,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 # dashboard.py lives beside state.py/status.py/doctor.py in scripts/; that directory is
 # sys.path[0] when run as a script, so a plain import resolves them.
 import state
+import status
 import doctor
 
 # Static UI lives under scripts/dashboard/ next to this file (resolved from __file__, not
@@ -186,6 +190,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_graph()
         if path == "/doctor.json":
             return self._serve_doctor()
+        if path == "/recommend.json":
+            return self._serve_recommend()
         if path == "/events":
             return self._serve_events()
         return self._serve_static(path)
@@ -204,6 +210,21 @@ class Handler(BaseHTTPRequestHandler):
         # not reachable from here. Same no-store discipline as the other dynamic snapshots.
         try:
             body = json.dumps(doctor.collect(self.root), indent=2)
+        except Exception as exc:
+            return self._send(500, "application/json; charset=utf-8",
+                              json.dumps({"error": str(exc)}), self._NO_STORE)
+        self._send(200, "application/json; charset=utf-8", body, self._NO_STORE)
+
+    def _serve_recommend(self):
+        # The dispatcher overlay (codmaster's decision record), served verbatim from
+        # status.recommend() — the same canonical surface `planwright advise` reads, so
+        # the Commands view and the command layer can never disagree on the same state.
+        # Read-only throughout: recommend() only reads .planwright/ plus read-only git
+        # probes (rev-parse / ls-files / no-optional-locks status) and the doctor
+        # preflight — none take .git/index.lock, so a live run's commits never flake
+        # on a dashboard refetch.
+        try:
+            body = json.dumps(status.recommend(self.root), indent=2)
         except Exception as exc:
             return self._send(500, "application/json; charset=utf-8",
                               json.dumps({"error": str(exc)}), self._NO_STORE)

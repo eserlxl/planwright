@@ -325,7 +325,7 @@ npm/build toolchain; everything works offline.
 The static UI (`scripts/dashboard/`) is a vanilla, dependency-free `index.html` + `app.js` shell
 (no build step), re-rendered from `/state.json` whenever the server's `/events` SSE stream reports a
 change (the active tab survives a reload via the URL hash). It has a command palette (`Ctrl/⌘-K`),
-light/dark themes, full keyboard navigation, and seven views:
+light/dark themes, full keyboard navigation, and eight views:
 
 - **Console** — the glance-once landing: a convergence reactor with a three-state resting verdict
   (CONVERGED / IN PROGRESS / STALE-or-IDLE), health vitals (coverage, hotspots, coupling, the audit
@@ -334,7 +334,10 @@ light/dark themes, full keyboard navigation, and seven views:
 - **Commands** — the recommended next sweep for the current state (codvisor / codinventor / codcycle),
   plus a codshard card for large repos (shown for copy, never auto-recommended — sharding is a size
   call, not a state call), with a supplementary cold-start `/planwright reset` nudge once the tree
-  has converged.
+  has converged. Above the coach sits the **codmaster front door**: the exact dispatch
+  `/codmaster` would run next (`/recommend.json` — the same `status.py --recommend` record the
+  command layer consumes), with its overlay notes, mutating/invent-class flags, and mechanical
+  blockers (dirty tree, doctor); the panel simply disappears on an older server.
 - **Plan** — pending / completed / rejected items (pending shown with all eight fields, filterable by Mode).
 - **Timeline** — a cumulative **Decision timeline** graph (accepted decisions by mode over the run,
   with the shared mode legend) above the accepted/killed item lists, from the completed/rejected logs.
@@ -344,10 +347,19 @@ light/dark themes, full keyboard navigation, and seven views:
   the planner's ranked "next up" surfaces, a cold-frontier card (the explore escalation's
   `ranked_cold` sweep order, with covered/test markers and the active invent framing when seeded),
   and import-cycle cards.
+- **Shards** — codshard's shard map, live: the shardable top-level directories (the same
+  enumeration rule `/codshard` applies, served in `state.json`'s `repo` block), each shard's audit
+  frontier (never-audited / stale code nodes, the builder's exact predicates), the predicted sweep
+  order (descending never-audited count, lexicographic tiebreak — or plain lexicographic without a
+  graph, exactly like codshard itself), the folded small directories, and the closing whole-repo
+  round card (the only round that may declare the global final point). codshard persists no sweep
+  ledger, so the map shows where the debt lives and what a sweep *would* do — never a fabricated
+  "shard 3 of 7" progress claim.
 - **Doctor** — the read-only environment preflight (`/doctor.json`).
 
 Endpoints: `/state.json` (the snapshot — see [`state-schema.md`](state-schema.md)), `/graph.json` (a
-passthrough of the graph), `/doctor.json` (the preflight), `/events` (the change stream). The view is
+passthrough of the graph), `/doctor.json` (the preflight), `/recommend.json` (the dispatcher decision
+record — `status.py --recommend` verbatim), `/events` (the change stream). The view is
 read-only and informational — never valid Evidence. Stop it with Ctrl-C.
 
 ## Graph Memory (audit routing)
