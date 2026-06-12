@@ -749,7 +749,7 @@ const state = {
     { title: "do a thing", mode: "develop", rationale: "r", evidence: "e", surfaces: ["a.py"], new_surfaces: [], development: "d", acceptance: "ok", verification: "bash tests/run.sh" },
     { title: "fix a bug", mode: "repair", rationale: "r", evidence: "e", surfaces: ["b.py"], new_surfaces: [], development: "d", acceptance: "ok", verification: "bash tests/run.sh" },
   ],
-  completed: [{ title: "shipped", mode: "develop" }],
+  completed: [{ title: "shipped", mode: "develop", commit: "abc1234" }],
   rejected: [{ title: "bad idea", reason: "value-gate: no consumer" }],
   final_point: { sha: "deadbeef", date: "", deepest_tier: "", valid: true, stale: false, scope: null },
   graph: { built_sha: "deadbeef", node_count: 2, dirty: 0, stale: false },
@@ -932,6 +932,10 @@ function frontDoorPanels(node) {
 var cmdC = new El("section");
 win.PW_VIEWS.commands(cmdC, state, fullCtx);
 assert(frontDoorPanels(cmdC).length === 0, "front-door panel painted before any /recommend.json resolved");
+// The contributions track record mirrors the Plan view's Commit provenance badge:
+// the fixture's completed[].commit must surface in the rendered list text.
+assert(/abc1234/.test(textOf(cmdC)),
+  "Commands contributions list dropped the completed item's Commit provenance stamp");
 
 setTimeout(function () {
   assert(/Environment preflight/.test(textOf(docC)),

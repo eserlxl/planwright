@@ -297,6 +297,13 @@
         var li = elt("li", "pw-contrib-item");
         if (c.mode) li.appendChild(elt("span", "pw-contrib-mode mode-" + c.mode, c.mode));
         li.appendChild(elt("span", "pw-contrib-title", c.title || "(untitled)"));
+        if (c.commit) {
+          // Commit: provenance stamp (state.json completed[].commit) — same badge the
+          // Plan view's completed cards carry; "" pre-stamp history skips it.
+          var sha = elt("span", "pw-contrib-commit", c.commit);
+          sha.title = "landing commit";
+          li.appendChild(sha);
+        }
         list.appendChild(li);
       });
       contrib.appendChild(list);
