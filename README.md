@@ -3,8 +3,10 @@
 **A free, local control loop for AI coding agents: grounded planning, verification, execution, and repeatable codebase improvement.**
 
 > Use `/codvisor` to repair and harden a repo, `/codinventor` to add grounded new capability,
-> or `/codcycle` to alternate both. Planwright works through the AI coding agent you already use:
-> Claude Code, Codex, Cursor, Antigravity, Gemini, or any AGENTS.md-aware agent.
+> `/codcycle` to alternate both — or `/codmaster`, the front door that senses what the repo needs
+> and drives it, command by command, to a recorded final point. Planwright works through the AI
+> coding agent you already use: Claude Code, Codex, Cursor, Antigravity, Gemini, or any
+> AGENTS.md-aware agent.
 
 ![planwright's read-only dashboard — the Console view: a convergence reactor (56/66, 85%), accepted/pending/rejected tallies, coverage/hotspot/cycle/coupling vitals, a decision-cadence strip, and a live dirty-pulse of changed files](docs/images/dashboard-console.png)
 
@@ -31,17 +33,10 @@ The difference is control. Planwright is local, free, agent-neutral, and file-ba
 
 ## Start here
 
-Don't know what to run? **`/codmaster`** — the front door. It looks at your repo, picks the most
-useful next command, runs it, looks again, and repeats until nothing worth doing is left (the
-recorded *final point*). It finishes pending work first, fixes before it grows, explains every
-choice with the numbers behind it, and stops itself at hard blockers. Three words tune it:
-`advise` (just tell me what you'd run — run nothing), `safe` (never invent), and `loop` (never
-stop — start a fresh audit from scratch each time the repo converges). The plain-language tour
-lives in [Concepts → codmaster](docs/concepts.md#codmaster--the-front-door).
-
-The **direct dials**, when you want to choose yourself — run them with no arguments and planwright
-does the rest: it prints the estimated AI/session cost first, then works autonomously through
-plan→build→verify rounds until it runs out of worthwhile work.
+The four **direct dials** each drive one motion — repair, invention, alternation, scale. Run any
+of them with no arguments and planwright does the rest: it prints the estimated AI/session cost
+first, then works autonomously through plan→build→verify rounds until it runs out of worthwhile
+work.
 
 | Command        | What it does                       | Best for           |
 |----------------|------------------------------------|--------------------|
@@ -49,12 +44,32 @@ plan→build→verify rounds until it runs out of worthwhile work.
 | `/codinventor` | Discovers and adds grounded new capabilities. | Feature discovery  |
 | `/codcycle`    | Alternates repair and invention rounds.     | Autonomous improvement  |
 | `/codshard`    | Matures the repo shard by shard, then closes whole-repo. | Large codebases |
-| `/codmaster`   | Senses the state, drives to the final point. | Not sure? Start here |
 
-All five are safe by default: planning never touches your source, and when planwright does start editing
-(building items, committing), your normal edit/commit approval prompts still apply.
+**`/codmaster`** — the front door — folds all of the above into one autonomous drive. A tested,
+read-only decision engine senses the repo's planning state, and codmaster dispatches whatever
+that state calls for: pending plan items to finish, a `/codvisor` repair sweep, a shard-by-shard
+`/codshard` pass on a large repo, one `/codinventor` growth burst once the tree is clean. Then it
+re-senses and dispatches again, until the repo reaches its recorded *final point* — planwright's
+written-down marker that nothing worth doing is left. One run behaves like a careful maintainer:
+unfinished work first, repair before growth, at most one invention burst per run (which the
+following steps harden back to convergence), every choice explained with the numbers behind it —
+and it stops itself on hard blockers, a failing broad verification, no progress, or the 12-step
+safety cap.
 
-It is autonomous in workflow, not unchecked in permissions: your host agent still controls file edits, terminal commands, and commits through its normal approval model.
+Three words tune it:
+
+- `advise` — print the recommendation, the evidence, and any blockers; run nothing.
+- `safe` — the same drive without invention; it stops the first time the repo reaches a final
+  point and prints the growth command for you to run yourself.
+- `loop` — never stop: each time the repo gets there, it resets the planning memory (keeping the
+  record of rejected ideas, so bad ideas stay buried) and starts a fresh lap, until you interrupt
+  it or a hard stop ends the drive.
+
+The plain-language tour lives in [Concepts → codmaster](docs/concepts.md#codmaster--the-front-door).
+
+All five are autonomous in workflow, not unchecked in permissions: planning never touches your
+source, and when planwright does start editing — building items, committing — your host agent's
+normal edit, terminal, and commit approval prompts still apply.
 
 > Under the hood, `/codvisor` is shorthand for `cycle 10 depth 10 explore` and `/codinventor` for
 > `cycle 10 depth 10 invent`. You can pass numbers to tune them (`/codvisor 5 8` = 5 rounds at
@@ -62,7 +77,11 @@ It is autonomous in workflow, not unchecked in permissions: your host agent stil
 > then a framing-rotated invent per outer cycle, with one closing explore — so reach for it when you want
 > codvisor and codinventor on a loop. `/codshard` is the other orchestrator: one scoped cycle per
 > top-level directory (so each shard gets the full depth budget), then one closing whole-repo round
-> (add `explore` to escalate just that closing round).
+> (add `explore` to escalate just that closing round). `/codmaster` sits above all of these and
+> owns no logic of its own: a tested decision table (`status.py --recommend`, the same table the
+> dashboard's Commands view renders) maps repo state to the next command, and codmaster dispatches
+> it at depth 10 — where `/codcycle` runs a fixed rhythm, codmaster re-decides every step from
+> fresh state.
 > The full vocabulary lives in [Concepts](docs/concepts.md).
 
 ## How it works: three paths
@@ -369,7 +388,7 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codshard explore          # escalate only the closing whole-repo round; shard rounds stay plain cycles
 /codshard parallel         # Claude Code only: prefetch read-only recon leads per shard (routing-only; rounds stay sequential)
 
-# /codmaster — the front door: drive the repo to a recorded final point (always depth 10)
+# /codmaster — the front door: an autonomous driver over the whole toolset (always depth 10)
 /codmaster                 # sense → dispatch → re-sense, consecutively until convergence (max 12 steps)
 /codmaster advise          # only print what it would run next, with the evidence and blockers
 /codmaster safe            # same loop without invention; stops at the first convergence

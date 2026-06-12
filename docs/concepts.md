@@ -21,8 +21,8 @@ Planwright operates using three distinct, partitioned paths:
 
 ## codmaster — the front door
 
-If the controls on this page feel like a lot, you don't have to choose: **`codmaster`** picks for
-you. It reads the current planning state (the same signals the dashboard's coach shows), figures
+**`codmaster`** is the front door: an autonomous driver over every control on this page. It
+reads the current planning state (the same signals the dashboard's coach shows), figures
 out the one most useful next command, runs it, looks again, and repeats — until the project
 reaches a **final point** (planwright's recorded "nothing worth doing is left" marker).
 
@@ -44,7 +44,7 @@ Three words tune it:
   the growth command for you to run yourself.
 - `codmaster loop` — never stop: each time the repo converges, it resets planwright's memory
   (keeping the record of rejected ideas, so bad ideas stay buried) and starts a fresh lap, until
-  you interrupt it.
+  you interrupt it or a hard stop ends the drive.
 
 codmaster adds no behavior of its own — everything it runs is an ordinary planwright command at
 full depth; it only chooses and sequences. And the choosing is mechanical, not vibes: a tested
