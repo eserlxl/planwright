@@ -31,8 +31,11 @@ drain-first, carried backlog, repo-size, the invent-dry reset). Its output is ro
 only — **never** valid Evidence, exactly like `status` and the graph.
 
 **By-hand fallback** (no `python3`): run the Status procedure's by-hand summary, then apply the
-table in plain words — pending items → `execute`; structural debt or a stale/invalid final point →
-`codvisor` (a large repo shards instead via `codshard`); a clean, converged tree → `codinventor`;
+table in plain words — pending items → `execute`; a converged tree (a current, valid, whole-repo
+final point, nothing pending) → `codinventor`, even when static graph signals such as articulation
+look like debt (the declaring round surveyed them dry at this HEAD; new debt would stale the
+point); structural debt without convergence, or a stale/invalid final point →
+`codvisor` (a large repo shards instead via `codshard`);
 converged at `deepest_tier: invent` → the reset-necessity ladder, never a blanket reset: a
 **seeded** point (an `invent_seed` is recorded) → re-survey via `codinventor` (a different framing
 may still find groundable invention); a cold frontier **undrained or unknown** (`never_audited` > 0,

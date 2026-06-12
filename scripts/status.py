@@ -587,14 +587,20 @@ def _reset_necessity(fp, frontier):
 def recommend(root):
     """The full decision record: shared coach base + the dispatcher overlay. The overlay is
     codmaster's lifecycle ladder, ordered: first contact -> full harden sweep (codvisor, or
-    codshard on a mechanically large repo); pending -> execute (drain first); debt / stale
-    point / carried backlog -> codvisor|codshard; clean but no current whole-repo final
-    point -> codvisor|codshard (earn convergence before growing); converged -> codinventor
-    (grow — marked invent_class so the command layer's `safe` word can stop instead);
-    converged at deepest_tier invent (the rare earned empty) -> _reset_necessity decides:
-    reset + a fresh harden sweep only when really necessary (unseeded AND frontier drained),
-    else the non-destructive re-survey or harden sweep. Blockers (dirty tree, doctor) are
-    emitted alongside, mechanical and judgment-free."""
+    codshard on a mechanically large repo); pending -> execute (drain first); carried
+    backlog -> codvisor|codshard (a converged-looking tree with cut/deferred findings still
+    drains); converged -> codinventor (grow — marked invent_class so the command layer's
+    `safe` word can stop instead), or at deepest_tier invent (the rare earned empty)
+    _reset_necessity decides: reset + a fresh harden sweep only when really necessary
+    (unseeded AND frontier drained), else the non-destructive re-survey or harden sweep;
+    debt / stale point -> codvisor|codshard; clean but no current whole-repo final point ->
+    codvisor|codshard (earn convergence before growing). Convergence deliberately outranks
+    the base's re-derived debt heuristics: a current, valid, whole-repo final point is the
+    proof those signals were surveyed and found dry at this exact HEAD (new debt needs a new
+    commit, which stales the point), and the articulation signal is intrinsic and
+    undrainable on any documented repo — without this precedence the converged row is
+    unreachable and the record recommends a provable no-op harden forever. Blockers (dirty
+    tree, doctor) are emitted alongside, mechanical and judgment-free."""
     state = collect(root)
     state["converged"] = _converged(state)
     gsig = _graph_signals(root)
@@ -626,16 +632,11 @@ def recommend(root):
         if base["key"] == "codcycle":
             notes.append("coach: codcycle — codmaster drains via execute first, then "
                          "re-decides; codcycle stays a direct dial")
-    elif base["key"] == "codvisor" or s["carried"] > 0:
-        why = (base["why"] if base["key"] == "codvisor"
-               else "cut/deferred dossier backlog (carried %d) — drain it before growing"
-                    % s["carried"])
-        rec = dict(harden, mutating=True, invent_class=False, why=why)
-    elif not s["converged"]:
+    elif s["carried"] > 0:
         rec = dict(harden, mutating=True, invent_class=False,
-                   why="clean tree but no current whole-repo final point — earn convergence "
-                       "before growing")
-    elif (fp.get("deepest_tier") or "") == "invent":
+                   why="cut/deferred dossier backlog (carried %d) — drain it before growing"
+                       % s["carried"])
+    elif s["converged"] and (fp.get("deepest_tier") or "") == "invent":
         necessity = _reset_necessity(fp, (state.get("graph") or {}).get("frontier"))
         if necessity == "reinvent":
             rec = {"command": "codinventor", "args": "cycle 10 depth 10 invent",
@@ -656,9 +657,22 @@ def recommend(root):
                           "non-destructive is left, so a cold-start re-audit (reset keeps "
                           "rejected.md, then a fresh harden sweep) is the one remaining "
                           "move"}
-    else:
+    elif s["converged"]:
+        why = (base["why"] if base["key"] == "codinventor"
+               else "converged at a current final point — that round surveyed the remaining "
+                    "debt signals dry, so grow net-new")
         rec = {"command": "codinventor", "args": "cycle 10 depth 10 invent",
-               "mutating": True, "invent_class": True, "why": base["why"]}
+               "mutating": True, "invent_class": True, "why": why}
+        if base["key"] == "codvisor":
+            notes.append("coach: codvisor (static debt signals) — a current final point "
+                         "outranks re-derived debt: the declaring round surveyed those "
+                         "signals dry at this HEAD, and new debt would stale the point")
+    elif base["key"] == "codvisor":
+        rec = dict(harden, mutating=True, invent_class=False, why=base["why"])
+    else:
+        rec = dict(harden, mutating=True, invent_class=False,
+                   why="clean tree but no current whole-repo final point — earn convergence "
+                       "before growing")
 
     blockers = []
     dirty = _dirty_paths(root)

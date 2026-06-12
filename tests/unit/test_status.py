@@ -261,6 +261,31 @@ class TestRecommendOverlay(unittest.TestCase):
         self.assertEqual(rec["args"], "explore")
         self.assertTrue(any("codshard" in n for n in rec["notes"]))
 
+    GSIG_DEBT = {"import_cycles": 0, "hot_uncovered": 0, "articulation": 6,
+                 "coverage_pct": 90}
+
+    def test_converged_outranks_static_debt(self):
+        # Articulation is intrinsic and undrainable on a documented repo (the README/docs
+        # link-web cut vertices). A current final point is the proof those signals were
+        # surveyed dry at this HEAD — without this precedence the converged row is
+        # unreachable and the record recommends a provable no-op harden forever.
+        rec = self._recommend(self._root(final=self._final("expand")), gsig=self.GSIG_DEBT)
+        self.assertEqual(rec["command"], "codinventor")
+        self.assertEqual(rec["base"]["key"], "codvisor")
+        self.assertTrue(any("outranks re-derived debt" in n for n in rec["notes"]))
+
+    def test_unconverged_debt_still_hardens(self):
+        rec = self._recommend(self._root(), gsig=self.GSIG_DEBT)
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertFalse(rec["invent_class"])
+
+    def test_converged_with_carried_backlog_still_hardens(self):
+        digest = ("# digest\n\n## Carried dossier candidates\n"
+                  "[repair sev2, DEFERRED — env] foo.py:10 — claim; fix: bar\n")
+        rec = self._recommend(self._root(final=self._final("expand"), digest=digest))
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertIn("carried 1", rec["why"])
+
     def test_first_contact_shadows_drain_first(self):
         # A never-audited root (no graph, zero completed) hardens BEFORE executing
         # hand-seeded pending items — deliberate (the dispatched cycle drains them
