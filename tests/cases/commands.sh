@@ -540,3 +540,36 @@ dash = flat(body("commands/dashboard.md"))
 assert "activity start" not in dash, "dashboard.md must stay read-only (no beacon stamp)"
 PY
 then ok "run-activity beacon wiring: orchestrators stamp/re-stamp/stop, skill flows use --if-absent and owner-guarded stop, dashboard.md never stamps"; else bad "run-activity beacon wiring drifted (unconditional orchestrator stamp, --if-absent inner stamp, owner-guarded stop, or never-block clause missing)"; fi
+
+
+# --- Test 19: the dashboard view enumerations track index.html's tab order ----------
+# commands/dashboard.md sat stale at "seven views" while the Shards tab shipped (and
+# references/dashboard.md likewise) because nothing pinned the prose enumerations to
+# the UI shell. Derive the canonical view list from index.html's data-view ids — the
+# same attribute the app routes on — and require every prose surface to carry it:
+# commands/dashboard.md the exact " / "-joined list in tab order, the skill reference
+# and docs/usage.md every bolded view name plus the number-word count phrase.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import os, re, sys
+root = sys.argv[1]
+html = open(os.path.join(root, "scripts/dashboard/index.html"), encoding="utf-8").read()
+views = re.findall(r'data-view="([a-z]+)"', html)
+assert len(views) >= 8 and len(views) == len(set(views)), "index.html tab list malformed"
+titled = [v.capitalize() for v in views]
+words = {5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine",
+         10: "ten", 11: "eleven", 12: "twelve"}
+assert len(views) in words, "tab count %d outside the number-word map — extend Test 19" % len(views)
+phrase = "%s views" % words[len(views)]
+cmd = open(os.path.join(root, "commands/dashboard.md"), encoding="utf-8").read()
+assert " / ".join(titled) in cmd, "commands/dashboard.md view list != index.html tab order"
+assert phrase in cmd, "commands/dashboard.md lost the '%s' count phrase" % phrase
+for rel in ("skills/planwright/references/dashboard.md", "docs/usage.md"):
+    t = open(os.path.join(root, rel), encoding="utf-8").read()
+    for name in titled:
+        assert "**%s**" % name in t, "%s does not name the %s view" % (rel, name)
+    assert phrase in t, "%s lost the '%s' count phrase" % (rel, phrase)
+for rel in ("commands/dashboard.md", "skills/planwright/references/dashboard.md", "docs/usage.md"):
+    t = open(os.path.join(root, rel), encoding="utf-8").read()
+    assert "seven views" not in t, "%s regressed to the stale 'seven views' claim" % rel
+PY
+then ok "dashboard view enumerations track index.html's tab order (commands/dashboard.md exact list; reference + usage carry every view and the count)"; else bad "a dashboard view enumeration drifted from index.html's data-view tabs"; fi
