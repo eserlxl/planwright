@@ -94,7 +94,7 @@ require the scope to **match** (same Focus signature **and** same HEAD) before i
 
 ```
 scope: path:src/auth/            # or  lib:parser  ;  absent = whole-repo (today's behavior)
-scope_focus_sha: <hash of the sorted Focus path list>   # so a later run knows the scope matches
+scope_focus_sha: <sha256 of the newline-joined sorted Focus path list>   # canonical derivation, so a later run (any host) recomputes the same value and knows the scope matches
 ```
 
 ## `SKILL.md` changes required (when approved)

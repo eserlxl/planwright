@@ -1022,8 +1022,9 @@ something to diff against:
    seam) — see Stage 5. Because `invent` **must generate** otherwise (see **Escalation
    ladder**), an ordinary `invent` run writes **no** `final.md` and instead runs to its cycle budget.
    This is the recorded **final point**; it is routing/status only and is **never** valid Evidence.
-   **Under a Scope**, also record `scope:` (`path:<X>` / `lib:<X>`) and `scope_focus_sha:` (a hash of
-   the sorted Focus path list) so the Stage 1 short-circuit only fires for a matching scope; a whole-repo
+   **Under a Scope**, also record `scope:` (`path:<X>` / `lib:<X>`) and `scope_focus_sha:` (the sha256
+   hex digest of the newline-joined, lexicographically sorted Focus path list — canonical, so any host
+   recomputes an identical value) so the Stage 1 short-circuit only fires for a matching scope; a whole-repo
    run records no `scope:` line (or `scope: (whole-repo)`). A scoped final point asserts dryness **only**
    for that component — it never suppresses a differently-scoped or whole-repo run.
    **Under a seeded `invent` run** (a `seed` was given, Inputs), also record `invent_seed: <S>` and
