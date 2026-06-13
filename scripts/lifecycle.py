@@ -49,11 +49,17 @@
 #   python3 scripts/lifecycle.py reset --root .planwright   (keeps rejected.md)
 
 import argparse
+import contextlib
 import json
 import os
 import shutil
 import sys
 import tempfile
+
+try:
+    import fcntl  # POSIX-only; absent on non-POSIX, where the state lock degrades to a no-op.
+except ImportError:  # pragma: no cover - only reached on non-POSIX platforms
+    fcntl = None
 
 # plan_parse.py sits beside this script and owns the plan format (the single
 # recognizer lint-plan/state/status already route through).
@@ -61,6 +67,41 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from plan_parse import parse_items  # noqa: E402
 
 FIFO_CAP = 100
+LOCK_NAME = ".lifecycle.lock"
+
+
+@contextlib.contextmanager
+def _state_lock(root):
+    """Serialize a whole multi-step state transaction against other planwright processes on
+    the same .planwright/ directory. Holds an exclusive fcntl.flock on <root>/.lifecycle.lock
+    for the duration of the `with` block, so two concurrent sessions cannot interleave the
+    read/append/write steps of drain/land/reject/reset_if_empty: each individual write() is
+    already atomic (mkstemp + os.replace), but the *transaction* spanning two files is not,
+    and an interleave could lose or duplicate an item. Held once per CLI invocation in main(),
+    so a housekeep's drain->drain->reset chain is one critical section rather than three.
+
+    Degrades to a no-op — never raising — when fcntl is unavailable (non-POSIX) or the lock
+    file cannot be created (e.g. <root> does not exist yet): there is then nothing to serialize
+    against, and a best-effort advisory lock must never turn a working single-process run into a
+    crash. flock is associated with the open file description, so callers must NOT nest two
+    _state_lock blocks on the same root in one process (the second would deadlock)."""
+    if fcntl is None:
+        yield
+        return
+    try:
+        fh = open(os.path.join(root, LOCK_NAME), "a+")
+    except OSError:
+        # <root> missing or not writable — nothing to lock against; proceed unguarded.
+        yield
+        return
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    finally:
+        fh.close()
 
 
 def parse(text):
@@ -353,12 +394,13 @@ def main():
             return 2
         plan_path = os.path.join(root, "plan.md")
         try:
-            if args.command == "land":
-                title = land(plan_path, os.path.join(root, "completed.md"),
-                             args.index, value)
-            else:
-                title = reject(plan_path, os.path.join(root, "rejected.md"),
-                               args.index, value)
+            with _state_lock(root):
+                if args.command == "land":
+                    title = land(plan_path, os.path.join(root, "completed.md"),
+                                 args.index, value)
+                else:
+                    title = reject(plan_path, os.path.join(root, "rejected.md"),
+                                   args.index, value)
         except LookupError as e:
             sys.stderr.write(f"lifecycle: {e}; nothing was modified\n")
             return 2
@@ -399,12 +441,13 @@ def main():
     compacted = rdrained = 0
     deleted = False
     try:
-        if args.command in ("drain-completed", "housekeep"):
-            compacted = drain(plan, completed, lambda b: b["checked"])
-        if args.command in ("drain-rejected", "housekeep"):
-            rdrained = drain(plan, rejected, lambda b: b["rejected"])
-        if args.command in ("reset-if-empty", "housekeep"):
-            deleted = reset_if_empty(plan)
+        with _state_lock(root):
+            if args.command in ("drain-completed", "housekeep"):
+                compacted = drain(plan, completed, lambda b: b["checked"])
+            if args.command in ("drain-rejected", "housekeep"):
+                rdrained = drain(plan, rejected, lambda b: b["rejected"])
+            if args.command in ("reset-if-empty", "housekeep"):
+                deleted = reset_if_empty(plan)
     except (UnicodeDecodeError, NotADirectoryError, IsADirectoryError, PermissionError) as e:
         # Fail CLOSED, cleanly: a plan we cannot read (non-UTF-8 bytes, a file passed
         # as --root, permissions) must never be rewritten or deleted — swallowing to
