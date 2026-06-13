@@ -436,6 +436,71 @@ else
   bad "dashboard.py heartbeat ping not observed: $(cat "$TMP/dping.err" 2>/dev/null)"
 fi
 
+# --- Test DASH-SSE-CAP: the concurrent /events cap returns a retriable 503 and recovers ----
+# MAX_SSE_CLIENTS bounds live SSE handler threads so tab open/close churn during a long
+# unattended cycle run cannot pile them up: an over-cap client gets a retriable 503 (not a new
+# thread), and the slot is released on disconnect so capacity recovers. All 11 other /events
+# opens in this suite are sequential, so the acquire-guard / 503 / finally-release path was
+# untested. With PW_DASH_MAX_SSE_CLIENTS=1 the over-cap path is deterministic.
+cat > "$TMP/dash_ssecap.py" <<'PY'
+import os, subprocess, sys, time, urllib.request, urllib.error
+root, dash = sys.argv[1], sys.argv[2]
+env = dict(os.environ, PW_DASH_POLL="0.05", PW_DASH_HEARTBEAT="0.1", PW_DASH_MAX_SSE_CLIENTS="1")
+proc = subprocess.Popen([sys.executable, dash, "--root", root, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+try:
+    port, deadline = None, time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            if proc.poll() is not None:
+                print("server exited early", file=sys.stderr); sys.exit(1)
+            continue
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    if not port:
+        print("no port banner", file=sys.stderr); sys.exit(1)
+    base = "http://127.0.0.1:%d" % port
+    # Hold the only slot open with a first stream.
+    ev1 = urllib.request.urlopen(base + "/events", timeout=5)
+    assert ev1.readline().startswith(b"event: change"), "no initial change event on first stream"
+    # A second concurrent /events must get a retriable 503, not a new handler thread.
+    over = None
+    try:
+        urllib.request.urlopen(base + "/events", timeout=5)
+    except urllib.error.HTTPError as e:
+        over = e.code
+    assert over == 503, "over-cap /events should be 503, got %r" % over
+    # Release the slot by disconnecting the first stream; capacity must recover (bounded retry,
+    # since the slot frees only when the handler's next write detects the broken pipe).
+    ev1.close()
+    recovered = False
+    for _ in range(40):
+        try:
+            ev3 = urllib.request.urlopen(base + "/events", timeout=5)
+            if ev3.readline().startswith(b"event: change"):
+                recovered = True; ev3.close(); break
+            ev3.close()
+        except urllib.error.HTTPError:
+            time.sleep(0.1)
+    assert recovered, "slot not released after first stream closed (capacity did not recover)"
+    print("SSE-CAP-OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+DSCDIR="$TMP/dash-ssecap"; mkdir -p "$DSCDIR/.planwright"
+printf -- '- [ ] one\n      Mode: improve\n' > "$DSCDIR/.planwright/plan.md"
+python3 "$TMP/dash_ssecap.py" "$DSCDIR" "$DASH" >"$TMP/dscap.out" 2>"$TMP/dscap.err" || true
+if grep -q SSE-CAP-OK "$TMP/dscap.out"; then
+  ok "dashboard.py /events caps concurrent streams with a retriable 503 and recovers on disconnect"
+else
+  bad "dashboard.py SSE cap not observed: $(cat "$TMP/dscap.err" 2>/dev/null)"
+fi
+
 # --- /graph.json on a graphless root returns 404 {"error":"no graph built"} -----------
 # The passthrough success is covered above; the no-graph guard (dashboard.py:189) was not.
 # A second short-lived server on a root with a plan but NO graph.json exercises it.
