@@ -1,6 +1,6 @@
 ---
-description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is default-on and taken at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); the loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step-per-lap safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; `loop` makes the drive infinite — each converged terminal triggers the cold-start reset itself (keeps rejected.md) and begins a new lap with the growth burst re-armed, until interrupted or a hard stop (`safe loop` composes).
-argument-hint: "advise | safe | loop | (empty = sense → dispatch → re-sense, consecutively until the final point)"
+description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is default-on and taken at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); the loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step-per-lap safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; `loop` makes the drive infinite — each converged terminal triggers the cold-start reset itself (keeps rejected.md) and begins a new lap with the growth burst re-armed, until interrupted or a hard stop (`safe loop` composes). `parallel` forwards codshard's read-only recon prefetch: a step that dispatches `codshard` gets `parallel` appended to its args (Claude-Code-only, routing-only, never Evidence — degrades to sequential elsewhere), while any step that does not route to codshard prints a one-line nudge to run `/codshard parallel` directly. `parallel` never changes which command the engine chooses — only how a `codshard` dispatch runs (composes with `safe`/`loop`).
+argument-hint: "advise | safe | loop | parallel [J] | (empty = sense → dispatch → re-sense, consecutively until the final point)"
 ---
 
 You are dispatching on behalf of the `/codmaster` helper command. Like `/codcycle` and
@@ -16,16 +16,24 @@ Raw arguments: `$ARGUMENTS`
 Resolve them in this order:
 
 1. **`help` / `--help` / `-h` / `?`**: print
-   `Usage: /codmaster [advise | [safe] [loop]]   (empty = sense the repo and run the required commands consecutively, at depth 10, until a recorded final point; advise = print the recommendation only, dispatch nothing; safe = the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; loop = infinite — each converged terminal triggers the cold-start reset and begins a new lap; safe loop composes).`
+   `Usage: /codmaster [advise | [safe] [loop] [parallel [J]]]   (empty = sense the repo and run the required commands consecutively, at depth 10, until a recorded final point; advise = print the recommendation only, dispatch nothing; safe = the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; loop = infinite — each converged terminal triggers the cold-start reset and begins a new lap; parallel = forward codshard's read-only recon prefetch to any step that dispatches codshard, else print a nudge to run /codshard parallel directly — it never changes which command the engine chooses; safe loop parallel compose).`
    and STOP — do not run anything.
-2. **`advise`**: run SENSE below, print the full recommendation report (command + args, why, the
-   evidence chips, every note, every blocker verbatim, the invent-class notice when set, and the
-   reset nudge when present), and STOP — dispatch nothing.
+2. **`advise`** (alone, or alongside `parallel`): run SENSE below, print the full recommendation
+   report (command + args, why, the evidence chips, every note, every blocker verbatim, the
+   invent-class notice when set, and the reset nudge when present), and STOP — dispatch nothing.
+   When `parallel` is also present and the recommended `command` is `codvisor` (harden routed to
+   codvisor — the repo is not large enough to shard), append one line: `parallel only affects
+   codshard — run /codshard parallel directly for a sharded recon sweep.`
 3. **Peel the mode flags** from the remaining tokens, in any order — they compose:
    - **`safe`**: invention capability off — identical in every way except the growth step's
      handling.
    - **`loop`**: infinite mode — the converged terminal does not stop the run; it triggers the
      cold-start reset and begins a new lap (see the terminal check below).
+   - **`parallel`** (optionally followed by an integer `J >= 1`, which binds to it): forward
+     codshard's read-only recon prefetch. It changes only how a `codshard` dispatch runs — it
+     never changes which command the engine chooses. Peel `J` with it so it is never mistaken
+     for a leftover token; an integer below 1 does not bind and falls through as an invalid
+     leftover.
    Any other leftover token: print that same `Usage:` line and STOP.
 4. **Then run the main loop below** under the peeled flags (empty = neither flag).
 
@@ -43,6 +51,8 @@ In `loop` mode print this first clause instead:
 In `safe` mode (either banner), the trailing invent notice is replaced by:
 `safe: invention capability off — the loop stops at the first convergence.`
 (in `safe loop`, by: `safe: invention capability off — each lap runs harden-only.`)
+In `parallel` mode (any banner), append this clause to the printed banner:
+`parallel: each codshard dispatch fans out read-only recon subagents (J at a time, else host-capped) — extra model calls bought for wall-clock; routing-only, never Evidence, Claude-Code-only (sequential elsewhere).`
 
 Then stamp the run-activity beacon so the dashboard's reactor names this run: run
 `python3 <scripts>/state.py activity start codmaster --root .` in the ctx sandbox when available
@@ -86,8 +96,14 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    dispatches are the Skill tool invocation `planwright:planwright` with the record's `args`
    string (codvisor/codinventor resolve to their flagship `cycle 10 depth 10 explore` / `invent`
    forms); a `codshard` dispatch follows `commands/codshard.md` with the record's `args` (default
-   `explore`). Every dispatch runs at maximum depth — depth 10 — by construction of those
-   argument strings; codmaster takes no depth knob. On other hosts, load
+   `explore`) — and when `parallel` is active that dispatch gets `parallel` (or `parallel J`)
+   appended to its `args`, so it becomes e.g. `codshard parallel explore`. Every dispatch runs
+   at maximum depth — depth 10 — by construction of those argument strings; codmaster takes no
+   depth knob. When `parallel` is active and this step dispatches `codvisor` as the harden action
+   — the repo is not large enough to shard, so `parallel` has no codshard dispatch to attach to —
+   print one nudge line under the step header — `note: parallel only affects codshard dispatches;
+   this step routed to codvisor. Run /codshard parallel directly for a sharded recon sweep.` —
+   shown at most once per lap; the flag never changes which command is dispatched. On other hosts, load
    `skills/planwright/SKILL.md` with the same argument string (and the codshard recipe from its
    host-adapter paragraph). Wait for the dispatched run to finish, and record its verified-commit
    count as `commits_i`.
@@ -104,8 +120,10 @@ AND the cold frontier is shown drained; a seed-scoped point routes to a re-surve
 undrained (or unknown) frontier routes to a harden sweep instead, so audit memory is never
 wiped while a non-destructive move remains. When the record's `command` IS `reset`, dispatch
 planwright with `reset` (the cold-start wipe keeps `rejected.md`), then dispatch the record's
-`follow_up` command as the fresh harden sweep. This pair is one composite dispatch — one step —
-and its header announces both halves up front.
+`follow_up` command as the fresh harden sweep — and when `parallel` is active and that `follow_up`
+is `codshard`, it gets `parallel` appended to its args exactly as a step-4 codshard dispatch does,
+so `loop parallel` accelerates the harden sweep that dominates each lap restart. This pair is one
+composite dispatch — one step — and its header announces both halves up front.
 
 **Invention capability.** When the record says `invent_class: true`:
 - **default (case 4)**: dispatch it (subject to the at-most-once growth rule above) — codmaster
@@ -119,7 +137,10 @@ beacon: `python3 <scripts>/state.py activity stop --root .` (best-effort, never 
 applies to every way the loop ends, including hard stops). Then print a short cumulative
 summary: steps taken (out of 12 for the lap), the per-step commands and verified-commit counts in
 order (e.g. `codvisor 3 → execute 2 → codinventor 1 → codvisor 0` ), whether the growth burst
-ran, the final-point state from the last SENSE relayed verbatim, and the stop reason (`converged
+ran, whether `parallel` was active and whether a `codshard` dispatch consumed it (if `parallel`
+was active but codshard was never dispatched, append `parallel had no effect this run — use
+/codshard parallel directly`), the final-point state from the last SENSE relayed verbatim, and
+the stop reason (`converged
 at the final point`, `hard blocker`, `broad-verify failed`, `blockers`, `no progress`,
 `step cap`, or — in `loop` mode — `interrupted`). In `loop` mode also print this summary at the
 end of every lap (just before its reset step), and a final overall line when the drive ends:
@@ -128,5 +149,6 @@ the suggested next step in both spellings (e.g. `next: /codinventor — <why>` a
 `or just run /codmaster again`), plus the `reset_nudge` when present.
 
 Print nothing of your own except the Usage line (cases 1 and 3), the advise report (case 2), the
-cost banner, the per-step headers and one-line whys, the safe-mode growth recommendation, and
-the cumulative report; each dispatched command prints its own output, which stands as-is.
+cost banner (including the parallel disclosure clause), the per-step headers and one-line whys,
+the safe-mode growth recommendation, the parallel nudge line, and the cumulative report; each
+dispatched command prints its own output, which stands as-is.

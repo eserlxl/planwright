@@ -100,7 +100,7 @@ desc_for() {
     codvisor)   echo "Personal alias for /planwright:codvisor — planwright advisor shorthand (explore) without the plugin prefix." ;;
     codinventor) echo "Personal alias for /planwright:codinventor — planwright inventor shorthand (invent) without the plugin prefix." ;;
     codshard)   echo "Personal alias for /planwright:codshard — planwright's sharded maturity sweep (per-shard scoped cycles, then one closing whole-repo round) without the plugin prefix." ;;
-    codmaster)  echo "Personal alias for /planwright:codmaster — the front door: senses the planning state and runs the required commands consecutively to the final point (advise = tell only; safe = no invention; loop = infinite, reset-continued) without the plugin prefix." ;;
+    codmaster)  echo "Personal alias for /planwright:codmaster — the front door: senses the planning state and runs the required commands consecutively to the final point (advise = tell only; safe = no invention; loop = infinite, reset-continued; parallel = forward codshard recon) without the plugin prefix." ;;
   esac
 }
 arghint_for() {
@@ -109,7 +109,7 @@ arghint_for() {
     codvisor)   echo "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 explore)" ;;
     codinventor) echo "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 invent)" ;;
     codshard)   echo "[M] [D] | shards <a,b,c> | parallel [J] | explore | (empty = auto-shards, cycle 3 depth 10 per shard)" ;;
-    codmaster)  echo "advise | safe | loop | (empty = sense → dispatch → re-sense, consecutively until the final point)" ;;
+    codmaster)  echo "advise | safe | loop | parallel [J] | (empty = sense → dispatch → re-sense, consecutively until the final point)" ;;
   esac
 }
 

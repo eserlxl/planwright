@@ -425,8 +425,8 @@ assert "recommendation engine unavailable" in body, "engine-unavailable stop mis
 assert "never substitute a prose decision table" in body, "engine-unavailable polarity missing"
 assert "coach-table.json" in body, "cross-pin fixture not named"
 assert "planwright:planwright" in body, "skill dispatch missing"
-# four-word grammar (advise stands alone; safe/loop compose), advise tells only
-assert "Usage: /codmaster [advise | [safe] [loop]]" in body, "Usage line missing or the grammar grew"
+# grammar (advise stands alone; safe/loop/parallel compose), advise tells only
+assert "Usage: /codmaster [advise | [safe] [loop] [parallel [J]]]" in body, "Usage line missing or the grammar grew"
 assert "STOP" in body, "no STOP rule"
 assert "STOP — dispatch nothing" in body, "advise dispatch-nothing rule missing"
 # safe = without invention capability; default = growing authority + verbatim disclosure
@@ -447,6 +447,15 @@ assert "no judgment call" in body, "mechanical blocker rule missing"
 assert "never runs `doctor --fix`" in body, "doctor read-only rule missing"
 assert "maximum depth — depth 10" in body, "depth-10 rule missing"
 assert "dispatch codcycle" not in body, "codcycle entered the dispatch vocabulary"
+# parallel: an opt-in host capability forwarded to codshard dispatches, a print-only nudge
+# otherwise — it never overrides the engine's command choice (codmaster owns no decision logic)
+assert "forward codshard's read-only recon prefetch" in body, "parallel flag definition missing"
+assert "never changes which command the engine chooses" in body, "parallel no-override polarity missing"
+assert "codshard parallel explore" in body, "parallel pass-through example missing"
+assert "parallel only affects codshard" in body, "parallel non-codshard nudge missing"
+assert "/codshard parallel directly" in body, "parallel /codshard suggestion missing"
+assert "parallel had no effect this run" in body, "parallel no-effect report note missing"
+assert "accelerates the harden sweep that dominates each lap restart" in body, "parallel not forwarded to the reset follow-up codshard sweep (loop parallel)"
 # the loop contract: consecutive dispatch to the final point, fresh sensing between steps,
 # the at-most-once growth bound, the stall guard, and the runaway cap
 assert "run the required commands consecutively" in body, "consecutive-drive contract missing"
