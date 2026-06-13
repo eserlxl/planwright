@@ -65,3 +65,29 @@ for f in node:
 PY
 then ok "SKILL.md-documented top-level + per-node graph.json fields all emitted"
 else bad "SKILL.md <-> graph.json field contract drifted: $(cat "$SGC/sgc2.err")"; fi
+
+# --- Test SGC3: the --seed-only invent fields obey the conditional-emit contract ----
+# SKILL.md Stage 1.5 (and docs/graph-memory-schema.md) promise the seeded-invent fields
+# (explore_seed/ranked_explore/explore_framing) are emitted ONLY under --seed, leaving a
+# default build unchanged ("byte-for-byte identical"). SGC2 covers fields that are always
+# present; nothing pinned this conditional contract, so a builder that always emitted them
+# (or stopped emitting them under --seed) would drift the documented guarantee silently.
+( cd "$SGC" && python3 "$ROOT/scripts/build-graph.py" --seed 1 ) > "$SGC/graph-seeded.json" 2>/dev/null
+if python3 - "$ROOT/skills/planwright/SKILL.md" "$SGC/graph.json" "$SGC/graph-seeded.json" 2>"$SGC/sgc3.err" <<'PY'
+import json, sys
+skill = open(sys.argv[1]).read()
+default = json.load(open(sys.argv[2]))
+seeded = json.load(open(sys.argv[3]))
+fields = ["explore_seed", "ranked_explore", "explore_framing"]
+for f in fields:
+    assert ("`%s`" % f) in skill, "seed field `%s` is no longer documented in SKILL.md" % f
+    assert f not in default, "default (no --seed) build leaked `%s` — the omit-unless-seed contract broke" % f
+    assert f in seeded, "--seed build does not emit documented field `%s`" % f
+assert seeded["explore_seed"] == 1, "explore_seed echoed wrong: %r" % seeded["explore_seed"]
+assert isinstance(seeded["ranked_explore"], list), "ranked_explore must be a list"
+# seed 1 -> catalog index 0 (deterministic (seed-1) %% len), the first documented vantage
+assert seeded["explore_framing"] == "power-user", \
+    "explore_framing for seed 1 drifted from the documented catalog head: %r" % seeded["explore_framing"]
+PY
+then ok "build-graph.py emits explore_seed/ranked_explore/explore_framing only under --seed (conditional-emit contract)"
+else bad "SKILL.md <-> graph.json seed-field contract drifted: $(cat "$SGC/sgc3.err")"; fi
