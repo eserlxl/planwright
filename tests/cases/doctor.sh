@@ -80,6 +80,31 @@ else
   bad "doctor.py mis-graded a missing-tool environment (rc=$rc)"
 fi
 
+# --- Test DR5: doctor's BUNDLED dashboard views match index.html's referenced views ----
+# BUNDLED's stated contract is to "list each load-bearing asset index.html requires"; a view
+# index.html loads but BUNDLED omits is a silent partial-install blind spot (a missing
+# shards.js once 404'd while doctor still reported a healthy install). Derive the view set
+# from index.html's <script src="/views/*.js"> tags and assert every one appears in BUNDLED,
+# so a future view added to the shell without a matching doctor entry turns this red.
+if "$PY" - "$DOC" "$ROOT/scripts/dashboard/index.html" <<'PY'
+import importlib.util, re, sys
+doc, index = sys.argv[1], sys.argv[2]
+spec = importlib.util.spec_from_file_location("d", doc)
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+bundled = {p for p, _ in m.BUNDLED}
+with open(index, encoding="utf-8") as fh:
+    html = fh.read()
+views = set(re.findall(r'src="/(views/[A-Za-z0-9_-]+\.js)"', html))
+assert views, "no /views/*.js tags found in index.html"
+missing = {v for v in views if ("dashboard/" + v) not in bundled}
+assert not missing, "index.html views missing from doctor BUNDLED: %s" % sorted(missing)
+PY
+then
+  ok "doctor.py BUNDLED lists every dashboard view index.html references (no silent partial-install gap)"
+else
+  bad "doctor.py BUNDLED omits a dashboard view that index.html loads"
+fi
+
 # --- Test DR5: a non-git target is WARN-only (does not fail the exit code) --------
 # A plain directory (not a git work tree) -> target check is warn; with all tools and
 # scripts present there are no fails, so exit stays 0.
