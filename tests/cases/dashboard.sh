@@ -64,6 +64,30 @@ try:
         assert e.headers.get("ETag") == etag, e.headers.get("ETag")
     assert not_modified, "conditional GET with matching If-None-Match did not return 304"
 
+    # ETag invalidation — the load-bearing half of the conditional-GET contract. After any
+    # .planwright/ input changes, the validator MUST change so a polling client still holding
+    # the OLD ETag is rebuilt (200 + a NEW, different ETag), never wrongly told 304 and frozen
+    # on a stale snapshot. The block above only proved match->304; a validator frozen to a
+    # constant would pass that yet silently starve every client of updates. (_mtime_signature
+    # keys on (name, mtime_ns, size), so appending to plan.md flips it deterministically.)
+    with open(os.path.join(root, ".planwright", "plan.md"), "a") as fh:
+        fh.write("\n")
+    stale = urllib.request.Request(base + "/state.json", headers={"If-None-Match": etag})
+    with urllib.request.urlopen(stale, timeout=5) as r:
+        assert r.status == 200, "stale If-None-Match was not rebuilt (status %s)" % r.status
+        new_etag = r.headers.get("ETag")
+        json.load(r)                          # body must rebuild, not 304-skip
+    assert new_etag and new_etag != etag, \
+        "ETag did not change after .planwright/ mutation: %r -> %r" % (etag, new_etag)
+    # the refreshed validator is itself stable: a conditional GET carrying it now 304s
+    cond_new = urllib.request.Request(base + "/state.json", headers={"If-None-Match": new_etag})
+    try:
+        urllib.request.urlopen(cond_new, timeout=5); re304 = False
+    except urllib.error.HTTPError as e:
+        re304 = e.code == 304
+    assert re304, "refreshed ETag did not 304 on a matching conditional GET"
+    print("ETAG-INVALIDATE-OK")
+
     # /events: a Server-Sent Events stream that opens with a `change` event
     ev = urllib.request.urlopen(base + "/events", timeout=5)
     assert ev.headers.get_content_type() == "text/event-stream", ev.headers.get_content_type()
@@ -248,6 +272,11 @@ if grep -q DASH-OK "$TMP/dash.out"; then
   ok "dashboard.py serves /state.json (JSON) + /events (text/event-stream), refuses traversal + foreign Host"
 else
   bad "dashboard.py endpoint check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q ETAG-INVALIDATE-OK "$TMP/dash.out"; then
+  ok "dashboard.py /state.json invalidates its ETag on a .planwright/ change (stale If-None-Match -> 200 + new validator)"
+else
+  bad "dashboard.py ETag invalidation check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
 if grep -q NOHOST-OK "$TMP/dash.out"; then
   ok "dashboard.py allows a no-Host (HTTP/1.0) request — the deliberate DNS-rebinding pass-through"
