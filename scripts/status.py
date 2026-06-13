@@ -75,13 +75,22 @@ def _final_valid(root):
     validator falls back to True, so a missing validator never makes convergence stricter than
     the historical sha+pending check. A *present-but-broken* validator instead returns False:
     convergence must not be certified when the contract validator could not run, so --exit-code
-    refuses (exit 1) rather than passing a CI gate blind."""
+    refuses (exit 1) rather than passing a CI gate blind. The same fail-closed rule applies when a
+    loaded validator raises at *runtime* (collect() throws) — a verdict that could not be produced
+    must never read as 'converged'."""
     if _LINT_FINAL is None:
         return _LINT_FINAL_STATUS != "broken"
     try:
         return bool(_LINT_FINAL.collect(root)["ok"])
-    except Exception:
-        return True
+    except Exception as exc:
+        # A validator that loaded but raises mid-run cannot produce a trustworthy verdict.
+        # Fail closed (return False) rather than certifying convergence blind — mirrors the
+        # present-but-broken load-time branch above, and keeps --exit-code honest under a
+        # future validator regression or a transient runtime fault.
+        print("planwright status: lint-final validator raised at runtime (%s: %s); "
+              "convergence gate cannot certify and --exit-code will fail"
+              % (type(exc).__name__, exc), file=sys.stderr)
+        return False
 
 
 def _parse(path):

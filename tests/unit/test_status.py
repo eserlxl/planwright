@@ -34,6 +34,15 @@ def _load_status():
     return mod
 
 
+def _load_lint_final():
+    """Import scripts/lint-final.py by path (hyphenated name, so not import-able directly)."""
+    path = os.path.join(_SCRIPTS, "lint-final.py")
+    spec = importlib.util.spec_from_file_location("planwright_lint_final", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 st = _load_status()
 
 
@@ -51,6 +60,54 @@ class TestConvergenceValidator(unittest.TestCase):
                 self.assertTrue(st._final_valid(root))
             finally:
                 st._LINT_FINAL, st._LINT_FINAL_STATUS = saved
+
+    def test_validator_runtime_error_fails_gate(self):
+        # A loaded validator that RAISES at runtime must not certify convergence either:
+        # _final_valid catches the error and returns False (fail closed), mirroring the
+        # present-but-broken load-time branch. Companion: lint-final.collect() reports a
+        # present-but-unreadable final.md as present + not-ok rather than masquerading as
+        # 'no final point', while a genuinely absent file stays present=False / ok=True.
+        with tempfile.TemporaryDirectory() as root:
+            saved = (st._LINT_FINAL, st._LINT_FINAL_STATUS)
+            try:
+                class _Raising:
+                    @staticmethod
+                    def collect(_root):
+                        raise RuntimeError("validator boom")
+                st._LINT_FINAL, st._LINT_FINAL_STATUS = _Raising, "ok"
+                self.assertFalse(st._final_valid(root))
+            finally:
+                st._LINT_FINAL, st._LINT_FINAL_STATUS = saved
+
+            lf = _load_lint_final()
+            pdir = os.path.join(root, ".planwright")
+            os.makedirs(pdir, exist_ok=True)
+            fp = os.path.join(pdir, "final.md")
+            with open(fp, "w", encoding="utf-8") as fh:
+                fh.write("sha: deadbeef\n")
+            # A genuinely absent final.md is a valid open state (present=False, ok=True).
+            os.remove(fp)
+            absent = lf.collect(root)
+            self.assertFalse(absent["present"])
+            self.assertTrue(absent["ok"])
+            # A present-but-unreadable final.md fails closed (present=True, ok=False). chmod-000
+            # does not restrict root (or some filesystems), so only assert when the file is
+            # genuinely unreadable for this process.
+            with open(fp, "w", encoding="utf-8") as fh:
+                fh.write("sha: deadbeef\n")
+            os.chmod(fp, 0)
+            try:
+                try:
+                    with open(fp, encoding="utf-8"):
+                        unreadable = False
+                except OSError:
+                    unreadable = True
+                if unreadable:
+                    res = lf.collect(root)
+                    self.assertTrue(res["present"])
+                    self.assertFalse(res["ok"])
+            finally:
+                os.chmod(fp, 0o600)
 
 
 _FIXTURES = os.path.join(_ROOT, "tests", "fixtures")

@@ -62,14 +62,18 @@ def collect(root: str) -> dict:
         # Genuinely no recorded final point — a valid open-ladder state.
         return {"present": False, "ok": True, "violations": [], "path": path}
     except (OSError, ValueError) as exc:
-        # The file EXISTS but cannot be read/decoded (non-UTF-8, permissions). We still
-        # degrade to the absent/valid state (crash-free, and a corrupt marker must not
-        # wedge the read-only status path) — but a *silent* degrade here is the fail-open
-        # the convergence gate must not hide, so warn that a present marker was unreadable.
+        # The file EXISTS but cannot be read/decoded (non-UTF-8, permissions). Degrading to
+        # the absent/valid state would be a fail-open the convergence gate must not hide: a
+        # present-but-unreadable marker is a corrupt environment, not a clean 'no final point'.
+        # Fail closed — report present + not-ok so status --exit-code refuses — while still not
+        # crashing the read-only status path.
         print("planwright lint-final: %s exists but could not be read (%s: %s); "
-              "treating as no final point" % (path, type(exc).__name__, exc),
-              file=sys.stderr)
-        return {"present": False, "ok": True, "violations": [], "path": path}
+              "treating as a corrupt final point (gate fails closed)"
+              % (path, type(exc).__name__, exc), file=sys.stderr)
+        return {"present": True, "ok": False,
+                "violations": ["final.md exists but could not be read (%s: %s) — corrupt environment"
+                               % (type(exc).__name__, exc)],
+                "path": path}
 
     lines = text.splitlines()
     viols = []
