@@ -468,6 +468,12 @@ assert "at-most-once growth burst" in body, "growth bound missing"
 assert "never self-terminates" in body, "growth-bound rationale missing"
 assert "stops at the first convergence" in body, "safe-mode terminal missing"
 assert "in `safe` mode or with the growth step already taken: STOP" in body, "converged terminal check not anchored at the step site"
+# the growth burst is gated on the ENGINE's grow signal, not bare convergence: a converged
+# deepest_tier:invent point the engine routes to reset/codvisor (invent_class false) must NOT
+# trigger a blanket codinventor burst — codmaster relays the engine's invent-dry routing instead
+assert "marks growth (`invent_class: true`" in body, "growth burst not gated on the engine's grow signal"
+assert "invent-dry routing" in body, "converged invent-dry reset/harden routing missing from the terminal check"
+assert "rather than overriding it with a blanket burst" in body, "no-blanket-growth-override rule missing"
 # loop mode: the converged terminal CONTINUES via a user-consented cold-start reset, laps
 # re-arm growth and the step counter, rejected.md survives across laps, and only an
 # interruption or a hard stop ends the infinite drive

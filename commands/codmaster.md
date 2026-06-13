@@ -74,13 +74,23 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    read-only sensing — codmaster never runs `doctor --fix`; its report may *suggest*
    `planwright doctor --fix`.)
 3. **Terminal check.** If the record's `signals.converged` is true:
-   - when the growth step was not yet taken this lap (and `safe` is off): take the
+   - when the engine's record marks growth (`invent_class: true`, i.e. `command: codinventor`)
+     AND the growth step was not yet taken this lap (and `safe` is off): take the
      **at-most-once growth burst** — dispatch `codinventor` as this step and mark growth taken.
      One burst per lap keeps each lap convergent: invent's must-generate mandate means repeated
      growth never self-terminates, so unbounded rhythm stays `/codcycle`'s job. The following
      steps harden the new work back to convergence — and that post-growth harden
      is **sharded** (`codshard explore`, when `repo.shardable`; see step 4), so each lap
      deep-hardens its freshly-grown code per-component.
+   - otherwise, when the record's `command` is `reset` or `codvisor` with `invent_class: false`
+     — the engine's **invent-dry routing**: a converged `deepest_tier: invent` point the engine
+     deliberately routes (per its `_reset_necessity` rule) to a cold-start `reset`, a seed
+     re-survey, or a `codvisor` harden of an undrained frontier, **not** another growth burst —
+     dispatch **that** command instead of growing: the reset decision section below for `reset`,
+     the step-4 relay for `codvisor`. The engine withheld growth on purpose (re-inventing a
+     stale-converged tree only re-hits the same invent-dry wall), so codmaster relays its choice
+     rather than overriding it with a blanket burst. This is exactly the case of a bare run that
+     *starts* on a repo a prior `codinventor` or lap already left at the invent-dry point.
    - otherwise, in `loop` mode: the converged terminal continues instead of stopping — print the
      next lap's header `=== codmaster lap L ===`, dispatch planwright with `reset` as this step
      (typing `loop` is the consent for repeated cold starts; `reset` keeps `rejected.md`, so
