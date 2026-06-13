@@ -424,5 +424,49 @@ class TestGitSensorTimeouts(unittest.TestCase):
             self.assertEqual(st._dirty_paths("."), [])
 
 
+class TestDoctorBlockers(unittest.TestCase):
+    # _doctor_blockers is the live status->doctor dispatch-gating seam: a FAIL always blocks; a
+    # git-identity WARN blocks only a MUTATING dispatch (per-item commits need an identity); a
+    # non-identity WARN never blocks; a missing doctor.py degrades to []. recommend() consumes it
+    # to gate dispatch, but every other test mocks the whole function away, so the classification
+    # was unpinned — a single-sided edit passes the full suite. _doctor_blockers re-imports
+    # doctor.py by path each call, so inject a synthetic payload by stubbing the importlib load.
+    @staticmethod
+    def _run(payload, mutating):
+        import importlib.util
+        import types
+        from unittest import mock
+        fake = types.SimpleNamespace(collect=lambda root: payload)
+        spec = types.SimpleNamespace(loader=types.SimpleNamespace(exec_module=lambda mod: None))
+        with mock.patch.object(importlib.util, "spec_from_file_location", return_value=spec), \
+             mock.patch.object(importlib.util, "module_from_spec", return_value=fake):
+            return st._doctor_blockers("/synthetic/root", mutating)
+
+    def test_fail_always_blocks(self):
+        payload = {"checks": [{"name": "git", "status": "fail", "detail": "missing"}]}
+        for mut in (True, False):
+            out = self._run(payload, mut)
+            self.assertEqual([b["kind"] for b in out], ["doctor-fail"],
+                             "a fail must block (mutating=%s)" % mut)
+
+    def test_identity_warn_blocks_only_mutating(self):
+        payload = {"checks": [{"name": "git commit identity", "status": "warn",
+                               "detail": "no user.name/email"}]}
+        self.assertEqual([b["kind"] for b in self._run(payload, True)],
+                         ["doctor-warn-identity"])
+        self.assertEqual(self._run(payload, False), [])
+
+    def test_non_identity_warn_never_blocks(self):
+        payload = {"checks": [{"name": "rg (ripgrep)", "status": "warn", "detail": "absent"}]}
+        self.assertEqual(self._run(payload, True), [])
+        self.assertEqual(self._run(payload, False), [])
+
+    def test_missing_doctor_degrades_to_empty(self):
+        import os as _os
+        from unittest import mock
+        with mock.patch.object(_os.path, "exists", return_value=False):
+            self.assertEqual(st._doctor_blockers("/synthetic/root", True), [])
+
+
 if __name__ == "__main__":
     unittest.main()
