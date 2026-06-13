@@ -115,27 +115,29 @@ else
   bad "lint-final.py missed a reverse-direction unpaired field (scope rc=$rc seed rc=$rc2)"
 fi
 
-# --- Test LF9: a non-UTF-8 final.md is treated as absent, not a crash --------------
+# --- Test LF9: a non-UTF-8 final.md fails closed, not a crash and not silently absent ----
 # collect() reads UTF-8; a corrupt (non-UTF-8) final.md raises UnicodeDecodeError (a
-# ValueError subclass) — it must degrade to the absent/valid state (exit 0), not traceback,
-# so status._final_valid (which calls collect) stays crash-free on the convergence path.
+# ValueError subclass). It must NOT traceback, and — per the council fail-open fix — must NOT
+# masquerade as the absent/valid state: a present-but-unreadable marker fails closed
+# (present:true, ok:false, exit 1) so status --exit-code refuses on a corrupt environment.
 NU="$TMP/lf-nonutf8"; mkdir -p "$NU/.planwright"
 printf '\377\376garbage\n' > "$NU/.planwright/final.md"
-rc=0; out="$(python3 "$LF" --root "$NU" --json 2>&1)" || rc=$?
-if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q '"present": false'; then
-  ok "lint-final.py treats a non-UTF-8 final.md as absent (exit 0, no traceback)"
+rc=0; out="$(python3 "$LF" --root "$NU" --json 2>/dev/null)" || rc=$?
+if [ "$rc" != 0 ] && printf '%s' "$out" | grep -q '"present": true' \
+   && printf '%s' "$out" | grep -q '"ok": false'; then
+  ok "lint-final.py fails closed on a non-UTF-8 final.md (present, not ok, exit non-zero, no traceback)"
 else
-  bad "lint-final.py crashed on a non-UTF-8 final.md (rc=$rc): $out"
+  bad "lint-final.py did not fail closed on a non-UTF-8 final.md (rc=$rc): $out"
 fi
 
 # --- Test LF9b: a present-but-undecodable final.md WARNS on stderr (visible degrade) -
-# LF9 pins the degrade (present:false, exit 0); this pins that the degrade is not SILENT.
-# A corrupt convergence marker that exists must surface a warning, not be swallowed as if
-# absent (the council fail-open fix) — while a genuinely-absent final.md stays silent.
+# LF9 pins the fail-closed verdict (present:true, ok:false, exit 1); this pins that the failure
+# is not SILENT. A corrupt convergence marker that exists must surface a warning, not be
+# swallowed as if absent (the council fail-open fix) — while a genuinely-absent final.md stays silent.
 NUW="$TMP/lf-nonutf8-warn"; mkdir -p "$NUW/.planwright"
 printf '\377\376garbage\n' > "$NUW/.planwright/final.md"
 rc=0; err="$(python3 "$LF" --root "$NUW" --json 2>&1 >/dev/null)" || rc=$?
-if [ "$rc" = 0 ] && printf '%s' "$err" | grep -q "could not be read"; then
+if [ "$rc" != 0 ] && printf '%s' "$err" | grep -q "could not be read"; then
   ok "lint-final.py warns on a present-but-undecodable final.md (visible degrade)"
 else
   bad "lint-final.py did not warn on a present-but-undecodable final.md (rc=$rc): $err"
