@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.55.0] - 2026-06-13
+
+### Changed
+- codmaster loop: route the post-growth harden to codshard explore (per-component deep-harden of freshly-grown code) when the repo is shardable; engine exposes the repo.shardable fact
+
 ## [1.54.0] - 2026-06-13
 
 ### Changed
