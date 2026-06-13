@@ -31,7 +31,7 @@ Planwright brings the same pattern to ordinary repositories: your agent inspects
 
 The difference is control. Planwright is local, free, agent-neutral, and file-based. You can inspect the plan, reject weak items, keep normal approval prompts, and move the same workflow between Claude Code, Codex, Cursor, Gemini, Antigravity, or any AGENTS.md-aware agent.
 
-## Install in 60 seconds
+## Quick Install
 
 On Claude Code:
 
@@ -219,7 +219,7 @@ Because of this, any agent that reliably reads a project `AGENTS.md` file can ho
 ### Claude Code
 
 The recommended path is the plugin install — the same two commands as
-[Install in 60 seconds](#install-in-60-seconds); manual skill copy is only for users not using
+[Quick Install](#quick-install); manual skill copy is only for users not using
 the plugin system. To work from a local clone instead, add the clone as a marketplace:
 
 ```bash
