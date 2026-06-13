@@ -361,7 +361,7 @@ the equivalent trigger from the command adapter table and keep the arguments the
 /codinventor               # invent: cycle 10 depth 10 invent
 /codcycle                  # 10 outer cycles of explore → framing-rotated invent, one closing explore
 /codshard                  # cycle 3 depth 10 per shard (staleness order), then a closing whole-repo round
-/codmaster                 # sense → dispatch → re-sense at depth 10 until the final point (advise | safe | loop)
+/codmaster                 # sense → dispatch → re-sense at depth 10 until the final point (advise | safe | loop | parallel)
 
 # Aim any run at one component (composes with execute/cycle)
 /planwright path src/auth/      # plan only the auth subtree (Focus); still reads its 1-hop deps (Context)
