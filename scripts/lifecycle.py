@@ -281,33 +281,40 @@ def reject(plan_path, target_path, index, reason):
 
 
 def _git_commit_meta(repo, ref):
-    """Resolve <ref> to (short_sha, subject) in the git repo <repo>. Raises LookupError
-    when <ref> is not a commit there, or git is unavailable — reconcile must never record
-    a fix that is not a real commit (that would be fabricated completed history)."""
+    """Resolve <ref> to (short_sha, full_sha, subject) in the git repo <repo>. Raises
+    LookupError when <ref> is not a commit there, or git is unavailable — reconcile must
+    never record a fix that is not a real commit (that would be fabricated completed
+    history). The full sha is returned so idempotency survives abbreviation-length drift."""
     spec = ref + "^{commit}"
     try:
-        subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", spec],
-                       check=True, capture_output=True, text=True)
+        full = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", spec],
+                              check=True, capture_output=True, text=True).stdout.strip()
         short = subprocess.run(["git", "-C", repo, "rev-parse", "--short", spec],
                                check=True, capture_output=True, text=True).stdout.strip()
         subject = subprocess.run(["git", "-C", repo, "show", "-s", "--format=%s", spec],
                                  check=True, capture_output=True, text=True).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         raise LookupError(f"'{ref}' is not a commit in {repo}") from e
-    if not short:
+    if not short or not full:
         raise LookupError(f"'{ref}' is not a commit in {repo}")
-    return short, subject
+    return short, full, subject
 
 
-def _already_recorded(completed_path, short_sha):
-    """True when completed.md already carries a `Commit: <short_sha>` block, so reconcile
-    is idempotent — re-recording the same commit is a no-op, never a duplicate."""
+def _already_recorded(completed_path, full_sha):
+    """True when completed.md already carries a `Commit:` block for this commit, matched by
+    full-sha PREFIX so it is robust to git's short-sha abbreviation length changing between
+    runs (a differing core.abbrev, or repo growth auto-expanding the default): every
+    abbreviation of a commit is a prefix of its full sha, so a recorded value the full sha
+    starts with is the same commit. This keeps reconcile idempotent (one commit -> one
+    record) regardless of the abbreviation length used when it was first recorded."""
     _pre, blocks = read_blocks(completed_path)
     for b in blocks:
         for ln in b["lines"]:
             s = ln.strip()
-            if s.startswith("Commit:") and s.split(":", 1)[1].strip() == short_sha:
-                return True
+            if s.startswith("Commit:"):
+                recorded = s.split(":", 1)[1].strip()
+                if recorded and full_sha.startswith(recorded):
+                    return True
     return False
 
 
@@ -317,11 +324,12 @@ def reconcile(completed_path, repo, ref, mode, title=None):
     directly). Resolves <ref> to its short sha + subject in <repo>, then appends a
     canonical `- [x] <title>` / `Mode: <mode>` / `Commit: <short-sha>` block to
     completed.md (FIFO-capped) so the dashboard's completed history reflects the fix.
-    Idempotent: a commit already recorded (matched by short sha) is skipped. Returns
-    (short_sha, title, recorded); recorded is False when it was already present."""
-    short, subject = _git_commit_meta(repo, ref)
+    Idempotent: a commit already recorded (matched by full-sha prefix, so abbreviation-
+    length drift cannot duplicate it) is skipped. Returns (short_sha, title, recorded);
+    recorded is False when it was already present."""
+    short, full, subject = _git_commit_meta(repo, ref)
     item_title = (title or subject or short).strip()
-    if _already_recorded(completed_path, short):
+    if _already_recorded(completed_path, full):
         return short, item_title, False
     block = {"checked": True, "rejected": False,
              "lines": [f"- [x] {item_title}",

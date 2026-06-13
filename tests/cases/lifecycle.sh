@@ -642,6 +642,22 @@ else
   bad "lifecycle.py reconcile duplicated an already-recorded commit (before=$rec_before after=$rec_after)"
 fi
 
+# --- Test L19g: idempotency survives a short-sha abbreviation-length change ----------
+# git's --short length depends on core.abbrev / repo size, so it can differ between two
+# reconcile calls for the SAME commit. Matching on full-sha prefix (not exact short-sha
+# equality) keeps that from recording a duplicate — the commit was first recorded with the
+# default abbreviation above; widening core.abbrev must still be a no-op.
+git -C "$RGT" config core.abbrev 20
+abbr_before="$(grep -c '^- \[x\]' "$RGT/.planwright/completed.md" 2>/dev/null || true)"
+abbr_out="$(python3 "$LC" reconcile --commit "$RGFULL" --mode improve --root "$RGT/.planwright")"
+abbr_after="$(grep -c '^- \[x\]' "$RGT/.planwright/completed.md" 2>/dev/null || true)"
+git -C "$RGT" config --unset core.abbrev 2>/dev/null || true
+if [ "$abbr_before" = "$abbr_after" ] && printf '%s' "$abbr_out" | grep -q 'already recorded'; then
+  ok "lifecycle.py reconcile idempotency survives a short-sha abbreviation-length change (no duplicate)"
+else
+  bad "lifecycle.py reconcile duplicated a commit when core.abbrev widened (before=$abbr_before after=$abbr_after)"
+fi
+
 # --- Test L19c: --title overrides the derived title; --json reports the record -------
 mkdir -p "$TMP/lc19c/.planwright"
 jrec="$(python3 "$LC" reconcile --commit "$RGFULL" --mode docs --title "explicit title" \
