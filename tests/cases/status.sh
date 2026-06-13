@@ -120,6 +120,25 @@ else
   bad "status.py emitted a spurious completed-mode breakdown on an empty completed log"
 fi
 
+# --- Test STS6e: the newest landing surfaces with its Commit provenance stamp ------
+# completed.md is append-ordered, so the LAST checked block is the most recent landing;
+# the report names it (with the Commit: stamp's sha when present) and --json carries
+# last_landed {title, commit}. Pre-stamp history degrades to a bare title (commit "");
+# the empty fixture above must yield null and NO report line.
+LLX="$TMP/status-lastland"; mkdir -p "$LLX/.planwright"
+printf -- '- [x] old work\n      Mode: docs\n- [x] newest work\n      Mode: develop\n      Commit: abc1234\n' \
+  > "$LLX/.planwright/completed.md"
+llrep="$(python3 "$STAT" --root "$LLX")"
+lljson="$(python3 "$STAT" --root "$LLX" --json)"
+if printf '%s' "$llrep" | grep -qE '^  last landed: newest work \(abc1234\)$' \
+   && printf '%s' "$lljson" | python3 -c 'import json,sys; m=json.load(sys.stdin); ll=m["last_landed"]; assert ll=={"title":"newest work","commit":"abc1234"}, ll' \
+   && printf '%s' "$ecrep" | { ! grep -q 'last landed'; } \
+   && python3 "$STAT" --root "$ECM" --json | python3 -c 'import json,sys; assert json.load(sys.stdin)["last_landed"] is None'; then
+  ok "status.py surfaces the newest landing with its Commit stamp (report + JSON, null when empty)"
+else
+  bad "status.py last-landed surface wrong: $llrep"
+fi
+
 # --- Test STS11: rejected items surface their titles + Rejection reasons ----------
 # status lists pending titles; for the feedback loop a power user also needs to see
 # what was rejected and why without cat'ing rejected.md. The readable report lists the

@@ -80,6 +80,7 @@ boolean). Its top-level fields:
 | `pending_modes` | object | `{mode: count}` breakdown of pending items, canonical order. |
 | `completed` | int | Count of completed (`- [x]`) items in `completed.md`. |
 | `completed_modes` | object | `{mode: count}` breakdown of completed items. |
+| `last_landed` | object\|null | The newest completed item: `{title, commit}` (`commit` = its `Commit:` provenance stamp, `""` for pre-stamp history); `null` when nothing has landed. |
 | `rejected` | int | Rejected item count (always equals `len(rejected_items)`). |
 | `rejected_items` | array | Rejected items: `{title, reason}` (reason `""` when absent). |
 | `carried` | int | Carried dossier candidates in the planning digest (0 when absent). |

@@ -154,6 +154,22 @@ def _completed_modes(path):
     return ordered
 
 
+def _last_landed(path):
+    """The most recent completed block as {"title", "commit"} — the file is
+    append-ordered (FIFO), so the last checked item is the newest landing. `commit`
+    is the `Commit:` provenance stamp the execute path appends on pass ("" for
+    history that predates the stamp). Returns None when completed.md is missing,
+    unreadable, or holds no checked item."""
+    last = None
+    for it in _parse(path):
+        if it["checked"]:
+            last = it
+    if last is None:
+        return None
+    return {"title": last["title"],
+            "commit": last["fields"].get("Commit", "").strip()}
+
+
 def _rejected_items(path):
     """Return rejected items as {"title","reason"} dicts, in file order. Each rejected
     entry is a `- [ ] <title>` (or `- [x]`) line followed by indented continuation lines;
@@ -315,6 +331,7 @@ def collect(root: str) -> dict:
     pending_modes = _pending_modes(os.path.join(pw, "plan.md"))
     completed = _count_checkbox(os.path.join(pw, "completed.md"), "- [x]")
     completed_modes = _completed_modes(os.path.join(pw, "completed.md"))
+    last_landed = _last_landed(os.path.join(pw, "completed.md"))
     rejected_items = _rejected_items(os.path.join(pw, "rejected.md"))
     # Derive the count from the canonical parser (same source as rejected_items) rather than
     # the loose `- [` prefix scan, so counts.rejected can never disagree with the rejected[]
@@ -399,6 +416,7 @@ def collect(root: str) -> dict:
         "pending_modes": pending_modes,
         "completed": completed,
         "completed_modes": completed_modes,
+        "last_landed": last_landed,
         "rejected": rejected,
         "rejected_items": rejected_items,
         "carried": carried,
@@ -795,6 +813,12 @@ def report(state, quiet):
     cmodes = state.get("completed_modes") or {}
     cbreak = "  (%s)" % ", ".join("%s %d" % (m, c) for m, c in cmodes.items()) if cmodes else ""
     print("  completed: %d%s" % (state["completed"], cbreak))
+    # The newest landing, with its Commit provenance stamp when one exists (history
+    # predating the stamp shows the bare title). Omitted entirely when nothing landed.
+    last = state.get("last_landed")
+    if last:
+        suffix = " (%s)" % last["commit"] if last["commit"] else ""
+        print("  last landed: %s%s" % (last["title"], suffix))
     print("  rejected:  %d" % state["rejected"])
     for item in state["rejected_items"]:
         suffix = " — " + item["reason"] if item["reason"] else ""
