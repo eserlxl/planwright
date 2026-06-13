@@ -376,7 +376,12 @@ class TestImportStripping(unittest.TestCase):
 
 
 def _git(work, *args):
-    subprocess.run(["git", "-C", work, *args], check=True,
+    # `-c commit.gpgsign=false` keeps these fixtures hermetic from the developer's/CI's
+    # global git config: a global commit.gpgsign=true with no usable GPG key would otherwise
+    # fail every fixture `git commit` (exit 128) and collapse the suite. The flag is inert for
+    # non-commit subcommands, so passing it on every call seals all fixtures in one place —
+    # mirroring the GIT_CONFIG_GLOBAL seal tests/lib.sh applies for the shell harness.
+    subprocess.run(["git", "-C", work, "-c", "commit.gpgsign=false", *args], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
