@@ -1120,6 +1120,35 @@ assert(/abc1234/.test(textOf(cmdC)),
 assert(/rejected this run/.test(textOf(cmdC)),
   "Commands contributions card must keep its accepted/rejected sub-line");
 
+// Targeted regression (load order): in the real browser ui.js (index.html loads it before the
+// views) creates window.PW_UI WITHOUT planMode, so plan.js must seed the "all" default itself
+// instead of assuming it is the object's creator. This harness pre-seeds win.PW_UI.planMode="all"
+// (the `win` literal above), which MASKS the bug — so reset to the genuine first-load state and
+// re-run the two files in index.html order, then assert the Plan view's DEFAULT render (no user
+// interaction, no prior planMode) lists pending items rather than hiding them as "mode 'undefined'".
+(function () {
+  var savedPW_UI = win.PW_UI;
+  win.PW_UI = undefined;                                                 // fresh page: nobody made PW_UI yet
+  vm.runInThisContext(fs.readFileSync(BASE + "/ui.js", "utf8"));         // ui.js loads first ...
+  vm.runInThisContext(fs.readFileSync(BASE + "/views/plan.js", "utf8")); // ... then plan.js seeds the default
+  assert(win.PW_UI.planMode === "all",
+    "plan.js must seed PW_UI.planMode='all' even when ui.js created window.PW_UI first (got " +
+    String(win.PW_UI.planMode) + ")");
+  var defState = Object.assign({}, state, {
+    pending: [{ title: "load-order item", mode: "repair", rationale: "r", evidence: "e",
+                surfaces: ["x"], new_surfaces: [], development: "d", acceptance: "a",
+                verification: "bash tests/run.sh" }],
+    completed: [], rejected: [],
+  });
+  var planDef = new El("section");
+  win.PW_VIEWS.plan(planDef, defState, bareCtx);
+  assert(findByClass(planDef, "pw-card").length === 1,
+    "Plan default render hid the pending item (planMode left undefined by ui.js/plan.js load order)");
+  assert(!/mode 'undefined'/.test(textOf(planDef)),
+    "Plan default render showed \"mode 'undefined'\" — plan.js did not seed the planMode default");
+  win.PW_UI = savedPW_UI;                                                // restore for the deferred tests below
+})();
+
 setTimeout(function () {
   assert(/Environment preflight/.test(textOf(docC)),
     "doctor paint() did not render the preflight after /doctor.json resolved");

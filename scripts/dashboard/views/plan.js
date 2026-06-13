@@ -16,7 +16,10 @@
 
   window.PW_VIEWS = window.PW_VIEWS || {};
   // Shared, view-state-only UI state so the command palette can drive the mode filter.
-  var PW_UI = window.PW_UI || (window.PW_UI = { planMode: "all" });
+  // Seed the "all" default load-order-independently: ui.js (loaded first) creates
+  // window.PW_UI without planMode, so this must not assume it is the object's creator.
+  var PW_UI = window.PW_UI || (window.PW_UI = {});
+  if (PW_UI.planMode == null) { PW_UI.planMode = "all"; }
 
   var FIELDS = [
     ["mode", "Mode"], ["rationale", "Rationale"], ["evidence", "Evidence"],
