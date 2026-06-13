@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.56.0] - 2026-06-13
+
+### Changed
+- Recent-contributions card on the dashboard home page (Console), above the dirty pulse
+
 ## [1.55.0] - 2026-06-13
 
 ### Changed
