@@ -93,3 +93,27 @@ Deliberate divergences from `state.json`: `status` reports **flat integer counts
 bodies in `pending`/`completed`; and the rejected list is named **`rejected_items`**
 here but `rejected` there. Consumers of one contract must not assume the other's field
 names.
+
+## verify-manifest
+
+`scripts/state.py --root . --verify-manifest` is a third read-only machine contract — the
+pending plan's **Verification commands** as a consumable, runnable artifact (planwright's
+"every item carries a runnable verification" promise made external). It writes no
+`state.json`; it prints to stdout and is byte-stable on an unchanged plan (the same
+determinism guarantee `state.json` itself holds). The commands are **deduped in plan
+order** — a command shared by several items appears once, paired with all their titles.
+
+Two output forms, selected by `--as`:
+
+- **`--as json` (default)** — a JSON array of `{command, titles}` objects, in plan order:
+
+  | Field | Type | Meaning |
+  |-------|------|---------|
+  | `command` | string | A pending item's `Verification:` command (whitespace-trimmed). |
+  | `titles` | array | The titles of the pending items that share this command, in plan order. |
+
+  Items with an empty `Verification:` are skipped (they carry no runnable command).
+
+- **`--as sh`** — a runnable shell script: a `#!/usr/bin/env bash` shebang, `set -euo
+  pipefail`, then each unique command once, each preceded by its titles as `#` comments.
+  An external CI step or AGENTS.md-aware agent can run it directly to re-verify the plan.
