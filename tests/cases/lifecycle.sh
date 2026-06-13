@@ -137,6 +137,27 @@ else
   ok "lifecycle.py land rejects an out-of-range pending index (exit 2, nothing modified)"
 fi
 
+# --- Test L4e: land's --commit corruption guard refuses a bad/missing stamp (exit 2) ----
+# land stamps --commit verbatim onto a machine-read Commit: provenance line (parsed later by
+# the dashboard and lifecycle._already_recorded). A whitespace/control value, or a missing
+# --commit / missing index, would corrupt that stamp. The sibling negatives ARE pinned
+# (reject's out-of-range index above; reconcile's flag/control --commit at L19d), so land's
+# bad_value/missing-commit/missing-index branches were a clear coverage asymmetry. None of the
+# three may flip the item or write completed.md.
+LCG="$TMP/lifecycle-land-guard"; mkdir -p "$LCG"
+printf -- '- [ ] stamp me\n      Mode: docs\n' > "$LCG/plan.md"
+lcg_before="$(cksum "$LCG/plan.md")"
+ws_rc=0;  python3 "$LC" land 1 --commit "ab cd" --root "$LCG" >/dev/null 2>&1 || ws_rc=$?
+noc_rc=0; python3 "$LC" land 1 --root "$LCG" >/dev/null 2>&1 || noc_rc=$?
+noi_rc=0; python3 "$LC" land --commit abc1234 --root "$LCG" >/dev/null 2>&1 || noi_rc=$?
+if [ "$ws_rc" = 2 ] && [ "$noc_rc" = 2 ] && [ "$noi_rc" = 2 ] \
+   && [ "$(cksum "$LCG/plan.md")" = "$lcg_before" ] \
+   && [ ! -f "$LCG/completed.md" ]; then
+  ok "lifecycle.py land refuses a whitespace/missing --commit and a missing index (exit 2, nothing written)"
+else
+  bad "lifecycle.py land --commit guard wrong (ws=$ws_rc noc=$noc_rc noi=$noi_rc)"
+fi
+
 # --- Test L5b: SKILL.md's On PASS step wires lifecycle.py land --------------------
 # Same posture as the Stage 0 wiring check: the execute procedure must prefer the
 # canonical script for the flip/stamp/drain bookkeeping it mechanizes.
