@@ -54,7 +54,7 @@ of them with no arguments and Planwright does the rest: it prints the estimated 
 first, then works autonomously through plan→build→verify rounds until it runs out of worthwhile
 work.
 
-| Command            | What it does                                                 | Best for                       |
+| Command&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | What it does                                                 | Best for                       |
 |--------------------|--------------------------------------------------------------|--------------------------------|
 | `/codmaster`       | Senses repo state and drives all other motions autonomously. | The front door / full autonomy |
 | `/codvisor`        | Fixes real work, stops when clean.                           | Analyze and repair             |
