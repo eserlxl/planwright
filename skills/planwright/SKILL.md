@@ -1210,6 +1210,25 @@ For each targeted pending item, in plan order:
 6. **Blocked** — if the item depends on an unresolved design decision, or needs surfaces it does not
    declare, leave it pending, record why, and treat it as a **hard blocker**: in auto mode STOP here.
 
+**Completion accounting (mandatory invariant).** Every fix you implement **and commit** in this run
+MUST be recorded as a completed item in `.planwright/completed.md` — there is no such thing as a
+committed fix with no completed record. `completed.md` is the only record the dashboard's
+Plan/Timeline/Console history reads, and `.planwright/` is gitignored, so an unrecorded commit
+silently vanishes from the planning history (git keeps the commit; nothing keeps the plan record).
+Two paths, one invariant:
+
+- **From a plan item** — the On-PASS step above (`<scripts>/lifecycle.py land <N>`) lands the pending
+  `plan.md` item into `completed.md`. This is the normal path, already covered by step 4.
+- **A direct commit (no pending plan item)** — when work was audited and committed inline without a
+  `plan.md` item to land (e.g. a `cycle` / `codshard` / `codvisor` fix applied directly), record it
+  **before the run ends** with `python3 <scripts>/lifecycle.py reconcile --commit <sha> --mode <mode>
+  --root <target>/.planwright` — it resolves the commit's short sha + subject, is idempotent by short
+  sha (re-running is a no-op), git-verifies the ref so it can never record a fake commit, and appends
+  the canonical `- [x]` / `Mode:` / `Commit:` block.
+
+A run that commits a fix but leaves `completed.md` without its record is a **contract violation — treat
+it as a hard error**: reconcile the missing commits before reporting the run complete.
+
 ## After all targeted items — broad final verification
 
 Run the project's full build + test (not just per-item focused tests). If it fails, STOP and report:

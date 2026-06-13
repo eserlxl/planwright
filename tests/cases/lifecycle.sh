@@ -601,3 +601,84 @@ if grep -q '^- \[ \] Live pending item' "$LBS/plan.md" \
 else
   bad "lifecycle.py drained a live item via an out-of-span Status field"
 fi
+
+
+# --- Test L19: reconcile records an already-committed fix into completed.md ----------
+# reconcile is the escape hatch for work committed directly (no plan.md item to land):
+# it resolves a commit to its short sha + subject and appends a canonical
+# - [x] / Mode / Commit block to completed.md, so the dashboard's completed history
+# reflects a fix that did not flow through plan.md -> land. Build a throwaway git repo
+# with one known commit and reconcile it (the repo auto-resolves as the parent of --root).
+RGT="$TMP/lc19"; mkdir -p "$RGT"
+(
+  cd "$RGT" || exit
+  git init -q
+  git config user.email t@example.com
+  git config user.name t
+  git config commit.gpgsign false
+  printf 'hello\n' > f.txt
+  git add -A
+  git commit -qm "Reconcile test commit subject"
+) >/dev/null 2>&1
+RGSHA="$(git -C "$RGT" rev-parse --short HEAD)"
+RGFULL="$(git -C "$RGT" rev-parse HEAD)"
+mkdir -p "$RGT/.planwright"
+if python3 "$LC" reconcile --commit "$RGFULL" --mode improve --root "$RGT/.planwright" >/dev/null \
+   && grep -q -- '- \[x\] Reconcile test commit subject' "$RGT/.planwright/completed.md" \
+   && grep -q -- '      Mode: improve' "$RGT/.planwright/completed.md" \
+   && grep -q -- "      Commit: $RGSHA" "$RGT/.planwright/completed.md"; then
+  ok "lifecycle.py reconcile records a committed fix into completed.md (title from subject, repo from --root parent)"
+else
+  bad "lifecycle.py reconcile did not record the commit correctly"
+fi
+
+# --- Test L19b: reconcile is idempotent (a commit already recorded is a no-op) -------
+rec_before="$(grep -c '^- \[x\]' "$RGT/.planwright/completed.md" 2>/dev/null || true)"
+rerun_out="$(python3 "$LC" reconcile --commit "$RGFULL" --mode improve --root "$RGT/.planwright")"
+rec_after="$(grep -c '^- \[x\]' "$RGT/.planwright/completed.md" 2>/dev/null || true)"
+if [ "$rec_before" = "$rec_after" ] && printf '%s' "$rerun_out" | grep -q 'already recorded'; then
+  ok "lifecycle.py reconcile is idempotent (a commit already recorded is a no-op)"
+else
+  bad "lifecycle.py reconcile duplicated an already-recorded commit (before=$rec_before after=$rec_after)"
+fi
+
+# --- Test L19c: --title overrides the derived title; --json reports the record -------
+mkdir -p "$TMP/lc19c/.planwright"
+jrec="$(python3 "$LC" reconcile --commit "$RGFULL" --mode docs --title "explicit title" \
+        --root "$TMP/lc19c/.planwright" --repo "$RGT" --json)"
+if printf '%s' "$jrec" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"]=="reconcile" and d["title"]=="explicit title" and d["mode"]=="docs" and d["recorded"] is True and d["commit"]' 2>/dev/null \
+   && grep -q -- '- \[x\] explicit title' "$TMP/lc19c/.planwright/completed.md"; then
+  ok "lifecycle.py reconcile --title overrides the derived title and --json reports the record"
+else
+  bad "lifecycle.py reconcile --title/--json wrong (out='$jrec')"
+fi
+
+# --- Test L19d: a non-commit and an invalid --mode are refused (exit 2, nothing written) -
+mkdir -p "$TMP/lc19d/.planwright"
+bog_rc=0; python3 "$LC" reconcile --commit deadbeefcafe --mode improve --root "$TMP/lc19d/.planwright" --repo "$RGT" >/dev/null 2>&1 || bog_rc=$?
+mode_rc=0; python3 "$LC" reconcile --commit "$RGFULL" --mode nonsense --root "$TMP/lc19d/.planwright" --repo "$RGT" >/dev/null 2>&1 || mode_rc=$?
+if [ "$bog_rc" = 2 ] && [ "$mode_rc" = 2 ] && [ ! -f "$TMP/lc19d/.planwright/completed.md" ]; then
+  ok "lifecycle.py reconcile refuses a non-commit and an invalid --mode (exit 2, nothing written)"
+else
+  bad "lifecycle.py reconcile validation wrong (bogus=$bog_rc mode=$mode_rc)"
+fi
+
+# --- Test L19e: --mode/--title/--repo are rejected on a non-reconcile command --------
+stray_rc=0; python3 "$LC" housekeep --root "$TMP/lc19d/.planwright" --mode improve >/dev/null 2>&1 || stray_rc=$?
+if [ "$stray_rc" = 2 ]; then
+  ok "lifecycle.py rejects --mode/--title/--repo on a non-reconcile command (exit 2)"
+else
+  bad "lifecycle.py accepted a stray --mode on a non-reconcile command (rc=$stray_rc)"
+fi
+
+# --- Test L19f: SKILL.md wires reconcile + states the mandatory completion-accounting rule ---
+# Contract: a fix that is implemented AND committed must ALWAYS be recorded in completed.md
+# (via land for a plan.md item, or reconcile for a direct commit). The execute/cycle path
+# must name the canonical reconcile script and state the rule, so the dashboard history can
+# never silently miss a committed fix.
+if grep -q 'lifecycle.py reconcile' "$ROOT/skills/planwright/SKILL.md" \
+   && grep -qi 'completion accounting' "$ROOT/skills/planwright/SKILL.md"; then
+  ok "SKILL.md wires lifecycle.py reconcile and states the completion-accounting contract"
+else
+  bad "SKILL.md does not wire reconcile or state the mandatory completion-accounting rule"
+fi

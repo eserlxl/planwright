@@ -27,6 +27,15 @@
 #      and drain exactly that block to rejected.md (FIFO cap 100). The exact
 #      Status: Rejected spelling is what the drain and the next plan's PREVIOUSLY
 #      REJECTED reader key on — mechanizing it keeps the feedback loop machine-readable.
+#   reconcile --commit <sha> --mode <mode> [--title T] — record an ALREADY-committed fix
+#      as a completed item when the work landed in git WITHOUT a plan.md item to land
+#      (an inline codshard/codvisor/execute fix that was committed directly). Resolves
+#      <sha> to its short sha + commit subject (in the repo that is the parent of --root,
+#      or --repo) and appends a canonical `- [x] <title>` / `Mode:` / `Commit:` block to
+#      completed.md (FIFO cap 100). Idempotent by short sha, and git-verified so it can
+#      never record a fix that is not a real commit. This is the escape hatch that keeps
+#      the "a committed fix is ALWAYS recorded as completed" contract satisfiable for work
+#      that did not flow through plan.md -> land.
 #
 # It also mechanizes a deliberate full cold-start reset (NOT part of Stage 0):
 #   reset (aka fresh / clean) — clear the .planwright/ tool-state directory so the next run
@@ -46,6 +55,7 @@
 #   python3 scripts/lifecycle.py {drain-completed|drain-rejected|reset-if-empty} --root DIR
 #   python3 scripts/lifecycle.py land <N> --commit <short-sha> --root DIR
 #   python3 scripts/lifecycle.py reject <N> --reason "<one-line>" --root DIR
+#   python3 scripts/lifecycle.py reconcile --commit <sha> --mode <mode> --root DIR
 #   python3 scripts/lifecycle.py reset --root .planwright   (keeps rejected.md)
 
 import argparse
@@ -53,6 +63,7 @@ import contextlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -68,6 +79,8 @@ from plan_parse import parse_items  # noqa: E402
 
 FIFO_CAP = 100
 LOCK_NAME = ".lifecycle.lock"
+# The plan modes lint-plan/SKILL.md recognise; reconcile records one onto a completed item.
+VALID_MODES = ("develop", "improve", "repair", "docs", "reorganize")
 
 
 @contextlib.contextmanager
@@ -267,6 +280,57 @@ def reject(plan_path, target_path, index, reason):
     return block["lines"][0].split("]", 1)[1].strip()
 
 
+def _git_commit_meta(repo, ref):
+    """Resolve <ref> to (short_sha, subject) in the git repo <repo>. Raises LookupError
+    when <ref> is not a commit there, or git is unavailable — reconcile must never record
+    a fix that is not a real commit (that would be fabricated completed history)."""
+    spec = ref + "^{commit}"
+    try:
+        subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", spec],
+                       check=True, capture_output=True, text=True)
+        short = subprocess.run(["git", "-C", repo, "rev-parse", "--short", spec],
+                               check=True, capture_output=True, text=True).stdout.strip()
+        subject = subprocess.run(["git", "-C", repo, "show", "-s", "--format=%s", spec],
+                                 check=True, capture_output=True, text=True).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        raise LookupError(f"'{ref}' is not a commit in {repo}") from e
+    if not short:
+        raise LookupError(f"'{ref}' is not a commit in {repo}")
+    return short, subject
+
+
+def _already_recorded(completed_path, short_sha):
+    """True when completed.md already carries a `Commit: <short_sha>` block, so reconcile
+    is idempotent — re-recording the same commit is a no-op, never a duplicate."""
+    _pre, blocks = read_blocks(completed_path)
+    for b in blocks:
+        for ln in b["lines"]:
+            s = ln.strip()
+            if s.startswith("Commit:") and s.split(":", 1)[1].strip() == short_sha:
+                return True
+    return False
+
+
+def reconcile(completed_path, repo, ref, mode, title=None):
+    """Record an already-committed fix as a completed item — for work that landed in git
+    WITHOUT a plan.md item to land (an inline codshard/codvisor/execute fix committed
+    directly). Resolves <ref> to its short sha + subject in <repo>, then appends a
+    canonical `- [x] <title>` / `Mode: <mode>` / `Commit: <short-sha>` block to
+    completed.md (FIFO-capped) so the dashboard's completed history reflects the fix.
+    Idempotent: a commit already recorded (matched by short sha) is skipped. Returns
+    (short_sha, title, recorded); recorded is False when it was already present."""
+    short, subject = _git_commit_meta(repo, ref)
+    item_title = (title or subject or short).strip()
+    if _already_recorded(completed_path, short):
+        return short, item_title, False
+    block = {"checked": True, "rejected": False,
+             "lines": [f"- [x] {item_title}",
+                       f"      Mode: {mode}",
+                       f"      Commit: {short}"]}
+    append_capped(completed_path, [block])
+    return short, item_title, True
+
+
 def reset_if_empty(plan_path):
     """Delete plan.md when it holds no pending (- [ ], non-rejected) item AND no
     undrained rejected item. Returns True if it was deleted. Pending items are left
@@ -325,7 +389,7 @@ def main():
     ap = argparse.ArgumentParser(description="planwright Stage 0 lifecycle housekeeping.")
     ap.add_argument("command",
                     choices=["drain-completed", "drain-rejected", "reset-if-empty", "housekeep",
-                             "land", "reject", "reset", "fresh", "clean"])
+                             "land", "reject", "reconcile", "reset", "fresh", "clean"])
     ap.add_argument("index", nargs="?", type=int, default=None,
                     help="pending item number, 1-based in plan order (land/reject only)")
     ap.add_argument("--root", default=".planwright",
@@ -334,10 +398,19 @@ def main():
                     help="the landing commit's short sha to stamp on the item (land only)")
     ap.add_argument("--reason", default=None, metavar="TEXT",
                     help="the one-line Rejection: reason to record on the item (reject only)")
+    ap.add_argument("--mode", default=None, metavar="MODE",
+                    help="the plan mode to record on a reconciled item (reconcile only; one of "
+                         "develop/improve/repair/docs/reorganize)")
+    ap.add_argument("--title", default=None, metavar="TEXT",
+                    help="override the recorded title (reconcile only; defaults to the commit subject)")
+    ap.add_argument("--repo", default=None, metavar="DIR",
+                    help="the git repo to resolve --commit against (reconcile only; defaults to "
+                         "the parent of --root)")
     ap.add_argument("--quiet", action="store_true", help="suppress the report line")
     ap.add_argument("--json", action="store_true",
                     help="emit the report as a JSON object (command/compacted/rejected_drained/"
-                         "plan_deleted for housekeep; command/cleared/rejected_kept for reset) for CI "
+                         "plan_deleted for housekeep; command/cleared/rejected_kept for reset; "
+                         "command/commit/title/mode/recorded for reconcile) for CI "
                          "(parity with the sibling scripts); --quiet still suppresses all output")
     args = ap.parse_args()
     # Validate the deletion boundary at the argument edge: reset_if_empty()
@@ -358,6 +431,67 @@ def main():
             f"lifecycle: --root {args.root!r} contains a NUL or control character\n")
         return 2
     root = args.root
+
+    # reconcile: record an already-committed fix into completed.md (no plan.md item to
+    # land). Handled before the land/reject option guards because it legitimately uses
+    # --commit. This is the contract escape hatch for work committed directly.
+    if args.command == "reconcile":
+        if args.index is not None or args.reason is not None:
+            sys.stderr.write("lifecycle: reconcile takes --commit/--mode/--title/--repo, "
+                             "not an item index or --reason\n")
+            return 2
+        commit = (args.commit or "").strip()
+        # --commit is a git ref that also lands verbatim on a `Commit:` line: no whitespace/control.
+        bad_commit = (not commit
+                      or any(ch.isspace() or ord(ch) < 0x20 or ch == "\x7f" for ch in commit))
+        mode = (args.mode or "").strip()
+        if bad_commit or mode not in VALID_MODES:
+            sys.stderr.write(
+                "Usage: lifecycle.py reconcile --commit <sha> "
+                "--mode <develop|improve|repair|docs|reorganize> "
+                "[--title TEXT] [--repo DIR] [--root DIR]\n")
+            return 2
+        title = args.title
+        if title is not None:
+            title = title.strip()
+            # the title lands on the `- [x] <title>` line, so it stays one clean line
+            if not title or any(ord(ch) < 0x20 or ch == "\x7f" for ch in title):
+                sys.stderr.write("lifecycle: --title must be a non-empty single line\n")
+                return 2
+        repo = args.repo or os.path.dirname(os.path.abspath(root))
+        if not os.path.isdir(root):
+            if os.path.exists(root):
+                sys.stderr.write(f"lifecycle: --root {root!r} is not a directory; "
+                                 "nothing was modified\n")
+                return 2
+            os.makedirs(root, exist_ok=True)
+        try:
+            with _state_lock(root):
+                short, item_title, recorded = reconcile(
+                    os.path.join(root, "completed.md"), repo, commit, mode, title)
+        except LookupError as e:
+            sys.stderr.write(f"lifecycle: {e}; nothing was modified\n")
+            return 2
+        except (UnicodeDecodeError, NotADirectoryError, IsADirectoryError, PermissionError) as e:
+            sys.stderr.write(f"lifecycle: cannot read completed.md "
+                             f"({e.__class__.__name__}: {e}); nothing was modified\n")
+            return 2
+        if not args.quiet and args.json:
+            print(json.dumps({"command": "reconcile", "commit": short, "title": item_title,
+                              "mode": mode, "recorded": recorded}))
+        elif not args.quiet:
+            if recorded:
+                print(f"lifecycle: recorded commit {short} '{item_title}' "
+                      f"(Mode: {mode}) -> completed.md")
+            else:
+                print(f"lifecycle: commit {short} already recorded -> completed.md (no change)")
+        return 0
+
+    # --mode/--title/--repo belong to reconcile alone; a stray one elsewhere is a mistype.
+    if args.mode is not None or args.title is not None or args.repo is not None:
+        sys.stderr.write("lifecycle: --mode, --title, and --repo are valid only with the "
+                         "reconcile subcommand\n")
+        return 2
 
     # The index positional, --commit, and --reason belong to land/reject alone; a
     # stray one on any other subcommand is a mis-typed invocation, not something to
