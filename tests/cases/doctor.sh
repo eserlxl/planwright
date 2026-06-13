@@ -80,7 +80,7 @@ else
   bad "doctor.py mis-graded a missing-tool environment (rc=$rc)"
 fi
 
-# --- Test DR5: doctor's BUNDLED dashboard views match index.html's referenced views ----
+# --- Test DR4b: doctor's BUNDLED dashboard views match index.html's referenced views ---
 # BUNDLED's stated contract is to "list each load-bearing asset index.html requires"; a view
 # index.html loads but BUNDLED omits is a silent partial-install blind spot (a missing
 # shards.js once 404'd while doctor still reported a healthy install). Derive the view set
