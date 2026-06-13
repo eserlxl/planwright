@@ -35,6 +35,7 @@ import signal
 import sys
 import threading
 import time
+import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -147,7 +148,9 @@ class Handler(BaseHTTPRequestHandler):
 
     @property
     def root(self):
-        return self.server.planwright_root
+        # do_GET resolves the per-request project (by id, against the allow-list) and stashes
+        # it in self._root before any handler runs; fall back to the launch root defensively.
+        return getattr(self, "_root", None) or self.server.planwright_root
 
     # Dynamic snapshots must never be served from the browser cache: the SSE stream is what
     # tells the page to refetch, so a cached /state.json would freeze the live view.
@@ -191,9 +194,44 @@ class Handler(BaseHTTPRequestHandler):
         # defense — a rebound attacker hostname still fails the membership test.
         return hostname.lower() in self._ALLOWED_HOSTS
 
+    def _project_allowlist(self):
+        """The current {id: abspath} allow-list of selectable projects: the live registry
+        plus the launch --root (always reachable by its own id). Read fresh per request so a
+        project that started running after launch appears without a server restart, and with
+        prune=False so a GET never writes — the serving path stays read-only even toward the
+        registry. The browser may select a project ONLY by an id in this map; a
+        client-supplied path is never honored, which is what keeps the dashboard from being an
+        arbitrary-directory read (state/recommend/doctor each run git in the chosen root)."""
+        allow = {e["id"]: e["path"] for e in registry.list_projects(prune=False)}
+        root = self.server.planwright_root
+        allow.setdefault(registry.project_id(root), root)
+        return allow
+
+    def _resolve_project_root(self):
+        """Resolve this request's project root, returning (root, known). With no ?project,
+        use the launch --root (single-project / back-compat). With ?project=<id>, resolve the
+        id against the allow-list; an unknown id yields (None, False) so do_GET 404s. A
+        ?project value is an opaque id, never a path — so ?project=/etc cannot select a
+        directory; it simply fails the allow-list lookup."""
+        query = urllib.parse.urlsplit(self.path).query
+        pid = (urllib.parse.parse_qs(query).get("project") or [None])[0]
+        if pid is None:
+            return self.server.planwright_root, True
+        root = self._project_allowlist().get(pid)
+        if root is None:
+            return None, False
+        return root, True
+
     def do_GET(self):
         if not self._host_allowed():
             return self._send(403, "text/plain; charset=utf-8", "forbidden host")
+        # Resolve which project this request targets — by opaque id against the allow-list,
+        # never by a client path. An unknown id 404s before any handler reads the filesystem.
+        root, known = self._resolve_project_root()
+        if not known:
+            return self._send(404, "application/json; charset=utf-8",
+                              json.dumps({"error": "unknown project"}), self._NO_STORE)
+        self._root = root
         path = self.path.split("?", 1)[0]
         if path == "/state.json":
             return self._serve_state()

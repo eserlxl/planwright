@@ -1304,3 +1304,61 @@ assert names == ["two"], names   # one removed; two discovered
 else
   bad "dashboard.py --discover/--remove did not yield the expected registry"
 fi
+
+# --- Test DMP: per-request project resolution by opaque id against the allow-list ---------
+# Two projects: launch --root A, and B registered in a temp registry. The server must serve
+# A by default (back-compat), serve B by its id, 404 an unknown id, and NEVER honor a raw
+# path passed as ?project (the security boundary).
+DMP="$TMP/dash-mp"; mkdir -p "$DMP/.planwright"
+printf -- '- [ ] alpha-item\n      Mode: develop\n' > "$DMP/.planwright/plan.md"
+DMPB="$TMP/dash-mp-b"; mkdir -p "$DMPB/.planwright"
+printf -- '- [ ] beta-item\n      Mode: improve\n\n- [ ] beta-two\n      Mode: improve\n' > "$DMPB/.planwright/plan.md"
+DMPX="$TMP/dash-mp-xdg"; mkdir -p "$DMPX"
+XDG_CONFIG_HOME="$DMPX" python3 "$DASH" --add "$DMPB" >/dev/null
+
+cat > "$TMP/dash_mp_client.py" <<'PY'
+import json, os, subprocess, sys, time, urllib.request, urllib.error
+dash, scripts, rootA, rootB, xdg = sys.argv[1:6]
+sys.path.insert(0, scripts)
+import registry
+idB = registry.project_id(rootB)
+env = dict(os.environ); env["XDG_CONFIG_HOME"] = xdg
+proc = subprocess.Popen([sys.executable, dash, "--root", rootA, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+try:
+    port, deadline = None, time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            break
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    assert port, "no port banner"
+    base = "http://127.0.0.1:%d" % port
+    def get(pathq):
+        try:
+            with urllib.request.urlopen(base + pathq, timeout=5) as r:
+                return r.status, json.loads(r.read().decode())
+        except urllib.error.HTTPError as e:
+            return e.code, None
+    st, data = get("/state.json")
+    assert st == 200 and [p["title"] for p in data["pending"]] == ["alpha-item"], ("default!=A", st, data and data["pending"])
+    st, data = get("/state.json?project=" + idB)
+    assert st == 200 and [p["title"] for p in data["pending"]] == ["beta-item", "beta-two"], ("id!=B", st, data and data["pending"])
+    st, _ = get("/state.json?project=deadbeefdeadbeef")
+    assert st == 404, ("unknown id not 404", st)
+    st, _ = get("/state.json?project=/etc")
+    assert st == 404, ("raw path honored as project", st)
+    print("MP_OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+if python3 "$TMP/dash_mp_client.py" "$DASH" "$ROOT/scripts" "$DMP" "$DMPB" "$DMPX" 2>/dev/null | grep -q MP_OK; then
+  ok "dashboard resolves ?project=<id> via allow-list (default serves --root; unknown id + raw path 404)"
+else
+  bad "dashboard multi-project id resolution failed (allow-list / 404 / back-compat)"
+fi
