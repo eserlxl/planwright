@@ -8,7 +8,9 @@ so a maintainer can see it at a glance without running a plan or cycle. It reads
 **Canonical check.** Prefer the deterministic, test-covered `<scripts>/status.py` (resolve
 `<scripts>` per **Procedure → Bundled scripts**): run `python3 <scripts>/status.py --root <target>`
 in the sandbox and relay its report (`--json` for machine output, `--quiet` for exit-code-only,
-`--exit-code` to gate on convergence — see below). It reads `<target>/.planwright/` and reports:
+`--exit-code` to gate on convergence, `--ledger` for the chronological completed-work
+`{title, mode, commit}` provenance ledger as JSON — the multi-item superset of item 1's
+`last_landed` — see below). It reads `<target>/.planwright/` and reports:
 
 1. **Item counts** — pending (`- [ ]` in `plan.md`), completed (`- [x]` in `completed.md`), and
    rejected (`rejected.md`). Beneath the completed count, the report names the newest landing:
