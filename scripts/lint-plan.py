@@ -82,10 +82,17 @@ PLACEHOLDER_VERIFICATION = {
 # A Verification can also dodge the set above with unlisted prose ("verify manually",
 # "checks pending approval") that is just as unrunnable. Flag a *multi-word* value that
 # carries no runnable-command signal — no path/operator character and a first token that
-# is not a known runner. A single token (possibly a custom binary) or any value with a
-# command signal is never flagged, so a real command that merely contains a placeholder
-# word ("manual smoke test then bash tests/run.sh") still passes.
+# is neither a known runner nor program-name-shaped. A single token (possibly a custom
+# binary) or any value with a command signal is never flagged, so a real command that
+# merely contains a placeholder word ("manual smoke test then bash tests/run.sh") still
+# passes. A first token that itself looks like a program name — it carries a '_', '-', or
+# '.' ("run_tests all", "run-tests all", "a.out x") — is also treated as a command, not
+# prose: '-' and '.' already register as _CMD_SIGNAL anywhere in the value, but '_' did
+# not, so an underscore-named project runner was wrongly flagged while its hyphenated twin
+# passed. This closes that gap (see _PROGRAM_NAME_CHARS).
 _CMD_SIGNAL = set("/|&;<>$(){}=*\"'`-.")
+# Characters that a program/runner name commonly carries but a plain English word does not.
+_PROGRAM_NAME_CHARS = set("_-.")
 _KNOWN_EXEC = {
     "python", "python3", "py", "bash", "sh", "zsh", "ctest", "cmake", "make",
     "pytest", "unittest", "npm", "npx", "yarn", "pnpm", "cargo", "go", "node",
@@ -110,13 +117,17 @@ _KNOWN_EXEC = {
 
 def is_prose_verification(norm):
     """True when a normalized Verification value reads as prose, not a command:
-    two or more words, no command-signal character, and a first token that is not a
-    known executable. Conservative by design — single tokens and anything carrying a
-    path, flag, shell operator, or dotted target are left alone (see _CMD_SIGNAL)."""
+    two or more words, no command-signal character, and a first token that is neither a
+    known executable nor program-name-shaped. Conservative by design — single tokens and
+    anything carrying a path, flag, shell operator, or dotted target are left alone (see
+    _CMD_SIGNAL), as is a first token that itself looks like a program name (carries a
+    '_'/'-'/'.', e.g. an underscore-named custom runner 'run_tests all')."""
     tokens = norm.split()
     if len(tokens) < 2:
         return False
     if any(ch in _CMD_SIGNAL for ch in norm):
+        return False
+    if any(ch in _PROGRAM_NAME_CHARS for ch in tokens[0]):
         return False
     return tokens[0] not in _KNOWN_EXEC
 

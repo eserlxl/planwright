@@ -56,6 +56,15 @@ class TestProseVerification(unittest.TestCase):
             self.assertFalse(lp.is_prose_verification(cmd),
                              f"{cmd!r} should be a runnable command, not prose")
 
+    def test_custom_underscore_runner_not_prose(self):
+        # A project-specific runner whose name carries a '_' ("run_tests all") must not be
+        # misread as prose. '-' and '.' already register as command signals anywhere in the
+        # value; '_' did not, so the underscore form was wrongly flagged while its hyphenated
+        # twin passed. The first token being program-name-shaped now suffices.
+        for cmd in ("run_tests all", "build_check fast", "run-tests all", "a.out --check"):
+            self.assertFalse(lp.is_prose_verification(cmd),
+                             f"{cmd!r} should be a runnable command, not prose")
+
     def test_genuine_prose_still_flagged(self):
         # The heuristic must still catch real prose (two+ words, no command-signal
         # char, first token not a known runner).
