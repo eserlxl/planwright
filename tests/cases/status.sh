@@ -586,7 +586,7 @@ fi
 # status._load_lint_final degrades to the sha+pending convergence check when its sibling
 # validator cannot load. A genuinely-absent validator degrades silently, but one that is
 # PRESENT but broken (syntax/import error) must warn on stderr rather than silently disable
-# the convergence gate (the council fail-open fix). status stays read-only (exit 0).
+# the convergence gate (the fail-open hardening). status stays read-only (exit 0).
 SBV="$TMP/status-broken-validator"; mkdir -p "$SBV/.planwright"
 cp "$ROOT/scripts/status.py" "$ROOT/scripts/plan_parse.py" "$SBV/"
 printf 'def collect(root):\n    this is a syntax error\n' > "$SBV/lint-final.py"

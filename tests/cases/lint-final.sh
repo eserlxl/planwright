@@ -117,7 +117,7 @@ fi
 
 # --- Test LF9: a non-UTF-8 final.md fails closed, not a crash and not silently absent ----
 # collect() reads UTF-8; a corrupt (non-UTF-8) final.md raises UnicodeDecodeError (a
-# ValueError subclass). It must NOT traceback, and — per the council fail-open fix — must NOT
+# ValueError subclass). It must NOT traceback, and — per the fail-open hardening — must NOT
 # masquerade as the absent/valid state: a present-but-unreadable marker fails closed
 # (present:true, ok:false, exit 1) so status --exit-code refuses on a corrupt environment.
 NU="$TMP/lf-nonutf8"; mkdir -p "$NU/.planwright"
@@ -133,7 +133,7 @@ fi
 # --- Test LF9b: a present-but-undecodable final.md WARNS on stderr (visible degrade) -
 # LF9 pins the fail-closed verdict (present:true, ok:false, exit 1); this pins that the failure
 # is not SILENT. A corrupt convergence marker that exists must surface a warning, not be
-# swallowed as if absent (the council fail-open fix) — while a genuinely-absent final.md stays silent.
+# swallowed as if absent (the fail-open hardening) — while a genuinely-absent final.md stays silent.
 NUW="$TMP/lf-nonutf8-warn"; mkdir -p "$NUW/.planwright"
 printf '\377\376garbage\n' > "$NUW/.planwright/final.md"
 rc=0; err="$(python3 "$LF" --root "$NUW" --json 2>&1 >/dev/null)" || rc=$?

@@ -20,6 +20,19 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.52.0] - 2026-06-13
+
+### Added
+- An inter-process file lock (`fcntl.flock` on `.planwright/.lifecycle.lock`) serializes `lifecycle.py`'s multi-step state transactions, so two concurrent sessions on the same `.planwright/` can no longer interleave drain/land/reject/reset and lose or duplicate an item. Held once per invocation (a `housekeep`'s drain→drain→reset is one critical section); degrades to a no-op on non-POSIX platforms.
+- `execute` now hard-blocks before any mutation when git `user.name`/`user.email` is unset, failing fast with a clear remedy instead of crashing at the first per-item commit (`exit 128`) mid-run.
+- The dashboard serves `/state.json` with a strong `ETag` derived from the `.planwright/` change signature and answers a matching `If-None-Match` with `304 Not Modified`, skipping the snapshot rebuild (re-parse of `plan.md` + `completed.md`) on an unchanged poll. `Cache-Control: no-store` is preserved.
+
+### Fixed
+- The final-point convergence gate now fails **closed** when its validator raises at runtime or `final.md` is present-but-unreadable, instead of certifying convergence blind — `status --exit-code` no longer passes a CI gate on a fault it could not evaluate. A genuinely-absent `final.md` stays a valid open state.
+- `build-graph.py` `lang_of()` matches the shebang interpreter **basename** instead of the bare `"sh"` substring, so `fish`/`csh`/`tcsh`/`wish` are no longer misclassified as bash and routed to the wrong per-language extractors; genuine sh-family shells and `pythonX[.Y]` still map correctly.
+- `lint-plan.py` no longer flags an underscore-named custom test runner (`run_tests all`) as un-runnable prose — a first token carrying a program-name character (`_`/`-`/`.`) is treated as a command, closing the gap where `-`/`.` passed but `_` did not.
+- The engine unit-test git fixtures pass `-c commit.gpgsign=false`, so the suite no longer collapses (`exit 128`) under a global `commit.gpgsign=true` with no usable GPG key.
+
 ## [1.51.0] - 2026-06-10
 
 ### Added
