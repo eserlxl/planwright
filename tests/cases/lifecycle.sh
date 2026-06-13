@@ -116,6 +116,36 @@ sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md Stage 0 wires lifecycle.py and deletes an empty plan (no stale archive step)"; else bad "SKILL.md Stage 0 missing lifecycle.py wiring or still archives an empty plan"; fi
 
+# --- Test L4c: land flips, stamps, and drains exactly one pending item -------------
+# The execute path's On PASS bookkeeping in one step: pending item N (1-based over
+# pending blocks only) is flipped, gains the Commit: provenance stamp, and moves to
+# completed.md; its pending sibling stays in plan.md untouched.
+LAND="$TMP/lifecycle-land"; mkdir -p "$LAND"
+printf -- '- [ ] keep me\n      Mode: docs\n\n- [ ] land me\n      Mode: develop\n' > "$LAND/plan.md"
+if python3 "$LC" land 2 --commit abc1234 --root "$LAND" >/dev/null \
+   && grep -q -- '- \[x\] land me' "$LAND/completed.md" \
+   && grep -q -- '      Commit: abc1234' "$LAND/completed.md" \
+   && grep -q -- '- \[ \] keep me' "$LAND/plan.md" \
+   && ! grep -q 'land me' "$LAND/plan.md"; then
+  ok "lifecycle.py land flips item N, stamps Commit:, and drains it to completed.md"
+else
+  bad "lifecycle.py land did not flip/stamp/drain item N correctly"
+fi
+if python3 "$LC" land 5 --commit abc1234 --root "$LAND" >/dev/null 2>&1; then
+  bad "lifecycle.py land accepted an out-of-range pending index"
+else
+  ok "lifecycle.py land rejects an out-of-range pending index (exit 2, nothing modified)"
+fi
+
+# --- Test L5b: SKILL.md's On PASS step wires lifecycle.py land --------------------
+# Same posture as the Stage 0 wiring check: the execute procedure must prefer the
+# canonical script for the flip/stamp/drain bookkeeping it mechanizes.
+if grep -q 'lifecycle.py land' "$ROOT/skills/planwright/SKILL.md"; then
+  ok "SKILL.md's On PASS step wires the canonical lifecycle.py land script"
+else
+  bad "SKILL.md's On PASS step does not name lifecycle.py land"
+fi
+
 # --- Test L5: non-indented interstitial text is preserved and not counted pending -
 # parse()/render() keep a non-indented note between checkbox blocks as an `interstitial`
 # block (commit 20d0c3f), and reset_if_empty must NOT count it as a pending item.

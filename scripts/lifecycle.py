@@ -15,6 +15,14 @@
 #      plan is left untouched so the next run merges into it.
 #   housekeep — run 1 -> 2 -> 3 in order and print the Stage 0 report.
 #
+# It also mechanizes the execute path's per-item "On PASS" bookkeeping (SKILL.md
+# Execute step 4, NOT part of Stage 0):
+#   land <N> --commit <short-sha> — flip pending item N (1-based over the pending,
+#      non-rejected blocks in plan order — the same numbering `execute N` uses) to
+#      checked, append the `Commit: <short-sha>` provenance stamp, and drain exactly
+#      that block to completed.md (FIFO cap 100), leaving every other block
+#      byte-identical. One tested step instead of four hand-rolled ones.
+#
 # It also mechanizes a deliberate full cold-start reset (NOT part of Stage 0):
 #   reset (aka fresh / clean) — clear the .planwright/ tool-state directory so the next run
 #      rebuilds graph + plan + final point from scratch (re-surfacing work an incremental
@@ -31,6 +39,7 @@
 #
 #   python3 scripts/lifecycle.py housekeep --root .planwright
 #   python3 scripts/lifecycle.py {drain-completed|drain-rejected|reset-if-empty} --root DIR
+#   python3 scripts/lifecycle.py land <N> --commit <short-sha> --root DIR
 #   python3 scripts/lifecycle.py reset --root .planwright   (keeps rejected.md)
 
 import argparse
@@ -165,6 +174,30 @@ def drain(plan_path, target_path, pred):
     return len(moved)
 
 
+def land(plan_path, target_path, index, commit):
+    """The execute path's "On PASS" bookkeeping (SKILL.md Execute step 4) for ONE item,
+    in one tested step: flip pending item `index`'s checkbox, append the
+    `Commit: <commit>` provenance stamp as its last continuation line, and drain
+    exactly that block to completed.md (FIFO-capped), leaving every other block
+    byte-identical. `index` is 1-based over the pending (unchecked, non-rejected,
+    non-interstitial) blocks in plan order — the same numbering `execute N` uses.
+    Returns the landed item's title. Raises LookupError when no pending item `index`
+    exists (including a missing plan.md, which has zero pending items)."""
+    pre, blocks = read_blocks(plan_path)
+    pending = [b for b in blocks
+               if not b.get("interstitial") and not b["checked"] and not b["rejected"]]
+    if index < 1 or index > len(pending):
+        raise LookupError(
+            f"no pending item {index} (plan has {len(pending)} pending item(s))")
+    block = pending[index - 1]
+    block["lines"][0] = block["lines"][0].replace("- [ ]", "- [x]", 1)
+    block["checked"] = True
+    block["lines"].append(f"      Commit: {commit}")
+    append_capped(target_path, [block])
+    write(plan_path, pre, [b for b in blocks if b is not block])
+    return block["lines"][0].split("]", 1)[1].strip()
+
+
 def reset_if_empty(plan_path):
     """Delete plan.md when it holds no pending (- [ ], non-rejected) item AND no
     undrained rejected item. Returns True if it was deleted. Pending items are left
@@ -223,9 +256,13 @@ def main():
     ap = argparse.ArgumentParser(description="planwright Stage 0 lifecycle housekeeping.")
     ap.add_argument("command",
                     choices=["drain-completed", "drain-rejected", "reset-if-empty", "housekeep",
-                             "reset", "fresh", "clean"])
+                             "land", "reset", "fresh", "clean"])
+    ap.add_argument("index", nargs="?", type=int, default=None,
+                    help="pending item number, 1-based in plan order (land only)")
     ap.add_argument("--root", default=".planwright",
                     help="the .planwright/ directory to operate on (default: .planwright)")
+    ap.add_argument("--commit", default=None, metavar="SHA",
+                    help="the landing commit's short sha to stamp on the item (land only)")
     ap.add_argument("--quiet", action="store_true", help="suppress the report line")
     ap.add_argument("--json", action="store_true",
                     help="emit the report as a JSON object (command/compacted/rejected_drained/"
@@ -250,6 +287,41 @@ def main():
             f"lifecycle: --root {args.root!r} contains a NUL or control character\n")
         return 2
     root = args.root
+
+    # The index positional and --commit belong to land alone; a stray one on any
+    # other subcommand is a mis-typed invocation, not something to silently ignore.
+    if args.command != "land" and (args.index is not None or args.commit is not None):
+        sys.stderr.write("lifecycle: <N> and --commit are valid only with the land "
+                         "subcommand\n")
+        return 2
+
+    if args.command == "land":
+        usage = "Usage: lifecycle.py land <N> --commit <short-sha> [--root DIR]"
+        commit = (args.commit or "").strip()
+        # The stamp lands verbatim on a `Commit:` continuation line, so a value with
+        # whitespace or control characters would corrupt the block it annotates.
+        if (args.index is None or not commit
+                or any(ch.isspace() or ord(ch) < 0x20 or ch == "\x7f" for ch in commit)):
+            sys.stderr.write(usage + "\n")
+            return 2
+        try:
+            title = land(os.path.join(root, "plan.md"), os.path.join(root, "completed.md"),
+                         args.index, commit)
+        except LookupError as e:
+            sys.stderr.write(f"lifecycle: {e}; nothing was modified\n")
+            return 2
+        except (UnicodeDecodeError, NotADirectoryError, IsADirectoryError, PermissionError) as e:
+            # Fail CLOSED like the drains below: never rewrite state that cannot be read.
+            sys.stderr.write(f"lifecycle: cannot read {os.path.join(root, 'plan.md')} "
+                             f"({e.__class__.__name__}: {e}); nothing was modified\n")
+            return 2
+        if not args.quiet and args.json:
+            print(json.dumps({"command": "land", "index": args.index,
+                              "title": title, "commit": commit}))
+        elif not args.quiet:
+            print(f"lifecycle: landed item {args.index} '{title}' "
+                  f"(Commit: {commit}) -> completed.md")
+        return 0
 
     if args.command in ("reset", "fresh", "clean"):
         cleared, rejected_kept = reset_planwright(root)

@@ -1189,6 +1189,10 @@ For each targeted pending item, in plan order:
    item, so its completed record traces back to the exact change without git-log archaeology
    (`Commit` is a recognised lifecycle field in `plan_parse.py`'s KNOWN_FIELDS, like
    `Status`/`Rejection`). Move the stamped item to `completed.md` and enforce the FIFO cap of 100.
+   **Canonical script:** prefer `python3 <scripts>/lifecycle.py land <N> --commit $(git rev-parse
+   --short HEAD) --root <target>/.planwright` (N = the item's 1-based pending number) — it flips,
+   stamps, drains, and FIFO-caps in one deterministic, test-covered step; the prose above is the
+   by-hand fallback when the script cannot run.
 5. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
    fails, **reject**: revert this item's edits (`git restore` / `git checkout --` the touched paths so
    no partial change is committed), append a `Status:Rejected` and `Rejection: <one-line reason>` to

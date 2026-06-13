@@ -50,5 +50,75 @@ class TestRootValidation(unittest.TestCase):
         self.assertEqual(self._run("../escape"), 2)
 
 
+class TestLand(unittest.TestCase):
+    """lifecycle.py land — the execute path's On PASS bookkeeping in one step."""
+
+    PLAN = ("# planwright Plan — .\n\n"
+            "- [ ] first thing\n      Mode: docs\n      Verification: true\n\n"
+            "- [x] already done\n      Mode: improve\n\n"
+            "- [ ] second thing\n      Mode: develop\n      Verification: true\n")
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = self._tmp.name
+        self.plan = os.path.join(self.root, "plan.md")
+        self.completed = os.path.join(self.root, "completed.md")
+        with open(self.plan, "w", encoding="utf-8") as fh:
+            fh.write(self.PLAN)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _run(self, *argv):
+        saved = sys.argv
+        try:
+            sys.argv = ["lifecycle.py", *argv, "--root", self.root, "--quiet"]
+            return lc.main()
+        finally:
+            sys.argv = saved
+
+    def _read(self, path):
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_land_flips_stamps_and_drains_one_item(self):
+        # Index 2 counts PENDING blocks only, so the checked interloper is skipped
+        # and 'second thing' lands — flipped, stamped, and drained in one step.
+        self.assertEqual(self._run("land", "2", "--commit", "abc1234"), 0)
+        done = self._read(self.completed)
+        self.assertIn("- [x] second thing", done)
+        self.assertIn("      Commit: abc1234", done)
+        plan = self._read(self.plan)
+        self.assertIn("- [ ] first thing", plan)       # untouched sibling stays pending
+        self.assertIn("- [x] already done", plan)      # non-target checked block stays
+        self.assertNotIn("second thing", plan)
+
+    def test_land_out_of_range_modifies_nothing(self):
+        before = self._read(self.plan)
+        self.assertEqual(self._run("land", "3", "--commit", "abc1234"), 2)
+        self.assertEqual(self._read(self.plan), before)
+        self.assertFalse(os.path.exists(self.completed))
+
+    def test_land_requires_commit_and_index(self):
+        self.assertEqual(self._run("land", "1"), 2)                       # no --commit
+        self.assertEqual(self._run("land", "--commit", "abc1234"), 2)     # no index
+        self.assertEqual(self._run("land", "1", "--commit", "bad sha"), 2)  # whitespace
+
+    def test_land_args_rejected_on_other_subcommands(self):
+        self.assertEqual(self._run("housekeep", "1"), 2)
+        self.assertEqual(self._run("housekeep", "--commit", "abc1234"), 2)
+
+    def test_land_keeps_completed_fifo_cap(self):
+        blocks = "".join(f"- [x] old {i}\n      Mode: docs\n\n" for i in range(lc.FIFO_CAP))
+        with open(self.completed, "w", encoding="utf-8") as fh:
+            fh.write(blocks)
+        self.assertEqual(self._run("land", "1", "--commit", "abc1234"), 0)
+        done = self._read(self.completed)
+        self.assertIn("- [x] first thing", done)
+        self.assertNotIn("- [x] old 0\n", done)        # oldest dropped to hold the cap
+        self.assertEqual(done.count("- [x] "), lc.FIFO_CAP)
+
+
 if __name__ == "__main__":
     unittest.main()
