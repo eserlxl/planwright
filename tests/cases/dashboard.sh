@@ -45,10 +45,24 @@ try:
         assert r.headers.get_content_type() == "application/json", r.headers.get_content_type()
         assert r.headers.get("Cache-Control") == "no-store", r.headers.get("Cache-Control")
         assert r.headers.get("X-Content-Type-Options") == "nosniff", r.headers.get("X-Content-Type-Options")
+        etag = r.headers.get("ETag")
         data = json.load(r)
     assert data["schema_version"] == 1, data
     assert data["counts"]["pending"] == 1, data["counts"]
     assert data["pending"][0]["title"] == "one", data["pending"]
+
+    # /state.json carries a strong validator, and a follow-up GET with If-None-Match set to it
+    # returns 304 Not Modified (snapshot unchanged) without a rebuilt body — so a polling client
+    # stops re-parsing plan.md + completed.md on every request. (urllib raises HTTPError for 304.)
+    assert etag, "ETag header missing from /state.json"
+    cond = urllib.request.Request(base + "/state.json", headers={"If-None-Match": etag})
+    try:
+        urllib.request.urlopen(cond, timeout=5)
+        not_modified = False
+    except urllib.error.HTTPError as e:
+        not_modified = e.code == 304
+        assert e.headers.get("ETag") == etag, e.headers.get("ETag")
+    assert not_modified, "conditional GET with matching If-None-Match did not return 304"
 
     # /events: a Server-Sent Events stream that opens with a `change` event
     ev = urllib.request.urlopen(base + "/events", timeout=5)

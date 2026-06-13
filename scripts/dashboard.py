@@ -28,6 +28,7 @@
 
 import argparse
 import errno
+import hashlib
 import json
 import os
 import signal
@@ -205,13 +206,29 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_events()
         return self._serve_static(path)
 
+    def _state_etag(self):
+        """A strong ETag for the current /state.json: a short hash of the cheap .planwright/
+        change signature (the same one the SSE /events stream watches). It changes iff the
+        snapshot would — any add/remove/modify under .planwright/, or a beacon TTL flip."""
+        sig = repr(_mtime_signature(self.root)).encode("utf-8")
+        return '"%s"' % hashlib.sha1(sig).hexdigest()[:16]
+
     def _serve_state(self):
+        # Derive a strong validator from the .planwright/ change signature so a polling client
+        # can revalidate cheaply: when its If-None-Match matches, the snapshot is unchanged, so
+        # answer 304 and skip the state.collect() re-parse of plan.md + completed.md entirely.
+        # Cache-Control stays no-store (the SSE stream still drives every refetch); no-store
+        # forbids stored reuse, not conditional revalidation.
+        etag = self._state_etag()
+        headers = dict(self._NO_STORE, ETag=etag)
+        if self.headers.get("If-None-Match") == etag:
+            return self._send(304, "application/json; charset=utf-8", None, headers)
         try:
             body = json.dumps(state.collect(self.root), indent=2)
         except Exception as exc:  # never let a transient read error 500 the whole UI
             return self._send(500, "application/json; charset=utf-8",
                               json.dumps({"error": str(exc)}), self._NO_STORE)
-        self._send(200, "application/json; charset=utf-8", body, self._NO_STORE)
+        self._send(200, "application/json; charset=utf-8", body, headers)
 
     def _serve_doctor(self):
         # Read-only environment preflight. doctor.collect() only probes (tool versions,
