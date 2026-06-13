@@ -155,6 +155,46 @@ class TestCoachTable(unittest.TestCase):
         })
 
 
+class TestCoachEvidence(unittest.TestCase):
+    # _evidence is the chip line shown beneath the recommendation — served at /recommend.json
+    # and rendered by the dashboard front-door panel (and `planwright advise`). It is a port of
+    # derive.js coachEvidence, but the `codshard` leg is Python-only (the JS coach never
+    # dispatches codshard), so it cannot be cross-pinned via coach-table.json — it needs a
+    # Python-side assertion. The CLI/dashboard only smoke-tested it as a non-empty list, so a
+    # single-sided edit to any branch could silently change what a user sees. Pin every branch's
+    # exact chip list against fixed signals.
+    BASE = {"has_graph": True, "pending": 7, "completed": 5, "rejected": 3,
+            "cycles": 2, "hot_uncovered": 4, "articulation": 1, "pend_repair_improve": 2,
+            "converged": False}
+
+    def test_no_graph_short_circuit_for_any_command(self):
+        s = {**self.BASE, "has_graph": False}
+        expect = ["7 pending", "5 accepted", "3 rejected"]
+        # the no-graph branch wins regardless of which command was recommended
+        for cmd in ("codvisor", "codshard", "codinventor", "codcycle", "execute"):
+            self.assertEqual(st._evidence(cmd, s), expect, "no-graph evidence for %s" % cmd)
+
+    def test_codvisor_and_codshard_show_the_debt_chips(self):
+        expect = ["2 import cycles", "4 untested hotspots",
+                  "1 articulation risks", "2 repair/improve pending"]
+        # codshard is the Python-only leg: dropping it from the ("codvisor","codshard") tuple
+        # makes _evidence fall through to the default ["7 pending","5 accepted so far"], which
+        # this assertion catches (the old non-empty-list smoke check did not).
+        self.assertEqual(st._evidence("codvisor", self.BASE), expect)
+        self.assertEqual(st._evidence("codshard", self.BASE), expect)
+
+    def test_codinventor_toggles_on_converged(self):
+        self.assertEqual(st._evidence("codinventor", self.BASE),
+                         ["7 pending", "2 cycles", "no open debt"])
+        self.assertEqual(st._evidence("codinventor", {**self.BASE, "converged": True}),
+                         ["7 pending", "2 cycles", "converged"])
+
+    def test_default_branch_for_codcycle_execute_reset(self):
+        expect = ["7 pending", "5 accepted so far"]
+        for cmd in ("codcycle", "execute", "reset"):
+            self.assertEqual(st._evidence(cmd, self.BASE), expect, "default evidence for %s" % cmd)
+
+
 class TestResetNecessity(unittest.TestCase):
     # The reset decision must be SHOWN necessary, never assumed: a seeded invent-dry point
     # is seed-scoped (re-survey), an undrained or unknown frontier still has non-destructive
