@@ -1677,6 +1677,11 @@ def _select_token_pred(e):
         return lambda n: n.get("lang") == want
     if e == "code":
         return lambda n: (n.get("branch_count") or 0) > 0
+    if e == "swallows":
+        # The silent-failure analogue of `code`: nodes carrying a detected error-swallowing
+        # site (swallow_count>0), the per-file half of the Stage 2b swallow promotion. Lets a
+        # `swallows,no-covered_by_test` slice triage untested silent-failure sites scriptably.
+        return lambda n: (n.get("swallow_count") or 0) > 0
     if e == "never-audited":
         # audit_age_commits, not last_audited_sha: an unreachable stamp (rewritten
         # history) is cold too, so --select agrees with ranked_cold's never bin and
@@ -1695,7 +1700,7 @@ def _select_token_pred(e):
         return lambda n: bool(n.get(e))
     allowed = ", ".join(list(_SELECT_BOOL_FIELDS)
                         + ["no-" + b for b in _SELECT_BOOL_FIELDS]
-                        + ["code", "never-audited", "stale-audited", "lang=NAME"])
+                        + ["code", "swallows", "never-audited", "stale-audited", "lang=NAME"])
     raise ValueError(f"unknown --select predicate '{e}'; allowed: {allowed}")
 
 
@@ -1741,7 +1746,7 @@ def main():
                     help="print the repo-relative paths of nodes matching a predicate — or a "
                          "comma-ANDed conjunction of predicates (code,no-covered_by_test) — one "
                          "per line, instead of JSON: is_articulation | covered_by_test | is_test "
-                         "| no-<that> | code | never-audited | stale-audited | lang=NAME "
+                         "| no-<that> | code | swallows | never-audited | stale-audited | lang=NAME "
                          "(scriptable access to the computed routing signals; takes precedence "
                          "over --dot). The audit-stamp predicates (never-audited, stale-audited) "
                          "are meaningful only with --prior pointing at the live graph memory — "

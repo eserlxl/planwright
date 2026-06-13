@@ -781,6 +781,29 @@ else
   bad "build-graph --select stale-audited wrong (stale=[$sel_stale] conj=[$sel_stale_conj] fresh=[$sel_stale_fresh] rc=$sel_stale_fresh_rc)"
 fi
 
+# --- Test 11c2sw: --select swallows (swallow_count>0 — the silent-failure routing slice) --
+# Symmetric to `code` (branch_count>0): swallow_count is the documented Stage 2b silent-failure
+# signal, so --select must expose it. A node with an error-swallowing site (except: pass) has
+# swallow_count>0; a clean node does not. Also confirm it composes in a conjunction.
+SWREPO="$TMP/sel-swallow"
+mkdir -p "$SWREPO"
+git -C "$SWREPO" init -q
+printf 'def f(x):\n    try:\n        return int(x)\n    except Exception:\n        pass\n' > "$SWREPO/swallower.py"
+printf 'def g(x):\n    return x + 1\n' > "$SWREPO/clean.py"
+git -C "$SWREPO" add -A
+git -C "$SWREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+sel_sw="$(python3 "$ROOT/scripts/build-graph.py" --root "$SWREPO" --select swallows 2>/dev/null)"
+sel_sw_conj="$(python3 "$ROOT/scripts/build-graph.py" --root "$SWREPO" --select swallows,lang=python 2>/dev/null)"
+sel_sw_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$SWREPO" --select swallows >/dev/null 2>&1 || sel_sw_rc=$?
+if printf '%s' "$sel_sw" | grep -qx "swallower.py" \
+   && ! printf '%s' "$sel_sw" | grep -qx "clean.py" \
+   && printf '%s' "$sel_sw_conj" | grep -qx "swallower.py" \
+   && [ "$sel_sw_rc" = 0 ]; then
+  ok "build-graph --select swallows (swallow_count>0) selects silent-failure nodes and composes"
+else
+  bad "build-graph --select swallows wrong (sw=[$sel_sw] conj=[$sel_sw_conj] rc=$sel_sw_rc)"
+fi
+
 # --- Test 11c3: is_test classification + covered_by_test coverage routing -----
 # A test file that imports a source marks it covered_by_test; an unimported
 # non-test source stays false. Routing-only: a false is a candidate, not proof.
