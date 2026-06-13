@@ -736,6 +736,7 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
 .pw-contrib-mode.mode-docs { color: var(--pw-docs); }
 .pw-contrib-mode.mode-reorganize { color: var(--pw-reorganize); }
 .pw-contrib-title { font-size: var(--pw-fs-sm); color: var(--pw-fg-2); min-width: 0; }
+.pw-contrib-commit { font-family: var(--pw-font-mono); font-size: var(--pw-fs-xs); color: var(--pw-muted); margin-left: auto; flex: none; }
 .pw-coach-final { margin-top: var(--pw-s3); font-size: var(--pw-fs-sm); color: var(--pw-muted); }
 .pw-coach-alt { margin-top: var(--pw-s4); padding-top: var(--pw-s3); border-top: 1px dashed var(--pw-border-2); }
 .pw-coach-alt-kicker { display: block; font-size: var(--pw-fs-xs); text-transform: uppercase; letter-spacing: 1px; color: var(--pw-muted); font-weight: 600; }
