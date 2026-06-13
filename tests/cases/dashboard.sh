@@ -829,6 +829,8 @@ global.window = win; global.document = doc; global.location = win.location; glob
 // view drives on a full snapshot), then each view (each registers window.PW_VIEWS.<name>).
 vm.runInThisContext(fs.readFileSync(BASE + "/vendor/derive.js", "utf8"));
 vm.runInThisContext(fs.readFileSync(BASE + "/vendor/graph.js", "utf8"));
+// Shared UI fragments (window.PW_UI) the Console + Commands views call at render time.
+vm.runInThisContext(fs.readFileSync(BASE + "/ui.js", "utf8"));
 const VIEWS = ["console", "plan", "commands", "insights", "shards", "timeline", "graph"];
 VIEWS.forEach(function (v) {
   vm.runInThisContext(fs.readFileSync(BASE + "/views/" + v + ".js", "utf8"));
@@ -1004,6 +1006,51 @@ win.PW_VIEWS.plan(planBareXl, xlState, bareCtx);
 assert(findByClass(planBareXl, "pw-xlink lang-").length === 0,
   "Plan drew a cross-link chip with no metrics (crossLinks must return null)");
 
+// Targeted: the Console home page renders the shared Recent-contributions card (PW_UI.contribCard)
+// in the right rail ABOVE the dirty pulse — COMPACT: a pw-section-mini heading (matching the
+// Console's other section labels, not pw-panel-title), mode+title items only, and NO sub-line /
+// commit stamp / "showing N of M" foot / final-point line (the Commands panel carries all of those;
+// the home card is a glance).
+var conC = new El("section");
+win.PW_VIEWS.console(conC, state, fullCtx);
+var conSide = findByClass(conC, "pw-console-side");
+// findByClass matches substrings; the section's full "pw-panel pw-contrib" class is unique to it
+// (sub-elements are pw-contrib-list/-item/...), and the aside matches its own class exactly.
+var conContrib = findByClass(conC, "pw-panel pw-contrib");
+var conPulse = findByClass(conC, "pw-pulserail").filter(function (n) { return classOf(n) === "pw-pulserail"; });
+assert(conSide.length === 1 && conContrib.length === 1 && conPulse.length === 1,
+  "Console right rail must hold exactly one contributions card and the dirty pulse");
+function idxOfClass(arr, cls) {
+  for (var i = 0; i < arr.length; i++) { if (classOf(arr[i]).indexOf(cls) >= 0) { return i; } }
+  return -1;
+}
+var conSideKids = conSide[0].children;
+assert(idxOfClass(conSideKids, "pw-contrib") >= 0 &&
+       idxOfClass(conSideKids, "pw-pulserail") > idxOfClass(conSideKids, "pw-contrib"),
+  "Console contributions card must sit ABOVE the dirty pulse in the right rail");
+var conCardText = textOf(conContrib[0]);
+assert(/Recent contributions/.test(conCardText) && /shipped/.test(conCardText),
+  "Console contributions card must show the heading and the completed item's mode+title");
+assert(findByClass(conContrib[0], "pw-section-mini").length === 1 &&
+       findByClass(conContrib[0], "pw-panel-title").length === 0,
+  "Console (compact) contributions heading must use pw-section-mini, not pw-panel-title");
+assert(!/abc1234/.test(conCardText), "Console (compact) contributions card must omit the commit hash");
+assert(!/rejected this run/.test(conCardText), "Console (compact) contributions card must omit the accepted/rejected sub-line");
+assert(!/Final point:/.test(conCardText), "Console (compact) contributions card must omit the final-point line");
+// Foot-removal needs >8 items: a 9-item log shows the "showing N of M" foot in the detailed
+// Commands card but never in the compact Console card.
+var manyCompleted = [];
+for (var mci = 0; mci < 9; mci++) { manyCompleted.push({ title: "item " + mci, mode: "improve", commit: "c" + mci }); }
+var manyState = Object.assign({}, state, { completed: manyCompleted });
+var conMany = new El("section");
+win.PW_VIEWS.console(conMany, manyState, fullCtx);
+assert(findByClass(conMany, "pw-panel-foot").length === 0,
+  "Console (compact) contributions card must omit the 'showing N of M' foot even past 8 items");
+var cmdMany = new El("section");
+win.PW_VIEWS.commands(cmdMany, manyState, fullCtx);
+assert(findByClass(cmdMany, "pw-panel-foot").length === 1,
+  "Commands (detailed) contributions card must keep the 'showing N of M' foot past 8 items");
+
 // Targeted: the Shards view renders the shard map from state.repo (the codshard
 // enumeration) — shard cards in sweep order, the folded-dirs note, and the closing
 // whole-repo round — and degrades to the no-enumeration empty state when the snapshot
@@ -1070,6 +1117,8 @@ assert(frontDoorPanels(cmdC).length === 0, "front-door panel painted before any 
 // the fixture's completed[].commit must surface in the rendered list text.
 assert(/abc1234/.test(textOf(cmdC)),
   "Commands contributions list dropped the completed item's Commit provenance stamp");
+assert(/rejected this run/.test(textOf(cmdC)),
+  "Commands contributions card must keep its accepted/rejected sub-line");
 
 setTimeout(function () {
   assert(/Environment preflight/.test(textOf(docC)),

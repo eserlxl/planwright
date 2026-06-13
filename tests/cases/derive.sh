@@ -396,17 +396,20 @@ JS
   else
     bad "PW_DERIVE.finalFlag wrong: $(cat "$TMP/derive_ff.err" 2>/dev/null)"
   fi
+  # The contributions card's final-point line moved to the shared ui.js (PW_UI.contribCard);
+  # commands.js now delegates to it, so the trust-rendering surfaces are console.js (reactor),
+  # ui.js (the shared card), and timeline.js.
   if grep -q 'PW_DERIVE.finalFlag(fp)' "$ROOT/scripts/dashboard/views/console.js" \
-     && grep -q 'finalFlag' "$ROOT/scripts/dashboard/views/commands.js" \
+     && grep -q 'finalFlag' "$ROOT/scripts/dashboard/ui.js" \
      && grep -q 'finalFlag' "$ROOT/scripts/dashboard/views/timeline.js"; then
-    ok "console/commands/timeline route final-point trust through PW_DERIVE.finalFlag"
+    ok "console/ui/timeline route final-point trust through PW_DERIVE.finalFlag"
   else
     bad "a view still renders final-point trust without PW_DERIVE.finalFlag"
   fi
   if grep -q 'finalPointShown(fp)' "$ROOT/scripts/dashboard/views/console.js" \
-     && grep -q 'finalPointShown(fp)' "$ROOT/scripts/dashboard/views/commands.js" \
+     && grep -q 'finalPointShown(fp)' "$ROOT/scripts/dashboard/ui.js" \
      && grep -q 'finalPointShown(fp)' "$ROOT/scripts/dashboard/views/timeline.js"; then
-    ok "console/commands/timeline gate the final-point indicator on finalPointShown (a sha-only point shows)"
+    ok "console/ui/timeline gate the final-point indicator on finalPointShown (a sha-only point shows)"
   else
     bad "a view still gates the final-point indicator on date||tier (hides a valid sha-only point)"
   fi

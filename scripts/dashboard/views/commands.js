@@ -279,49 +279,9 @@
     });
     container.appendChild(grid);
 
-    // recent contributions (honest: unattributed run track record)
-    var contrib = elt("section", "pw-panel pw-contrib");
-    var ch = elt("div", "pw-panel-head");
-    ch.appendChild(elt("h3", "pw-panel-title", "Recent contributions"));
-    contrib.appendChild(ch);
-    contrib.appendChild(elt("p", "pw-panel-sub",
-      s.completed + " accepted · " + s.rejected + " rejected this run. " +
-      "The logs are FIFO and don't record which command produced each item."));
-
-    var completed = state.completed || [];
-    if (!completed.length) {
-      contrib.appendChild(elt("div", "pw-empty", "Nothing completed yet — run a sweep to start the track record."));
-    } else {
-      var list = elt("ul", "pw-contrib-list");
-      completed.slice(-8).reverse().forEach(function (c) {
-        var li = elt("li", "pw-contrib-item");
-        if (c.mode) li.appendChild(elt("span", "pw-contrib-mode mode-" + c.mode, c.mode));
-        li.appendChild(elt("span", "pw-contrib-title", c.title || "(untitled)"));
-        if (c.commit) {
-          // Commit: provenance stamp (state.json completed[].commit) — same badge the
-          // Plan view's completed cards carry; "" pre-stamp history skips it.
-          var sha = elt("span", "pw-contrib-commit", c.commit);
-          sha.title = "landing commit";
-          li.appendChild(sha);
-        }
-        list.appendChild(li);
-      });
-      contrib.appendChild(list);
-      if (completed.length > 8) {
-        contrib.appendChild(elt("div", "pw-panel-foot", "showing the 8 most recent of " + completed.length + " accepted"));
-      }
-    }
-
-    var fp = state.final_point;
-    if (window.PW_DERIVE.finalPointShown(fp)) {
-      var fpFlag = window.PW_DERIVE.finalFlag(fp);
-      contrib.appendChild(elt("div", "pw-coach-final",
-        "Final point: " + (fp.deepest_tier || "?") + (fp.date ? " · " + fp.date : "") +
-        (fpFlag === "stale" ? " · stale (HEAD moved)"
-          : fpFlag === "invalid" ? " · INVALID (fails lint-final's contract)"
-            : fpFlag === "scoped" ? " · scoped to " + fp.scope + " (not whole-repo)" : "")));
-    }
-    container.appendChild(contrib);
+    // recent contributions (honest: unattributed run track record) — shared with the
+    // Console home page via PW_UI.contribCard; the Commands panel keeps the final-point line.
+    container.appendChild(window.PW_UI.contribCard(state, { compact: false }));
   }
 
   window.PW_VIEWS.commands = render;

@@ -338,6 +338,7 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
    ==================================================================================== */
 .pw-console-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--pw-s5); align-items: start; }
 .pw-console-main { display: flex; flex-direction: column; gap: var(--pw-s5); min-width: 0; }
+.pw-console-side { display: flex; flex-direction: column; gap: var(--pw-s5); min-width: 0; }
 
 /* Convergence Reactor */
 .pw-reactor {
@@ -726,6 +727,9 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
 .pw-cmd-copy { font-size: var(--pw-fs-xs); color: var(--pw-muted); background: var(--pw-panel-2); border: 1px solid var(--pw-border); border-radius: var(--pw-r-sm); padding: 5px var(--pw-s3); cursor: pointer; font-family: inherit; white-space: nowrap; }
 .pw-cmd-copy:hover { color: var(--pw-fg); border-color: var(--pw-border-2); }
 
+/* The compact (Console home rail) variant: tighter padding to match the dirty-pulse card
+   it sits above (.pw-pulserail uses --pw-s4); a glance, not the detailed Commands panel. */
+.pw-contrib--compact { padding: var(--pw-s4); }
 .pw-contrib-list { list-style: none; margin: var(--pw-s2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--pw-s1); }
 .pw-contrib-item { display: flex; align-items: center; gap: var(--pw-s3); padding: var(--pw-s2) var(--pw-s3); border-radius: var(--pw-r-sm); background: rgba(255,255,255,0.02); }
 [data-theme="light"] .pw-contrib-item { background: rgba(15,23,42,0.02); }
@@ -840,6 +844,7 @@ body[data-active="console"]:not(.pw-glance) .pw-overview { display: none; }
    ==================================================================================== */
 body.pw-glance .pw-sidebar,
 body.pw-glance .pw-pulserail,
+body.pw-glance .pw-console-side,
 body.pw-glance .pw-cadence { display: none; }
 body.pw-glance .pw-app-container { grid-template-columns: 1fr; }
 body.pw-glance .pw-console-grid { grid-template-columns: 1fr; }

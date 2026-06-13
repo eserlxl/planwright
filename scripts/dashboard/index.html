@@ -144,6 +144,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
   <!-- Vendored, dependency-free derivation + graph renderer (offline). -->
   <script src="/vendor/derive.js"></script>
   <script src="/vendor/graph.js"></script>
+  <!-- Shared UI fragments (window.PW_UI) reused across views; loaded before them. -->
+  <script src="/ui.js"></script>
   <!-- View modules register themselves into window.PW_VIEWS before app.js renders. -->
   <script src="/views/plan.js"></script>
   <script src="/views/timeline.js"></script>

@@ -539,7 +539,13 @@
     main.appendChild(cadence(state));
     main.appendChild(sessionTrend(ctx));
     grid.appendChild(main);
-    grid.appendChild(pulserail(state, metrics, ctx));
+    // right rail: the recent-contributions card (shared with the Commands panel via
+    // PW_UI.contribCard; the home page omits the final-point line since the reactor above
+    // already shows convergence) stacked above the dirty pulse.
+    var side = elt("div", "pw-console-side");
+    side.appendChild(window.PW_UI.contribCard(state, { compact: true }));
+    side.appendChild(pulserail(state, metrics, ctx));
+    grid.appendChild(side);
     container.appendChild(grid);
   }
 

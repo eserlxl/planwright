@@ -67,6 +67,7 @@ BUNDLED = [
     ("dashboard/index.html", "the dashboard static UI shell (served by dashboard.py)"),
     ("dashboard/style.css", "the dashboard stylesheet (index.html loads it; absent = unstyled UI)"),
     ("dashboard/app.js", "the dashboard SPA bootstrap (absent = blank app, every view dead)"),
+    ("dashboard/ui.js", "shared UI fragments (PW_UI.contribCard; Console + Commands consume it)"),
     ("dashboard/vendor/derive.js", "the shared state-derivation logic (every view consumes it)"),
     ("dashboard/vendor/graph.js", "the 3D coupling-graph renderer (Graph view)"),
     ("dashboard/views/console.js", "the Console (convergence reactor) view"),
