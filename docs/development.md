@@ -63,7 +63,7 @@ Additional flags:
 
 ```bash
 # Preview a bump without modifying any files
-scripts/bump-version.sh --dry-run patch
+scripts/bump-version.sh patch --dry-run
 
 # Show usage
 scripts/bump-version.sh --help
