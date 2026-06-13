@@ -177,7 +177,7 @@ A plan item is a checkbox title plus seven required continuation fields (an opti
 - [ ] Guard README plan examples against schema drift
       Mode: docs
       Rationale: The README teaches the plan item format users copy into `.planwright/plan.md`.
-      Evidence: README.md:172 names the required shape for plan items.
+      Evidence: README.md:173 names the required shape for plan items.
       Surfaces: README.md, tests/run.sh
       Development: Keep the example aligned with the SKILL.md OUTPUT FORMAT and lint-plan.py checks.
       Acceptance: The example shows the checkbox title and every required continuation field.
