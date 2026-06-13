@@ -259,7 +259,10 @@ at `digest.md`), the run-activity beacon when a command flow has stamped one (li
 flagged `scoped to <X>` in the report), and the graph memory (node and dirty-node counts) — so a
 maintainer can see where a project stands without running a plan or cycle. `--json` emits the same
 state as a machine-readable object (including a canonical `converged` boolean, the `carried` count,
-and the `activity` block or `null`). By default the exit
+and the `activity` block or `null`); the opt-in `--ledger` flag emits the full chronological
+completed-work provenance ledger as JSON — every landed item's `{title, mode, commit}` (`commit` is
+`""` for history predating the stamp, `[]` when nothing has landed), the multi-item superset of
+`last_landed`. By default the exit
 code is always 0 (an empty state is valid, not an error); the opt-in `--exit-code` flag is the one
 exception — it exits 0 only at a *current, valid, whole-repo* final point with nothing pending, else 1
 (composing with `--json`/`--quiet`), so a wrapper or CI gate can check convergence machine-readably.
