@@ -109,6 +109,38 @@ class TestLand(unittest.TestCase):
         self.assertEqual(self._run("housekeep", "1"), 2)
         self.assertEqual(self._run("housekeep", "--commit", "abc1234"), 2)
 
+    def test_reject_appends_canonical_lines_and_drains(self):
+        # Same pending numbering as land: index 2 skips the checked interloper.
+        # The appended Status/Rejection spelling must be the exact machine-readable
+        # form drain_rejected and the PREVIOUSLY REJECTED reader key on.
+        rejected = os.path.join(self.root, "rejected.md")
+        self.assertEqual(self._run("reject", "2", "--reason",
+                                   "verification failed: flaky target"), 0)
+        out = self._read(rejected)
+        self.assertIn("- [ ] second thing", out)
+        self.assertIn("      Status: Rejected", out)
+        self.assertIn("      Rejection: verification failed: flaky target", out)
+        plan = self._read(self.plan)
+        self.assertIn("- [ ] first thing", plan)
+        self.assertNotIn("second thing", plan)
+
+    def test_reject_out_of_range_modifies_nothing(self):
+        before = self._read(self.plan)
+        self.assertEqual(self._run("reject", "9", "--reason", "nope"), 2)
+        self.assertEqual(self._read(self.plan), before)
+        self.assertFalse(os.path.exists(os.path.join(self.root, "rejected.md")))
+
+    def test_reject_reason_validation(self):
+        self.assertEqual(self._run("reject", "1"), 2)                          # no --reason
+        self.assertEqual(self._run("reject", "1", "--reason", "   "), 2)       # blank
+        self.assertEqual(self._run("reject", "1", "--reason", "two\nlines"), 2)  # newline
+        # Spaces are prose, not corruption — a normal one-line reason is accepted.
+        self.assertEqual(self._run("reject", "1", "--reason", "a real reason"), 0)
+
+    def test_land_and_reject_options_do_not_cross(self):
+        self.assertEqual(self._run("land", "1", "--reason", "x"), 2)
+        self.assertEqual(self._run("reject", "1", "--commit", "abc1234"), 2)
+
     def test_land_keeps_completed_fifo_cap(self):
         blocks = "".join(f"- [x] old {i}\n      Mode: docs\n\n" for i in range(lc.FIFO_CAP))
         with open(self.completed, "w", encoding="utf-8") as fh:

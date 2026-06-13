@@ -1196,7 +1196,11 @@ For each targeted pending item, in plan order:
 5. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
    fails, **reject**: revert this item's edits (`git restore` / `git checkout --` the touched paths so
    no partial change is committed), append a `Status:Rejected` and `Rejection: <one-line reason>` to
-   the item, move it to `rejected.md` (FIFO cap 100), and continue.
+   the item, move it to `rejected.md` (FIFO cap 100), and continue. **Canonical script:** prefer
+   `python3 <scripts>/lifecycle.py reject <N> --reason "<one-line reason>" --root <target>/.planwright`
+   — it appends the canonical Status/Rejection lines (the exact spelling the drain and the next plan's
+   PREVIOUSLY REJECTED reader key on) and drains the block in one deterministic, test-covered step;
+   it applies equally to a step-1 value-gate rejection, and the prose remains the by-hand fallback.
 6. **Blocked** — if the item depends on an unresolved design decision, or needs surfaces it does not
    declare, leave it pending, record why, and treat it as a **hard blocker**: in auto mode STOP here.
 

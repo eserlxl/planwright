@@ -146,6 +146,34 @@ else
   bad "SKILL.md's On PASS step does not name lifecycle.py land"
 fi
 
+# --- Test L4d: reject appends the canonical rejection lines and drains the item ----
+# The On FAIL / value-gate bookkeeping in one step: pending item N gains the exact
+# Status: Rejected + Rejection: lines the feedback loop keys on and moves to
+# rejected.md; the sibling stays pending; drain-rejected has nothing left to move.
+REJ="$TMP/lifecycle-reject"; mkdir -p "$REJ"
+printf -- '- [ ] keep me\n      Mode: docs\n\n- [ ] kill me\n      Mode: develop\n' > "$REJ/plan.md"
+if python3 "$LC" reject 2 --reason "verification failed: no such target" --root "$REJ" >/dev/null \
+   && grep -q -- '      Status: Rejected' "$REJ/rejected.md" \
+   && grep -q -- '      Rejection: verification failed: no such target' "$REJ/rejected.md" \
+   && grep -q -- '- \[ \] keep me' "$REJ/plan.md" \
+   && ! grep -q 'kill me' "$REJ/plan.md"; then
+  ok "lifecycle.py reject appends canonical Status/Rejection lines and drains item N"
+else
+  bad "lifecycle.py reject did not append/drain item N correctly"
+fi
+if python3 "$LC" reject 1 --root "$REJ" >/dev/null 2>&1; then
+  bad "lifecycle.py reject accepted a missing --reason"
+else
+  ok "lifecycle.py reject requires a one-line --reason (exit 2 without one)"
+fi
+
+# --- Test L5c: SKILL.md's On FAIL step wires lifecycle.py reject -------------------
+if grep -q 'lifecycle.py reject' "$ROOT/skills/planwright/SKILL.md"; then
+  ok "SKILL.md's On FAIL step wires the canonical lifecycle.py reject script"
+else
+  bad "SKILL.md's On FAIL step does not name lifecycle.py reject"
+fi
+
 # --- Test L5: non-indented interstitial text is preserved and not counted pending -
 # parse()/render() keep a non-indented note between checkbox blocks as an `interstitial`
 # block (commit 20d0c3f), and reset_if_empty must NOT count it as a pending item.

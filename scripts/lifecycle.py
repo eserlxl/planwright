@@ -22,6 +22,11 @@
 #      checked, append the `Commit: <short-sha>` provenance stamp, and drain exactly
 #      that block to completed.md (FIFO cap 100), leaving every other block
 #      byte-identical. One tested step instead of four hand-rolled ones.
+#   reject <N> --reason "<one-line>" — append the canonical `Status: Rejected` and
+#      `Rejection: <reason>` continuation lines to pending item N (same numbering)
+#      and drain exactly that block to rejected.md (FIFO cap 100). The exact
+#      Status: Rejected spelling is what the drain and the next plan's PREVIOUSLY
+#      REJECTED reader key on — mechanizing it keeps the feedback loop machine-readable.
 #
 # It also mechanizes a deliberate full cold-start reset (NOT part of Stage 0):
 #   reset (aka fresh / clean) — clear the .planwright/ tool-state directory so the next run
@@ -40,6 +45,7 @@
 #   python3 scripts/lifecycle.py housekeep --root .planwright
 #   python3 scripts/lifecycle.py {drain-completed|drain-rejected|reset-if-empty} --root DIR
 #   python3 scripts/lifecycle.py land <N> --commit <short-sha> --root DIR
+#   python3 scripts/lifecycle.py reject <N> --reason "<one-line>" --root DIR
 #   python3 scripts/lifecycle.py reset --root .planwright   (keeps rejected.md)
 
 import argparse
@@ -174,14 +180,10 @@ def drain(plan_path, target_path, pred):
     return len(moved)
 
 
-def land(plan_path, target_path, index, commit):
-    """The execute path's "On PASS" bookkeeping (SKILL.md Execute step 4) for ONE item,
-    in one tested step: flip pending item `index`'s checkbox, append the
-    `Commit: <commit>` provenance stamp as its last continuation line, and drain
-    exactly that block to completed.md (FIFO-capped), leaving every other block
-    byte-identical. `index` is 1-based over the pending (unchecked, non-rejected,
-    non-interstitial) blocks in plan order — the same numbering `execute N` uses.
-    Returns the landed item's title. Raises LookupError when no pending item `index`
+def _take_pending(plan_path, index):
+    """Locate pending item `index` — 1-based over the pending (unchecked, non-rejected,
+    non-interstitial) blocks in plan order, the same numbering `execute N` uses.
+    Returns (preamble, blocks, block). Raises LookupError when no pending item `index`
     exists (including a missing plan.md, which has zero pending items)."""
     pre, blocks = read_blocks(plan_path)
     pending = [b for b in blocks
@@ -189,10 +191,36 @@ def land(plan_path, target_path, index, commit):
     if index < 1 or index > len(pending):
         raise LookupError(
             f"no pending item {index} (plan has {len(pending)} pending item(s))")
-    block = pending[index - 1]
+    return pre, blocks, pending[index - 1]
+
+
+def land(plan_path, target_path, index, commit):
+    """The execute path's "On PASS" bookkeeping (SKILL.md Execute step 4) for ONE item,
+    in one tested step: flip pending item `index`'s checkbox, append the
+    `Commit: <commit>` provenance stamp as its last continuation line, and drain
+    exactly that block to completed.md (FIFO-capped), leaving every other block
+    byte-identical. Returns the landed item's title."""
+    pre, blocks, block = _take_pending(plan_path, index)
     block["lines"][0] = block["lines"][0].replace("- [ ]", "- [x]", 1)
     block["checked"] = True
     block["lines"].append(f"      Commit: {commit}")
+    append_capped(target_path, [block])
+    write(plan_path, pre, [b for b in blocks if b is not block])
+    return block["lines"][0].split("]", 1)[1].strip()
+
+
+def reject(plan_path, target_path, index, reason):
+    """The execute path's "On FAIL" / value-gate bookkeeping (SKILL.md Execute steps 1
+    and 5) for ONE item, in one tested step: append the canonical `Status: Rejected`
+    and `Rejection: <reason>` continuation lines to pending item `index` and drain
+    exactly that block to rejected.md (FIFO-capped), leaving every other block
+    byte-identical. The exact `Status: Rejected` spelling is what drain_rejected and
+    the Stage 1 PREVIOUSLY REJECTED reader key on — mechanizing the append is what
+    keeps the rejection feedback loop machine-readable. Returns the item's title."""
+    pre, blocks, block = _take_pending(plan_path, index)
+    block["lines"].append("      Status: Rejected")
+    block["lines"].append(f"      Rejection: {reason}")
+    block["rejected"] = True
     append_capped(target_path, [block])
     write(plan_path, pre, [b for b in blocks if b is not block])
     return block["lines"][0].split("]", 1)[1].strip()
@@ -256,13 +284,15 @@ def main():
     ap = argparse.ArgumentParser(description="planwright Stage 0 lifecycle housekeeping.")
     ap.add_argument("command",
                     choices=["drain-completed", "drain-rejected", "reset-if-empty", "housekeep",
-                             "land", "reset", "fresh", "clean"])
+                             "land", "reject", "reset", "fresh", "clean"])
     ap.add_argument("index", nargs="?", type=int, default=None,
-                    help="pending item number, 1-based in plan order (land only)")
+                    help="pending item number, 1-based in plan order (land/reject only)")
     ap.add_argument("--root", default=".planwright",
                     help="the .planwright/ directory to operate on (default: .planwright)")
     ap.add_argument("--commit", default=None, metavar="SHA",
                     help="the landing commit's short sha to stamp on the item (land only)")
+    ap.add_argument("--reason", default=None, metavar="TEXT",
+                    help="the one-line Rejection: reason to record on the item (reject only)")
     ap.add_argument("--quiet", action="store_true", help="suppress the report line")
     ap.add_argument("--json", action="store_true",
                     help="emit the report as a JSON object (command/compacted/rejected_drained/"
@@ -288,39 +318,65 @@ def main():
         return 2
     root = args.root
 
-    # The index positional and --commit belong to land alone; a stray one on any
-    # other subcommand is a mis-typed invocation, not something to silently ignore.
-    if args.command != "land" and (args.index is not None or args.commit is not None):
-        sys.stderr.write("lifecycle: <N> and --commit are valid only with the land "
-                         "subcommand\n")
+    # The index positional, --commit, and --reason belong to land/reject alone; a
+    # stray one on any other subcommand is a mis-typed invocation, not something to
+    # silently ignore — as is the wrong option for the pair (land takes --commit,
+    # reject takes --reason, never the other way around).
+    if args.command not in ("land", "reject") and (
+            args.index is not None or args.commit is not None or args.reason is not None):
+        sys.stderr.write("lifecycle: <N>, --commit, and --reason are valid only with "
+                         "the land/reject subcommands\n")
+        return 2
+    if (args.command == "land" and args.reason is not None) or (
+            args.command == "reject" and args.commit is not None):
+        sys.stderr.write("lifecycle: land takes --commit and reject takes --reason — "
+                         "not the other way around\n")
         return 2
 
-    if args.command == "land":
-        usage = "Usage: lifecycle.py land <N> --commit <short-sha> [--root DIR]"
-        commit = (args.commit or "").strip()
-        # The stamp lands verbatim on a `Commit:` continuation line, so a value with
-        # whitespace or control characters would corrupt the block it annotates.
-        if (args.index is None or not commit
-                or any(ch.isspace() or ord(ch) < 0x20 or ch == "\x7f" for ch in commit)):
+    if args.command in ("land", "reject"):
+        if args.command == "land":
+            usage = "Usage: lifecycle.py land <N> --commit <short-sha> [--root DIR]"
+            value = (args.commit or "").strip()
+            # The stamp lands verbatim on a `Commit:` continuation line, so a value
+            # with whitespace or control characters would corrupt the block.
+            bad_value = (not value
+                         or any(ch.isspace() or ord(ch) < 0x20 or ch == "\x7f" for ch in value))
+        else:
+            usage = 'Usage: lifecycle.py reject <N> --reason "<one-line>" [--root DIR]'
+            value = (args.reason or "").strip()
+            # The reason is prose (spaces are fine) but stays one line: a newline or
+            # control character would break the machine-readable Rejection: contract.
+            bad_value = (not value
+                         or any(ord(ch) < 0x20 or ch == "\x7f" for ch in value))
+        if args.index is None or bad_value:
             sys.stderr.write(usage + "\n")
             return 2
+        plan_path = os.path.join(root, "plan.md")
         try:
-            title = land(os.path.join(root, "plan.md"), os.path.join(root, "completed.md"),
-                         args.index, commit)
+            if args.command == "land":
+                title = land(plan_path, os.path.join(root, "completed.md"),
+                             args.index, value)
+            else:
+                title = reject(plan_path, os.path.join(root, "rejected.md"),
+                               args.index, value)
         except LookupError as e:
             sys.stderr.write(f"lifecycle: {e}; nothing was modified\n")
             return 2
         except (UnicodeDecodeError, NotADirectoryError, IsADirectoryError, PermissionError) as e:
             # Fail CLOSED like the drains below: never rewrite state that cannot be read.
-            sys.stderr.write(f"lifecycle: cannot read {os.path.join(root, 'plan.md')} "
+            sys.stderr.write(f"lifecycle: cannot read {plan_path} "
                              f"({e.__class__.__name__}: {e}); nothing was modified\n")
             return 2
         if not args.quiet and args.json:
-            print(json.dumps({"command": "land", "index": args.index,
-                              "title": title, "commit": commit}))
+            rec = {"command": args.command, "index": args.index, "title": title}
+            rec["commit" if args.command == "land" else "reason"] = value
+            print(json.dumps(rec))
         elif not args.quiet:
-            print(f"lifecycle: landed item {args.index} '{title}' "
-                  f"(Commit: {commit}) -> completed.md")
+            if args.command == "land":
+                print(f"lifecycle: landed item {args.index} '{title}' "
+                      f"(Commit: {value}) -> completed.md")
+            else:
+                print(f"lifecycle: rejected item {args.index} '{title}' -> rejected.md")
         return 0
 
     if args.command in ("reset", "fresh", "clean"):
