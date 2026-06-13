@@ -1565,6 +1565,12 @@ assert bg.imports_of("c", '#include "foo.h"\n', "src/main.c", {"src/main.c", "sr
 # both styles in one file resolve together
 two = '#include "bar.h"\n#include <project/foo.h>\n'
 assert set(ci(two)) == {"include/bar.h", "include/project/foo.h"}, ci(two)
+# a dotfile header <.config.h> must keep its leading dot, not strip it as a char set
+# and forge an edge to an unrelated config.h (regression: lstrip("./") stripped the dot)
+fs4 = {"src/main.c", "include/config.h"}
+assert bg.imports_of("c", '#include <.config.h>\n', "src/main.c", fs4) == [], "dotfile angle header must not forge edge to stripped-name file"
+# a genuine leading "./" is still stripped so the header resolves through its include root
+assert ci('#include <./project/foo.h>\n') == ["include/project/foo.h"], "leading ./ still resolves"
 PY
 then ok "build-graph.py resolves C/C++ angle includes via include roots (system headers excluded)"; else bad "C angle-include resolution wrong (resolve_c_angle / system-header leak)"; fi
 

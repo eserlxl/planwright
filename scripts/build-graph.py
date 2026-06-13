@@ -479,7 +479,9 @@ def resolve_c_angle(target, fileset):
     some -I include root). Deliberately NO bare-basename fallback — a system header like
     <sys/types.h> must not link to an unrelated repo `types.h`; only a genuine
     include-root hit (the full sub-path matches) creates the edge. Ambiguous -> None."""
-    t = target.replace("\\", "/").strip().lstrip("./")
+    t = target.replace("\\", "/").strip()
+    while t.startswith("./"):
+        t = t[2:]
     if not t:
         return None
     matches = [f for f in fileset if f == t or f.endswith("/" + t)]
