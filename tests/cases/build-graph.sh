@@ -956,6 +956,26 @@ assert bg.lang_of("Widget.tsx", b"export const W = () => 1") == "js"
 PY
 then ok "EXT_LANG recognizes alternate C/C++ and JS/TS extensions"; else bad "EXT_LANG missing alternate extensions or changed a known one"; fi
 
+# --- Test 11c2: shebang interpreter detection is basename-exact, not substring ---------
+# An extension-less script is classified by its shebang. The old `b"sh" in first` substring
+# test swept any interpreter whose name merely contains "sh" (fish, wish, csh, tcsh) into
+# bash; lang_of must now match the interpreter basename so only genuine sh-family shells
+# (sh/bash/dash/zsh, incl. env-wrapped) map to bash, while the extension still wins when set.
+if python3 -B - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+for sb in (b"#!/bin/sh\n", b"#!/bin/bash\n", b"#!/usr/bin/env bash\n",
+           b"#!/bin/dash\n", b"#!/bin/zsh\n", b"#!/usr/bin/env -S bash -e\n"):
+    assert bg.lang_of("hook", sb) == "bash", sb
+for sb in (b"#!/usr/bin/env fish\n", b"#!/bin/csh\n", b"#!/usr/bin/wish\n", b"#!/bin/tcsh\n"):
+    assert bg.lang_of("hook", sb) != "bash", sb
+for sb in (b"#!/usr/bin/python\n", b"#!/usr/bin/env python3\n", b"#!/usr/bin/python3.11\n"):
+    assert bg.lang_of("hook", sb) == "python", sb
+assert bg.lang_of("x.sh", b"#!/usr/bin/env fish\n") == "bash"   # extension still wins
+PY
+then ok "lang_of shebang detection is basename-exact (fish/csh/wish are not bash)"; else bad "lang_of shebang detection misclassifies a non-sh interpreter as bash"; fi
+
 # --- Test 11d3: Rust source support (lang, defines, branch_count, mod/use edge) -
 # A .rs file must route as lang "rust" with extracted defines + branch_count and a
 # resolved mod/use import edge, so a Rust repo gets centrality routing + Stage 2b

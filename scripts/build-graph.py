@@ -149,15 +149,42 @@ def coupling_pairs(commits, max_files_per_commit=COUPLING_MAX_FILES_PER_COMMIT):
     return pair_co
 
 
+# sh-family interpreter basenames that map to the "bash" bucket. The earlier `b"sh" in
+# first` substring test wrongly swept any interpreter whose name merely contains "sh"
+# (fish, wish, csh, tcsh, zsh-as-substring) into bash; match the interpreter *basename*
+# against this explicit set instead. zsh/ksh/dash/ash are genuine sh-family shells and
+# stay mapped to bash; fish/csh/tcsh/wish are not and fall through to "unknown".
+_SH_FAMILY = {b"sh", b"bash", b"dash", b"ash", b"ksh", b"zsh"}
+
+
+def _shebang_interpreter(first):
+    """The interpreter basename from a `#!...` first line, or b'' when there is none.
+    Strips the `#!`, splits on whitespace, drops a leading `env` wrapper (and its `-S`/`-i`
+    flags and `VAR=val` assignments), then takes the basename of the interpreter token.
+    Splits paths on '/' explicitly (shebang paths are POSIX) so it is OS-independent."""
+    line = first[2:].strip() if first.startswith(b"#!") else first.strip()
+    toks = line.split()
+    if not toks:
+        return b""
+    i = 0
+    if toks[0].rsplit(b"/", 1)[-1] == b"env":
+        i = 1
+        while i < len(toks) and (toks[i].startswith(b"-") or b"=" in toks[i]):
+            i += 1
+    if i >= len(toks):
+        return b""
+    return toks[i].rsplit(b"/", 1)[-1]
+
+
 def lang_of(path, blob):
     ext = path.rsplit(".", 1)[-1].lower() if "." in os.path.basename(path) else ""
     if ext in EXT_LANG:
         return EXT_LANG[ext]
     if blob[:2] == b"#!":
-        first = blob.split(b"\n", 1)[0]
-        if b"bash" in first or b"sh" in first:
+        interp = _shebang_interpreter(blob.split(b"\n", 1)[0])
+        if interp in _SH_FAMILY:
             return "bash"
-        if b"python" in first:
+        if interp.startswith(b"python"):
             return "python"
     return "unknown"
 
