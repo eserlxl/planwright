@@ -248,7 +248,9 @@ code, for a pristine-environment CI gate.
 
 `status` is read-only: it summarizes the current planning state from `.planwright/` — pending /
 completed / rejected item counts (with the pending items' titles listed under the count, also exposed
-as a `pending_titles` array in `--json`), the carried-candidate backlog when one exists (the
+as a `pending_titles` array in `--json`, and the newest landing named beneath the completed count as
+`last landed: <title> (<sha>)` from its `Commit:` provenance stamp, carried in `--json` as
+`last_landed` or `null`), the carried-candidate backlog when one exists (the
 verified-but-cut dossier findings a bare "0 pending" would hide — shown only when non-zero, pointing
 at `digest.md`), the run-activity beacon when a command flow has stamped one (live: `<command> —
 <detail>`; **STALE** when it outlived `PW_ACTIVITY_TTL` without a re-stamp, with the

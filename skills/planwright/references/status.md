@@ -11,7 +11,10 @@ in the sandbox and relay its report (`--json` for machine output, `--quiet` for 
 `--exit-code` to gate on convergence — see below). It reads `<target>/.planwright/` and reports:
 
 1. **Item counts** — pending (`- [ ]` in `plan.md`), completed (`- [x]` in `completed.md`), and
-   rejected (`rejected.md`).
+   rejected (`rejected.md`). Beneath the completed count, the report names the newest landing:
+   `last landed: <title> (<sha>)` — the final `completed.md` block with its `Commit:` provenance
+   stamp (bare title for history predating the stamp; no line when nothing has landed). Carried
+   in `--json` as `last_landed` (`{title, commit}` or `null`).
 2. **Final point** — from `final.md`: its `sha`, `date`, and `deepest_tier`, plus whether it is
    **STALE** — its sha is not the current `git rev-parse HEAD`, so the tree has moved on since the
    ladder was last exhausted and a fresh run would re-open it (see **Maturity ladder & the final
