@@ -397,3 +397,44 @@ if [ "$ab5_null" = "None" ] \
 else
   bad "state.py activity degradation/hygiene wrong (null='$ab5_null' heal='$ab5_heal' badname_rc=$ab5_badname_rc)"
 fi
+
+# --- Test ST10: --verify-manifest emits the pending plan's Verification commands ------
+# planwright's promise — "every item carries a runnable verification" — as a consumable
+# artifact: each Verification command deduped in plan order, paired with the titles that
+# share it, and a runnable `set -e` script under --as sh. Read-only (writes no state.json)
+# and byte-stable on an unchanged plan, the same determinism state.json itself guarantees.
+VMF="$TMP/state-verify-manifest"; mkdir -p "$VMF/.planwright"
+cat > "$VMF/.planwright/plan.md" <<'EOF'
+# planwright Plan — vmf
+
+- [ ] alpha
+      Mode: improve
+      Verification: bash tests/run.sh state
+
+- [ ] beta
+      Mode: develop
+      Verification: bash tests/run.sh status
+
+- [ ] gamma
+      Mode: improve
+      Verification: bash tests/run.sh state
+EOF
+vmf_json="$(python3 "$STATE" --root "$VMF" --verify-manifest)"
+vmf_sh1="$(python3 "$STATE" --root "$VMF" --verify-manifest --as sh)"
+vmf_sh2="$(python3 "$STATE" --root "$VMF" --verify-manifest --as sh)"
+if printf '%s' "$vmf_json" | python3 -c '
+import json, sys
+m = json.load(sys.stdin)
+assert [e["command"] for e in m] == ["bash tests/run.sh state", "bash tests/run.sh status"], ("dedup/order", m)
+assert m[0]["titles"] == ["alpha", "gamma"], ("shared titles", m[0])
+assert m[1]["titles"] == ["beta"], m[1]
+' \
+   && printf '%s\n' "$vmf_sh1" | head -1 | grep -q '^#!/usr/bin/env bash' \
+   && printf '%s' "$vmf_sh1" | grep -q 'set -euo pipefail' \
+   && [ "$(printf '%s\n' "$vmf_sh1" | grep -c '^bash tests/run.sh state$')" = 1 ] \
+   && [ "$vmf_sh1" = "$vmf_sh2" ] \
+   && [ ! -f "$VMF/.planwright/state.json" ]; then
+  ok "state.py --verify-manifest dedupes Verification commands in plan order (json + runnable sh, byte-stable, writes no state.json)"
+else
+  bad "state.py --verify-manifest wrong (json=$vmf_json)"
+fi

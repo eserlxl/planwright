@@ -119,6 +119,42 @@ def _completed_item(item):
             "commit": item.get("commit", "")}
 
 
+def _verify_manifest(state):
+    """The pending plan's Verification commands, deduped in plan order, each paired with the
+    titles that share it — planwright's 'every item carries a runnable verification' promise as
+    a consumable artifact. Reuses collect()'s already-shaped pending[] (each carries a
+    `verification` field), so it adds no new parsing surface. Deterministic: plan order + a
+    first-seen dedupe is byte-stable on an unchanged plan, matching state.json's own guarantee."""
+    seen, order = {}, []
+    for item in state.get("pending", []):
+        cmd = (item.get("verification") or "").strip()
+        if not cmd:
+            continue
+        if cmd not in seen:
+            seen[cmd] = []
+            order.append(cmd)
+        seen[cmd].append((item.get("title") or "").strip())
+    return [{"command": c, "titles": seen[c]} for c in order]
+
+
+def _render_verify_manifest(manifest, fmt):
+    """Render the manifest as JSON (default — an array of {command, titles}) or as a runnable
+    `set -euo pipefail` shell script (`--as sh`) that runs each unique command once, each
+    preceded by its titles as comments. Read-only: both forms go to stdout, no file is written."""
+    if fmt == "sh":
+        lines = ["#!/usr/bin/env bash",
+                 "# planwright verification manifest — every pending item's Verification command,",
+                 "# deduped in plan order. Generated read-only by `state.py --verify-manifest --as sh`.",
+                 "set -euo pipefail"]
+        for entry in manifest:
+            lines.append("")
+            for t in entry["titles"]:
+                lines.append("# - " + t.replace("\n", " "))
+            lines.append(entry["command"])
+        return "\n".join(lines) + "\n"
+    return json.dumps(manifest, indent=2) + "\n"
+
+
 # ---- run-activity beacon (write side) ----------------------------------------------------
 # The beacon is a deliberately tiny contract: one JSON object {command, started,
 # updated[, detail]} in .planwright/activity.json. Freshness comes from the file
@@ -331,7 +367,20 @@ def main():
     ap.add_argument("--out", default=None,
                     help="output path for the JSON (default: <root>/.planwright/state.json; "
                          "use '-' for stdout)")
+    ap.add_argument("--verify-manifest", action="store_true",
+                    help="instead of writing the snapshot, emit the pending plan's Verification "
+                         "commands (deduped, in plan order) to stdout as a runnable manifest — a "
+                         "file-based artifact an external CI step or agent can run; read-only")
+    ap.add_argument("--as", dest="as_fmt", choices=("json", "sh"), default="json",
+                    help="with --verify-manifest: 'json' (default, an array of {command, titles}) "
+                         "or 'sh' (a `set -euo pipefail` script running each unique command once)")
     args = ap.parse_args()
+
+    if args.verify_manifest:
+        # Read-only: emit the manifest to stdout and write no snapshot. Deterministic, so an
+        # external consumer can regenerate and diff it.
+        print(_render_verify_manifest(_verify_manifest(collect(args.root)), args.as_fmt), end="")
+        return 0
 
     state = collect(args.root)
     text = json.dumps(state, indent=2)
