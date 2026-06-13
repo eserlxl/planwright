@@ -284,15 +284,23 @@ def _git_commit_meta(repo, ref):
     """Resolve <ref> to (short_sha, full_sha, subject) in the git repo <repo>. Raises
     LookupError when <ref> is not a commit there, or git is unavailable — reconcile must
     never record a fix that is not a real commit (that would be fabricated completed
-    history). The full sha is returned so idempotency survives abbreviation-length drift."""
+    history). The full sha is returned so idempotency survives abbreviation-length drift.
+
+    Each git call carries a timeout (the 5s the sibling probes in status.py use), and the
+    handler catches TimeoutExpired: reconcile runs this inside the held _state_lock, so a
+    wedged git (a stuck filesystem, a pathological repo) must fail the transaction cleanly
+    and release the lock rather than hang every other planwright process on this
+    .planwright/ forever. lifecycle.py was the last engine script without git timeouts."""
     spec = ref + "^{commit}"
     try:
         full = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", spec],
-                              check=True, capture_output=True, text=True).stdout.strip()
+                              check=True, capture_output=True, text=True, timeout=5).stdout.strip()
         short = subprocess.run(["git", "-C", repo, "rev-parse", "--short", spec],
-                               check=True, capture_output=True, text=True).stdout.strip()
+                               check=True, capture_output=True, text=True, timeout=5).stdout.strip()
         subject = subprocess.run(["git", "-C", repo, "show", "-s", "--format=%s", spec],
-                                 check=True, capture_output=True, text=True).stdout.strip()
+                                 check=True, capture_output=True, text=True, timeout=5).stdout.strip()
+    except subprocess.TimeoutExpired as e:
+        raise LookupError(f"git timed out resolving '{ref}' in {repo}") from e
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         raise LookupError(f"'{ref}' is not a commit in {repo}") from e
     if not short or not full:
