@@ -345,7 +345,10 @@ def past_titles(plan_path, fname):
 # Only the two mechanically-unambiguous, filesystem-verifiable violations are auto-fixed;
 # everything else needs the agent's judgement and is left for the normal lint to report.
 HEAD_RE = re.compile(r"^- \[([ xX])\]\s*(.*)$")
-FIELD_RE = re.compile(r"^(\s+)([A-Z][A-Za-z ]*?):\s*(.*)$")
+# Mirrors plan_parse._FIELD_RE exactly (modulo the leading indent capture group the fixer
+# needs) — the `\s*` before the colon tolerates a `Surfaces : x` spelling the parser accepts,
+# so field_spans() and parse_items() agree on which lines are fields.
+FIELD_RE = re.compile(r"^(\s+)([A-Z][A-Za-z ]*?)\s*:\s*(.*)$")
 
 
 def _tool_owned(p):

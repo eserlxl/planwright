@@ -192,6 +192,41 @@ else
   bad "lint-plan.py --fix not idempotent on a double-violation item: $fx2_out"
 fi
 
+# --- Test 12f: --fix recognizes the `Surfaces :` (space-before-colon) field spelling -
+# field_spans() (the --fix path) must mirror parse_items() exactly. The parser tolerates a
+# space before the colon (plan_parse._FIELD_RE strips it); the fixer's FIELD_RE must too, or
+# --fix prints "no auto-fixable violations" and rewrites nothing on a plan the linter flags.
+FXS="$TMP/fix-spaced-colon"; mkdir -p "$FXS"
+: > "$FXS/CMakeLists.txt"
+: > "$FXS/existing.py"
+FXSP="$FXS/plan.md"
+cat > "$FXSP" <<'EOF'
+# planwright Plan — fix-spaced-colon
+
+- [ ] Spaced-colon double-violation item
+      Mode : improve
+      Rationale : a real reason.
+      Evidence : CMakeLists.txt configures the build.
+      Surfaces : CMakeLists
+      New Surfaces : existing.py
+      Development : edit the build wiring.
+      Acceptance : stays green.
+      Verification : bash tests/run.sh
+EOF
+python3 "$ROOT/scripts/lint-plan.py" --root "$FXS" --plan "$FXSP" --fix --quiet >/dev/null 2>&1 || true
+fxs_after="$(cat "$FXSP")"
+# The fixer recognizes the spaced spelling on input but normalizes the rewritten field to
+# canonical `Surfaces:` (lint-plan.py:460), respelling CMakeLists.txt and folding the moved
+# New Surface in. Before the FIELD_RE fix, field_spans saw no fields, --fix was a no-op, and
+# this plan still lint-failed (CMakeLists/.txt + existing New Surface).
+if printf '%s' "$fxs_after" | grep -q 'Surfaces: CMakeLists.txt, existing.py' \
+   && ! printf '%s' "$fxs_after" | grep -q 'New Surfaces' \
+   && python3 "$ROOT/scripts/lint-plan.py" --root "$FXS" --plan "$FXSP" --quiet; then
+  ok "lint-plan.py --fix recognizes the 'Surfaces :' space-before-colon spelling (mirrors the parser)"
+else
+  bad "lint-plan.py --fix did not auto-fix a space-before-colon plan: $fxs_after"
+fi
+
 # --- Test 12c: lint-plan.py rejects a placeholder Verification value ---------
 # Verification must be a runnable command; a bare "TODO"/"manual"/"n/a" passes the
 # non-empty check but is unverifiable, so lint-plan flags it before execute wastes a
