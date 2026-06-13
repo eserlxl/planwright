@@ -1,4 +1,4 @@
-# planwright invent resilience — earned empties, not lazy ones (design draft)
+# planwright invent resilience — earned empties, not lazy ones (design)
 
 Status: **IMPLEMENTED (SKILL.md Stage 5 + Stage 11; Tests 10h/10i).** Two in-mission features make the
 invent tier's "nothing to invent" outcome *rare and earned* rather than a wall: **(#1) framing

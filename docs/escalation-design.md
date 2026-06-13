@@ -1,4 +1,4 @@
-# planwright escalation — `explore` / `invent` (design draft)
+# planwright escalation — `explore` / `invent` (design)
 
 Status: **IMPLEMENTED (core).** The full `explore`/`invent` escalation ladder (tiers ① cold-frontier,
 ② expand, ③ invent), the novelty dial, the budget-as-reach rule, the deep final point, and the

@@ -1,4 +1,4 @@
-# planwright component scoping — `path` / `lib` (design draft)
+# planwright component scoping — `path` / `lib` (design)
 
 Status: **IMPLEMENTED (core).** The `build-graph.py --scope` Focus/Context computation and the SKILL.md
 procedure wiring (Usage/Options/Inputs, Stage 1 scope resolution with a loud no-match, Focus-wide

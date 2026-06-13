@@ -1,4 +1,4 @@
-# planwright invent exploration — seeded, recorded stochasticity (design draft)
+# planwright invent exploration — seeded, recorded stochasticity (design)
 
 Status (2026-06-05): **lever 1 — builder shipped, SKILL.md wiring REJECTED (inert); lever 2 — SHIPPED
 end-to-end (builder + SKILL.md wiring).** The two levers reached opposite conclusions, which is why the
