@@ -441,8 +441,12 @@ def main():
                              "not an item index or --reason\n")
             return 2
         commit = (args.commit or "").strip()
-        # --commit is a git ref that also lands verbatim on a `Commit:` line: no whitespace/control.
+        # --commit is a git ref that also lands verbatim on a `Commit:` line: no whitespace/
+        # control. Reject a leading '-' too: the value is passed to `git rev-parse`, where a
+        # `-`-prefixed token would be parsed as an option (flag injection); a real sha/ref
+        # never starts with '-'.
         bad_commit = (not commit
+                      or commit.startswith("-")
                       or any(ch.isspace() or ord(ch) < 0x20 or ch == "\x7f" for ch in commit))
         mode = (args.mode or "").strip()
         if bad_commit or mode not in VALID_MODES:

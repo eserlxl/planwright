@@ -657,10 +657,12 @@ fi
 mkdir -p "$TMP/lc19d/.planwright"
 bog_rc=0; python3 "$LC" reconcile --commit deadbeefcafe --mode improve --root "$TMP/lc19d/.planwright" --repo "$RGT" >/dev/null 2>&1 || bog_rc=$?
 mode_rc=0; python3 "$LC" reconcile --commit "$RGFULL" --mode nonsense --root "$TMP/lc19d/.planwright" --repo "$RGT" >/dev/null 2>&1 || mode_rc=$?
-if [ "$bog_rc" = 2 ] && [ "$mode_rc" = 2 ] && [ ! -f "$TMP/lc19d/.planwright/completed.md" ]; then
-  ok "lifecycle.py reconcile refuses a non-commit and an invalid --mode (exit 2, nothing written)"
+# a `-`-prefixed --commit (git flag-injection vector into rev-parse) is refused at the edge
+dash_rc=0; python3 "$LC" reconcile --commit=-foo --mode improve --root "$TMP/lc19d/.planwright" --repo "$RGT" >/dev/null 2>&1 || dash_rc=$?
+if [ "$bog_rc" = 2 ] && [ "$mode_rc" = 2 ] && [ "$dash_rc" = 2 ] && [ ! -f "$TMP/lc19d/.planwright/completed.md" ]; then
+  ok "lifecycle.py reconcile refuses a non-commit, an invalid --mode, and a flag-like --commit (exit 2, nothing written)"
 else
-  bad "lifecycle.py reconcile validation wrong (bogus=$bog_rc mode=$mode_rc)"
+  bad "lifecycle.py reconcile validation wrong (bogus=$bog_rc mode=$mode_rc dash=$dash_rc)"
 fi
 
 # --- Test L19e: --mode/--title/--repo are rejected on a non-reconcile command --------
