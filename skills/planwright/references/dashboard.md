@@ -30,7 +30,10 @@ Stdlib only (no Flask/websocket libs, no build step). It exposes:
 6. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
    reactive console with eight views — **Console** (convergence reactor with a three-state resting
    verdict, the expanded health vitals row — coverage, hotspots, coupling, audit frontier, files,
-   articulation, tests, cycles — cadence with a mode legend, session trend, dirty pulse),
+   articulation, tests, cycles — cadence with a mode legend, session trend, dirty pulse, and a
+   run-activity beacon under the reactor note naming the command flow executing right now — distinct
+   from the IN PROGRESS verdict (that means pending items exist; the beacon means a run is live this
+   second), rendering `stale?` for a leftover that outlives `PW_ACTIVITY_TTL`),
    **Commands** (the codmaster front-door panel — the exact dispatch `/codmaster` would run next,
    from `/recommend.json` — above the coach's recommended next sweep for the current state —
    codvisor / codinventor / codcycle — plus copy-only codmaster and codshard cards the coach's
