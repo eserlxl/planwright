@@ -477,15 +477,16 @@ assert "rejected work stays suppressed across laps" in body, "cross-lap rejected
 assert "re-arm the growth burst" in body, "per-lap growth re-arm missing"
 assert "restart the step counter" in body, "per-lap step-counter restart missing"
 assert "ends only on interruption or a hard stop" in body, "infinite-drive stop set missing"
-# loop post-growth sharded harden: the master's one command-shaping rule — in loop, once growth
-# is taken, a codvisor harden on a shardable repo becomes `codshard explore` (an explained
-# divergence), gated on the engine's repo.shardable fact; outside loop / pre-growth / non-codvisor
-# it relays the engine's command unchanged, and a non-shardable repo keeps codvisor
-assert "Loop post-growth sharded harden" in body, "loop post-growth codshard rule missing"
-assert "repo.shardable" in body, "loop codshard shardability gate missing"
-assert "dispatch `codshard explore` **instead**" in body, "loop codshard override (codvisor->codshard) missing"
-assert "the harden stays `codvisor`" in body, "loop codshard not-shardable fallback missing"
-assert "explained divergence" in body, "loop codshard divergence disclosure missing"
+# post-growth sharded harden: the master's one command-shaping rule — in ANY lap (a bare run is
+# itself one lap, not only loop), once growth is taken, a codvisor harden on a shardable repo
+# becomes `codshard explore` (an explained divergence), gated on the engine's repo.shardable fact;
+# before growth / non-codvisor it relays unchanged, and a non-shardable repo keeps codvisor
+assert "Post-growth sharded harden" in body, "post-growth codshard rule missing"
+assert "not only under `loop`" in body, "post-growth shard must fire in every lap (bare or loop), not only loop"
+assert "repo.shardable" in body, "post-growth codshard shardability gate missing"
+assert "dispatch `codshard explore` **instead**" in body, "post-growth codshard override (codvisor->codshard) missing"
+assert "the harden stays `codvisor`" in body, "post-growth codshard not-shardable fallback missing"
+assert "explained divergence" in body, "post-growth codshard divergence disclosure missing"
 assert "=== codmaster lap L ===" in body, "lap header missing"
 assert "=== codmaster step i/12:" in body, "per-step header missing"
 assert "never exceeding 12 steps" in body, "12-step safety cap missing"
@@ -498,7 +499,7 @@ assert "verbatim" in body, "stop-relay verbatim rule missing"
 assert "suppress any next-step suggestion" in body, "broken-stop suggestion suppression missing"
 assert "Print nothing of your own" in body, "print-nothing-else rule missing"
 PY
-then ok "commands/codmaster.md relays the tested coach table and owns its lap orchestration (engine-delegation, safe word, loop post-growth sharded harden, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its coach-table-delegation/safe/loop-codshard/disclosure contract"; fi
+then ok "commands/codmaster.md relays the tested coach table and owns its lap orchestration (engine-delegation, safe word, post-growth sharded harden in every lap, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its coach-table-delegation/safe/post-growth-codshard/disclosure contract"; fi
 
 # --- commands/dashboard.md launches the bundled read-only dashboard server ---
 # /dashboard wraps `dashboard.py --open`; guard that it resolves the bundled <scripts>

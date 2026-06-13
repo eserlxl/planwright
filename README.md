@@ -93,9 +93,9 @@ normal edit, terminal, and commit approval prompts still apply.
 >   command does this state need? — stays in a tested table (`status.py --recommend`, the same
 >   table the dashboard's Commands view renders), and codmaster dispatches it at depth 10. What
 >   codmaster owns on top is the **lap orchestration**: re-deciding every step from fresh state
->   (where `/codcycle` runs a fixed rhythm), the at-most-once growth burst, and — in `loop` mode —
->   a **sharded post-growth harden** (`codshard`, when the repo is shardable) so each infinite lap
->   deep-hardens its freshly-grown code per-component before resetting.
+>   (where `/codcycle` runs a fixed rhythm), the at-most-once growth burst, and a **sharded
+>   post-growth harden** (`codshard`, when the repo is shardable) so each lap — bare run or
+>   `loop` relap — deep-hardens its freshly-grown code per-component.
 >
 > The full vocabulary lives in [Concepts](docs/concepts.md).
 
