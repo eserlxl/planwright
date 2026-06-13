@@ -49,13 +49,14 @@ examples use the short spellings (`/codvisor`, `/codmaster`) — install them as
 
 ## Start here
 
-The four **direct dials** each drive one motion — repair, invention, alternation, scale. Run any
+The five **main commands** each drive one motion — full autonomy, repair, invention, alternation, scale. Run any
 of them with no arguments and Planwright does the rest: it prints the estimated AI/session cost
 first, then works autonomously through plan→build→verify rounds until it runs out of worthwhile
 work.
 
 | Command        | What it does                       | Best for           |
 |----------------|------------------------------------|--------------------|
+| `/codmaster`   | Senses repo state and drives all other motions autonomously. | The front door / full autonomy |
 | `/codvisor`    | Fixes real work, stops when clean. | Analyze and repair |
 | `/codinventor` | Discovers and adds grounded new capabilities. | Feature discovery  |
 | `/codcycle`    | Alternates repair and invention rounds.     | Autonomous improvement  |
