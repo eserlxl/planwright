@@ -1362,3 +1362,64 @@ if python3 "$TMP/dash_mp_client.py" "$DASH" "$ROOT/scripts" "$DMP" "$DMPB" "$DMP
 else
   bad "dashboard multi-project id resolution failed (allow-list / 404 / back-compat)"
 fi
+
+# --- Test DETAG: /state.json ETag is keyed per project (no cross-project 304) -------------
+# Two projects with BYTE-IDENTICAL .planwright/ and forced-identical mtimes, so their change
+# signatures match. Without folding the project id into the ETag they would share one and
+# project A's If-None-Match would 304 project B. The ETag must still 304 within one project.
+DET="$TMP/dash-etag"; mkdir -p "$DET/a/.planwright" "$DET/b/.planwright"
+printf -- '- [ ] same\n      Mode: develop\n' > "$DET/a/.planwright/plan.md"
+printf -- '- [ ] same\n      Mode: develop\n' > "$DET/b/.planwright/plan.md"
+python3 -c 'import os,sys; t=1000000000000000000; [os.utime(p, ns=(t,t)) for p in sys.argv[1:]]' \
+  "$DET/a/.planwright/plan.md" "$DET/b/.planwright/plan.md"
+DETX="$TMP/dash-etag-xdg"; mkdir -p "$DETX"
+XDG_CONFIG_HOME="$DETX" python3 "$DASH" --add "$DET/b" >/dev/null
+
+cat > "$TMP/dash_etag_client.py" <<'PY'
+import json, os, subprocess, sys, time, urllib.request, urllib.error
+dash, scripts, rootA, rootB, xdg = sys.argv[1:6]
+sys.path.insert(0, scripts)
+import registry
+idB = registry.project_id(rootB)
+env = dict(os.environ); env["XDG_CONFIG_HOME"] = xdg
+proc = subprocess.Popen([sys.executable, dash, "--root", rootA, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+try:
+    port, deadline = None, time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            break
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    assert port, "no port banner"
+    base = "http://127.0.0.1:%d" % port
+    def get(pathq, headers=None):
+        req = urllib.request.Request(base + pathq, headers=headers or {})
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return r.status, r.headers.get("ETag")
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers.get("ETag")
+    stA, etagA = get("/state.json")                      # default -> A
+    stB, etagB = get("/state.json?project=" + idB)       # -> B
+    assert stA == 200 and etagA, ("A etag", stA, etagA)
+    assert stB == 200 and etagB, ("B etag", stB, etagB)
+    assert etagA != etagB, ("ETag collided across projects with identical signatures", etagA, etagB)
+    stX, _ = get("/state.json?project=" + idB, {"If-None-Match": etagA})
+    assert stX == 200, ("A's ETag wrongly 304'd B", stX)
+    stY, _ = get("/state.json?project=" + idB, {"If-None-Match": etagB})
+    assert stY == 304, ("same-project conditional did not 304", stY)
+    print("ETAG_OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+if python3 "$TMP/dash_etag_client.py" "$DASH" "$ROOT/scripts" "$DET/a" "$DET/b" "$DETX" 2>/dev/null | grep -q ETAG_OK; then
+  ok "dashboard /state.json ETag is project-keyed (no cross-project 304; same-project still 304s)"
+else
+  bad "dashboard ETag cross-pollinates across projects (or broke same-project revalidation)"
+fi

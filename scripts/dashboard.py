@@ -249,7 +249,10 @@ class Handler(BaseHTTPRequestHandler):
         """A strong ETag for the current /state.json: a short hash of the cheap .planwright/
         change signature (the same one the SSE /events stream watches). It changes iff the
         snapshot would — any add/remove/modify under .planwright/, or a beacon TTL flip."""
-        sig = repr(_mtime_signature(self.root)).encode("utf-8")
+        # Fold the resolved root into the validator so two projects never share an ETag even
+        # if their .planwright/ signatures happen to match — otherwise project A's
+        # If-None-Match could wrongly 304 project B on a multi-project server.
+        sig = repr((self.root, _mtime_signature(self.root))).encode("utf-8")
         return '"%s"' % hashlib.sha1(sig).hexdigest()[:16]
 
     def _serve_state(self):
