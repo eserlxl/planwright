@@ -700,3 +700,34 @@ if grep -q 'lifecycle.py reconcile' "$ROOT/skills/planwright/SKILL.md" \
 else
   bad "SKILL.md does not wire reconcile or state the mandatory completion-accounting rule"
 fi
+
+
+# --- Test L20: reconcile/land fail closed on an unreadable state file (exit 2, nothing lost) ---
+# L14 pins this fail-closed posture for housekeep on plan.md. The reconcile (completed.md) and
+# land (plan.md) read paths are the completion-accounting escape hatch's newest code and were
+# untested: a non-UTF-8 completed.md must not be overwritten by reconcile, and a non-UTF-8 plan.md
+# must not let land stamp a Commit: into a fresh completed.md. Both must exit 2, emit 'cannot read',
+# no Traceback, and touch nothing — fail closed, never lose committed history.
+# (1) reconcile against a non-UTF-8 completed.md (the commit resolves via the L19 RGT repo)
+LRC="$TMP/lc20a/.planwright"; mkdir -p "$LRC"
+printf -- '- [x] caf\xe9 prior\n      Mode: docs\n      Commit: abc1234\n' > "$LRC/completed.md"
+lrc_before="$(cksum "$LRC/completed.md")"
+lrc_rc=0
+lrc_err="$(python3 "$LC" reconcile --commit "$RGFULL" --mode improve --root "$LRC" --repo "$RGT" 2>&1 >/dev/null)" || lrc_rc=$?
+# (2) land against a non-UTF-8 plan.md
+LLD="$TMP/lc20b/.planwright"; mkdir -p "$LLD"
+printf -- '- [ ] caf\xe9 item\n      Mode: docs\n      Verification: true\n' > "$LLD/plan.md"
+lld_before="$(cksum "$LLD/plan.md")"
+lld_rc=0
+lld_err="$(python3 "$LC" land 1 --commit abc1234 --root "$LLD" 2>&1 >/dev/null)" || lld_rc=$?
+if [ "$lrc_rc" = 2 ] && [ "$lld_rc" = 2 ] \
+   && ! printf '%s%s' "$lrc_err" "$lld_err" | grep -q 'Traceback' \
+   && printf '%s' "$lrc_err" | grep -q 'cannot read' \
+   && printf '%s' "$lld_err" | grep -q 'cannot read' \
+   && [ "$(cksum "$LRC/completed.md")" = "$lrc_before" ] \
+   && [ "$(cksum "$LLD/plan.md")" = "$lld_before" ] \
+   && [ ! -f "$LLD/completed.md" ]; then
+  ok "lifecycle.py reconcile/land fail closed on an unreadable state file (exit 2, no traceback, nothing lost)"
+else
+  bad "lifecycle.py reconcile/land mishandled an unreadable state file (recon=$lrc_rc land=$lld_rc): $lrc_err | $lld_err"
+fi
