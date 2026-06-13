@@ -1269,3 +1269,38 @@ then
 else
   bad "dashboard _mtime_signature misses the beacon TTL bit (an open dashboard would pulse 'live' over a dead run forever)"
 fi
+
+# --- Test DCLI: registry management flags act and exit without serving --------------------
+# --add/--remove/--discover/--list curate the cross-repo registry the multi-project server
+# lists. They are management invocations: they perform the op and exit 0 (never bind a port,
+# so the call returns immediately). The registry is redirected to a temp XDG dir.
+DCREG="$TMP/dash-cli-xdg"; mkdir -p "$DCREG"
+DCPRJ="$TMP/dash-cli-proj"; mkdir -p "$DCPRJ/one/.planwright" "$DCPRJ/two/.planwright"
+# --add then --list compose (add, then show); the management call must exit on its own.
+add_out="$(XDG_CONFIG_HOME="$DCREG" python3 "$DASH" --add "$DCPRJ/one" --list)"
+if printf '%s' "$add_out" | python3 -c '
+import json, os, sys
+# the JSON list is the trailing object; find the line where it starts
+text = sys.stdin.read()
+obj = json.loads(text[text.index("{"):])
+paths = [e["path"] for e in obj["projects"]]
+assert os.path.abspath("'"$DCPRJ"'/one") in paths, paths
+'; then
+  ok "dashboard.py --add + --list registers a project and exits without serving"
+else
+  bad "dashboard.py --add/--list did not register/list the project (or hung)"
+fi
+# --discover registers every .planwright/ child; --remove drops one.
+XDG_CONFIG_HOME="$DCREG" python3 "$DASH" --discover "$DCPRJ" >/dev/null
+XDG_CONFIG_HOME="$DCREG" python3 "$DASH" --remove "$DCPRJ/one" >/dev/null
+rem_out="$(XDG_CONFIG_HOME="$DCREG" python3 "$DASH" --list)"
+if printf '%s' "$rem_out" | python3 -c '
+import json, os, sys
+obj = json.loads(sys.stdin.read())
+names = sorted(os.path.basename(e["path"]) for e in obj["projects"])
+assert names == ["two"], names   # one removed; two discovered
+'; then
+  ok "dashboard.py --discover registers children and --remove drops a project"
+else
+  bad "dashboard.py --discover/--remove did not yield the expected registry"
+fi

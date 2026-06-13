@@ -43,6 +43,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import state
 import status
 import doctor
+import registry
 
 # Static UI lives under scripts/dashboard/ next to this file (resolved from __file__, not
 # the cwd, so the server works regardless of where it is launched from).
@@ -383,7 +384,35 @@ def main():
                     help="port to bind on 127.0.0.1 (default: 0 = ephemeral, printed)")
     ap.add_argument("--open", action="store_true",
                     help="open the dashboard URL in a browser once the server is up")
+    # Registry management — curate which projects the shared (multi-project) server lists.
+    # These are management invocations, not a serve: when any is given, the op runs and the
+    # process exits without binding a port.
+    ap.add_argument("--add", metavar="DIR",
+                    help="register DIR in the cross-repo project registry, then exit")
+    ap.add_argument("--remove", metavar="DIR",
+                    help="drop DIR from the project registry, then exit")
+    ap.add_argument("--discover", metavar="PARENT",
+                    help="register each child of PARENT holding a .planwright/, then exit")
+    ap.add_argument("--list", action="store_true",
+                    help="print the project registry as JSON, then exit")
     args = ap.parse_args()
+
+    # A management invocation does its registry op(s) and exits 0 without serving. --add and
+    # --list compose (add then show), so run the mutating ops first and list last.
+    managed = False
+    if args.add:
+        print("registry: added %s" % registry.upsert(args.add)); managed = True
+    if args.remove:
+        print("registry: removed" if registry.remove(args.remove) else "registry: not found")
+        managed = True
+    if args.discover:
+        print("registry: discovered %d project(s)" % len(registry.discover(args.discover)))
+        managed = True
+    if args.list:
+        print(json.dumps({"projects": registry.list_projects()}, indent=2)); managed = True
+    if managed:
+        return 0
+
     return serve(args.root, args.port, open_browser=args.open)
 
 
