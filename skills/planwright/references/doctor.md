@@ -10,7 +10,7 @@ an unset git identity, a missing tool — need the user) and then re-checks. Mir
 **Canonical check.** Prefer the deterministic, test-covered `<scripts>/doctor.py` (resolve
 `<scripts>` per **Procedure → Bundled scripts**): run
 `python3 <scripts>/doctor.py --root <target>` in the sandbox and relay its report. It checks two
-seams and the target:
+seams, the target, and the recorded final point:
 
 1. **Host tools** — `python3` (the bundled-script runtime), `git` (graph file enumeration,
    change-coupling edges, Execute's per-item commits), `rg`/`fd` (fast Stage 1 scanning). Each is
@@ -24,6 +24,12 @@ seams and the target:
    plan/graph/digest as noise), and whether a git commit identity (`user.name`/`user.email`) is set
    (Execute/Cycle commit per item, so an unset identity fails mid-run). Both are reported `warn`,
    never `fail`.
+4. **Recorded final point** — when `.planwright/final.md` is present, that it passes `lint-final`'s
+   structural contract. `status.py` absorbs a malformed final point into its `fp_flag` and the coach
+   then silently routes to a harden sweep, so this is the one preflight surface for a corrupt marker.
+   Reported `warn` (never `fail` — a corrupt point degrades the recommendation but does not break a
+   run), and `ok` when the point is valid or absent (no recorded point is a legitimate open-ladder
+   state).
 
 Severity is `ok` / `warn` (degraded, run still works) / `fail` (a core capability is unavailable:
 missing `git` or a missing bundled script). The script exits non-zero when any check fails; the opt-in
