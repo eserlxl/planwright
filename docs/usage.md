@@ -405,12 +405,13 @@ See [Graph memory](graph-memory-schema.md) for the full `graph.json` schema and 
   python3 <scripts>/build-graph.py --scope src/ --dot | dot -Tsvg > src.svg
   ```
 
-- **`--select EXPR`** — print the repo-relative paths of nodes matching a predicate (one per line, sorted) for scripting without `jq`. EXPR is one of `is_articulation`, `covered_by_test`, `is_test`, a `no-` negation of those, `code` (`branch_count > 0`), `never-audited` (no reachable audit stamp — the same bin `frontier.never_audited` counts), `stale-audited` (stamped, but stamped before HEAD — the raw per-node form of the frontier's `stale` bin; compose `stale-audited,code,no-is_test` to reproduce that count), or `lang=NAME` — or a **comma-ANDed conjunction** of those (a node must match every member), so a multi-signal slice needs no `jq` post-processing either. It takes precedence over `--dot`:
+- **`--select EXPR`** — print the repo-relative paths of nodes matching a predicate (one per line, sorted) for scripting without `jq`. EXPR is one of `is_articulation`, `covered_by_test`, `is_test`, a `no-` negation of those, `code` (`branch_count > 0`), `never-audited` (no reachable audit stamp — the same bin `frontier.never_audited` counts), `stale-audited` (stamped, but stamped before HEAD — the raw per-node form of the frontier's `stale` bin; compose `stale-audited,code,no-is_test` to reproduce that count), or `lang=NAME` — or a **comma-ANDed conjunction** of those (a node must match every member), so a multi-signal slice needs no `jq` post-processing either. **The two audit-stamp predicates are meaningful only with `--prior .planwright/graph.json`** — the stamps live in the graph memory, and a fresh build has none, so without `--prior` the slice is silently degenerate (`never-audited` matches every node, `stale-audited` none). It takes precedence over `--dot`:
 
   ```bash
   python3 <scripts>/build-graph.py --select is_articulation         # the fragile chokepoints
   python3 <scripts>/build-graph.py --select no-covered_by_test      # uncovered code nodes
   python3 <scripts>/build-graph.py --select code,no-covered_by_test # untested CODE nodes only
+  python3 <scripts>/build-graph.py --prior .planwright/graph.json --select stale-audited,code,no-is_test  # the frontier's stale bin
   python3 <scripts>/build-graph.py --select code -z | xargs -0 wc -l  # NUL-safe pipelines
   ```
 

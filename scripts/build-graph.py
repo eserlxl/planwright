@@ -1714,7 +1714,10 @@ def main():
                          "per line, instead of JSON: is_articulation | covered_by_test | is_test "
                          "| no-<that> | code | never-audited | stale-audited | lang=NAME "
                          "(scriptable access to the computed routing signals; takes precedence "
-                         "over --dot)")
+                         "over --dot). The audit-stamp predicates (never-audited, stale-audited) "
+                         "are meaningful only with --prior pointing at the live graph memory — "
+                         "a fresh build has no stamps, so never-audited matches every node and "
+                         "stale-audited none")
     ap.add_argument("-z", "--print0", action="store_true",
                     help="with --select, terminate each printed path with NUL instead of "
                          "newline (for xargs -0; paths with spaces/newlines stay intact); "
