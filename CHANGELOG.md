@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.54.0] - 2026-06-13
+
+### Changed
+- Add codmaster `parallel` option: forwards codshard's read-only recon prefetch to every codshard dispatch (including each loop-mode reset follow-up sweep) and nudges toward /codshard on a non-large repo; it never changes which command the engine chooses (composes with safe/loop).
+
 ## [1.53.0] - 2026-06-13
 
 ### Added
