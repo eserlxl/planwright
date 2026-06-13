@@ -438,3 +438,33 @@ assert m[1]["titles"] == ["beta"], m[1]
 else
   bad "state.py --verify-manifest wrong (json=$vmf_json)"
 fi
+
+# --- Test ST-reg: activity start auto-registers the repo in the cross-repo registry -------
+# The single-server dashboard's switcher needs running projects to appear with zero effort,
+# so activity_start best-effort upserts the repo into the registry (registry.py). The
+# registry is redirected to a temp XDG dir so the test never touches the real one.
+AREG="$TMP/state-areg"; mkdir -p "$AREG/.planwright"
+ARXDG="$TMP/state-areg-xdg"; mkdir -p "$ARXDG"
+if XDG_CONFIG_HOME="$ARXDG" python3 "$STATE" activity start plan --root "$AREG" >/dev/null \
+   && XDG_CONFIG_HOME="$ARXDG" python3 -c '
+import json, os, sys
+reg = os.path.join("'"$ARXDG"'", "planwright", "projects.json")
+paths = [e["path"] for e in json.load(open(reg))["projects"]]
+assert os.path.abspath("'"$AREG"'") in paths, (paths, reg)
+'; then
+  ok "state.py activity start auto-registers the repo in the cross-repo registry"
+else
+  bad "state.py activity start did not auto-register the repo"
+fi
+
+# --- Test ST-reg2: a broken registry never breaks the beacon (best-effort) ----------------
+# Point XDG at a path whose parent is a file, so the registry write must fail; the beacon
+# must still stamp activity.json and report success.
+ARBAD="$TMP/state-areg-bad"; mkdir -p "$ARBAD/.planwright"
+ARXBAD="$TMP/state-areg-badxdg"; : > "$ARXBAD"   # a FILE where a config dir would go
+if XDG_CONFIG_HOME="$ARXBAD" python3 "$STATE" activity start plan --root "$ARBAD" | grep -q 'activity: started plan' \
+   && [ -f "$ARBAD/.planwright/activity.json" ]; then
+  ok "state.py activity start still stamps the beacon when the registry write fails"
+else
+  bad "a failing registry write broke the activity beacon"
+fi

@@ -203,6 +203,19 @@ def _write_activity(path, record):
         raise
 
 
+def _register_project(root):
+    """Best-effort: enter this repo into the cross-repo dashboard registry (see registry.py)
+    so a project that is *running* appears in the single-server switcher with zero user
+    effort. Imported lazily to avoid any import-time coupling, and every failure is
+    swallowed — the beacon is best-effort telemetry, so an unwritable/absent registry must
+    never block or error a beacon stamp."""
+    try:
+        import registry
+        registry.upsert(os.path.abspath(root))
+    except Exception:
+        pass
+
+
 def activity_start(root, name, detail=None, if_absent=False):
     """Stamp the beacon. With if_absent, ANOTHER command's live beacon (fresh within
     the TTL) is kept untouched — that is how an inner skill flow avoids clobbering
@@ -229,6 +242,7 @@ def activity_start(root, name, detail=None, if_absent=False):
     if detail:
         record["detail"] = detail
     _write_activity(path, record)
+    _register_project(root)
     return "activity: started %s" % name
 
 
