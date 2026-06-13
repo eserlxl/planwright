@@ -36,7 +36,9 @@
 # python3 — so that check always passes; it is reported for completeness.
 
 import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -289,7 +291,11 @@ def check_final_point(root):
             raise ImportError("no import spec")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        res = mod.collect(root)
+        # lint-final.collect() fails closed by printing the read/decode failure to stderr
+        # (lint-final.py:70); doctor --quiet is an exit-code-only contract, so capture it —
+        # the WARN status below is built from res, not from that stream.
+        with contextlib.redirect_stderr(io.StringIO()):
+            res = mod.collect(root)
     except Exception:
         return [{"name": name, "status": "ok",
                  "detail": "n/a (lint-final.py unavailable — see the bundled-script check above)",

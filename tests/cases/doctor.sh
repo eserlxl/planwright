@@ -388,3 +388,18 @@ if [ "$fp_check" = 1 ]; then
 else
   bad "doctor.py final-point check wrong (absent/valid should be ok, corrupt should warn without failing)"
 fi
+
+# --- Test DR12b: --quiet stays exit-code-only on a non-UTF-8 final.md --------------
+# doctor --quiet is an exit-code-only contract. A non-UTF-8 (corrupt) final.md makes
+# lint-final.collect() fail closed by printing the decode failure to stderr (lint-final.py:70);
+# check_final_point must capture that stream so the quiet contract holds in exactly the
+# corrupt-marker path the check exists for. doctor's own git probes already capture_output,
+# so any stderr here is the lint-final leak. (Regression for doctor.py:297.)
+DRNU2="$TMP/doctor-finalpoint-nonutf8"; mkdir -p "$DRNU2/.planwright"
+printf '\xff\xfe sha: x\n' > "$DRNU2/.planwright/final.md"
+dq_err="$(python3 "$ROOT/scripts/doctor.py" --root "$DRNU2" --quiet 2>&1 1>/dev/null)"
+if [ -z "$dq_err" ]; then
+  ok "doctor --quiet keeps stderr clean on a non-UTF-8 final.md (no lint-final leak)"
+else
+  bad "doctor --quiet leaked stderr on a non-UTF-8 final.md: $dq_err"
+fi
