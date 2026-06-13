@@ -179,6 +179,23 @@ def _last_landed(path):
             "commit": last["fields"].get("Commit", "").strip()}
 
 
+def _completed_ledger(path):
+    """Every completed (`- [x]`) item as {"title", "mode", "commit"} in file (append/FIFO,
+    i.e. chronological) order — the per-landing provenance ledger. `commit` is the `Commit:`
+    stamp the execute path appends on pass ("" for history predating the stamp, like
+    _last_landed). Reuses _parse + the same field reads _completed_modes/_last_landed already
+    do, so it adds no new parsing surface. Returns [] when completed.md is missing/unreadable
+    or holds no checked item."""
+    out = []
+    for it in _parse(path):
+        if not it["checked"]:
+            continue
+        out.append({"title": it["title"],
+                    "mode": it["fields"].get("Mode", "").strip().lower(),
+                    "commit": it["fields"].get("Commit", "").strip()})
+    return out
+
+
 def _rejected_items(path):
     """Return rejected items as {"title","reason"} dicts, in file order. Each rejected
     entry is a `- [ ] <title>` (or `- [x]`) line followed by indented continuation lines;
@@ -924,10 +941,19 @@ def main():
                     help="emit the coach recommendation as JSON (read-only; the canonical "
                          "decision surface for `planwright advise` and /codmaster — the "
                          "command layer never re-derives this table in prose)")
+    ap.add_argument("--ledger", action="store_true",
+                    help="emit the completed-work provenance ledger as JSON — every landed item "
+                         "as {title, mode, commit} in chronological order (read-only; turns the "
+                         "recorded Commit: stamps into a queryable record of what shipped)")
     args = ap.parse_args()
 
     if args.recommend:
         print(json.dumps(recommend(args.root), indent=2))
+        return 0
+
+    if args.ledger:
+        print(json.dumps(_completed_ledger(
+            os.path.join(args.root, ".planwright", "completed.md")), indent=2))
         return 0
 
     state = collect(args.root)

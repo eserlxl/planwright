@@ -139,6 +139,32 @@ else
   bad "status.py last-landed surface wrong: $llrep"
 fi
 
+# --- Test STS6f: --ledger emits the full completed-work provenance ledger -----------
+# Symmetric to STS6e's single last-landed: --ledger emits EVERY landed item as
+# {title, mode, commit} in chronological (file) order, turning the Commit: stamps into a
+# queryable record. Pre-stamp history yields commit ""; an empty completed.md yields [].
+# The default report stays byte-additive (the flag short-circuits, like --recommend).
+LGX="$TMP/status-ledger"; mkdir -p "$LGX/.planwright"
+printf -- '- [x] old work\n      Mode: docs\n- [x] mid work\n      Mode: repair\n      Commit: abc1234\n- [x] new work\n      Mode: develop\n      Commit: def5678\n' \
+  > "$LGX/.planwright/completed.md"
+LGE="$TMP/status-ledger-empty"; mkdir -p "$LGE/.planwright"
+lgout="$(python3 "$STAT" --root "$LGX" --ledger)"
+if printf '%s' "$lgout" | python3 -c '
+import json, sys
+m = json.load(sys.stdin)
+assert m == [
+  {"title": "old work", "mode": "docs", "commit": ""},
+  {"title": "mid work", "mode": "repair", "commit": "abc1234"},
+  {"title": "new work", "mode": "develop", "commit": "def5678"},
+], m
+' \
+   && [ "$(python3 "$STAT" --root "$LGE" --ledger)" = "[]" ] \
+   && python3 "$STAT" --root "$LGX" | grep -q '^  completed:'; then
+  ok "status.py --ledger emits the chronological {title,mode,commit} ledger (commit empty pre-stamp; [] when empty; report unchanged)"
+else
+  bad "status.py --ledger wrong: $lgout"
+fi
+
 # --- Test STS11: rejected items surface their titles + Rejection reasons ----------
 # status lists pending titles; for the feedback loop a power user also needs to see
 # what was rejected and why without cat'ing rejected.md. The readable report lists the
