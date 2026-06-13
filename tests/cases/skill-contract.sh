@@ -45,6 +45,26 @@ sys.exit(1 if missing else 0)
 PY
 then ok "SKILL.md structural lint passes (stages, sections, item fields present)"; else bad "SKILL.md structural lint failed (missing stage/section/field)"; fi
 
+# --- Test 10a2: Execute Preconditions hard-block on unconfigured git identity ---
+# The mutating Execute path commits every passing item, so an unset git user.name/user.email
+# makes the first per-item `git commit` fail (exit 128) and crash the run mid-execution.
+# doctor.py only WARNs on this (planning never commits), so Execute must enforce identity in
+# its own Preconditions block and STOP before any mutation. Scope the check to the Execute
+# Preconditions section (not just anywhere in SKILL.md) and require user.name + user.email +
+# a STOP directive, so the hard-block cannot silently regress to a warning or vanish.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1]).read()
+m = re.search(r"## Preconditions \(check first, in order\)(.*?)\n## Modes and scope", t, re.S)
+if not m:
+    raise SystemExit(1)
+block = m.group(1)
+ok = ("user.name" in block and "user.email" in block
+      and re.search(r"(?i)\bstop\b", block) is not None)
+sys.exit(0 if ok else 1)
+PY
+then ok "Execute Preconditions hard-block on unconfigured git identity (user.name/user.email)"; else bad "Execute Preconditions lack a git-identity hard-block (execute would crash mid-run on unset identity)"; fi
+
 # --- Test 10b: bundled scripts are invoked via the skill base dir, not cwd ---
 # Regression guard for v1.21.1: SKILL.md must not invoke a bundled script as a
 # bare `python3 scripts/<name>.py` command — for an installed user the cwd is

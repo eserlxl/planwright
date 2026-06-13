@@ -1133,7 +1133,13 @@ planning Procedure.
 3. **Clean working tree** — run `git status --porcelain`. If it reports anything, STOP and report the
    dirty tree (do not entangle the user's uncommitted work with per-item commits). Exception: ignored
    paths such as `.planwright/` do not count.
-4. **Announce the branch** — print the current branch (`git branch --show-current`); per-item commits
+4. **Git identity configured** — run `git config user.name` and `git config user.email`. If either is
+   empty or unset, STOP **before any mutation** and report that per-item commits would otherwise fail
+   (the first `git commit` exits 128, crashing the run mid-execution), pointing the user at `git config
+   --global user.name "<name>"` and `git config --global user.email "<email>"`. doctor.py only WARNs on
+   this (planning never commits), so the mutating Execute path must enforce identity itself rather than
+   discover it at the first per-item commit.
+5. **Announce the branch** — print the current branch (`git branch --show-current`); per-item commits
    land here. There is no safety branch by design. Then stamp the run-activity beacon:
    `python3 <scripts>/state.py activity start execute --if-absent --root <target>` (`--if-absent`
    keeps a dispatching orchestrator's beacon; best-effort, never block).
