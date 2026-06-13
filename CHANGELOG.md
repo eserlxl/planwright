@@ -20,6 +20,22 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.53.0] - 2026-06-13
+
+### Added
+- `lifecycle.py reconcile` — a new subcommand and a **mandatory completion-accounting contract**: every fix that is implemented *and committed* is now recorded in `.planwright/completed.md`, via `land` for a plan item or `reconcile` for a direct commit. `reconcile` resolves a commit to its short sha + subject, is idempotent by full-sha prefix (robust to a `core.abbrev` change between calls), git-verifies the ref so it can never record a fake commit, and is hardened against `--commit`/`--repo` git flag injection. The execute/cycle path now treats a committed fix with no completed record as a hard error.
+
+### Fixed
+- `build-graph.py` `resolve_c_angle` stripped a C/C++ angle-include target's leading dots/slashes as a character set (`lstrip("./")`) instead of a literal `./` prefix, so a dotfile header like `<.config.h>` was rewritten to `config.h` and forged a false import edge to an unrelated same-stem header — distorting PageRank / articulation / cycle / dirty-set routing. It now strips only a literal leading `./`.
+- `doctor`'s dashboard-asset preflight omitted the Shards view from `BUNDLED`, so it reported a healthy install even when `shards.js` was missing (a silent partial install that 404s the view). The view is now listed, with a guard that pins `BUNDLED` to the views `index.html` references so a future view cannot slip past the preflight.
+
+### Tested
+- Regression coverage pinning contract-critical behavior that could previously be broken silently: the `reconcile`/`land` fail-closed branches on an unreadable state file; `land`'s `--commit` corruption guard (whitespace/control/missing value); `status._evidence` per-branch dashboard chips (including the Python-only `codshard` leg); `status._doctor_blockers` fail-vs-mutating-identity-warn dispatch gating; the dashboard SSE concurrency cap (retriable `503` + slot recovery on disconnect); the `--seed`-only graph field conditional-emit contract; and the `/state.json` ETag invalidation direction.
+- A focused test for the `make-plugin.sh` scaffolder (JSON/YAML escaping under a hostile description, kebab-case name rejection).
+
+### Changed
+- Docs polish: `codmaster` added to the main commands list, the Start Here command column widened (non-breaking spaces prevent wrapping), the install heading simplified to "Quick Install", and stale "(design draft)" tags dropped from shipped design docs.
+
 ## [1.52.0] - 2026-06-13
 
 ### Added
