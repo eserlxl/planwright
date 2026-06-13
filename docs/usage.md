@@ -219,7 +219,7 @@ commit identity before a mutating run) stop it mechanically before any dispatch.
 /codmaster                 Drive to the final point: sense → dispatch → re-sense (depth 10, max 12 steps)
 /codmaster advise          Print the recommendation, evidence, and blockers — dispatch nothing
 /codmaster safe            Same loop without invention capability — stops at the first convergence
-/codmaster loop            Infinite: each converged terminal resets (keeps rejected.md) and starts a new lap
+/codmaster loop            Infinite laps: harden → grow → sharded post-growth harden (codshard, when shardable) → reset (keeps rejected.md)
 ```
 
 `planwright advise` is the host-portable half of the same engine (Cursor/Codex/Gemini included):

@@ -419,7 +419,8 @@ assert re.search(r"(?m)^argument-hint:\s*\S", fm), "missing argument-hint"
 body = " ".join(t[m.end():].split())
 # the dumb-dispatcher delegation: the brain is the tested engine, never command prose
 assert "status.py --root . --recommend" in body, "engine invocation missing"
-assert "no decision logic and no planning logic" in body, "dumb-dispatcher rule missing"
+assert "no per-state coach-table logic and no planning logic" in body, "coach-table-delegation rule missing"
+assert "lap orchestration" in body, "lap-orchestration ownership framing missing"
 assert "never re-derive the recommendation in prose" in body, "no-prose-table rule missing"
 assert "recommendation engine unavailable" in body, "engine-unavailable stop missing"
 assert "never substitute a prose decision table" in body, "engine-unavailable polarity missing"
@@ -448,7 +449,8 @@ assert "never runs `doctor --fix`" in body, "doctor read-only rule missing"
 assert "maximum depth — depth 10" in body, "depth-10 rule missing"
 assert "dispatch codcycle" not in body, "codcycle entered the dispatch vocabulary"
 # parallel: an opt-in host capability forwarded to codshard dispatches, a print-only nudge
-# otherwise — it never overrides the engine's command choice (codmaster owns no decision logic)
+# otherwise — parallel itself never overrides the engine's command choice (it only shapes HOW a
+# codshard dispatch runs; the loop post-growth sharded harden, below, is the one command-shaping rule)
 assert "forward codshard's read-only recon prefetch" in body, "parallel flag definition missing"
 assert "never changes which command the engine chooses" in body, "parallel no-override polarity missing"
 assert "codshard parallel explore" in body, "parallel pass-through example missing"
@@ -475,6 +477,15 @@ assert "rejected work stays suppressed across laps" in body, "cross-lap rejected
 assert "re-arm the growth burst" in body, "per-lap growth re-arm missing"
 assert "restart the step counter" in body, "per-lap step-counter restart missing"
 assert "ends only on interruption or a hard stop" in body, "infinite-drive stop set missing"
+# loop post-growth sharded harden: the master's one command-shaping rule — in loop, once growth
+# is taken, a codvisor harden on a shardable repo becomes `codshard explore` (an explained
+# divergence), gated on the engine's repo.shardable fact; outside loop / pre-growth / non-codvisor
+# it relays the engine's command unchanged, and a non-shardable repo keeps codvisor
+assert "Loop post-growth sharded harden" in body, "loop post-growth codshard rule missing"
+assert "repo.shardable" in body, "loop codshard shardability gate missing"
+assert "dispatch `codshard explore` **instead**" in body, "loop codshard override (codvisor->codshard) missing"
+assert "the harden stays `codvisor`" in body, "loop codshard not-shardable fallback missing"
+assert "explained divergence" in body, "loop codshard divergence disclosure missing"
 assert "=== codmaster lap L ===" in body, "lap header missing"
 assert "=== codmaster step i/12:" in body, "per-step header missing"
 assert "never exceeding 12 steps" in body, "12-step safety cap missing"
@@ -487,7 +498,7 @@ assert "verbatim" in body, "stop-relay verbatim rule missing"
 assert "suppress any next-step suggestion" in body, "broken-stop suggestion suppression missing"
 assert "Print nothing of your own" in body, "print-nothing-else rule missing"
 PY
-then ok "commands/codmaster.md is a dumb dispatcher over the tested engine (one dispatch, safe word, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its engine-delegation/one-dispatch/safe/disclosure contract"; fi
+then ok "commands/codmaster.md relays the tested coach table and owns its lap orchestration (engine-delegation, safe word, loop post-growth sharded harden, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its coach-table-delegation/safe/loop-codshard/disclosure contract"; fi
 
 # --- commands/dashboard.md launches the bundled read-only dashboard server ---
 # /dashboard wraps `dashboard.py --open`; guard that it resolves the bundled <scripts>

@@ -548,6 +548,11 @@ def _repo_block(root):
         "shardable_dirs": shardable,
         "folded_dirs": sorted(d for d, c in counts.items() if c < 3),
         "large": _is_large(tracked, len(shardable)),
+        # `large` (size AND shardable) gates the whole-repo harden route; `shardable`
+        # (>= SHARD_MIN_DIRS partitionable dirs, INDEPENDENT of total size) is the weaker
+        # fact codmaster's loop reads to route its post-growth harden to codshard even on a
+        # not-"large" repo. A fact, not a policy: the routing decision stays in codmaster.
+        "shardable": len(shardable) >= SHARD_MIN_DIRS,
     }
 
 

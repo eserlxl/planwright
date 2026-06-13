@@ -89,10 +89,13 @@ normal edit, terminal, and commit approval prompts still apply.
 > - `/codshard` is the other orchestrator: one scoped cycle per top-level directory (so each shard
 >   gets the full depth budget), then one closing whole-repo round (add `explore` to escalate just
 >   that closing round).
-> - `/codmaster` sits above all of these and owns no logic of its own: a tested decision table
->   (`status.py --recommend`, the same table the dashboard's Commands view renders) maps repo state
->   to the next command, and codmaster dispatches it at depth 10 — where `/codcycle` runs a fixed
->   rhythm, codmaster re-decides every step from fresh state.
+> - `/codmaster` sits above all of these as the master driver. The *per-state* decision — which
+>   command does this state need? — stays in a tested table (`status.py --recommend`, the same
+>   table the dashboard's Commands view renders), and codmaster dispatches it at depth 10. What
+>   codmaster owns on top is the **lap orchestration**: re-deciding every step from fresh state
+>   (where `/codcycle` runs a fixed rhythm), the at-most-once growth burst, and — in `loop` mode —
+>   a **sharded post-growth harden** (`codshard`, when the repo is shardable) so each infinite lap
+>   deep-hardens its freshly-grown code per-component before resetting.
 >
 > The full vocabulary lives in [Concepts](docs/concepts.md).
 

@@ -424,6 +424,35 @@ class TestGitSensorTimeouts(unittest.TestCase):
             self.assertEqual(st._dirty_paths("."), [])
 
 
+class TestRepoBlockShardable(unittest.TestCase):
+    """_repo_block exposes the `shardable` fact (>= SHARD_MIN_DIRS partitionable dirs),
+    INDEPENDENT of `large` (which additionally needs the tracked-file floor). codmaster's
+    loop reads `shardable` to route its post-growth harden to codshard even on a not-large
+    repo; the routing POLICY is codmaster's, the FACT is the engine's."""
+
+    @staticmethod
+    def _ls(out):
+        return lambda *a, **k: st.subprocess.CompletedProcess(["git"], 0, stdout=out, stderr="")
+
+    def test_shardable_independent_of_large(self):
+        from unittest import mock
+        # SHARD_MIN_DIRS dirs * 3 files each: shardable, but far below the tracked floor.
+        many = "\n".join("d%d/f%d.py" % (d, f)
+                         for d in range(st.SHARD_MIN_DIRS) for f in range(3)) + "\n"
+        with mock.patch.object(st.subprocess, "run", self._ls(many)):
+            rb = st._repo_block(".")
+        self.assertTrue(rb["shardable"], "SHARD_MIN_DIRS shardable dirs -> shardable")
+        self.assertFalse(rb["large"], "below the tracked-file floor -> not large")
+
+    def test_below_floor_is_not_shardable(self):
+        from unittest import mock
+        # one shardable dir (< SHARD_MIN_DIRS): a scoped run, not a shard.
+        one = "\n".join("only/f%d.py" % f for f in range(3)) + "\n"
+        with mock.patch.object(st.subprocess, "run", self._ls(one)):
+            rb = st._repo_block(".")
+        self.assertFalse(rb["shardable"], "fewer than SHARD_MIN_DIRS dirs -> not shardable")
+
+
 class TestDoctorBlockers(unittest.TestCase):
     # _doctor_blockers is the live status->doctor dispatch-gating seam: a FAIL always blocks; a
     # git-identity WARN blocks only a MUTATING dispatch (per-item commits need an identity); a

@@ -1,22 +1,27 @@
 ---
-description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is default-on and taken at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); the loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step-per-lap safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; `loop` makes the drive infinite — each converged terminal triggers the cold-start reset itself (keeps rejected.md) and begins a new lap with the growth burst re-armed, until interrupted or a hard stop (`safe loop` composes). `parallel` forwards codshard's read-only recon prefetch: a step that dispatches `codshard` gets `parallel` appended to its args (Claude-Code-only, routing-only, never Evidence — degrades to sequential elsewhere), while any step that does not route to codshard prints a one-line nudge to run `/codshard parallel` directly. `parallel` never changes which command the engine chooses — only how a `codshard` dispatch runs (composes with `safe`/`loop`).
+description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is default-on and taken at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); the loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step-per-lap safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; `loop` makes the drive infinite — each converged terminal triggers the cold-start reset itself (keeps rejected.md) and begins a new lap with the growth burst re-armed, and in `loop` the post-growth harden is sharded (`codshard explore`, when the repo is shardable) so each lap deep-hardens its grown code per-component before resetting, until interrupted or a hard stop (`safe loop` composes). `parallel` forwards codshard's read-only recon prefetch: a step that dispatches `codshard` gets `parallel` appended to its args (Claude-Code-only, routing-only, never Evidence — degrades to sequential elsewhere), while any step that does not route to codshard prints a one-line nudge to run `/codshard parallel` directly. `parallel` never changes which command the engine chooses — only how a `codshard` dispatch runs (composes with `safe`/`loop`).
 argument-hint: "advise | safe | loop | parallel [J] | (empty = sense → dispatch → re-sense, consecutively until the final point)"
 ---
 
 You are dispatching on behalf of the `/codmaster` helper command. Like `/codcycle` and
-`/codshard`, this is an **orchestration** command — but the thinnest one: it owns **no decision
-logic and no planning logic**. The decision table lives in the tested engine
+`/codshard`, this is an **orchestration** command — the master driver over planwright's whole
+capability set. It owns **no per-state coach-table logic and no planning logic**: the per-state
+recommendation — *which command does this state need?* — lives in the tested engine
 `status.py --recommend` (the same coach truth table the dashboard renders, cross-pinned via
 `tests/fixtures/coach-table.json`), and all planning/execute/cycle behaviour belongs to planwright.
 Do **not** re-implement either: never re-derive the recommendation in prose, and never improvise
-when the engine is unavailable. codmaster senses, relays, dispatches consecutively, and reports.
+when the engine is unavailable. What codmaster **does** own is the **lap orchestration** layered
+over the engine's per-step answers: the loop shape, the at-most-once growth bound, the
+reset-and-relap, and — in `loop` mode — the **post-growth sharded harden** (step 4). codmaster
+senses, relays, applies those orchestration
+rules, dispatches consecutively, and reports.
 
 Raw arguments: `$ARGUMENTS`
 
 Resolve them in this order:
 
 1. **`help` / `--help` / `-h` / `?`**: print
-   `Usage: /codmaster [advise | [safe] [loop] [parallel [J]]]   (empty = sense the repo and run the required commands consecutively, at depth 10, until a recorded final point; advise = print the recommendation only, dispatch nothing; safe = the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; loop = infinite — each converged terminal triggers the cold-start reset and begins a new lap; parallel = forward codshard's read-only recon prefetch to any step that dispatches codshard, else print a nudge to run /codshard parallel directly — it never changes which command the engine chooses; safe loop parallel compose).`
+   `Usage: /codmaster [advise | [safe] [loop] [parallel [J]]]   (empty = sense the repo and run the required commands consecutively, at depth 10, until a recorded final point; advise = print the recommendation only, dispatch nothing; safe = the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; loop = infinite — each converged terminal triggers the cold-start reset and begins a new lap, with its post-growth harden sharded (codshard) when the repo is shardable; parallel = forward codshard's read-only recon prefetch to any step that dispatches codshard, else print a nudge to run /codshard parallel directly — it never changes which command the engine chooses; safe loop parallel compose).`
    and STOP — do not run anything.
 2. **`advise`** (alone, or alongside `parallel`): run SENSE below, print the full recommendation
    report (command + args, why, the evidence chips, every note, every blocker verbatim, the
@@ -47,7 +52,7 @@ and STOP — never substitute a prose decision table.
 **Main loop** (cases 3 and 4). First print exactly one cost banner:
 `codmaster: autonomous drive to the final point — sense → dispatch → re-sense, at depth 10, until convergence (max 12 steps). Note: invent may make rare, small committed edits to repo files, including MISSION.md.`
 In `loop` mode print this first clause instead:
-`codmaster: infinite drive — laps of sense → dispatch → re-sense at depth 10; each converged terminal triggers the cold-start reset (keeps rejected.md) and begins a new lap, until interrupted or a hard stop (max 12 steps per lap).`
+`codmaster: infinite drive — laps of sense → dispatch → re-sense at depth 10; each lap hardens → grows (codinventor) → deep-hardens the grown code per-component (codshard, when the repo is shardable) → resets (cold-start, keeps rejected.md) into the next, until interrupted or a hard stop (max 12 steps per lap).`
 In `safe` mode (either banner), the trailing invent notice is replaced by:
 `safe: invention capability off — the loop stops at the first convergence.`
 (in `safe loop`, by: `safe: invention capability off — each lap runs harden-only.`)
@@ -73,7 +78,9 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
      **at-most-once growth burst** — dispatch `codinventor` as this step and mark growth taken.
      One burst per lap keeps each lap convergent: invent's must-generate mandate means repeated
      growth never self-terminates, so unbounded rhythm stays `/codcycle`'s job. The following
-     steps harden the new work back to convergence.
+     steps harden the new work back to convergence — and in `loop` mode that post-growth harden
+     is **sharded** (`codshard explore`, when `repo.shardable`; see step 4), so each lap
+     deep-hardens its freshly-grown code per-component before the reset.
    - otherwise, in `loop` mode: the converged terminal continues instead of stopping — print the
      next lap's header `=== codmaster lap L ===`, dispatch planwright with `reset` as this step
      (typing `loop` is the consent for repeated cold starts; `reset` keeps `rejected.md`, so
@@ -107,6 +114,24 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    `skills/planwright/SKILL.md` with the same argument string (and the codshard recipe from its
    host-adapter paragraph). Wait for the dispatched run to finish, and record its verified-commit
    count as `commits_i`.
+
+   **Loop post-growth sharded harden (the master's one command-shaping rule).** In `loop` mode,
+   once the growth burst has been taken this lap, the master shapes the harden that follows it:
+   when the engine's record `command` is `codvisor` (the per-state harden) AND the record's
+   `repo.shardable` is true, dispatch `codshard explore` **instead** — follow `commands/codshard.md`
+   with `explore` (so `parallel` appends to *that*: `codshard parallel explore`), deep-hardening
+   the freshly-grown code per-component, with a closing whole-repo round, before the lap's reset.
+   This is the one place codmaster shapes the command rather than relaying it, so it is an
+   **explained divergence**: print under the step header `note: loop post-growth — sharding the
+   harden of the just-grown code (engine: codvisor; repo.shardable)`, and the parallel-codvisor
+   nudge above does not fire (this step is now a `codshard` dispatch, so `parallel` has its
+   target). The override is narrow: it fires **only** under `loop`, **only** after the growth
+   burst, **only** when the record command is `codvisor`, and **only** when `repo.shardable` is
+   true — when the repo is not shardable (fewer than `SHARD_MIN_DIRS` partitionable dirs) it does
+   not fire and the harden stays `codvisor`. Outside `loop`, before the growth burst, or for any
+   other record command (`execute`/`reset`/`codshard`/`codinventor`), codmaster relays the
+   engine's command unchanged. (The per-state choice is still the engine's; the master only
+   decides to *shard* the harden it already chose, once, after growing.)
 5. **Honour the dispatched run's own stops.** A **hard blocker** or a **failing broad final
    verification** STOPs the whole loop immediately — relay the stop reason verbatim and suppress
    any next-step suggestion except the remediation for that stop.
