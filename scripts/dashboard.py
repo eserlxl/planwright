@@ -99,6 +99,17 @@ def _planwright_dir(root):
     return os.path.join(root, ".planwright")
 
 
+def _count_lines_prefixed(path, prefix):
+    """Cheap count of lines beginning with `prefix` in a file; 0 if absent/unreadable. Used
+    for the /projects.json per-project counts so listing N projects never parses a full plan
+    (a line tally, not state.collect)."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            return sum(1 for line in fh if line.startswith(prefix))
+    except OSError:
+        return 0
+
+
 def _mtime_signature(root):
     """A cheap change signature for .planwright/: the sorted (name, mtime, size) of its
     files. Comparing successive signatures detects any add/remove/modify without reading
@@ -241,6 +252,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_doctor()
         if path == "/recommend.json":
             return self._serve_recommend()
+        if path == "/projects.json":
+            return self._serve_projects()
         if path == "/events":
             return self._serve_events()
         return self._serve_static(path)
@@ -307,6 +320,44 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, "application/json; charset=utf-8",
                               json.dumps({"error": "no graph built"}), self._NO_STORE)
         self._send(200, "application/json; charset=utf-8", body, self._NO_STORE)
+
+    def _project_status(self, root):
+        """A cheap liveness verdict for one project, from filesystem signals only: `active`
+        when the run-activity beacon is fresh (within state's TTL), `stale` when it exists but
+        has expired (an interrupted run), `converged` when a final-point marker is recorded,
+        else `idle`. No state.collect/doctor here — listing many projects must stay cheap."""
+        pw = _planwright_dir(root)
+        try:
+            mtime = os.stat(os.path.join(pw, "activity.json")).st_mtime
+        except OSError:
+            mtime = None
+        if mtime is not None:
+            return "active" if (time.time() - mtime) <= state._activity_ttl() else "stale"
+        if os.path.isfile(os.path.join(pw, "final.md")):
+            return "converged"
+        return "idle"
+
+    def _serve_projects(self):
+        """The project list the switcher and Fleet view read: one cheap entry per allow-listed
+        project (the live registry + the launch --root). Each carries id, basename, path, a
+        liveness status, and plan/completed line counts. Deliberately cheap — it never runs
+        state.collect or doctor.collect per project, so listing N projects is N small stats,
+        not N full snapshots. Same no-store discipline as the other dynamic endpoints."""
+        out = []
+        for pid, path in sorted(self._project_allowlist().items(), key=lambda kv: kv[1]):
+            pw = _planwright_dir(path)
+            out.append({
+                "id": pid,
+                "name": os.path.basename(os.path.normpath(path)),
+                "path": path,
+                "status": self._project_status(path),
+                "counts": {
+                    "pending": _count_lines_prefixed(os.path.join(pw, "plan.md"), "- [ ]"),
+                    "done": _count_lines_prefixed(os.path.join(pw, "completed.md"), "- [x]"),
+                },
+            })
+        self._send(200, "application/json; charset=utf-8",
+                   json.dumps({"projects": out}, indent=2), self._NO_STORE)
 
     def _serve_static(self, path):
         real = _resolve_static(path)

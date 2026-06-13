@@ -1423,3 +1423,56 @@ if python3 "$TMP/dash_etag_client.py" "$DASH" "$ROOT/scripts" "$DET/a" "$DET/b" 
 else
   bad "dashboard ETag cross-pollinates across projects (or broke same-project revalidation)"
 fi
+
+# --- Test DPROJ: /projects.json lists allow-listed projects with cheap liveness -----------
+# A (launch --root) is converged (final.md, no pending); B (registered) is active (fresh
+# beacon) with 1 pending / 2 done. /projects.json must list both with id/name/path/status/
+# counts, be no-store, and derive status without a full state.collect.
+DPJ="$TMP/dash-projects"; mkdir -p "$DPJ/a/.planwright" "$DPJ/b/.planwright"
+printf 'final point\n' > "$DPJ/a/.planwright/final.md"
+printf -- '- [ ] todo\n      Mode: develop\n' > "$DPJ/b/.planwright/plan.md"
+printf -- '- [x] did-one\n- [x] did-two\n' > "$DPJ/b/.planwright/completed.md"
+python3 -c 'import json,sys; open(sys.argv[1],"w").write(json.dumps({"command":"plan","started":"t","updated":"t"}))' \
+  "$DPJ/b/.planwright/activity.json"
+DPJX="$TMP/dash-projects-xdg"; mkdir -p "$DPJX"
+XDG_CONFIG_HOME="$DPJX" python3 "$DASH" --add "$DPJ/b" >/dev/null
+
+cat > "$TMP/dash_projects_client.py" <<'PY'
+import json, os, subprocess, sys, time, urllib.request
+dash, rootA, xdg = sys.argv[1:4]
+env = dict(os.environ); env["XDG_CONFIG_HOME"] = xdg; env["PW_ACTIVITY_TTL"] = "99999"
+proc = subprocess.Popen([sys.executable, dash, "--root", rootA, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+try:
+    port, deadline = None, time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            break
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    assert port, "no port banner"
+    with urllib.request.urlopen("http://127.0.0.1:%d/projects.json" % port, timeout=5) as r:
+        assert r.headers.get_content_type() == "application/json", r.headers.get_content_type()
+        assert r.headers.get("Cache-Control") == "no-store", r.headers.get("Cache-Control")
+        data = json.loads(r.read().decode())
+    byname = {p["name"]: p for p in data["projects"]}
+    assert "a" in byname and "b" in byname, list(byname)
+    assert byname["a"]["status"] == "converged", byname["a"]
+    assert byname["b"]["status"] == "active", byname["b"]
+    assert byname["b"]["counts"] == {"pending": 1, "done": 2}, byname["b"]
+    for p in data["projects"]:
+        assert p["id"] and p["path"], p
+    print("PROJ_OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+if python3 "$TMP/dash_projects_client.py" "$DASH" "$DPJ/a" "$DPJX" 2>/dev/null | grep -q PROJ_OK; then
+  ok "dashboard /projects.json lists allow-listed projects with status + counts (no-store, no full collect)"
+else
+  bad "dashboard /projects.json missing projects/status/counts (or not no-store)"
+fi
