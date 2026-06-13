@@ -54,13 +54,13 @@ of them with no arguments and Planwright does the rest: it prints the estimated 
 first, then works autonomously through plan→build→verify rounds until it runs out of worthwhile
 work.
 
-| Command        | What it does                       | Best for           |
-|----------------|------------------------------------|--------------------|
-| `/codmaster`   | Senses repo state and drives all other motions autonomously. | The front door / full autonomy |
-| `/codvisor`    | Fixes real work, stops when clean. | Analyze and repair |
-| `/codinventor` | Discovers and adds grounded new capabilities. | Feature discovery  |
-| `/codcycle`    | Alternates repair and invention rounds.     | Autonomous improvement  |
-| `/codshard`    | Matures the repo shard by shard, then closes whole-repo. | Large codebases |
+| Command            | What it does                                                 | Best for                       |
+|--------------------|--------------------------------------------------------------|--------------------------------|
+| `/codmaster`       | Senses repo state and drives all other motions autonomously. | The front door / full autonomy |
+| `/codvisor`        | Fixes real work, stops when clean.                           | Analyze and repair             |
+| `/codinventor`     | Discovers and adds grounded new capabilities.                | Feature discovery              |
+| `/codcycle`        | Alternates repair and invention rounds.                      | Autonomous improvement         |
+| `/codshard`        | Matures the repo shard by shard, then closes whole-repo.     | Large codebases                |
 
 **`/codmaster`** — the front door — folds all of the above into one autonomous drive. A tested,
 read-only decision engine senses the repo's planning state, and codmaster dispatches whatever it
