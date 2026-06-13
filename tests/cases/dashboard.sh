@@ -978,6 +978,32 @@ assert(/none accepted yet/.test(textOf(tlEmpty)), "Timeline graph empty state mi
 assert(findByClass(tlEmpty, "pw-tlgraph-line").length === 0,
   "Timeline graph plotted cumulative lines with no accepted entries");
 
+// Targeted: the Plan view's per-surface graph cross-link chips (crossLinks, plan.js:40) render
+// ONLY when an item's Surface matches a graph node (metrics.byPath). The base fixture's surfaces
+// (a.py/b.py) are absent from the fixture graph (hot.py/cold.py), so the chips never rendered and
+// the view's differentiating feature was unexercised. Point one item at a real node (hot.py) and
+// assert exactly one chip + the "in graph" key; the second item (b.py, out-of-graph) is the
+// negative control, and the degraded (no-metrics) context must draw none without throwing.
+var xlState = Object.assign({}, state, {
+  pending: [
+    { title: "in graph", mode: "improve", rationale: "r", evidence: "e", surfaces: ["hot.py"], new_surfaces: [], development: "d", acceptance: "ok", verification: "bash tests/run.sh" },
+    { title: "out of graph", mode: "repair", rationale: "r", evidence: "e", surfaces: ["b.py"], new_surfaces: [], development: "d", acceptance: "ok", verification: "bash tests/run.sh" },
+  ],
+});
+var planXl = new El("section");
+win.PW_VIEWS.plan(planXl, xlState, fullCtx);
+var xlChips = findByClass(planXl, "pw-xlink lang-");
+assert(xlChips.length === 1,
+  "Plan crossLinks should render one chip (hot.py in-graph; b.py is not), got " + xlChips.length);
+assert(findByClass(planXl, "pw-xlinks-k").length === 1,
+  "Plan crossLinks omitted the 'in graph' key span for an in-graph surface");
+assert(/hot\.py/.test(textOf(xlChips[0])),
+  "Plan cross-link chip did not name the in-graph surface hot.py");
+var planBareXl = new El("section");
+win.PW_VIEWS.plan(planBareXl, xlState, bareCtx);
+assert(findByClass(planBareXl, "pw-xlink lang-").length === 0,
+  "Plan drew a cross-link chip with no metrics (crossLinks must return null)");
+
 // Targeted: the Shards view renders the shard map from state.repo (the codshard
 // enumeration) — shard cards in sweep order, the folded-dirs note, and the closing
 // whole-repo round — and degrades to the no-enumeration empty state when the snapshot
