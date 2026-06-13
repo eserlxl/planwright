@@ -379,8 +379,9 @@ The full reference — request-seeded plans (`/planwright "add OAuth login"`), t
 ## Development & Releasing
 
 ```bash
-# Run the test suite
+# Run the test suite (a bare run = everything)
 bash tests/run.sh
+bash tests/run.sh lint-plan lifecycle   # just those topic cases, for a focused loop
 
 # Bump the version in manifests + CHANGELOG (does NOT tag or release)
 scripts/bump-version.sh patch -m "what changed"
