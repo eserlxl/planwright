@@ -339,3 +339,52 @@ if ! printf '%s' "$dnu_out" | grep -q 'Traceback' \
 else
   bad "doctor.py --fix crashed or skipped a non-UTF-8 .gitignore (rc=$dnu_rc): $(printf '%s' "$dnu_out" | tail -2)"
 fi
+
+
+# --- Test DR12: final-point validity check (corrupt final.md -> WARN, never FAIL) ----
+# doctor validates a recorded .planwright/final.md against lint-final's contract so a
+# corrupt point is surfaced in the preflight instead of being silently absorbed by the
+# coach (which routes a malformed point to a harden sweep with no diagnostic). Absent or
+# valid -> ok; malformed -> warn with the exit code unchanged.
+DRFP="$TMP/doctor-finalpoint"; mkdir -p "$DRFP/.planwright"
+
+# (a) recorded final point absent -> ok (a legitimate open-ladder state)
+fp_absent="$(python3 "$ROOT/scripts/doctor.py" --root "$DRFP" --json)"
+# (b) a valid final.md (lint-final's key: value contract) -> ok
+cat > "$DRFP/.planwright/final.md" <<'EOF'
+sha: deadbeef
+repair: dry
+coverage: dry
+opportunity: dry
+vision: dry
+EOF
+fp_valid="$(python3 "$ROOT/scripts/doctor.py" --root "$DRFP" --json)"
+# (c) a corrupt final.md (markdown-bullet form lint-final/status cannot parse) -> warn,
+#     and the exit code stays 0 (a corrupt point must never FAIL the preflight)
+cat > "$DRFP/.planwright/final.md" <<'EOF'
+- sha: deadbeef
+- repair: dry
+EOF
+fp_rc=0
+fp_corrupt="$(python3 "$ROOT/scripts/doctor.py" --root "$DRFP" --json)" || fp_rc=$?
+
+fp_check=0
+NAME='.planwright/final.md is well-formed' A="$fp_absent" V="$fp_valid" C="$fp_corrupt" RC="$fp_rc" \
+python3 -c '
+import json, os
+name = os.environ["NAME"]
+def stat(blob):
+    for c in json.loads(blob)["checks"]:
+        if c["name"] == name:
+            return c["status"]
+    return None
+assert stat(os.environ["A"]) == "ok", ("absent", stat(os.environ["A"]))
+assert stat(os.environ["V"]) == "ok", ("valid", stat(os.environ["V"]))
+assert stat(os.environ["C"]) == "warn", ("corrupt", stat(os.environ["C"]))
+assert os.environ["RC"] == "0", ("corrupt must warn, not fail the exit code", os.environ["RC"])
+' && fp_check=1
+if [ "$fp_check" = 1 ]; then
+  ok "doctor.py validates .planwright/final.md (absent/valid -> ok, corrupt -> WARN, exit 0)"
+else
+  bad "doctor.py final-point check wrong (absent/valid should be ok, corrupt should warn without failing)"
+fi

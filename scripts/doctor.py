@@ -20,9 +20,13 @@
 # state (plan, graph memory, digest, final point) under; a repo that forgets to ignore
 # it commits that state as noise — and whether a git commit identity is configured (the
 # Execute/Cycle paths commit per item, so an unset user.name/user.email fails mid-run).
-# Nothing is mutated. Exit status is 1 when any required check FAILs (missing git or a
-# missing bundled script), else 0; WARN-level findings (missing rg/fd, non-repo target,
-# un-ignored .planwright/, unset commit identity) never fail the exit code on their own.
+# Finally, when a final point is recorded it validates .planwright/final.md against
+# lint-final's contract (WARN on a corrupt marker): status/the coach otherwise absorb a
+# malformed point silently into a harden recommendation, so the preflight is the one place
+# that surfaces it. Nothing is mutated. Exit status is 1 when any required check FAILs
+# (missing git or a missing bundled script), else 0; WARN-level findings (missing rg/fd,
+# non-repo target, un-ignored .planwright/, unset commit identity, corrupt final point)
+# never fail the exit code on their own.
 #
 #   python3 scripts/doctor.py --root .
 #   python3 scripts/doctor.py --root . --json
@@ -32,6 +36,7 @@
 # python3 — so that check always passes; it is reported for completeness.
 
 import argparse
+import importlib.util
 import json
 import os
 import shutil
@@ -262,6 +267,45 @@ def check_git_identity(root):
     }]
 
 
+def check_final_point(root):
+    """Report whether a recorded final point (.planwright/final.md), when present, passes
+    lint-final's structural contract. This is the one preflight surface for a corrupt final
+    point: status.py absorbs a malformed final.md into fp_flag and the coach silently routes
+    to a harden sweep, so an autonomous codmaster loop mis-drives with no diagnostic. WARN
+    (never FAIL — a corrupt point degrades the recommendation but does not break a run) when
+    it is present and invalid; ok when valid or absent (no final point is a legitimate
+    open-ladder state). lint-final.py is loaded the same way status.py does (its hyphenated
+    name is not a plain import); a load failure degrades to ok here — the BUNDLED check above
+    already FAILs a missing/broken validator, so this must not double-report it."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    lf = os.path.join(here, "lint-final.py")
+    name = ".planwright/final.md is well-formed"
+    degrades = ("a corrupt final point is silently absorbed by status / the coach (routes to "
+                "a harden sweep with no diagnostic); run `python3 scripts/lint-final.py "
+                "--root .` to see the contract violations")
+    try:
+        spec = importlib.util.spec_from_file_location("planwright_lint_final_doctor", lf)
+        if spec is None or spec.loader is None:
+            raise ImportError("no import spec")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        res = mod.collect(root)
+    except Exception:
+        return [{"name": name, "status": "ok",
+                 "detail": "n/a (lint-final.py unavailable — see the bundled-script check above)",
+                 "degrades": degrades}]
+    if not res.get("present"):
+        status, detail = "ok", "n/a (no final point recorded)"
+    elif res.get("ok"):
+        status, detail = "ok", "final.md passes the lint-final contract"
+    else:
+        viols = res.get("violations") or []
+        extra = "" if len(viols) <= 1 else " (+%d more)" % (len(viols) - 1)
+        status = "warn"
+        detail = "final.md is malformed: %s%s" % (viols[0] if viols else "unknown", extra)
+    return [{"name": name, "status": status, "detail": detail, "degrades": degrades}]
+
+
 GLYPH = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL"}
 
 
@@ -321,7 +365,8 @@ def collect(root: str) -> dict:
     It never writes — the one remediating write lives in apply_gitignore_fix(), reached
     only via `--fix`, never from here."""
     records = (check_tools() + check_scripts() + check_target(root)
-               + check_gitignore(root) + check_git_identity(root))
+               + check_gitignore(root) + check_git_identity(root)
+               + check_final_point(root))
     fails = sum(1 for r in records if r["status"] == "fail")
     warns = sum(1 for r in records if r["status"] == "warn")
     return {"ok": fails == 0, "fail": fails, "warn": warns,
