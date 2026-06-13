@@ -145,8 +145,14 @@ def check_scripts():
 
 
 def check_target(root):
-    """Report whether --root is inside a git work tree (the graph build needs one)."""
+    """Report whether --root is inside a git work tree (the graph build needs one).
+    A work tree with no commits yet (an unborn HEAD — a fresh `git init`) is reported
+    as WARN, not ok: the Stage 1.5 graph build's first op is `git rev-parse HEAD`
+    (build-graph.py), which fatals on an unborn HEAD, so an otherwise-clean doctor would
+    green-light a first `planwright` run that then hard-crashes with an opaque
+    `fatal: ambiguous argument 'HEAD'`. One commit up front turns that into a hint."""
     is_repo = False
+    born = False
     if shutil.which("git"):
         try:
             out = subprocess.run(
@@ -154,8 +160,25 @@ def check_target(root):
                 capture_output=True, text=True, timeout=5,
             )
             is_repo = out.returncode == 0 and out.stdout.strip() == "true"
+            if is_repo:
+                # An unborn HEAD rev-parses non-zero here but crashes the graph build's
+                # unconditional `git rev-parse HEAD`. --quiet --verify keeps it silent.
+                head = subprocess.run(
+                    ["git", "-C", root, "rev-parse", "--quiet", "--verify", "HEAD"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                born = head.returncode == 0
         except (OSError, subprocess.SubprocessError):
-            is_repo = False
+            is_repo = born = False
+    if is_repo and not born:
+        return [{
+            "name": "target is a git repo",
+            "status": "warn",
+            "detail": os.path.abspath(root) + " (git work tree, but no commits yet)",
+            "degrades": "the Stage 1.5 graph build runs `git rev-parse HEAD` and fails on "
+                        "an unborn HEAD; make at least one commit "
+                        "(`git add -A && git commit`) before planning",
+        }]
     return [{
         "name": "target is a git repo",
         "status": "ok" if is_repo else "warn",

@@ -123,6 +123,31 @@ else
   bad "doctor.py mis-graded a non-git target (rc=$rc)"
 fi
 
+# --- Test DR5b: a git work tree with no commits yet (unborn HEAD) is WARN, not ok --
+# A fresh `git init` with an uncommitted file passes every other check, yet the Stage 1.5
+# graph build's first op (`git rev-parse HEAD` in build-graph.py) fatals on an unborn HEAD.
+# doctor must WARN (not green-light "ok") so the first planning run is not a bare git-128
+# crash. WARN keeps the exit code 0 (a non-repo is already warn), so it stays exit-neutral.
+if command -v git >/dev/null 2>&1; then
+  UNBORN="$TMP/doctor-unborn"; mkdir -p "$UNBORN"
+  git -C "$UNBORN" init -q
+  printf 'x = 1\n' > "$UNBORN/a.py"
+  rc=0; out="$(python3 "$DOC" --root "$UNBORN" --json)" || rc=$?
+  if [ "$rc" = "0" ] \
+     && printf '%s' "$out" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+t={r["name"]:r for r in d["checks"]}.get("target is a git repo",{})
+sys.exit(0 if t.get("status")=="warn" and "no commits yet" in t.get("detail","") else 1)
+'; then
+    ok "doctor.py WARNs on a git work tree with no commits yet (unborn HEAD; exit stays 0)"
+  else
+    bad "doctor.py mis-graded an unborn-HEAD work tree (rc=$rc)"
+  fi
+else
+  ok "doctor.py unborn-HEAD WARN check skipped (no git)"
+fi
+
 # --- Test DR6: doctor is wired via progressive disclosure -------------------------
 # Contract: doctor must be reachable — listed in the Usage block and dispatched in the
 # Invocation section of SKILL.md to references/doctor.md, whose procedure references the
