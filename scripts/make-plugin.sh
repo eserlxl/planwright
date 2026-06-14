@@ -218,6 +218,26 @@ $PLUGIN_DESC
 GPL-3.0-or-later. See [LICENSE](LICENSE).
 EOF
 
+# --- AGENTS.md -------------------------------------------------------------
+cat > "$DEST/AGENTS.md" <<EOF
+## $NAME
+
+When the user invokes **$NAME**, act as the $NAME agent:
+
+1. Read \`skills/$NAME/SKILL.md\` and follow it exactly for the resolved arguments.
+2. Do not re-implement $NAME logic inline — the skill owns all behaviour.
+
+**Scripts:** resolve any bundled scripts from \`scripts/\` relative to the workspace root.
+EOF
+
+# --- GEMINI.md -------------------------------------------------------------
+cat > "$DEST/GEMINI.md" <<EOF
+# Antigravity / Gemini Integration
+
+@Antigravity, please read \`skills/$NAME/SKILL.md\` to understand the $NAME workflow.
+I want you to act as the $NAME agent when I run the command $NAME.
+EOF
+
 # --- MISSION.md ------------------------------------------------------------
 # A charter stub so the generated plugin's planwright opportunity/vision rungs
 # (and Stage 1, which reads a mission/charter file) have something to align to.

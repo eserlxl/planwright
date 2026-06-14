@@ -27,6 +27,9 @@ for rel in (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", ".c
     p = os.path.join(root, rel)
     assert os.path.exists(p), "missing manifest: " + rel
     json.load(open(p))                       # raises on invalid JSON
+for rel in ("AGENTS.md", "GEMINI.md"):
+    p = os.path.join(root, rel)
+    assert os.path.exists(p), "missing integration file: " + rel
 pj = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 assert pj["name"] == "my-plugin", pj
 assert pj["version"] == "0.1.0", pj
