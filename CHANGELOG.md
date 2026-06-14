@@ -20,6 +20,21 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.57.0] - 2026-06-14
+
+### Added
+- Multi-project dashboard: a single server lists and switches between every tracked project. A cross-repo project registry (`scripts/registry.py`, stored under user config, never inside a repo) backs a `/projects.json` endpoint with cheap per-project liveness, a client-side bottom-left switcher (select a project by opaque id resolved against an allow-list — never a client path), and a new Fleet view showing every project's reactor state. Single-root launches stay byte-for-byte back-compatible.
+- Dashboard registry-management CLI flags: `--add` / `--remove` / `--discover` / `--list` curate the cross-repo registry, then exit without serving.
+- Stable default dashboard port with reuse: a second launch attaches to an already-running instance instead of binding a new random port.
+
+### Changed
+- codmaster: enforce the invent burst whenever `safe` is off — growth is now gated on the `safe` flag rather than the engine's invent-class, so a non-safe lap always grows. The enforced-growth behavior is mirrored in the dashboard front-door panel and the SKILL.md summary.
+- Project switcher: a "Projects" mini-heading (matching the "Recent contributions" label) above a restyled dropdown — native chrome stripped for a panel-matched control with hover/focus states and a custom chevron.
+
+### Fixed
+- Tests no longer pollute the developer's real cross-repo registry: the harness redirects `XDG_CONFIG_HOME` into a throwaway temp dir, so an activity-beacon auto-register from a `/tmp` fixture can never leak into `~/.config`.
+- The dashboard switcher omits a registered project whose `.planwright/` has been deleted or moved, so a stale entry no longer lingers in the menu (the serving path stays read-only toward the registry).
+
 ## [1.56.0] - 2026-06-13
 
 ### Changed
