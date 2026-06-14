@@ -1509,3 +1509,53 @@ if grep -q '/views/fleet.js' "$IDX" \
 else
   bad "Fleet view wiring incomplete (script/tab/section, PW_VIEWS.fleet, or PW_PROJECTS bridge)"
 fi
+
+# --- Test DPORT: stable default port with single-instance reuse + ephemeral fallback ------
+# With no --port the server binds a stable home port (pinned via PW_DASH_PORT for the test).
+# A second default launch must detect the running dashboard and exit 0 (reuse), while an
+# explicit busy --port keeps the exit-2 contract.
+DPORT="$TMP/dash-port"; mkdir -p "$DPORT/.planwright"
+printf -- '- [ ] x\n      Mode: develop\n' > "$DPORT/.planwright/plan.md"
+
+cat > "$TMP/dash_port_client.py" <<'PY'
+import os, socket, subprocess, sys, time, urllib.request
+dash, root = sys.argv[1:3]
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind(("127.0.0.1", 0)); home = s.getsockname()[1]; s.close()
+env = dict(os.environ); env["PW_DASH_PORT"] = str(home)
+def banner_port(proc):
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            return None
+        if "http://127.0.0.1:" in line:
+            return int(line.split("http://127.0.0.1:")[1].split("/")[0])
+    return None
+p1 = subprocess.Popen([sys.executable, dash, "--root", root], env=env,
+                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+try:
+    bound = banner_port(p1)
+    assert bound == home, ("server #1 did not bind the pinned home port", bound, home)
+    with urllib.request.urlopen("http://127.0.0.1:%d/" % home, timeout=3) as r:
+        assert r.status == 200
+    p2 = subprocess.run([sys.executable, dash, "--root", root], env=env,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=15)
+    assert p2.returncode == 0, ("reuse did not exit 0", p2.returncode, p2.stdout)
+    assert "already running" in p2.stdout, ("no reuse message", p2.stdout)
+    p3 = subprocess.run([sys.executable, dash, "--root", root, "--port", str(home)], env=env,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=15)
+    assert p3.returncode == 2, ("explicit busy --port should exit 2", p3.returncode, p3.stdout)
+    print("PORT_OK")
+finally:
+    p1.terminate()
+    try:
+        p1.wait(timeout=5)
+    except Exception:
+        p1.kill()
+PY
+if python3 "$TMP/dash_port_client.py" "$DASH" "$DPORT" 2>/dev/null | grep -q PORT_OK; then
+  ok "dashboard default port is stable with single-instance reuse (exit 0); explicit busy --port still exit 2"
+else
+  bad "dashboard default-port reuse/fallback failed (or explicit busy --port no longer exit 2)"
+fi

@@ -36,6 +36,7 @@ import sys
 import threading
 import time
 import urllib.parse
+import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -93,6 +94,13 @@ HEARTBEAT_INTERVAL = _env_float("PW_DASH_HEARTBEAT", 15.0)
 # Overridable via PW_DASH_MAX_SSE_CLIENTS (invalid/absent -> 64).
 MAX_SSE_CLIENTS = int(_env_float("PW_DASH_MAX_SSE_CLIENTS", 64))
 _sse_slots = threading.BoundedSemaphore(MAX_SSE_CLIENTS)
+
+
+# The stable default port for the shared (multi-project) server, so a launched dashboard has a
+# bookmarkable URL and a second launch can detect and attach to the first. Overridable via
+# PW_DASH_PORT (mainly so a test can pin a known-free port). An explicit --port (including 0 for
+# an ephemeral port) overrides it entirely.
+DEFAULT_PORT = int(_env_float("PW_DASH_PORT", 8765))
 
 
 def _planwright_dir(root):
@@ -412,7 +420,20 @@ class Handler(BaseHTTPRequestHandler):
             _sse_slots.release()
 
 
-def serve(root, port, open_browser=False):
+def _is_dashboard(port):
+    """Best-effort probe: is the listener on 127.0.0.1:<port> a planwright dashboard? GET / and
+    look for the UI shell's marker. Any error (connection refused, timeout, a foreign service)
+    returns False, so a second launch only *attaches* to one of our own and otherwise falls
+    back to an ephemeral port. Loopback only."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:%d/" % port, timeout=1.5) as r:
+            head = r.read(4096).decode("utf-8", "replace")
+        return "planwright dashboard" in head
+    except Exception:
+        return False
+
+
+def serve(root, port, open_browser=False, default_port=False):
     """Start the dashboard server on 127.0.0.1:<port> (0 = ephemeral). Prints the bound
     address (so a caller/test can discover an ephemeral port) and blocks serving. With
     open_browser, best-effort opens the URL in a browser once the socket is listening.
@@ -431,13 +452,35 @@ def serve(root, port, open_browser=False):
         # not an uncaught traceback. An ephemeral port (0) failing is some other bind
         # error, so report it generically rather than suggesting --port.
         if port and e.errno == errno.EADDRINUSE:
-            sys.stderr.write(
-                "planwright dashboard: port %d is already in use — pick another with "
-                "--port, or use --port 0 for an automatically-chosen free port\n" % port)
+            # The stable home port being busy is handled specially: attach to an existing
+            # planwright dashboard (single-instance reuse, exit 0), else fall back to an
+            # ephemeral port so a launch never fails just because the home port is taken. An
+            # explicit --port keeps the original "pick another" exit-2 contract.
+            if default_port and _is_dashboard(port):
+                url = "http://127.0.0.1:%d/" % port
+                print("planwright dashboard: already running at %s — opening it" % url, flush=True)
+                if open_browser:
+                    try:
+                        webbrowser.open(url)
+                    except Exception:
+                        pass
+                return 0
+            if default_port:
+                try:
+                    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                except OSError as e2:
+                    sys.stderr.write(
+                        "planwright dashboard: cannot bind 127.0.0.1 (%s)\n" % e2)
+                    return 2
+            else:
+                sys.stderr.write(
+                    "planwright dashboard: port %d is already in use — pick another with "
+                    "--port, or use --port 0 for an automatically-chosen free port\n" % port)
+                return 2
         else:
             sys.stderr.write(
                 "planwright dashboard: cannot bind 127.0.0.1:%d (%s)\n" % (port, e))
-        return 2
+            return 2
     httpd.daemon_threads = True            # don't let SSE threads block process exit
     httpd.planwright_root = os.path.abspath(root)
     bound = httpd.server_address[1]
@@ -472,8 +515,9 @@ def main():
         description="planwright local read-only dashboard (live, no agent coupling).")
     ap.add_argument("--root", default=".",
                     help="the target repo to mirror (default: current directory)")
-    ap.add_argument("--port", type=int, default=0,
-                    help="port to bind on 127.0.0.1 (default: 0 = ephemeral, printed)")
+    ap.add_argument("--port", type=int, default=None,
+                    help="port to bind on 127.0.0.1 (default: %d, a stable home port with "
+                         "single-instance reuse; --port 0 = ephemeral)" % DEFAULT_PORT)
     ap.add_argument("--open", action="store_true",
                     help="open the dashboard URL in a browser once the server is up")
     # Registry management — curate which projects the shared (multi-project) server lists.
@@ -505,6 +549,9 @@ def main():
     if managed:
         return 0
 
+    if args.port is None:
+        # No --port: use the stable home port with single-instance reuse / ephemeral fallback.
+        return serve(args.root, DEFAULT_PORT, open_browser=args.open, default_port=True)
     return serve(args.root, args.port, open_browser=args.open)
 
 
