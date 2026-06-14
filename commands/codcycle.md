@@ -50,8 +50,9 @@ to repo files, including `MISSION.md`):
 `codcycle: max-intensity framing-rotated sweep — <N or ∞> outer cycle(s), each running explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed that sweeps the vantage catalog (power-user → integration → onboarding → reliability → automation), then one final explore phase to close the run. Note: the invent phase may make rare, small committed edits to repo files, including MISSION.md.`
 
 Then stamp the run-activity beacon so the dashboard's reactor names this run: resolve `<scripts>`
-per planwright's **Procedure → Bundled scripts** rule (the skill base directory's
-`../../scripts/`) and run `python3 <scripts>/state.py activity start codcycle --root .` in the ctx
+the same way `/dashboard` does — prefer the host-exported `${CLAUDE_PLUGIN_ROOT}/scripts`, else
+this command file's sibling `../scripts/` (never a bare `scripts/`, which resolves against the
+target repo) — and run `python3 <scripts>/state.py activity start codcycle --root .` in the ctx
 sandbox when available. The beacon is best-effort telemetry — if the script cannot run, skip it
 and proceed; never block on it.
 

@@ -97,8 +97,9 @@ active (in both banner variants). At
 `codshard: no shardable top-level directory — running only the closing whole-repo round (cycle <M> depth <D>).`
 
 Then stamp the run-activity beacon so the dashboard's reactor names this run: resolve `<scripts>`
-per planwright's **Procedure → Bundled scripts** rule (the skill base directory's
-`../../scripts/`) and run `python3 <scripts>/state.py activity start codshard --root .` in the ctx
+the same way `/dashboard` does — prefer the host-exported `${CLAUDE_PLUGIN_ROOT}/scripts`, else
+this command file's sibling `../scripts/` (never a bare `scripts/`, which resolves against the
+target repo) — and run `python3 <scripts>/state.py activity start codshard --root .` in the ctx
 sandbox when available. The beacon is best-effort telemetry — if the script cannot run, skip it
 and proceed; never block on it.
 

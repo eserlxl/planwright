@@ -65,8 +65,9 @@ Resolve them in this order:
    Any other leftover token: print that same `Usage:` line and STOP.
 4. **Then run the main loop below** under the peeled flags (empty = neither flag).
 
-**SENSE (read-only).** Resolve `<scripts>` per planwright's **Procedure → Bundled scripts** rule
-(the skill base directory's `../../scripts/`). Run
+**SENSE (read-only).** Resolve `<scripts>` the same way `/dashboard` does — prefer the host-exported
+`${CLAUDE_PLUGIN_ROOT}/scripts`, else this command file's sibling `../scripts/` (never a bare
+`scripts/`, which resolves against the target repo). Run
 `python3 <scripts>/status.py --root . --recommend` — appending ` --scope <scope-spec>` when a scope
 was peeled in step 0 — in the ctx sandbox when available and parse its JSON record. Under `--scope`
 the engine restricts pending and debt to the component's Focus, certifies convergence only from a
