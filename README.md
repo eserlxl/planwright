@@ -11,7 +11,7 @@
 <p align="center">
   <img src="docs/images/dashboard-console.png" alt="Planwright dashboard — Console view" />
   <br>
-  <em>The <a href="docs/usage.md#dashboard-live-read-only-web-view">dashboard</a> provides a live mirror of the planning state: convergence reactor, plan tallies, a 3D coupling graph, deep code insights.</em>
+  <em>The <a href="docs/usage.md#dashboard-live-read-only-web-view">dashboard</a> provides a live mirror of the planning state, deep code insights and agent decision visualizations.</em>
 </p>
 
 Planwright is a planning-first control loop for codebase work. It reads your project, finds work worth
