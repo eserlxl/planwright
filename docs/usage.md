@@ -391,6 +391,14 @@ light/dark themes, full keyboard navigation, and nine views:
   dashboard to that project. This is what lets one server replace one-dashboard-per-repo.
 - **Doctor** — the read-only environment preflight (`/doctor.json`).
 
+**Multiple projects.** One server can mirror many repos via a user-level registry
+(`$XDG_CONFIG_HOME/planwright/projects.json`) that every planwright run auto-populates. Manage it
+without serving — each op exits 0 without binding a port: `planwright dashboard --add DIR` /
+`--remove DIR` register or forget a project, `--discover PARENT` scans `PARENT` for child repos that
+hold a `.planwright/`, and `--list` prints the registry. The bottom-left project name then becomes a
+**switcher** (and the Fleet view a portfolio grid); selection is by allow-listed project id, never a
+raw path — the boundary that keeps the read-only mirror from reading arbitrary directories.
+
 Endpoints: `/state.json` (the snapshot — see [`state-schema.md`](state-schema.md)), `/graph.json` (a
 passthrough of the graph), `/doctor.json` (the preflight), `/recommend.json` (the dispatcher decision
 record — `status.py --recommend` verbatim), `/events` (the change stream). The view is
