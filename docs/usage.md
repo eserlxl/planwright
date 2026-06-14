@@ -205,7 +205,11 @@ per lap — invent's must-generate mandate never self-terminates — and a no-pr
 12-step-per-lap safety cap also stop it). With `loop` the drive is infinite: each converged
 terminal triggers the cold-start `reset` itself (typing `loop` is the consent for repeated cold
 starts; `rejected.md` survives, so rejected work stays suppressed across laps) and begins a new
-lap with the growth burst re-armed — only an interruption or a hard stop ends it. The lifecycle ladder: pending items → `execute`; structural debt, a stale final point, or a
+lap with the growth burst re-armed — an interruption or a hard failure (a blocker, hard blocker,
+or broad-verify failure) ends it immediately, and otherwise it stops only at a **lap boundary**
+when a whole lap (through the post-growth `codshard` harden) made no net progress — a *fully-dry
+lap* is the **final convergence point**. The soft no-progress guard never stops a `loop` lap
+mid-flight; the termination decision is taken only after the final post-growth harden. The lifecycle ladder: pending items → `execute`; structural debt, a stale final point, or a
 carried backlog → `codvisor` (`codshard explore` on a mechanically large repo: ≥120 tracked files
 and ≥2 shardable dirs); a clean but unconverged tree → the same harden sweep; a converged tree →
 `codinventor` — growth is **enforced whenever `safe` is off**: at every converged terminal
@@ -222,7 +226,7 @@ commit identity before a mutating run) stop it mechanically before any dispatch.
 /codmaster                 Drive to the final point: sense → dispatch → re-sense; post-growth harden shards (codshard, when shardable) (depth 10, max 12 steps)
 /codmaster advise          Print the recommendation, evidence, and blockers — dispatch nothing
 /codmaster safe            Same loop without invention capability — stops at the first convergence
-/codmaster loop            Infinite laps: harden → grow → sharded post-growth harden (codshard, when shardable) → reset (keeps rejected.md)
+/codmaster loop            Infinite laps: harden → grow → sharded post-growth harden (codshard, when shardable) → reset (keeps rejected.md); stops only on a hard failure or a fully-dry lap (final convergence, decided at the lap boundary)
 ```
 
 `planwright advise` is the host-portable half of the same engine (Cursor/Codex/Gemini included):

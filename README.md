@@ -72,8 +72,9 @@ nothing worth doing is left). It repairs before it grows, explains every choice 
 behind it, and stops itself on blockers, failed verification, stalls, or the 12-step safety cap.
 
 Three words tune it: `advise` (report what it would run — run nothing), `safe` (the same drive,
-never inventing), and `loop` (reset and start a fresh lap at every convergence, until interrupted
-or hard-stopped). The full tour — what each mode prints, the growth-once-per-run rule, lap
+never inventing), and `loop` (reset and start a fresh lap at every convergence, until interrupted,
+hard-stopped, or a whole lap comes up dry — the final convergence point, decided at the lap
+boundary, never mid-lap). The full tour — what each mode prints, the growth-once-per-run rule, lap
 mechanics — lives in [Concepts → codmaster](docs/concepts.md#codmaster--the-front-door).
 
 All five are autonomous in workflow, not unchecked in permissions: planning never touches your

@@ -1,5 +1,5 @@
 ---
-description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is enforced whenever `safe` is off — at every converged terminal codmaster takes one invent burst (`codinventor`) regardless of the engine's per-state recommendation, at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); after the growth burst the harden is sharded (`codshard explore`, when the repo is shardable) so each lap deep-hardens its freshly-grown code per-component, in every drive — not only under `loop`. The loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step-per-lap safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; `loop` makes the drive infinite — each converged terminal triggers the cold-start reset itself (keeps rejected.md) and begins a new lap with the growth burst re-armed, until interrupted or a hard stop (`safe loop` composes) — each lap's post-growth harden is sharded by the same general rule above. `parallel` forwards codshard's read-only recon prefetch: a step that dispatches `codshard` gets `parallel` appended to its args (Claude-Code-only, routing-only, never Evidence — degrades to sequential elsewhere), while any step that does not route to codshard prints a one-line nudge to run `/codshard parallel` directly. `parallel` never changes which command the engine chooses — only how a `codshard` dispatch runs (composes with `safe`/`loop`).
+description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is enforced whenever `safe` is off — at every converged terminal codmaster takes one invent burst (`codinventor`) regardless of the engine's per-state recommendation, at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); after the growth burst the harden is sharded (`codshard explore`, when the repo is shardable) so each lap deep-hardens its freshly-grown code per-component, in every drive — not only under `loop`. The loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step-per-lap safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; `loop` makes the drive infinite — each converged terminal triggers the cold-start reset itself (keeps rejected.md) and begins a new lap with the growth burst re-armed, until interrupted, a hard stop, or a fully-dry lap (the final convergence point, decided only at the lap boundary after the post-growth codshard — never at an intermediate step; `safe loop` composes) — each lap's post-growth harden is sharded by the same general rule above. `parallel` forwards codshard's read-only recon prefetch: a step that dispatches `codshard` gets `parallel` appended to its args (Claude-Code-only, routing-only, never Evidence — degrades to sequential elsewhere), while any step that does not route to codshard prints a one-line nudge to run `/codshard parallel` directly. `parallel` never changes which command the engine chooses — only how a `codshard` dispatch runs (composes with `safe`/`loop`).
 argument-hint: "advise | safe | loop | parallel [J] | (empty = sense → dispatch → re-sense, consecutively until the final point)"
 ---
 
@@ -55,7 +55,7 @@ and STOP — never substitute a prose decision table.
 **Main loop** (cases 3 and 4). First print exactly one cost banner:
 `codmaster: autonomous drive to the final point — sense → dispatch → re-sense, at depth 10, until convergence (max 12 steps); the converged terminal always earns one enforced invent burst (codinventor) unless run with safe, after which the harden is sharded (codshard explore) when the repo is shardable. Note: invent may make rare, small committed edits to repo files, including MISSION.md.`
 In `loop` mode print this first clause instead:
-`codmaster: infinite drive — laps of sense → dispatch → re-sense at depth 10; each lap hardens → grows (codinventor) → deep-hardens the grown code per-component (codshard, when the repo is shardable) → resets (cold-start, keeps rejected.md) into the next, until interrupted or a hard stop (max 12 steps per lap).`
+`codmaster: infinite drive — laps of sense → dispatch → re-sense at depth 10; each lap hardens → grows (codinventor) → deep-hardens the grown code per-component (codshard, when the repo is shardable) → resets (cold-start, keeps rejected.md) into the next, until interrupted, a hard stop, or a fully-dry lap (final convergence) — termination is decided only at the lap boundary, never mid-lap (max 12 steps per lap).`
 In `safe` mode (either banner), the trailing invent notice is replaced by:
 `safe: invention capability off — the loop stops at the first convergence.`
 (in `safe loop`, by: `safe: invention capability off — each lap runs harden-only.`)
@@ -99,13 +99,22 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
      engine itself withholds growth codmaster relays that non-destructive move. Outside `safe`
      the enforced burst above pre-empts this routing — it is the `safe` path that honours the
      engine's invent-dry choice (a bare or `loop` drive grows instead).
-   - otherwise, in `loop` mode: the converged terminal continues instead of stopping — print the
-     next lap's header `=== codmaster lap L ===`, dispatch planwright with `reset` as this step
-     (typing `loop` is the consent for repeated cold starts; `reset` keeps `rejected.md`, so
-     rejected work stays suppressed across laps), restart the step counter, re-arm the growth
-     burst, and continue — the next SENSE reads first contact and routes to a fresh harden
-     sweep. The infinite drive ends only on interruption or a hard stop (blockers, a hard
-     blocker, a broad-verify failure, or no progress).
+   - otherwise, in `loop` mode: the converged terminal continues instead of stopping — **but the
+     termination decision is taken here, at the lap boundary, after the post-growth codshard
+     harden, never at an intermediate step**: if the whole lap advanced HEAD zero times (every
+     `commits_i` of this lap was 0, the growth burst included; the lap-opening `reset` moves
+     nothing in git — it only clears gitignored `.planwright/` tool-state — so it never masks a
+     dry lap), the project has reached its **final convergence point** — STOP and report `no progress` (a fully-dry lap is the only
+     honest "done" for an infinite drive: invent's must-generate mandate means a lap that grew
+     and still moved nothing has nothing groundable left). Otherwise the lap made progress, so
+     relap: print the next lap's header `=== codmaster lap L ===`, dispatch planwright with
+     `reset` as this step (typing `loop` is the consent for repeated cold starts; `reset` keeps
+     `rejected.md`, so rejected work stays suppressed across laps), restart the step counter,
+     re-arm the growth burst, and continue — the next SENSE reads first contact and routes to a
+     fresh harden sweep. The infinite drive ends only on interruption or a hard stop (a blocker,
+     a hard blocker, or a broad-verify failure — these stop it immediately at any step), or, at
+     this lap boundary, a fully-dry lap (the final convergence point); the soft no-progress guard
+     never stops a lap mid-flight.
    - otherwise, in `safe` mode or with the growth step already taken: STOP the loop — the
      recorded final point is the terminal state. (In `safe` mode print the growth recommendation
      and the exact line to paste — `/planwright:codinventor`, or the `/codinventor` alias — plus
@@ -157,8 +166,13 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    verification** STOPs the whole loop immediately — relay the stop reason verbatim and suppress
    any next-step suggestion except the remediation for that stop.
 6. **No-progress guard.** If the step ended with HEAD unchanged AND the fresh SENSE yields the
-   identical recommendation (same command and args), STOP and report `no progress` — an honest
-   stall report beats spinning on the same dispatch.
+   identical recommendation (same command and args): **outside `loop`**, STOP and report
+   `no progress` — an honest stall report beats spinning on the same dispatch. **In `loop` mode
+   this guard does not stop the lap mid-flight** — a 0-commit harden must be allowed to advance to
+   the guaranteed-to-generate growth burst rather than be misread as "done"; the 12-step cap is
+   the mid-lap runaway backstop, and the no-progress verdict is instead evaluated once at the lap
+   boundary (the terminal check above), where a lap that moved HEAD zero times across all its
+   steps — through the post-growth codshard harden — is the final convergence point.
 
 **The reset decision — only when really necessary** (shown, not assumed; the engine's
 `_reset_necessity` rule). This engine-`reset` relay is reached only under `safe` — outside `safe`
@@ -193,7 +207,8 @@ was active but codshard was never dispatched, append `parallel had no effect thi
 /codshard parallel directly`), the final-point state from the last SENSE relayed verbatim, and
 the stop reason (`converged
 at the final point`, `hard blocker`, `broad-verify failed`, `blockers`, `no progress`,
-`step cap`, or — in `loop` mode — `interrupted`). In `loop` mode also print this summary at the
+`step cap`, or — in `loop` mode — `interrupted`; in `loop`, `no progress` is reached only at a
+lap boundary — a fully-dry lap — never mid-lap). In `loop` mode also print this summary at the
 end of every lap (just before its reset step), and a final overall line when the drive ends:
 laps completed, total steps, total verified commits. On a clean converged stop, also print the engine's steady-state recommendation as
 the suggested next step in both spellings (e.g. `next: /codinventor — <why>` and

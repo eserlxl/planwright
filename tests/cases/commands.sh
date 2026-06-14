@@ -489,6 +489,12 @@ assert "rejected work stays suppressed across laps" in body, "cross-lap rejected
 assert "re-arm the growth burst" in body, "per-lap growth re-arm missing"
 assert "restart the step counter" in body, "per-lap step-counter restart missing"
 assert "ends only on interruption or a hard stop" in body, "infinite-drive stop set missing"
+# loop termination is decided at the lap boundary (after the post-growth codshard), never at an
+# intermediate step: a hard failure stops immediately, but the soft no-progress guard is deferred
+# and only a whole-lap fully-dry result is the final convergence point that ends the infinite drive
+assert "termination decision is taken here, at the lap boundary" in body, "loop termination not deferred to the lap boundary"
+assert "does not stop the lap mid-flight" in body, "loop no-progress mid-lap deferral missing"
+assert "fully-dry lap" in body, "loop final-convergence (fully-dry lap) criterion missing"
 # post-growth sharded harden: the master's one command-shaping rule — in ANY lap (a bare run is
 # itself one lap, not only loop), once growth is taken, a codvisor harden on a shardable repo
 # becomes `codshard explore` (an explained divergence), gated on the engine's repo.shardable fact;

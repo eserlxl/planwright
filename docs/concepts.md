@@ -42,9 +42,11 @@ Three words tune it:
 - `codmaster advise` — only *tell me* what you would run, and why; run nothing.
 - `codmaster safe` — the same drive, but never invent: it stops once the repo is clean and prints
   the growth command for you to run yourself.
-- `codmaster loop` — never stop: each time the repo converges, it resets planwright's memory
-  (keeping the record of rejected ideas, so bad ideas stay buried) and starts a fresh lap, until
-  you interrupt it or a hard stop ends the drive.
+- `codmaster loop` — keep going: each time the repo converges, it resets planwright's memory
+  (keeping the record of rejected ideas, so bad ideas stay buried) and starts a fresh lap. It ends
+  when you interrupt it, on a hard failure, or — the natural finish — when a whole lap grows and
+  still changes nothing (a *fully-dry lap*, the final convergence point). That decision is taken
+  only at the end of a lap, never partway through one, so the loop is never cut off mid-cycle.
 
 The *per-state* choice — which command does this state need? — is mechanical, not vibes: a tested
 decision table (the same one the dashboard's Commands view renders) maps the repo's state to the

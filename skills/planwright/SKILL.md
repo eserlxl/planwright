@@ -132,7 +132,8 @@ stops; its `safe` word runs the same loop but never invents — it withholds the
 the `codinventor` line to paste) while still dispatching every non-invent move, including the engine's
 invent-dry `reset`/`codvisor`; its `loop` word makes the drive infinite — each lap grows, deep-hardens
 the grown code, then resets (cold-start, keeps `rejected.md`) into the next with growth re-armed, until
-interrupted or a hard stop (`safe loop` composes). The decision table lives in the tested Python engine,
+interrupted, a hard stop, or a fully-dry lap (the final convergence point, decided at the lap boundary
+after the post-growth harden, never mid-lap) (`safe loop` composes). The decision table lives in the tested Python engine,
 never in command prose; `codmaster` only relays and dispatches.
 
 ## Invocation & help
