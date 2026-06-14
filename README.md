@@ -8,9 +8,11 @@
 > to a recorded final point. Planwright works through the AI coding agent you already use:
 > Claude Code, Codex, Cursor, Antigravity, Gemini, or any AGENTS.md-aware agent.
 
-![Planwright's read-only dashboard — Console view](docs/images/dashboard-console.png)
-
-> The read-only [dashboard](docs/usage.md#dashboard-live-read-only-web-view) (`planwright dashboard`) — a live mirror of the `.planwright/` planning state: convergence reactor, plan tallies, code vitals, decision cadence, and a dirty-pulse of changed files. It watches; it never drives.
+<p align="center">
+  <img src="docs/images/dashboard-console.png" alt="Planwright dashboard — Console view" />
+  <br>
+  <em>The <a href="docs/usage.md#dashboard-live-read-only-web-view">dashboard</a> provides a live mirror of the planning state: convergence reactor, plan tallies, a 3D coupling graph, deep code insights.</em>
+</p>
 
 Planwright is a planning-first control loop for codebase work. It reads your project, finds work worth
 doing, and writes it down as a checklist of concrete, verifiable steps in `.planwright/plan.md`. It
@@ -332,6 +334,12 @@ Invoke in chat with `planwright`, for example `planwright depth 8`, `planwright 
 shortcuts (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`) as natural-language
 commands, or add a small dispatcher skill that reads the matching `commands/<name>.md` and then
 loads `skills/planwright/SKILL.md` with the resolved argument string.
+
+<p align="center">
+  <img src="docs/images/codex-usage.png" alt="Codex usage example" />
+  <br>
+  <em>An example of running the <code>codvisor</code> shortcut in a Codex thread to explore and repair the repository.</em>
+</p>
 
 ### Antigravity / Gemini
 
