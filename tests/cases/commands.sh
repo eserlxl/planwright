@@ -224,6 +224,24 @@ sys.exit(1 if need else 0)
 PY
 then ok "commands/codmaster.md threads a path/lib scope into SENSE (--scope) and every dispatch, suppressing codshard/reset under scope"; else bad "commands/codmaster.md scope wiring missing (sense thread / dispatch append / whole-repo-move suppression)"; fi
 
+# --- Test 15e: commands/codmaster.md gates the loop-mode lap-boundary relap under a scope ------
+# Test 15d guards the step-0 / post-growth whole-repo-move suppression, but NOT the loop terminal
+# check's relap. Before the gate a scoped `loop` drive fell through to an unconditional `reset` (a
+# whole-repo .planwright wipe erasing sibling components' audit memory — the exact harm step 0
+# forbids). Guard that the loop relap stays scope-gated so it cannot silently regress.
+CMD="$ROOT/commands/codmaster.md"
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+need = []
+# the positive gate clause must be present
+if "lap-boundary relap does not reset" not in t: need.append("loop-relap-scope-gate")
+# and the unscoped path must still reset (so the gate is a scope carve-out, not a blanket removal)
+if "unscoped" not in t or "loop relap dispatches" not in t: need.append("unscoped-relap-carveout")
+sys.exit(1 if need else 0)
+PY
+then ok "commands/codmaster.md gates the loop-mode lap-boundary relap under a scope"; else bad "commands/codmaster.md lost the loop-mode relap scope gate (a scoped loop drive could fire a whole-repo reset)"; fi
+
 # The canonical statement of the same rule lives in SKILL.md (uses ≡); guard it too. Anchor on the
 # "Flag aliases." paragraph itself (not the whole file) — `--scope` also appears far away in the
 # SCOPE→FOCUS section, so a file-wide substring check would survive gutting this paragraph.
