@@ -19,8 +19,8 @@
 #                       and pushes a `change` event whenever a file changes, so the
 #                       browser re-fetches /state.json. One-directional (server->client).
 #
-#   python3 scripts/dashboard.py --root .            # bind 127.0.0.1 on an ephemeral port
-#   python3 scripts/dashboard.py --root . --port 8765
+#   python3 scripts/dashboard.py --root .            # bind 127.0.0.1 on the stable home port 8765 (reuse if running)
+#   python3 scripts/dashboard.py --root . --port 0   # bind an ephemeral port instead
 #   python3 scripts/dashboard.py --root . --open     # also open the URL in a browser
 #
 # Bound to loopback (127.0.0.1) only and read-only by construction. Dynamic responses are
