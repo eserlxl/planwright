@@ -27,7 +27,12 @@ Stdlib only (no Flask/websocket libs, no build step). It exposes:
    front-door panel.
 5. **`/events`** — a one-directional Server-Sent Events stream that mtime-polls `.planwright/` ~every
    second and pushes a `change` event whenever a file changes, so the browser re-fetches `/state.json`.
-6. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
+   It honors `?project=<id>` so the stream watches the selected project's `.planwright/`.
+6. **`/projects.json`** — the cross-repo project list the bottom-left switcher reads: one cheap entry
+   per allow-listed project (the registry plus the launch `--root`) with its id, name, path, a
+   liveness status (active/stale from the beacon TTL, converged from the final-point marker, else
+   idle), and plan/completed counts. Cheap by design — no `state.collect` per project.
+7. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
    reactive console with eight views — **Console** (convergence reactor with a three-state resting
    verdict, the expanded health vitals row — coverage, hotspots, coupling, audit frontier, files,
    articulation, tests, cycles — cadence with a mode legend, session trend, dirty pulse, and a
@@ -45,6 +50,21 @@ Stdlib only (no Flask/websocket libs, no build step). It exposes:
    **Shards** (codshard's live shard map: the shardable top-level directories, per-shard
    staleness, the order a sweep would walk, and copyable single-shard invocations), and
    **Doctor** — plus a command palette, light/dark themes, and full keyboard navigation.
+
+**Multiple projects from one server.** The dashboard can mirror many repos at once, so you need not
+run a server per project. The viewable set is a user-level **registry**
+(`$XDG_CONFIG_HOME/planwright/projects.json`, deliberately outside any repo since it spans repos)
+that grows automatically — every planwright run stamps its repo into it via the activity beacon —
+and can be curated by hand: `dashboard.py --add <dir>`, `--remove <dir>`, `--discover <parent>`
+(register each child holding a `.planwright/`), and `--list`; each is a management invocation that
+acts and exits without serving. The bottom-left name becomes a **switcher** (running projects
+first); selecting one re-points the browser at that project via `?project=<id>` — client-side only,
+so independent tabs can watch different projects, and there is still no control endpoint.
+**Security:** the browser selects a project **only by an opaque id resolved against the registry
+allow-list — never by a path**; an unknown id is refused with 404 and a client-supplied path is
+never honored (state/recommend/doctor each run git in the chosen root, so only allow-listed ids may
+select one). Launching with just `--root` and no registry stays a single-project view (a registry of
+one), exactly as before.
 
 The view is **read-only and informational**, like Status: it is never valid Evidence, and it never
 mutates the tree. Stop it with Ctrl-C.

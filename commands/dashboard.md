@@ -34,7 +34,18 @@ From `$ARGUMENTS` (all optional; echo the canonical form you resolved):
   launches; default `0` (ephemeral, printed in the banner).
 - `--root <DIR>` (or a bare directory path) → the repo to mirror; default `.` (the current
   directory). `<DIR>` selects which repo's `.planwright/` the server reads — it is not a
-  subtree view.
+  subtree view. With no registry this is a single-project view, exactly as before.
+- `--add <DIR>` / `--remove <DIR>` / `--discover <PARENT>` / `--list` → **registry management**,
+  not a serve: register/forget projects (or scan `<PARENT>` for children holding a `.planwright/`),
+  print the registry, and exit without binding a port.
+
+**Multiple projects from one server.** One dashboard can mirror many repos: the viewable set is a
+user-level registry (`$XDG_CONFIG_HOME/planwright/projects.json`, outside any repo) that every
+planwright run auto-populates, plus the `--add`/`--discover` flags above. The bottom-left name
+becomes a **switcher**; selecting a project re-points the browser via `?project=<id>` (client-side,
+so separate tabs can watch separate projects), and `/projects.json` feeds the switcher with each
+project's live status. Selection is by **allow-listed id only, never a raw path** — the security
+boundary that keeps the read-only mirror from reading arbitrary directories.
 
 ## 3 — Launch (do not block the turn)
 
