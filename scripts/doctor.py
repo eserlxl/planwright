@@ -55,6 +55,7 @@ BUNDLED = [
     ("check-links.py", "the intra-repo Markdown link-check verification command"),
     ("plan_parse.py", "the canonical plan.md parser (status.py / lint-plan.py import it)"),
     ("state.py", "the dashboard /state.json snapshot source (state.collect)"),
+    ("registry.py", "the cross-repo dashboard project registry (dashboard.py imports it at module load; state.py registers running repos through it)"),
     ("lint-final.py", "the Stage 11 final.md / final-point validator"),
     # Dispatched through the same <scripts> seam by their commands — a partial
     # install missing either previously passed doctor clean and failed at launch.

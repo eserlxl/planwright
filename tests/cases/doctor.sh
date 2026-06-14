@@ -106,6 +106,49 @@ else
   bad "doctor.py BUNDLED omits a dashboard asset that index.html loads"
 fi
 
+# --- Test DR4c: doctor's BUNDLED covers every sibling Python module a bundled script
+# imports at module load ---------------------------------------------------------------
+# DR4b guards the static asset tree; the same silent-partial-install blind spot exists for
+# the *.py modules a bundled script imports at module scope. A missing one ImportErrors at
+# launch (not a 404): e.g. dashboard.py does `import registry` at the top, so an install
+# without registry.py crashes the dashboard while doctor — which never enumerated it —
+# reports green. Derive each bundled *.py's MODULE-SCOPE imports via AST (a lazy in-function
+# import is best-effort, not load-bearing) and assert every sibling <name>.py is itself in
+# BUNDLED, so a future load-bearing module added without a doctor entry turns this red. The
+# runner module (doctor.py) is exempt: it is tautologically present when this check executes
+# and DR3 relies on doctor.py NOT being a BUNDLED entry.
+if "$PY" - "$DOC" "$ROOT/scripts" <<'PY'
+import ast, importlib.util, os, sys
+doc, scripts = sys.argv[1], sys.argv[2]
+spec = importlib.util.spec_from_file_location("d", doc)
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+bundled = {p for p, _ in m.BUNDLED}
+runner = os.path.basename(doc)  # doctor.py — the runner, exempt by design (see DR3)
+missing = []
+for entry in sorted(p for p in bundled if p.endswith(".py")):
+    fp = os.path.join(scripts, entry)
+    if not os.path.isfile(fp):
+        continue
+    for node in ast.parse(open(fp, encoding="utf-8").read(), fp).body:  # module scope only
+        names = []
+        if isinstance(node, ast.Import):
+            names = [a.name.split(".")[0] for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            names = [node.module.split(".")[0]]
+        for name in names:
+            sib = name + ".py"
+            if sib == runner:
+                continue
+            if os.path.isfile(os.path.join(scripts, sib)) and sib not in bundled:
+                missing.append("%s imports %s" % (entry, sib))
+assert not missing, "load-bearing sibling modules missing from doctor BUNDLED: %s" % sorted(set(missing))
+PY
+then
+  ok "doctor.py BUNDLED lists every sibling Python module a bundled script imports at module load (no silent ImportError partial-install gap)"
+else
+  bad "doctor.py BUNDLED omits a sibling Python module a bundled script imports at module scope"
+fi
+
 # --- Test DR5: a non-git target is WARN-only (does not fail the exit code) --------
 # A plain directory (not a git work tree) -> target check is warn; with all tools and
 # scripts present there are no fails, so exit stays 0.
