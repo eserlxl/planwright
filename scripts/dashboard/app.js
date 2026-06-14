@@ -235,6 +235,9 @@
     el.className = "pw-project pw-project--switch";
     el.textContent = "";
     el.title = (s && s.root) || "";
+    // A "Projects" mini-heading above the dropdown, styled like the "Recent contributions"
+    // label (.pw-section-mini) so the sidebar reads consistently.
+    el.appendChild(elt("span", "pw-section-mini pw-project-label", "Projects"));
     var sel = elt("select", "pw-project-select");
     sel.setAttribute("aria-label", "Switch project");
     var order = all.slice().sort(function (a, b) {
@@ -251,8 +254,11 @@
       sel.appendChild(opt);
     });
     sel.addEventListener("change", function () { setSelectedProject(sel.value); });
-    sel.style.maxWidth = "100%";
-    el.appendChild(sel);
+    // Wrap the native control so a CSS-drawn chevron can sit over it (a <select> can't carry
+    // its own ::after); the wrapper owns width, the select fills it.
+    var wrap = elt("div", "pw-select-wrap");
+    wrap.appendChild(sel);
+    el.appendChild(wrap);
   }
 
   function renderOverview(s) {

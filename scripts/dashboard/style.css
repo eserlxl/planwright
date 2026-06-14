@@ -191,6 +191,38 @@ body.pw-stale .aurora-bg { filter: blur(80px) saturate(0.5); }
   font-weight: 500; color: var(--pw-muted); letter-spacing: 0.2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* Multi-project mode turns the plain project name into a labelled switcher. The label reuses
+   the "Recent contributions" mini-heading (.pw-section-mini) so the sidebar reads consistently,
+   and the native <select> is restyled into a panel-matched dropdown with a custom chevron. */
+.pw-project--switch {
+  display: flex; flex-direction: column; gap: var(--pw-s2);
+  overflow: visible; white-space: normal;
+}
+.pw-project-label { padding-left: 2px; }
+.pw-select-wrap { position: relative; width: 100%; }
+.pw-select-wrap::after {
+  content: ""; position: absolute; right: 13px; top: 50%; margin-top: -4px;
+  width: 7px; height: 7px; pointer-events: none;
+  border-right: 1.5px solid var(--pw-muted); border-bottom: 1.5px solid var(--pw-muted);
+  transform: rotate(45deg); transition: border-color var(--pw-dur) var(--pw-ease);
+}
+.pw-select-wrap:hover::after { border-color: var(--pw-fg); }
+.pw-select-wrap:focus-within::after { border-color: var(--pw-accent); }
+.pw-project-select {
+  width: 100%; appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  font-family: inherit; font-size: var(--pw-fs-sm); font-weight: 500; line-height: 1.4;
+  color: var(--pw-fg); background: var(--pw-panel);
+  border: 1px solid var(--pw-border); border-radius: var(--pw-r-md);
+  padding: var(--pw-s2) calc(var(--pw-s3) + 14px) var(--pw-s2) var(--pw-s3);
+  cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: border-color var(--pw-dur) var(--pw-ease),
+              background var(--pw-dur) var(--pw-ease),
+              box-shadow var(--pw-dur) var(--pw-ease);
+}
+.pw-project-select:hover { border-color: var(--pw-border-2); background: var(--pw-panel-2); }
+.pw-project-select:focus { outline: none; border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-accent-glow); }
+/* Native option popups ignore translucent panels, so paint them on a solid theme surface. */
+.pw-project-select option { background: var(--pw-bg); color: var(--pw-fg); }
 .pw-brand-glow {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: 120px; height: 40px; background: var(--pw-accent-glow); filter: blur(24px);
