@@ -161,6 +161,16 @@
       panel.appendChild(elt("p", "pw-frontdoor-note",
         "then: " + d.follow_up.command + (d.follow_up.args ? " " + d.follow_up.args : "")));
     }
+    // Enforce overlay (parity with the CLI advise notice, 791a00f): at a converged invent-dry
+    // recommendation the engine routes to a non-growth move (reset/codvisor, invent_class false),
+    // but a default (non-safe) codmaster drive enforces one codinventor burst there instead —
+    // only `safe` relays the pick shown above. The engine pick stays the primary render (engine
+    // truth); this note discloses what a real default drive would actually do next.
+    if (d.signals && d.signals.converged && !d.invent_class) {
+      panel.appendChild(elt("p", "pw-frontdoor-note",
+        "a default codmaster drive (without safe) takes an enforced codinventor burst here, " +
+        "regardless of this invent-dry routing — only safe relays the pick above"));
+    }
 
     panel.appendChild(invoke(dispatchInvocation(d)));
     slot.appendChild(panel);

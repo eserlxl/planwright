@@ -1214,7 +1214,50 @@ setTimeout(function () {
     assert(fdStale.length === 1, "front-door panel missing on a stale-beacon render");
     assert(/next dispatch/.test(kickerOf(fdStale[0])), "a stale beacon re-framed the front-door heading as a live run");
     assert(!/run in progress/.test(textOf(fdStale[0])), "a stale beacon rendered the run-in-progress framing");
-    console.log("VIEWS-FN-OK");
+
+    // Enforce overlay (791a00f parity): at a converged invent-dry recommendation the engine
+    // routes to a non-growth move (reset/codvisor, invent_class false), but a default codmaster
+    // drive enforces a codinventor burst there, so the panel must disclose it (mirroring the CLI
+    // advise notice) WITHOUT dropping the engine pick; and it must NOT disclose it when the engine
+    // already recommends growth (invent_class true) — there is no divergence then.
+    REC_BODY = {
+      base: { key: "codvisor", why: "converged at the invent-dry point" },
+      command: "codvisor", args: "cycle 10 depth 10 explore",
+      why: "converged at the invent-dry point, but the cold frontier is undrained — harden",
+      mutating: true, invent_class: false, follow_up: null,
+      notes: [], blockers: [], evidence: ["0 import cycles"], reset_nudge: null,
+      signals: { converged: true }, repo: {},
+    };
+    var cmdConvSeed = new El("section");
+    win.PW_VIEWS.commands(cmdConvSeed, state, fullCtx);   // trigger a fresh fetch of the new record
+    setTimeout(function () {
+      var cmdConv = new El("section");
+      win.PW_VIEWS.commands(cmdConv, state, fullCtx);
+      var fdConv = frontDoorPanels(cmdConv);
+      assert(fdConv.length === 1, "front-door panel missing on a converged invent-dry record");
+      var convText = textOf(fdConv[0]);
+      assert(/enforced codinventor burst/.test(convText),
+        "converged invent-dry front-door panel omitted the default-drive enforced-growth disclosure (791a00f parity)");
+      assert(/codvisor/.test(convText),
+        "enforce note must not drop the engine pick (engine truth stays the primary render)");
+
+      REC_BODY = {
+        base: { key: "codinventor", why: "converged — grow" },
+        command: "codinventor", args: "cycle 10 depth 10 invent",
+        why: "converged at a current final point — grow", mutating: true,
+        invent_class: true, follow_up: null, notes: [], blockers: [],
+        evidence: [], reset_nudge: null, signals: { converged: true }, repo: {},
+      };
+      var cmdGrowSeed = new El("section");
+      win.PW_VIEWS.commands(cmdGrowSeed, state, fullCtx);
+      setTimeout(function () {
+        var cmdGrow = new El("section");
+        win.PW_VIEWS.commands(cmdGrow, state, fullCtx);
+        assert(!/enforced codinventor burst/.test(textOf(frontDoorPanels(cmdGrow)[0])),
+          "enforce overlay wrongly shown when the engine already recommends growth (invent_class true)");
+        console.log("VIEWS-FN-OK");
+      }, 0);
+    }, 0);
   }, 0);
 }, 0);
 JS
