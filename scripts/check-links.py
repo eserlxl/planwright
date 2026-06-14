@@ -8,8 +8,8 @@
 # that nothing else catches — a broken README -> docs/concepts.md link shipped exactly
 # that way. This is the verification command that closes that gap.
 #
-# For every tracked *.md file it parses inline `[text](target)` links and checks each
-# *intra-repo* target:
+# For every tracked *.md file it parses inline `[text](target)` links, reference-style
+# links, and raw HTML `src="..."` asset references, then checks each *intra-repo* target:
 #   * a relative file target must exist (resolved against the linking file's directory);
 #   * a `#anchor` (same-file or `path#anchor` into another .md) must match a heading on
 #     the target page (GitHub heading-slug rules) or an explicit <a name/id> anchor.
@@ -49,6 +49,7 @@ HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
 # indented 0-3 spaces. We match the underline; the heading text is the preceding line.
 SETEXT_RE = re.compile(r"^\s{0,3}(?:=+|-+)\s*$")
 HTML_ANCHOR_RE = re.compile(r"""<a\s+[^>]*?(?:name|id)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+HTML_SRC_RE = re.compile(r"""<[^>]+\s+src\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 EXTERNAL_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//)")
 
 
@@ -155,12 +156,12 @@ def anchor_ok(anchor, slugs):
     return anchor.lower() in slugs
 
 
-def clean_target(raw):
+def clean_target(raw, strip_markdown_title=True):
     """Normalize a raw link target: drop a <...> wrapper and a trailing "title"."""
     t = raw.strip()
     if t.startswith("<") and ">" in t:
         t = t[1:t.index(">")]
-    else:
+    elif strip_markdown_title:
         t = t.split()[0] if t.split() else t
     return t.strip()
 
@@ -200,10 +201,10 @@ def check_file(root, relpath, anchor_cache):
         if dm:
             defs[re.sub(r"\s+", " ", dm.group(1).strip()).lower()] = dm.group(2).strip()
 
-    def check_target(rawtarget, lineno):
+    def check_target(rawtarget, lineno, strip_markdown_title=True):
         """Run one raw link target through the intra-repo existence/containment/anchor
         checks, appending any failure to `broken`. Shared by inline and reference links."""
-        target = clean_target(rawtarget)
+        target = clean_target(rawtarget, strip_markdown_title=strip_markdown_title)
         if not target or EXTERNAL_RE.match(target):
             return
         path, _, anchor = target.partition("#")
@@ -283,11 +284,13 @@ def check_file(root, relpath, anchor_cache):
             key = re.sub(r"\s+", " ", label.strip()).lower()
             if key in defs:
                 check_target(defs[key], lineno)
+        for m in HTML_SRC_RE.finditer(scan):
+            check_target(m.group(1), lineno, strip_markdown_title=False)
     return broken
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Check intra-repo Markdown links and anchors.")
+    ap = argparse.ArgumentParser(description="Check intra-repo Markdown links, raw HTML srcs, and anchors.")
     ap.add_argument("--root", default=".", help="repo root to check (default: cwd)")
     ap.add_argument("--quiet", action="store_true",
                     help="print nothing; only set the exit code (parity with the sibling scripts)")

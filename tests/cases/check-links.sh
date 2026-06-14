@@ -300,7 +300,30 @@ else
   bad "check-links.py reference-style handling wrong (valid_rc=$rf_rc broken_rc=$rfb_rc): $rf_out | $rfb_out"
 fi
 
-# --- Test CL15: a directory git cannot enumerate exits 2 (fail-closed parity) -------
+# --- Test CL15: raw HTML src attributes are checked like Markdown asset links -------
+# README screenshots and similar docs assets may be embedded as raw HTML for sizing.
+# A missing local src must fail, while valid local files, spaces in quoted src values,
+# and external/data URLs must not false-fail.
+HS="$TMP/cl-html-src"; mkdir -p "$HS/assets"; git -C "$HS" init -q
+printf 'image\n' > "$HS/assets/logo file.png"
+printf '%s\n' '# Home' '' \
+  '<img src="assets/logo file.png" alt="ok">' \
+  "<img src='assets/logo file.png' alt='single'>" \
+  '<img src="https://example.com/remote.png" alt="external">' \
+  '<img src="data:image/png;base64,aaaa" alt="data">' > "$HS/index.md"
+git -C "$HS" add -A
+hs_rc=0; hs_out="$(python3 "$CL" --root "$HS" 2>&1)" || hs_rc=$?
+printf '%s\n' '# Home' '' '<img src="assets/missing.png" alt="bad">' > "$HS/index.md"
+git -C "$HS" add -A
+hsb_rc=0; hsb_out="$(python3 "$CL" --root "$HS" 2>&1)" || hsb_rc=$?
+if [ "$hs_rc" = "0" ] \
+   && [ "$hsb_rc" = "1" ] && printf '%s' "$hsb_out" | grep -q 'assets/missing.png (file does not exist)'; then
+  ok "check-links.py checks raw HTML src asset references without false-failing external/data URLs"
+else
+  bad "check-links.py raw HTML src handling wrong (valid_rc=$hs_rc broken_rc=$hsb_rc): $hs_out | $hsb_out"
+fi
+
+# --- Test CL16: a directory git cannot enumerate exits 2 (fail-closed parity) -------
 # list_markdown shells out to `git ls-files`; when that raises (a non-git dir), the
 # checker returns exit 2 with a distinct enumeration-error message — NOT exit 0/1 — so a
 # usage/enumeration failure is never mistaken for "all links OK" or "broken links found".
