@@ -430,6 +430,11 @@ assert "planwright:planwright" in body, "skill dispatch missing"
 assert "Usage: /codmaster [advise | [safe] [loop] [parallel [J]]]" in body, "Usage line missing or the grammar grew"
 assert "STOP" in body, "no STOP rule"
 assert "STOP — dispatch nothing" in body, "advise dispatch-nothing rule missing"
+# advise discloses the enforce overlay (added 791a00f, was unpinned): at a converged invent-dry
+# recommendation the default (non-safe) drive grows anyway, so advise must say so even though it
+# dispatches nothing -- the read-only relay still tells the truth about what a real drive would do
+assert "non-growth invent-dry move" in body, "advise enforcement-notice trigger (converged invent-dry) missing"
+assert "a default (non-`safe`) drive would instead take an enforced `codinventor` burst" in body, "advise enforcement notice missing (default drive grows where engine routes invent-dry)"
 # safe = without invention capability; default = growing authority + verbatim disclosure
 assert "without invention capability" in body, "safe-mode contract missing"
 assert "do NOT dispatch" in body, "safe-mode no-dispatch polarity missing"
