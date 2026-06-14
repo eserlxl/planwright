@@ -137,7 +137,12 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
      `reset` as this step (typing `loop` is the consent for repeated cold starts; `reset` keeps
      `rejected.md`, so rejected work stays suppressed across laps), restart the step counter,
      re-arm the growth burst, and continue — the next SENSE reads first contact and routes to a
-     fresh harden sweep. The infinite drive ends only on interruption or a hard stop (a blocker,
+     fresh harden sweep. **Under a scope, the lap-boundary relap does not reset** — `reset` is a
+     whole-repo `.planwright` wipe the scope forbids (step 0, where codmaster never auto-routes the
+     whole-repo moves), so a scoped `loop` drive instead re-senses the scoped component directly at
+     the lap boundary (re-arm the growth burst, restart the step counter, **no `reset` dispatch**),
+     keeping sibling components' audit memory intact; only an **unscoped** loop relap dispatches
+     `reset`. The infinite drive ends only on interruption or a hard stop (a blocker,
      a hard blocker, or a broad-verify failure — these stop it immediately at any step), or, at
      this lap boundary, a fully-dry lap (the final convergence point); the soft no-progress guard
      never stops a lap mid-flight.
