@@ -501,6 +501,33 @@ else
   bad "dashboard.py SSE cap not observed: $(cat "$TMP/dscap.err" 2>/dev/null)"
 fi
 
+# --- Test DASH-SSE-CAP-VALIDATION: an invalid cap falls back to 64, never floors to 0 --------
+# PW_DASH_MAX_SSE_CLIENTS is an integer slot count. A fractional value in (0,1) once passed the
+# float helper's >0 guard and int()-floored to 0, leaving a zero-slot BoundedSemaphore that 503s
+# every live client. _env_int must reject fractional/sub-1/negative/non-numeric values and fall
+# back to the default 64, while honoring a valid integer >= 1. Asserted at import — no port bound.
+cat > "$TMP/dash_capval.py" <<'PY'
+import os, sys, importlib
+sys.path.insert(0, os.path.dirname(os.path.abspath(sys.argv[1])))
+cases = {"0.5": 64, "0.9": 64, "0": 64, "-5": 64, "abc": 64, "32": 32, "1": 1}
+for raw, want in cases.items():
+    os.environ["PW_DASH_MAX_SSE_CLIENTS"] = raw
+    sys.modules.pop("dashboard", None)
+    got = importlib.import_module("dashboard").MAX_SSE_CLIENTS
+    assert got == want, "PW_DASH_MAX_SSE_CLIENTS=%s -> %r, want %d" % (raw, got, want)
+os.environ.pop("PW_DASH_MAX_SSE_CLIENTS", None)
+sys.modules.pop("dashboard", None)
+got = importlib.import_module("dashboard").MAX_SSE_CLIENTS
+assert got == 64, "unset default should be 64, got %r" % got
+print("CAP-VAL-OK")
+PY
+python3 "$TMP/dash_capval.py" "$DASH" >"$TMP/capval.out" 2>"$TMP/capval.err" || true
+if grep -q CAP-VAL-OK "$TMP/capval.out"; then
+  ok "dashboard.py MAX_SSE_CLIENTS rejects fractional/sub-1/non-numeric and falls back to 64"
+else
+  bad "dashboard.py SSE-cap validation failed: $(cat "$TMP/capval.err" 2>/dev/null)"
+fi
+
 # --- /graph.json on a graphless root returns 404 {"error":"no graph built"} -----------
 # The passthrough success is covered above; the no-graph guard (dashboard.py:189) was not.
 # A second short-lived server on a root with a plan but NO graph.json exercises it.
