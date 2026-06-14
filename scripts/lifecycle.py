@@ -66,7 +66,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from types import ModuleType
 
+# fcntl is POSIX-only; declare the binding optional so mypy accepts both the imported
+# module and the None fallback. A bare `fcntl = None` trips "Incompatible types in
+# assignment (expression has type None, variable has type Module)".
+fcntl: ModuleType | None
 try:
     import fcntl  # POSIX-only; absent on non-POSIX, where the state lock degrades to a no-op.
 except ImportError:  # pragma: no cover - only reached on non-POSIX platforms
