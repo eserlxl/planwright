@@ -120,9 +120,11 @@ new warning — fails this gate.
 
 Two thin shortcuts forward to the planwright skill; any planwright arguments pass through verbatim.
 Use slash spelling on Claude Code and the bare names (`codvisor`, `codinventor`) or host dispatcher
-skills/instructions elsewhere. All four scope-aware helpers (`codvisor`, `codinventor`, `codcycle`,
-`codshard`) also peel a `path <X>` / `lib <X>` pair from anywhere in their arguments, so a scoped run
-is one flag away (see Component Scope above for what a scope does).
+skills/instructions elsewhere. All five scope-aware helpers (`codvisor`, `codinventor`, `codcycle`,
+`codshard`, `codmaster`) also peel a `path <X>` / `lib <X>` pair from anywhere in their arguments, so a
+scoped run is one flag away (see Component Scope above for what a scope does); the orchestrators trail
+it after each dispatched subcommand so `cycle`/`execute` stays the first token planwright sees, and
+`codmaster` additionally threads it into its sense engine so the whole drive is Focus-restricted.
 
 ```bash
 /codvisor                  Flagship advisor run: cycle 10 depth 10 explore (prints a cost banner first)
@@ -222,11 +224,26 @@ what **`safe`** relays; a default (non-`safe`) drive overrides it with the enfor
 (planwright's must-generate `invent` re-surveys a "dry" point and lands the next groundable item). Blockers (a dirty tree, doctor failures, a missing
 commit identity before a mutating run) stop it mechanically before any dispatch.
 
+A peeled `path <X>` / `lib <X>` scope aims the **whole drive** at one component. Unlike the other
+helpers — which only trail the scope after each dispatch — `codmaster` also *senses* scoped
+(`status.py --recommend --scope path:<X>`), so pending, debt, and convergence are all Focus-restricted:
+the loop drains only in-component pending items, hardens only in-component debt, and reaches its
+terminal when a **scope-tagged** final point names that component (a whole-repo final point never
+certifies a scoped drive, and vice-versa). Because a scope already focuses one component, the two
+whole-repo moves are never auto-routed under it: `codshard` (a sharded whole-repo sweep) and `reset`
+(a whole-repo `.planwright` wipe that would erase sibling components' audit memory) — so the harden
+stays a scoped `codvisor` even on a large repo, and the post-growth harden is not sharded. A `path`
+that matches no tracked files is a hard blocker (a scope never silently widens to the whole repo); a
+`lib` the engine cannot resolve hardens conservatively while the dispatched scoped run resolves it
+authoritatively. The whole-repo carried backlog is not counted under a scope, and `parallel` is inert
+(it only accelerates a `codshard` dispatch, which a scope excludes).
+
 ```bash
 /codmaster                 Drive to the final point: sense → dispatch → re-sense; post-growth harden shards (codshard, when shardable) (depth 10, max 12 steps)
 /codmaster advise          Print the recommendation, evidence, and blockers — dispatch nothing
 /codmaster safe            Same loop without invention capability — stops at the first convergence
 /codmaster loop            Infinite laps: harden → grow → sharded post-growth harden (codshard, when shardable) → reset (keeps rejected.md); stops only on a hard failure or a fully-dry lap (final convergence, decided at the lap boundary)
+/codmaster path src/auth/  Drive ONE component to its scoped final point: SENSE, every dispatch, and convergence are Focus-restricted; codshard/reset never auto-route (harden stays a scoped codvisor)
 ```
 
 `planwright advise` is the host-portable half of the same engine (Cursor/Codex/Gemini included):

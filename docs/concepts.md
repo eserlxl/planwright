@@ -48,6 +48,13 @@ Three words tune it:
   still changes nothing (a *fully-dry lap*, the final convergence point). That decision is taken
   only at the end of a lap, never partway through one, so the loop is never cut off mid-cycle.
 
+A **`path <X>` / `lib <X>` scope** (see Scope below) aims the *whole drive* at one component: codmaster
+senses scoped (pending, debt, and convergence are all Focus-restricted), trails the scope after every
+command it dispatches, and reaches its terminal at that component's scoped final point. Because a scope
+already focuses one component, it never reaches for the two whole-repo moves — `codshard` (a sharded
+whole-repo sweep) and `reset` (a whole-repo memory wipe) — so the harden stays a scoped `codvisor` even
+on a large repo (`codmaster path src/auth/`).
+
 The *per-state* choice — which command does this state need? — is mechanical, not vibes: a tested
 decision table (the same one the dashboard's Commands view renders) maps the repo's state to the
 next command, and codmaster runs it at full depth. What codmaster adds on top is the **lap

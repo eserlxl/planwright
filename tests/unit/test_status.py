@@ -561,5 +561,202 @@ class TestDoctorBlockers(unittest.TestCase):
             self.assertEqual(st._doctor_blockers("/synthetic/root", True), [])
 
 
+def _load_build_graph():
+    """Import scripts/build-graph.py by path (hyphenated name) for the resolve_scope parity pin."""
+    path = os.path.join(_SCRIPTS, "build-graph.py")
+    spec = importlib.util.spec_from_file_location("planwright_build_graph", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class TestScopeResolution(unittest.TestCase):
+    """The codmaster path/lib sense layer's pure resolvers: the resolve_scope mirror (cross-pinned
+    against the canonical builder so the read-only sensor copy cannot drift), scope normalization,
+    and the final-point scope match."""
+
+    FILES = ["src/auth/a.py", "src/auth/sub/b.py", "src/api/c.py", "README.md", "src/authz.py"]
+
+    def test_resolve_scope_parity(self):
+        # _resolve_scope_paths is a byte-for-byte mirror of build-graph.resolve_scope; pin them
+        # equal across the spelling classes the docstring promises (dir, glob, root, no-match,
+        # trailing slash, "./" prefix) so an edit to either is caught here, not at runtime.
+        bg = _load_build_graph()
+        for spec in ("src/auth", "src/auth/", "./src/auth", "src/**/*.py", "src/auth*.py",
+                     "src/authz.py", "nope/", ".", "", "src/api/c.py"):
+            self.assertEqual(st._resolve_scope_paths(spec, self.FILES),
+                             bg.resolve_scope(spec, self.FILES),
+                             "resolve_scope drift for spec %r" % spec)
+
+    def test_normalize_scope_forms(self):
+        self.assertEqual(st._normalize_scope("path:src/auth/"), ("path", "src/auth"))
+        self.assertEqual(st._normalize_scope("lib:parser"), ("lib", "parser"))
+        # a bare token and an unknown prefix both read as a path (lint-final's leniency)
+        self.assertEqual(st._normalize_scope("src/auth"), ("path", "src/auth"))
+        self.assertEqual(st._normalize_scope("weird:thing"), ("path", "weird:thing"))
+        self.assertIsNone(st._normalize_scope(""))
+        self.assertIsNone(st._normalize_scope(None))
+
+    def test_scope_matches(self):
+        # same component (normalized) matches; a different scope, the whole-repo sentinel, and an
+        # absent scope never match a real request — the mirror of _converged's scope rule.
+        self.assertTrue(st._scope_matches("path:src/auth/", "path:src/auth"))
+        self.assertTrue(st._scope_matches("lib:parser", "lib:parser"))
+        self.assertFalse(st._scope_matches("path:src/api", "path:src/auth"))
+        self.assertFalse(st._scope_matches("(whole-repo)", "path:src/auth"))
+        self.assertFalse(st._scope_matches("", "path:src/auth"))
+        self.assertFalse(st._scope_matches("lib:parser", "path:parser"))
+
+    def test_graph_signals_focus_restriction(self):
+        # With a focus set, nodes and import cycles restrict to the component before the SAME
+        # derivation runs. Two clean covered nodes outside focus must not dilute the in-focus
+        # uncovered hotspot, and a cycle that misses focus drops out.
+        graph = {"graph_built_at_sha": "f", "import_cycles": [["src/api/x.py", "src/api/y.py"]],
+                 "nodes": {
+                     "src/auth/a.py": {"git_churn": 50, "pagerank": 0.9, "covered_by_test": False,
+                                       "is_test": False, "is_articulation": True, "branch_count": 7},
+                     "src/api/x.py": {"git_churn": 1, "pagerank": 0.1, "covered_by_test": True,
+                                      "is_test": False, "is_articulation": False, "branch_count": 2},
+                     "src/api/y.py": {"git_churn": 0, "pagerank": 0.05, "covered_by_test": True,
+                                      "is_test": False, "is_articulation": False, "branch_count": 1},
+                 }}
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, ".planwright"))
+            with open(os.path.join(root, ".planwright", "graph.json"), "w",
+                      encoding="utf-8") as fh:
+                json.dump(graph, fh)
+            scoped = st._graph_signals(root, focus={"src/auth/a.py"})
+            whole = st._graph_signals(root)
+        self.assertEqual(scoped, {"import_cycles": 0, "articulation": 1,
+                                  "hot_uncovered": 1, "coverage_pct": 0})
+        # the api-only import cycle counts whole-repo but not for the auth focus
+        self.assertEqual(whole["import_cycles"], 1)
+        # a focus with no graph nodes is "no audited component yet", not cleanliness
+        self.assertIsNone(st._graph_signals(root, focus={"does/not/exist.py"}))
+
+    def test_resolve_focus_lib_unions_cluster_members(self):
+        # the lib leg unions a graph cluster-label match into Focus even when the path/glob leg
+        # matches nothing (a logical name that is not a directory) — the meaningful positive lib
+        # case the dispatched run would otherwise be the only thing to resolve.
+        from unittest import mock
+        graph = {"graph_built_at_sha": "f", "nodes": {},
+                 "clusters": [{"id": 0, "label": "auth",
+                               "members": ["src/auth/a.py", "src/auth/b.py"]},
+                              {"id": 1, "label": "api", "members": ["src/api/c.py"]}]}
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, ".planwright"))
+            with open(os.path.join(root, ".planwright", "graph.json"), "w",
+                      encoding="utf-8") as fh:
+                json.dump(graph, fh)
+            # the tracked files carry no 'auth/' path, so the path/glob leg matches nothing —
+            # only the cluster-label leg can supply the auth members.
+            with mock.patch.object(st, "_tracked_files", lambda r: ["src/api/c.py"]):
+                focus = st._resolve_focus("lib:auth", root)
+        self.assertEqual(focus, {"src/auth/a.py", "src/auth/b.py"})
+
+    def test_collect_scopes_pending_to_focus(self):
+        with tempfile.TemporaryDirectory() as root:
+            pw = os.path.join(root, ".planwright")
+            os.makedirs(pw)
+            with open(os.path.join(pw, "plan.md"), "w", encoding="utf-8") as fh:
+                fh.write("- [ ] auth fix\n      Mode: repair\n      Surfaces: src/auth/a.py\n"
+                         "      Verification: true\n"
+                         "- [ ] api fix\n      Mode: repair\n      Surfaces: src/api/c.py\n"
+                         "      Verification: true\n")
+            whole = st.collect(root)
+            scoped = st.collect(root, "path:src/auth/", focus={"src/auth/a.py"})
+        self.assertEqual(whole["pending"], 2)
+        self.assertEqual(scoped["pending"], 1)
+        self.assertEqual(scoped["pending_titles"], ["auth fix"])
+        self.assertEqual(scoped["scope"], "path:src/auth/")
+
+
+class TestRecommendScope(unittest.TestCase):
+    """Scoped recommend() — reuses TestRecommendOverlay's deterministic sensor patches (via a
+    `files` patch so _resolve_focus computes a real Focus from the scope) without re-running its
+    suite. Pins the scoped-only overlay behaviour: Focus-restricted convergence, the codshard/reset
+    whole-repo-move suppression, and the path no-match blocker vs lib best-effort note."""
+
+    HEAD = TestRecommendOverlay.HEAD
+    GSIG_CLEAN = TestRecommendOverlay.GSIG_CLEAN
+    REPO_SMALL = TestRecommendOverlay.REPO_SMALL
+    REPO_LARGE = TestRecommendOverlay.REPO_LARGE
+    FILES = ["src/auth/a.py", "src/api/c.py"]
+
+    # Borrow the parent's filesystem-fixture helpers (plain functions; no parent test runs).
+    _root = TestRecommendOverlay._root
+    _graph = TestRecommendOverlay._graph
+
+    def _recommend(self, root):
+        return TestRecommendOverlay._recommend(self, root)
+
+    def _recommend_scoped(self, root, scope, gsig=GSIG_CLEAN, repo=REPO_SMALL,
+                          dirty=(), doctor=(), files=FILES):
+        from unittest import mock
+        with mock.patch.object(st, "_graph_signals", lambda r, focus=None: gsig), \
+             mock.patch.object(st, "_repo_block", lambda r: repo), \
+             mock.patch.object(st, "_dirty_paths", lambda r: list(dirty)), \
+             mock.patch.object(st, "_doctor_blockers", lambda r, m: list(doctor)), \
+             mock.patch.object(st, "_head_sha", lambda r: self.HEAD), \
+             mock.patch.object(st, "_final_valid", lambda r: True), \
+             mock.patch.object(st, "_tracked_files", lambda r: list(files)):
+            return st.recommend(root, scope)
+
+    def _final_scoped(self, tier, scope, seed=None):
+        text = ("sha: %s\ndate: 2026-06-12\ndeepest_tier: %s\nscope: %s\n"
+                "scope_focus_sha: deadbeef\n" % (self.HEAD, tier, scope))
+        if seed is not None:
+            text += "invent_seed: %s\ninvent_framing: power-user\n" % seed
+        return text
+
+    def _pending_surf(self, mode, surface):
+        return ("- [ ] An item\n      Mode: %s\n      Surfaces: %s\n      Verification: true\n"
+                % (mode, surface))
+
+    def test_path_no_match_blocks(self):
+        rec = self._recommend_scoped(self._root(), "path:src/auth/", files=["src/api/c.py"])
+        self.assertIn("scope-no-match", [b["kind"] for b in rec["blockers"]])
+
+    def test_lib_no_match_notes_not_blocks(self):
+        rec = self._recommend_scoped(self._root(), "lib:ghost", files=["src/api/c.py"])
+        self.assertNotIn("scope-no-match", [b["kind"] for b in rec["blockers"]])
+        self.assertTrue(any("best-effort lib" in n for n in rec["notes"]))
+
+    def test_scoped_matching_final_point_converges_and_grows(self):
+        # an out-of-Focus pending item must NOT block scoped convergence
+        root = self._root(plan=self._pending_surf("repair", "src/api/c.py"),
+                          final=self._final_scoped("expand", "path:src/auth/"))
+        rec = self._recommend_scoped(root, "path:src/auth/")
+        self.assertTrue(rec["signals"]["converged"])
+        self.assertEqual(rec["command"], "codinventor")
+        self.assertTrue(rec["invent_class"])
+        self.assertEqual(rec["scope"], "path:src/auth/")
+
+    def test_whole_repo_ignores_a_scoped_final_point(self):
+        # the same scoped final point does NOT certify a whole-repo sense
+        root = self._root(final=self._final_scoped("expand", "path:src/auth/"))
+        rec = self._recommend(root)  # unscoped helper from the parent
+        self.assertFalse(rec["signals"]["converged"])
+        self.assertEqual(rec["command"], "codvisor")
+
+    def test_scope_never_routes_codshard_even_on_large_repo(self):
+        rec = self._recommend_scoped(self._root(), "path:src/auth/", repo=self.REPO_LARGE)
+        self.assertNotEqual(rec["command"], "codshard")
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertFalse(any("routes to codshard" in n for n in rec["notes"]))
+        # the divergence (codshard skipped BECAUSE of the scope) is disclosed, not silent
+        self.assertTrue(any("codshard" in n and "not auto-routed" in n for n in rec["notes"]))
+
+    def test_scope_never_resets_routes_harden_instead(self):
+        # unscoped this exact state (invent-dry, unseeded, frontier drained) resets; scoped it must
+        # re-survey with a scoped codvisor (reset is a whole-repo wipe a scope never performs).
+        root = self._root(final=self._final_scoped("invent", "path:src/auth/"),
+                          graph=self._graph(never_audited=0))
+        rec = self._recommend_scoped(root, "path:src/auth/")
+        self.assertEqual(rec["command"], "codvisor")
+        self.assertIsNone(rec["follow_up"])
+        self.assertIn("whole-repo wipe", rec["why"])
+
+
 if __name__ == "__main__":
     unittest.main()

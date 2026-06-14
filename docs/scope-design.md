@@ -8,6 +8,16 @@ builder contract test in `tests/run.sh`. The `lint-plan.py --scope` mechanizatio
 Surfaces-in-Focus check is now **IMPLEMENTED** too — it reads the builder's `focus`/`context` sets and
 fails an out-of-Focus existing Surface (a `repair` Surface one hop upstream is a non-failing advisory;
 `New Surfaces` stay the active agent's judgement, since a not-yet-created file is not a graph node).
+The `status.py --recommend --scope path:X|lib:X` **sense layer** — the codmaster `path`/`lib` front
+door — is now **IMPLEMENTED** too: it restricts the coach's pending and debt signals to the Focus
+(reusing a stdlib mirror of `resolve_scope`, cross-pinned to the builder, plus a graph cluster-label
+leg for `lib`), certifies convergence only from a scope-matched final point (the same scoped-final-point
+rule below, in reverse), and never auto-routes the two whole-repo moves — `codshard` and `reset` —
+under a scope. The cross-pinned coach *base* (`coach_signals`/`coach_recommend`, ported to derive.js)
+stays whole-repo; scope lives only in the Python-only dispatcher overlay, so the dashboard brain is
+untouched. `commands/codmaster.md` peels the scope, threads it into the engine, and trails it after
+every dispatch; covered by `tests/unit/test_status.py` (TestScopeResolution / TestRecommendScope) and
+`tests/cases/commands.sh` (Test 15d).
 This specifies an opt-in way to aim a planwright run at one *component* of the target repo (a subtree or
 a logical library) instead of the whole codebase, without weakening grounding, root-cause analysis, or
 blast-radius awareness.

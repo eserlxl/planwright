@@ -20,10 +20,30 @@ Raw arguments: `$ARGUMENTS`
 
 Resolve them in this order:
 
+0. **Peel the scope first.** If `$ARGUMENTS` contains a `path <X>` or `lib <X>` scope (the keyword
+   plus its single following token, appearing anywhere), lift that pair out as `<scope>` (the bare
+   `path <X>` / `lib <X>` form) and let `<rest>` be the remaining tokens; also derive `<scope-spec>`,
+   the colon form `path:<X>` / `lib:<X>` the sense engine takes. Otherwise `<scope>` and
+   `<scope-spec>` are empty and `<rest>` is all of `$ARGUMENTS`. A scope aims the **whole drive** at
+   one component: `<scope-spec>` is threaded into SENSE (`status.py --recommend --scope <scope-spec>`)
+   so pending, debt, and convergence are Focus-restricted, and `<scope>` is appended **after** each
+   dispatched command's args so the subcommand (`cycle`/`execute`/`reset`) stays the **first token**
+   planwright dispatches on — never let `path`/`lib` lead. Omit the trailing `<scope>` when empty.
+   Also recognise the `--`-prefixed aliases when peeling, normalising to the bare form first:
+   `--path <X>` → `path <X>`, `--lib <X>` → `lib <X>`, `--scope <X>` → `path <X>` (both `--opt <X>`
+   and `--opt=<X>` spellings).
+   Under a scope codmaster never auto-routes the two **whole-repo** moves — `codshard` (a sharded
+   whole-repo sweep with a whole-repo closing round) and `reset` (a whole-repo `.planwright` wipe
+   that would erase sibling components' audit memory) — and the **post-growth harden is not sharded**
+   (step 4): the scope already focuses one component, so every harden stays a scoped `codvisor`. The
+   engine enforces this in the record it returns under `--scope`; codmaster relays it (a scoped
+   record never carries `codshard`/`reset`), so this is not a second decision layer.
 1. **`help` / `--help` / `-h` / `?`**: print
-   `Usage: /codmaster [advise | [safe] [loop] [parallel [J]]]   (empty = sense the repo and run the required commands consecutively, at depth 10, until a recorded final point; advise = print the recommendation only, dispatch nothing; safe = the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; loop = infinite — each converged terminal triggers the cold-start reset and begins a new lap, with its post-growth harden sharded (codshard) when the repo is shardable; parallel = forward codshard's read-only recon prefetch to any step that dispatches codshard, else print a nudge to run /codshard parallel directly — it never changes which command the engine chooses; safe loop parallel compose).`
+   `Usage: /codmaster [advise | [safe] [loop] [parallel [J]]] [path <X> | lib <X>]   (empty = sense the repo and run the required commands consecutively, at depth 10, until a recorded final point; advise = print the recommendation only, dispatch nothing; safe = the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; loop = infinite — each converged terminal triggers the cold-start reset and begins a new lap, with its post-growth harden sharded (codshard) when the repo is shardable; parallel = forward codshard's read-only recon prefetch to any step that dispatches codshard, else print a nudge to run /codshard parallel directly — it never changes which command the engine chooses; a path/lib scope aims the whole drive at one component — SENSE, every dispatch, and convergence are Focus-restricted, and codshard/reset (whole-repo moves) never auto-route under a scope, so the harden stays a scoped codvisor; safe loop parallel scope compose).`
    and STOP — do not run anything.
-2. **`advise`** (alone, or alongside `parallel`): run SENSE below, print the full recommendation
+2. **`advise`** (alone, or alongside `parallel`, and composing with a peeled scope): run SENSE
+   below (scoped to `<scope-spec>` when a scope was peeled — the report then describes the scoped
+   component's state, including the scope notes the engine emits), print the full recommendation
    report (command + args, why, the evidence chips, every note, every blocker verbatim, the
    invent-class notice when set, the reset nudge when present, and — when the engine's converged
    recommendation is a non-growth invent-dry move (`reset`/`codvisor` at `deepest_tier: invent`) —
@@ -47,8 +67,12 @@ Resolve them in this order:
 
 **SENSE (read-only).** Resolve `<scripts>` per planwright's **Procedure → Bundled scripts** rule
 (the skill base directory's `../../scripts/`). Run
-`python3 <scripts>/status.py --root . --recommend` in the ctx sandbox when available and parse its
-JSON record. If the engine cannot run (no `python3`, missing script), print
+`python3 <scripts>/status.py --root . --recommend` — appending ` --scope <scope-spec>` when a scope
+was peeled in step 0 — in the ctx sandbox when available and parse its JSON record. Under `--scope`
+the engine restricts pending and debt to the component's Focus, certifies convergence only from a
+final point that names that scope, and (a `path` that matched no files) returns a `scope-no-match`
+blocker the mechanical-blockers step relays verbatim. If the engine cannot run (no `python3`,
+missing script), print
 `codmaster: recommendation engine unavailable — run planwright status and pick a direct dial (see README).`
 and STOP — never substitute a prose decision table.
 
@@ -61,6 +85,8 @@ In `safe` mode (either banner), the trailing invent notice is replaced by:
 (in `safe loop`, by: `safe: invention capability off — each lap runs harden-only.`)
 In `parallel` mode (any banner), append this clause to the printed banner:
 `parallel: each codshard dispatch fans out read-only recon subagents (J at a time, else host-capped) — extra model calls bought for wall-clock; routing-only, never Evidence, Claude-Code-only (sequential elsewhere).`
+In **scope** mode (any banner), append this clause to the printed banner:
+`scope <X>: the whole drive — SENSE, every dispatch, and convergence — aims at one component; codshard and reset (whole-repo moves) never auto-route, so the harden stays a scoped codvisor and the post-growth harden is not sharded. (With parallel: it has no codshard dispatch to attach to, so it stays inert — run /codshard parallel directly for a sharded sweep.)`
 
 Then stamp the run-activity beacon so the dashboard's reactor names this run: run
 `python3 <scripts>/state.py activity start codmaster --root .` in the ctx sandbox when available
@@ -131,7 +157,13 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    string (codvisor/codinventor resolve to their flagship `cycle 10 depth 10 explore` / `invent`
    forms); a `codshard` dispatch follows `commands/codshard.md` with the record's `args` (default
    `explore`) — and when `parallel` is active that dispatch gets `parallel` (or `parallel J`)
-   appended to its `args`, so it becomes e.g. `codshard parallel explore`. Every dispatch runs
+   appended to its `args`, so it becomes e.g. `codshard parallel explore`. When a scope was peeled
+   (step 0), append `<scope>` (the bare `path <X>` / `lib <X>` form) **after** the record's `args`
+   for every dispatch, so `cycle`/`execute` stays the first token planwright dispatches on (e.g.
+   `cycle 10 depth 10 explore path src/auth/`, `execute path src/auth/`,
+   `cycle 10 depth 10 invent path src/auth/`); a scoped record never carries `codshard` or `reset`
+   (the engine suppresses both whole-repo moves under `--scope`), so those dispatches never arise
+   while scoped. Every dispatch runs
    at maximum depth — depth 10 — by construction of those argument strings; codmaster takes no
    depth knob. When `parallel` is active and this step dispatches `codvisor` as the harden action
    — a pre-growth harden, or a non-shardable repo's harden, so `parallel` has no codshard dispatch
@@ -147,7 +179,9 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    has been taken this lap — and a bare run is itself one lap, so this fires in **every** drive,
    not only under `loop` — the master shapes the harden that follows it:
    when the engine's record `command` is `codvisor` (the per-state harden) AND the record's
-   `repo.shardable` is true, dispatch `codshard explore` **instead** — follow `commands/codshard.md`
+   `repo.shardable` is true **AND no scope was peeled in step 0** (a scoped drive never shards —
+   codshard is a whole-repo move, so the post-growth harden stays a scoped `codvisor`),
+   dispatch `codshard explore` **instead** — follow `commands/codshard.md`
    with `explore` (so `parallel` appends to *that*: `codshard parallel explore`), deep-hardening
    the freshly-grown code per-component, with a closing whole-repo round.
    This is the one place codmaster shapes the command rather than relaying it, so it is an
@@ -156,7 +190,8 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    nudge above does not fire (this step is now a `codshard` dispatch, so `parallel` has its
    target). The override is narrow: it fires **only** after the growth
    burst, **only** when the record command is `codvisor`, and **only** when `repo.shardable` is
-   true — when the repo is not shardable (fewer than `SHARD_MIN_DIRS` partitionable dirs) it does
+   true, **and** only when the drive is unscoped — when the repo is not shardable (fewer than
+   `SHARD_MIN_DIRS` partitionable dirs), or a `path`/`lib` scope is active, it does
    not fire and the harden stays `codvisor`. Before the growth burst, or for any
    other record command (`execute`/`reset`/`codshard`/`codinventor`), codmaster relays the
    engine's command unchanged. (The per-state choice is still the engine's; the master only
@@ -185,7 +220,10 @@ planwright with `reset` (the cold-start wipe keeps `rejected.md`), then dispatch
 `follow_up` command as the fresh harden sweep — and when `parallel` is active and that `follow_up`
 is `codshard`, it gets `parallel` appended to its args exactly as a step-4 codshard dispatch does,
 so `safe loop parallel` accelerates the harden sweep that dominates each lap restart. This pair is one
-composite dispatch — one step — and its header announces both halves up front.
+composite dispatch — one step — and its header announces both halves up front. **Under a `path`/`lib`
+scope this section never applies:** `reset` is a whole-repo `.planwright` wipe, so the engine never
+emits it under `--scope` (a scoped invent-dry-drained point routes to a scoped `codvisor` re-survey
+instead), and codmaster has no reset to relay.
 
 **Invention capability.** Whether codmaster grows is decided by the `safe` flag, **not** by the
 engine's `invent_class`:

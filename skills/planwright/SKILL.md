@@ -133,8 +133,11 @@ the `codinventor` line to paste) while still dispatching every non-invent move, 
 invent-dry `reset`/`codvisor`; its `loop` word makes the drive infinite — each lap grows, deep-hardens
 the grown code, then resets (cold-start, keeps `rejected.md`) into the next with growth re-armed, until
 interrupted, a hard stop, or a fully-dry lap (the final convergence point, decided at the lap boundary
-after the post-growth harden, never mid-lap) (`safe loop` composes). The decision table lives in the tested Python engine,
-never in command prose; `codmaster` only relays and dispatches.
+after the post-growth harden, never mid-lap) (`safe loop` composes). A `path <X>` / `lib <X>` scope aims
+the whole drive at one component — it threads into the engine (`status.py --recommend --scope`) so
+pending, debt, and convergence are Focus-restricted, and the two whole-repo moves (`codshard`, `reset`)
+never auto-route under it, so the harden stays a scoped `codvisor`. The decision table lives in the
+tested Python engine, never in command prose; `codmaster` only relays and dispatches.
 
 ## Invocation & help
 

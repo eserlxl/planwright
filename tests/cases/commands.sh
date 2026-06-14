@@ -177,7 +177,7 @@ then ok "commands/codcycle.md peels a path/lib scope and trails it after seed <i
 # Test 13c checks only the bare `path <X>`/`lib <X>` tokens, never the `--`-aliases, so deleting the
 # alias sentence from any one file leaves the suite green. Guard the leniency contract in every file.
 al_cmd_ok=1
-for cmd in codvisor codinventor codcycle codshard; do
+for cmd in codvisor codinventor codcycle codshard codmaster; do
   cf="$ROOT/commands/$cmd.md"
   python3 - "$cf" <<'PY' 2>/dev/null || al_cmd_ok=0
 import sys
@@ -193,7 +193,36 @@ if "--opt <X>" not in t or "--opt=<X>" not in t: need.append("opt-spellings")
 sys.exit(1 if need else 0)
 PY
 done
-if [ "$al_cmd_ok" = 1 ]; then ok "codvisor/codinventor/codcycle/codshard document the --path/--lib/--scope alias normalization"; else bad "a scope-aware command file lost its --path/--lib/--scope alias-normalization contract"; fi
+if [ "$al_cmd_ok" = 1 ]; then ok "codvisor/codinventor/codcycle/codshard/codmaster document the --path/--lib/--scope alias normalization"; else bad "a scope-aware command file lost its --path/--lib/--scope alias-normalization contract"; fi
+
+# --- Test 15d: commands/codmaster.md peels a path/lib scope into BOTH sense and dispatch ----
+# codmaster is the only scope-aware orchestrator that also SENSES (status.py --recommend): a scope
+# must thread into the engine (--scope <scope-spec>) so pending/debt/convergence are Focus-restricted,
+# AND trail every dispatch (cycle/execute stays the first token), AND suppress the two whole-repo
+# moves the scope excludes — codshard auto-route + reset + the post-growth sharded harden. Test 15c
+# guards only the alias sentence; this guards the load-bearing sense/dispatch/suppression wiring.
+CMD="$ROOT/commands/codmaster.md"
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+need = []
+# step 0 peel contract (mirrors Test 15b)
+if "Peel the scope first" not in t: need.append("peel-step")
+if "path <X>" not in t or "lib <X>" not in t: need.append("path/lib-doc")
+if "<rest>" not in t or "<scope>" not in t: need.append("rest/scope-vars")
+if "<scope-spec>" not in t: need.append("scope-spec-var")
+if "first token" not in t: need.append("first-token-order")
+# the SENSE engine is threaded the colon form so the recommendation itself is Focus-restricted
+if "--scope <scope-spec>" not in t: need.append("sense-scope-thread")
+# the bare scope trails the record's args (scope AFTER the subcommand, never leading)
+if "append `<scope>`" not in t: need.append("dispatch-scope-append")
+# the two whole-repo moves never auto-route under a scope (codshard/reset), and the post-growth
+# sharded harden override is suppressed when scoped
+if "auto-route" not in t: need.append("whole-repo-suppress")
+if "no scope was peeled in step 0" not in t: need.append("post-growth-shard-guard")
+sys.exit(1 if need else 0)
+PY
+then ok "commands/codmaster.md threads a path/lib scope into SENSE (--scope) and every dispatch, suppressing codshard/reset under scope"; else bad "commands/codmaster.md scope wiring missing (sense thread / dispatch append / whole-repo-move suppression)"; fi
 
 # The canonical statement of the same rule lives in SKILL.md (uses ≡); guard it too. Anchor on the
 # "Flag aliases." paragraph itself (not the whole file) — `--scope` also appears far away in the

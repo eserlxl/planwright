@@ -26,8 +26,10 @@
 # and nothing is pending) and 1 otherwise, so a wrapper or CI gate can check convergence.
 
 import argparse
+import fnmatch
 import json
 import os
+import posixpath
 import subprocess
 import sys
 import time
@@ -358,12 +360,171 @@ def _activity_block(root):
     }
 
 
-def collect(root: str) -> dict:
-    """Build the read-only state record from <root>/.planwright/."""
+# ---- component scope (docs/scope-design.md) — the codmaster path/lib sense layer ----------
+#
+# A scoped `--recommend` aims the SENSE at one component instead of the whole repo: pending and
+# debt signals restrict to the Focus, and a scope-tagged final.md (`scope: path:X` / `lib:X`)
+# counts as the convergence proof for THAT scope. The resolution mirrors the canonical
+# build-graph.py resolver rather than importing the 1600-line builder onto this read-only sense
+# path; the mirror is cross-pinned by tests/unit/test_status.test_resolve_scope_parity. Scope is
+# Python-only — the cross-pinned coach base (coach_signals/coach_recommend, ported to derive.js)
+# is never scoped, so the dashboard brain is untouched.
+
+
+def _normalize_scope(spec):
+    """Canonicalize a `path:X` / `lib:X` scope string to (kind, value) with the value
+    normpath'd and de-slashed, or None when spec is falsy. A bare token with no `kind:`
+    prefix is read as a path, and any unrecognised prefix degrades to a path too — the same
+    leniency lint-final applies to the `scope:` field it validates."""
+    if not spec:
+        return None
+    spec = spec.strip()
+    if ":" in spec:
+        kind, val = spec.split(":", 1)
+        kind = kind.strip().lower()
+        if kind not in ("path", "lib"):
+            kind, val = "path", spec
+    else:
+        kind, val = "path", spec
+    val = posixpath.normpath(val.replace("\\", "/").strip().rstrip("/"))
+    return (kind, val)
+
+
+def _resolve_scope_paths(spec, files):
+    """EXACT mirror of build-graph.py resolve_scope (cross-pinned by
+    test_status.test_resolve_scope_parity): a file is in Focus when it equals the spec, lives
+    under it (directory prefix), or matches it as a glob. The builder owns the canonical copy;
+    this stdlib twin keeps `--recommend --scope` from importing the whole builder on the
+    sense path."""
+    spec = spec.replace("\\", "/").strip().rstrip("/")
+    if not spec:
+        return []
+    spec = posixpath.normpath(spec)
+    if spec == ".":
+        return sorted(files)
+    pref = spec + "/"
+    focus = {f for f in files
+             if f == spec or f.startswith(pref) or fnmatch.fnmatch(f, spec)}
+    return sorted(focus)
+
+
+def _tracked_files(root):
+    """git-tracked repo-relative paths (the canonical node ids the graph/Focus use), or []
+    when git is unavailable — the same read-only, timeout-guarded probe _repo_block makes."""
+    try:
+        out = subprocess.run(["git", "-C", root, "ls-files"],
+                             capture_output=True, text=True, check=True,
+                             timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):  # TimeoutExpired is not CalledProcessError
+        return []
+    return [line for line in out.splitlines() if line]
+
+
+def _cluster_members(root, label):
+    """The members of any graph cluster whose label equals `label` — the engine's best-effort
+    `lib` resolver leg (graph.json already labels clusters via build-graph.cluster_label).
+    Empty on no graph / no match; the dispatched scoped run resolves a lib authoritatively."""
+    try:
+        with open(os.path.join(root, ".planwright", "graph.json"), encoding="utf-8") as fh:
+            g = json.load(fh)
+        members = set()
+        for c in g.get("clusters") or []:
+            if isinstance(c, dict) and c.get("label") == label:
+                members.update(m for m in (c.get("members") or []) if isinstance(m, str))
+        return members
+    except (OSError, ValueError, AttributeError, TypeError):
+        return set()
+
+
+def _resolve_focus(scope, root):
+    """Resolve a `path:X` / `lib:X` scope to the Focus set of repo-relative files (read-only,
+    best-effort). None when scope is None (whole-repo). `path` uses the canonical resolve_scope
+    mirror; `lib` unions a graph cluster-label match with the dir/glob fallback so a logical
+    name resolves without the build-system parsing that lives in planwright proper. An empty
+    Focus is a real fact the caller acts on (a `path` no-match is a blocker; a `lib` no-match is
+    a note and a conservative harden) — never a silent whole-repo fall-through."""
+    kv = _normalize_scope(scope)
+    if kv is None:
+        return None
+    kind, val = kv
+    files = _tracked_files(root)
+    focus = set(_resolve_scope_paths(val, files))
+    if kind == "lib":
+        focus |= _cluster_members(root, val)
+    return focus
+
+
+def _scope_matches(final_scope, requested):
+    """True when a recorded final.md `scope:` value names the same component as the requested
+    scope (normalized kind + path). The whole-repo sentinel / an absent scope never matches a
+    real `path`/`lib` request — so a whole-repo final point can never certify a scoped run, the
+    mirror of _converged's rule that a scoped point can never certify the whole repo."""
+    a = _normalize_scope(final_scope if (final_scope or "").strip().lower()
+                          not in ("", "(whole-repo)") else None)
+    b = _normalize_scope(requested)
+    return a is not None and b is not None and a == b
+
+
+def _surface_paths(item):
+    """The canonical (normpath'd) Surfaces + New Surfaces paths of a plan item — mirrors
+    lint-plan.split_paths + scope_check's normalize so the scoped pending count agrees with the
+    Stage 10 Surfaces-in-Focus gate."""
+    f = item.get("fields", {})
+    out = []
+    for key in ("Surfaces", "New Surfaces"):
+        for p in (f.get(key, "") or "").split(","):
+            p = p.strip().strip("`")
+            if p and p.lower() != "none":
+                out.append(os.path.normpath(p).replace("\\", "/"))
+    return out
+
+
+def _in_focus(item, focus, scope_val):
+    """An item lands in the scoped component when any existing Surface is a Focus node, or (so a
+    brand-new in-component file still counts) any Surface/New Surface lies under the scope's path
+    prefix. For a `lib` scope whose name is not a path prefix, Focus membership carries it."""
+    paths = _surface_paths(item)
+    if focus and any(p in focus for p in paths):
+        return True
+    if not scope_val:
+        return False
+    pref = scope_val.rstrip("/") + "/"
+    return any(p == scope_val or p.startswith(pref) for p in paths)
+
+
+def _mode_tally(items):
+    """Tally items by `Mode:` following _MODE_ORDER (then "other"), zero-count modes omitted —
+    the shared core of _pending_modes/_completed_modes, reused for the scoped pending subset."""
+    raw = {}
+    for it in items:
+        mode = it["fields"].get("Mode", "").strip().lower()
+        key = mode if mode in _MODE_ORDER else "other"
+        raw[key] = raw.get(key, 0) + 1
+    ordered = {m: raw[m] for m in _MODE_ORDER if raw.get(m)}
+    if raw.get("other"):
+        ordered["other"] = raw["other"]
+    return ordered
+
+
+def collect(root: str, scope=None, focus=None) -> dict:
+    """Build the read-only state record from <root>/.planwright/. With a `scope` (and its
+    resolved `focus` set, recomputed here when omitted), the pending signals restrict to the
+    Focus and the final point records whether it matches the requested scope — the codmaster
+    path/lib sense layer. Default (scope None) is byte-identical whole-repo behaviour."""
     pw = os.path.join(root, ".planwright")
-    pending_titles = _pending_titles(os.path.join(pw, "plan.md"))
-    pending = len(pending_titles)
-    pending_modes = _pending_modes(os.path.join(pw, "plan.md"))
+    if scope is not None and focus is None:
+        focus = _resolve_focus(scope, root)
+    if focus is not None:
+        scope_val = (_normalize_scope(scope) or (None, ""))[1]
+        in_focus = [it for it in _parse(os.path.join(pw, "plan.md"))
+                    if not it["checked"] and _in_focus(it, focus, scope_val)]
+        pending_titles = [it["title"] for it in in_focus]
+        pending = len(in_focus)
+        pending_modes = _mode_tally(in_focus)
+    else:
+        pending_titles = _pending_titles(os.path.join(pw, "plan.md"))
+        pending = len(pending_titles)
+        pending_modes = _pending_modes(os.path.join(pw, "plan.md"))
     completed = _count_checkbox(os.path.join(pw, "completed.md"), "- [x]")
     completed_modes = _completed_modes(os.path.join(pw, "completed.md"))
     last_landed = _last_landed(os.path.join(pw, "completed.md"))
@@ -372,7 +533,10 @@ def collect(root: str) -> dict:
     # the loose `- [` prefix scan, so counts.rejected can never disagree with the rejected[]
     # array it accompanies on a non-canonical marker line (e.g. `- [-]`).
     rejected = len(rejected_items)
-    carried = _carried_count(os.path.join(pw, "digest.md"))
+    # The carried dossier backlog is a WHOLE-REPO concept (cut/deferred candidates anywhere);
+    # a component-scoped sense legitimately ignores it — a scoped drive must not be gated on
+    # backlog its scoped harden can never drain (recommend() discloses this in a note).
+    carried = 0 if scope is not None else _carried_count(os.path.join(pw, "digest.md"))
     head = _head_sha(root)
 
     final = _parse_final(os.path.join(pw, "final.md"))
@@ -386,8 +550,8 @@ def collect(root: str) -> dict:
         # "(whole-repo)" is the explicit whole-repo sentinel; absent means whole-repo
         # too. Case-insensitive to match lint-final's deliberate leniency — the
         # validator and the convergence gate must agree on the same final.md bytes.
-        scope = (final["scope"]
-                 if final["scope"].strip().lower() not in ("", "(whole-repo)") else None)
+        fp_scope = (final["scope"]
+                    if final["scope"].strip().lower() not in ("", "(whole-repo)") else None)
         final_rec = {
             "sha": final["sha"],
             "date": final["date"],
@@ -395,7 +559,11 @@ def collect(root: str) -> dict:
             "stale": stale,
             # A component-scoped final point asserts dryness ONLY for that component —
             # surfaced so _converged never certifies whole-repo convergence from it.
-            "scope": scope,
+            "scope": fp_scope,
+            # Under a scoped SENSE (codmaster path/lib), whether THIS point names the requested
+            # component — the scoped convergence proof. None when the sense is whole-repo.
+            "scope_match": (None if scope is None
+                            else _scope_matches(final["scope"], scope)),
             # The seeded-invent replay record (SKILL.md Stage 11; lint-final validates
             # the pairing): surfaced so the run is replayable from the status surface,
             # not just the raw file. None when unseeded/non-invent.
@@ -455,6 +623,9 @@ def collect(root: str) -> dict:
         "rejected": rejected,
         "rejected_items": rejected_items,
         "carried": carried,
+        # The requested component scope (`path:X` / `lib:X`), or None for a whole-repo sense.
+        # Whole-repo callers (report / state.py / --json) never pass one, so this stays None.
+        "scope": scope,
         "final_point": final_rec,
         "graph": graph_rec,
         # The run-activity beacon ({command, detail, started, age_seconds, stale}, or
@@ -496,17 +667,29 @@ def _pct_rank(sorted_asc, v):
     return lo / (n - 1)
 
 
-def _graph_signals(root):
+def _graph_signals(root, focus=None):
     """Port of derive.js metrics()'s coach-facing subset — byte-identical tie semantics
     (stable risk-desc sort over node insertion order, hot set = max(1, ceil(n/3)) by risk
     RANK), stdlib only. None when no readable graph (callers must not read absence as
-    cleanliness — that is the first-contact row's job)."""
+    cleanliness — that is the first-contact row's job).
+
+    With a `focus` node set (the codmaster path/lib sense layer) the nodes and import cycles
+    restrict to the scoped component before the same derivation runs, so the debt signals are
+    Focus-wide. `focus=None` is the whole-repo default and stays byte-identical — the
+    cross-pinned derive.js port has no scope, so this leg is Python-only."""
     try:
         with open(os.path.join(root, ".planwright", "graph.json"), encoding="utf-8") as fh:
             g = json.load(fh)
         nodes = g.get("nodes")
         if not isinstance(nodes, dict) or not nodes:
             return None
+        cycles = g.get("import_cycles") or []
+        if focus is not None:
+            nodes = {k: v for k, v in nodes.items() if k in focus}
+            if not nodes:
+                return None  # the component has no audited graph nodes yet (first contact)
+            # An import cycle counts for the component only when it threads a Focus node.
+            cycles = [c for c in cycles if isinstance(c, list) and (set(c) & focus)]
         arr = []
         for _path, n in nodes.items():  # insertion order == derive.js Object.keys order
             n = n if isinstance(n, dict) else {}
@@ -535,7 +718,7 @@ def _graph_signals(root):
         # JS Math.round (half away from zero), not Python banker's rounding
         coverage_pct = int(covered / len(arr) * 100 + 0.5) if arr else None
         return {
-            "import_cycles": len(g.get("import_cycles") or []),
+            "import_cycles": len(cycles),
             "articulation": sum(1 for a in arr if a["articulation"]),
             "hot_uncovered": hot_uncovered,
             "coverage_pct": coverage_pct,
@@ -729,7 +912,7 @@ def _reset_necessity(fp, frontier):
     return "reset"
 
 
-def recommend(root):
+def recommend(root, scope=None):
     """The full decision record: shared coach base + the dispatcher overlay. The overlay is
     codmaster's lifecycle ladder, ordered: first contact -> full harden sweep (codvisor, or
     codshard on a mechanically large repo); pending -> execute (drain first); carried
@@ -745,24 +928,56 @@ def recommend(root):
     commit, which stales the point), and the articulation signal is intrinsic and
     undrainable on any documented repo — without this precedence the converged row is
     unreachable and the record recommends a provable no-op harden forever. Blockers (dirty
-    tree, doctor) are emitted alongside, mechanical and judgment-free."""
-    state = collect(root)
-    state["converged"] = _converged(state)
-    gsig = _graph_signals(root)
+    tree, doctor) are emitted alongside, mechanical and judgment-free.
+
+    With a `scope` (`path:X` / `lib:X` — the codmaster path/lib sense layer) the SENSE aims at
+    one component: pending and debt restrict to the Focus, convergence rides a scope-matched
+    final point, and the two whole-repo moves — codshard's sharded sweep and reset's
+    .planwright wipe — are never auto-routed (the scope already focuses one component, and a
+    reset would erase sibling components' audit memory). A `path` no-match is a hard blocker; a
+    `lib` the engine cannot resolve is a note (the dispatched scoped run resolves it)."""
+    focus = _resolve_focus(scope, root)
+    scoped = scope is not None
+    state = collect(root, scope, focus)
+    state["converged"] = _converged(state, scope)
+    gsig = _graph_signals(root, focus) if scoped else _graph_signals(root)
     repo = _repo_block(root)
     s = coach_signals(state, gsig)
     base = coach_recommend(s)
-    large = bool(repo and repo["large"])
+    notes = []
+    blockers = []
     # codmaster always dispatches at maximum depth (10): codvisor/codinventor are the
     # depth-10 flagships, and codshard runs depth 10 per shard with the closing round
-    # escalated (`explore`).
+    # escalated (`explore`). Under a scope, harden is ALWAYS the scoped codvisor — codshard's
+    # whole-repo sharded sweep (and its whole-repo closing round) would defeat the scope.
+    large = bool(repo and repo["large"]) and not scoped
     harden = ({"command": "codshard", "args": "explore"} if large
               else {"command": "codvisor", "args": "cycle 10 depth 10 explore"})
-    notes = []
     if large:
         notes.append("repo large (%d tracked files, %d shardable dirs) — harden work routes "
                      "to codshard so every shard gets the full depth budget"
                      % (repo["tracked_files"], len(repo["shardable_dirs"])))
+    # Scope notes are CONDITIONAL — only the genuinely non-obvious facts, never an every-step
+    # restatement of the scope (codmaster's banner already discloses that): a path no-match blocks,
+    # an unresolvable lib is a best-effort note, and a large repo whose codshard sweep was skipped
+    # *because* of the scope gets the divergence explained.
+    if scoped:
+        kind = (_normalize_scope(scope) or ("path", ""))[0]
+        if not focus and kind == "path":
+            blockers.append({"kind": "scope-no-match",
+                             "detail": "scope %r matched no tracked files — check the path/glob "
+                                       "(a scope never silently widens to the whole repo)"
+                                       % scope})
+        elif not focus:  # lib the engine could not resolve — defer to the dispatched run
+            notes.append("scope %r did not resolve to any file via the engine's best-effort lib "
+                         "lookup (graph cluster label / directory) — sensing the component as "
+                         "empty and hardening conservatively; the dispatched scoped run resolves "
+                         "the lib authoritatively, and convergence tracks the scope-tagged final "
+                         "point regardless" % scope)
+        if repo and repo["large"]:
+            notes.append("scope %s — the repo is large but codshard's whole-repo sweep is not "
+                         "auto-routed under a scope; hardening the component with a scoped codvisor "
+                         "instead" % scope)
 
     fp = state.get("final_point") or {}
     if not s["has_graph"] and s["completed"] == 0:
@@ -794,6 +1009,15 @@ def recommend(root):
                        why="converged at the invent-dry point, but the cold frontier is "
                            "not shown drained — a harden sweep re-reads it without wiping "
                            "audit memory; reset only when really necessary")
+        elif scoped:
+            # Reset is a whole-repo .planwright wipe — a scoped drive never performs one (it
+            # would erase sibling components' audit memory). Re-survey the component with a
+            # scoped harden instead; codmaster's enforced growth burst pre-empts this anyway
+            # outside `safe`, so this leg is the `safe` scoped path's non-destructive move.
+            rec = dict(harden, mutating=True, invent_class=False,
+                       why="converged at the scoped invent-dry point with the frontier drained "
+                           "— reset is a whole-repo wipe a scoped drive never performs, so "
+                           "re-survey the component with a scoped harden")
         else:
             rec = {"command": "reset", "args": "reset", "mutating": True,
                    "invent_class": False, "follow_up": harden,
@@ -816,10 +1040,11 @@ def recommend(root):
         rec = dict(harden, mutating=True, invent_class=False, why=base["why"])
     else:
         rec = dict(harden, mutating=True, invent_class=False,
-                   why="clean tree but no current whole-repo final point — earn convergence "
+                   why=("clean tree but no current final point for scope %s — earn scoped "
+                        "convergence before growing" % scope) if scoped else
+                       "clean tree but no current whole-repo final point — earn convergence "
                        "before growing")
 
-    blockers = []
     dirty = _dirty_paths(root)
     if dirty and rec["mutating"]:
         blockers.append({"kind": "dirty-tree",
@@ -827,8 +1052,9 @@ def recommend(root):
                                    "with per-item commits: " + ", ".join(dirty[:8])})
     blockers += _doctor_blockers(root, rec["mutating"])
 
+    # A scope never nudges reset (a whole-repo wipe a scoped drive never performs).
     reset_nudge = None
-    if s["converged"] and rec["command"] != "reset":
+    if s["converged"] and rec["command"] != "reset" and not scoped:
         reset_nudge = {"command": "reset",
                        "why": "the recorded final point is incremental — a cold-start "
                               "re-audit (reset, then a fresh round) can re-surface work "
@@ -842,6 +1068,10 @@ def recommend(root):
         "notes": notes, "blockers": blockers,
         "evidence": _evidence(rec["command"], s),
         "reset_nudge": reset_nudge,
+        # The active component scope (`path:X` / `lib:X`, or None for a whole-repo sense) and
+        # how many files its Focus resolved to — so codmaster / the dashboard can show what the
+        # scoped drive is aimed at.
+        "scope": scope, "scope_focus_count": (len(focus) if focus is not None else None),
         "signals": s, "repo": repo,
     }
 
@@ -925,19 +1155,25 @@ def report(state, quiet):
     return 0
 
 
-def _converged(state):
+def _converged(state, scope=None):
     """True when the project is at a *current, valid* final point with no pending work: a
     final point is recorded, it is not stale (its sha is HEAD), it passes lint-final's
     structural contract (so a blank/typo'd/rungless marker cannot certify convergence), and
     nothing is pending. This is the machine-checkable form of the north star — "when
     planwright says final point, it means it" — that the opt-in --exit-code flag maps to a
-    0/1 exit status."""
+    0/1 exit status.
+
+    Whole-repo (scope None): a component-scoped final point asserts dryness only for its
+    component — it can never certify whole-repo convergence (SKILL.md: "never suppresses a
+    differently-scoped or whole-repo run"), so a present `scope` disqualifies it. Scoped
+    (codmaster path/lib): the mirror rule — the point must NAME the requested component
+    (scope_match), and `pending` is already the Focus-restricted count, so this certifies
+    convergence FOR THAT SCOPE and nothing wider."""
     fp = state["final_point"]
-    # A component-scoped final point asserts dryness only for its component — it can
-    # never certify whole-repo convergence (SKILL.md: "never suppresses a
-    # differently-scoped or whole-repo run").
-    return (bool(fp) and not fp["stale"] and fp.get("valid", True)
-            and not fp.get("scope") and state["pending"] == 0)
+    if not (bool(fp) and not fp["stale"] and fp.get("valid", True)
+            and state["pending"] == 0):
+        return False
+    return bool(fp.get("scope_match")) if scope is not None else not fp.get("scope")
 
 
 def main():
@@ -956,6 +1192,11 @@ def main():
                     help="emit the coach recommendation as JSON (read-only; the canonical "
                          "decision surface for `planwright advise` and /codmaster — the "
                          "command layer never re-derives this table in prose)")
+    ap.add_argument("--scope", default=None, metavar="SPEC",
+                    help="component scope (path:X | lib:X) for --recommend (codmaster path/lib): "
+                         "restrict pending/debt to the Focus and certify convergence from a "
+                         "scope-tagged final point. A path no-match is a blocker; ignored "
+                         "without --recommend")
     ap.add_argument("--ledger", action="store_true",
                     help="emit the completed-work provenance ledger as JSON — every landed item "
                          "as {title, mode, commit} in chronological order (read-only; turns the "
@@ -963,7 +1204,7 @@ def main():
     args = ap.parse_args()
 
     if args.recommend:
-        print(json.dumps(recommend(args.root), indent=2))
+        print(json.dumps(recommend(args.root, args.scope), indent=2))
         return 0
 
     if args.ledger:
