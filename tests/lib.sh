@@ -27,6 +27,15 @@ trap 'rm -rf "$TMP"' EXIT
 export GIT_CONFIG_GLOBAL="$TMP/gitconfig"
 printf '[commit]\n\tgpgsign = false\n' > "$GIT_CONFIG_GLOBAL"
 
+# Keep the cross-repo project registry off the developer's real config. The registry
+# (registry.py) lives under XDG_CONFIG_HOME, and state.py's activity beacon best-effort
+# upserts every repo it stamps into it — so a /tmp fixture root would otherwise leak into
+# ~/.config/planwright/projects.json and linger in the dashboard switcher forever. Redirect
+# the whole registry into the throwaway TMP so no case can touch the real one; a case that
+# needs its own registry still overrides XDG_CONFIG_HOME locally.
+export XDG_CONFIG_HOME="$TMP/xdg"
+mkdir -p "$XDG_CONFIG_HOME"
+
 # Loopback HTTP cases (dashboard, state, derive) reach the local server at 127.0.0.1
 # via urllib. When the environment exports http_proxy/https_proxy, urllib routes even
 # loopback requests through that proxy — which returns 400 (or refuses), flaking the

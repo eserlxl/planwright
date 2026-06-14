@@ -351,9 +351,18 @@ class Handler(BaseHTTPRequestHandler):
         liveness status, and plan/completed line counts. Deliberately cheap — it never runs
         state.collect or doctor.collect per project, so listing N projects is N small stats,
         not N full snapshots. Same no-store discipline as the other dynamic endpoints."""
+        # The launch --root is always listed (even before it has a plan); every other entry is
+        # shown only while its .planwright/ still exists. That is the same liveness test
+        # registry.list_projects(prune=True) self-cleans on — but applied at display time, so
+        # the read-only serving path (which never rewrites the registry) still won't surface a
+        # project that has been deleted or moved. Without this, a stale row — e.g. a removed
+        # test fixture that leaked into the registry — would linger in the switcher forever.
+        root_id = registry.project_id(self.server.planwright_root)
         out = []
         for pid, path in sorted(self._project_allowlist().items(), key=lambda kv: kv[1]):
             pw = _planwright_dir(path)
+            if pid != root_id and not os.path.isdir(pw):
+                continue
             out.append({
                 "id": pid,
                 "name": os.path.basename(os.path.normpath(path)),

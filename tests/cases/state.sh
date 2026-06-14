@@ -439,6 +439,17 @@ else
   bad "state.py --verify-manifest wrong (json=$vmf_json)"
 fi
 
+# --- Test ST-iso: the suite's ambient XDG_CONFIG_HOME isolates the real registry ----------
+# activity start (below) best-effort upserts the repo into the cross-repo registry, which
+# lives under XDG_CONFIG_HOME. The harness (lib.sh) must redirect that into the throwaway TMP
+# so a /tmp fixture never lands in the developer's real ~/.config/planwright/projects.json
+# (where it would linger in the dashboard switcher). Pin the ambient redirect so a future
+# refactor can't silently reintroduce pollution.
+case "${XDG_CONFIG_HOME:-}" in
+  "$TMP"/*) ok "suite redirects XDG_CONFIG_HOME into TMP so activity-start never pollutes the real registry" ;;
+  *) bad "XDG_CONFIG_HOME ('${XDG_CONFIG_HOME:-}') is not under TMP — activity start can pollute the real registry" ;;
+esac
+
 # --- Test ST-reg: activity start auto-registers the repo in the cross-repo registry -------
 # The single-server dashboard's switcher needs running projects to appear with zero effort,
 # so activity_start best-effort upserts the repo into the registry (registry.py). The
