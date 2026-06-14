@@ -120,16 +120,20 @@ fresh state between steps instead of precomputing a chain (growth is taken at mo
 a no-progress stall or the 12-step-per-lap safety cap also stop the loop): pending items →
 `execute`; structural debt, a stale point, or a carried backlog → `codvisor` (`codshard explore` on
 a mechanically large repo); a clean tree without a current whole-repo final point → the same harden
-sweep; a converged tree → `codinventor` (growth — by default codmaster may dispatch it, banner
-disclosing the rare dwell-gated `MISSION.md` edits); converged at `deepest_tier: invent` (the
-earned empty) → `reset` plus a fresh harden sweep, but **only when really necessary** — the point
-must be unseeded and the cold frontier shown drained; a seed-scoped point re-surveys and an
-undrained frontier hardens instead. Its `advise` word prints the recommendation and
-stops; its `safe` word runs the same loop but never dispatches invent-class work, stopping at the
-first convergence (it prints the `codinventor` line to paste instead); its `loop` word makes the
-drive infinite — each converged terminal triggers the cold-start reset (keeps `rejected.md`) and
-begins a new lap with growth re-armed, until interrupted or a hard stop (`safe loop` composes). The decision table lives in the tested Python engine, never
-in command prose; `codmaster` only relays and dispatches.
+sweep; a converged tree → an **enforced** at-most-once `codinventor` burst whenever `safe` is off —
+at every converged terminal (any tier, including `deepest_tier: invent`) codmaster grows
+**regardless of the engine's `invent_class`** (its invent-dry routing is advisory here), the banner
+disclosing invent's rare dwell-gated `MISSION.md` edits. Only `safe` withholds the burst and instead
+relays the engine's invent-dry routing → `reset` plus a fresh harden sweep, but **only when really
+necessary** — the point must be unseeded and the cold frontier shown drained; a seed-scoped point
+re-surveys and an undrained frontier hardens instead. Its `advise` word prints the recommendation
+(plus, at an invent-dry terminal, the notice that a non-`safe` drive would grow there instead) and
+stops; its `safe` word runs the same loop but never invents — it withholds the growth burst (printing
+the `codinventor` line to paste) while still dispatching every non-invent move, including the engine's
+invent-dry `reset`/`codvisor`; its `loop` word makes the drive infinite — each lap grows, deep-hardens
+the grown code, then resets (cold-start, keeps `rejected.md`) into the next with growth re-armed, until
+interrupted or a hard stop (`safe loop` composes). The decision table lives in the tested Python engine,
+never in command prose; `codmaster` only relays and dispatches.
 
 ## Invocation & help
 

@@ -216,3 +216,27 @@ if "stalest-audited" not in t: need.append("frontier:stalest-ordering-named")
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md specifies carried dossier candidates (capped, re-verified, never Evidence) and frontier-judged staleness-graded dryness"; else bad "carried-candidates block or frontier-dryness contract missing/incomplete in SKILL.md"; fi
+
+# --- Test 10m: SKILL.md codmaster summary documents ENFORCED growth (791a00f) ----------
+# The front-door summary must describe the post-791a00f gating: a converged terminal earns
+# an enforced codinventor burst whenever `safe` is off (regardless of the engine's
+# invent_class), with the engine's invent-dry reset/codvisor routing relayed only under
+# `safe`. Guards against the pre-reversal "by default may dispatch / invent-dry -> reset"
+# default-path wording drifting back (it once silently contradicted commands/codmaster.md).
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1]).read()
+need = []
+# the enforced-growth contract must be stated
+if "an **enforced** at-most-once `codinventor` burst whenever `safe` is off" not in t:
+    need.append("enforce:summary-clause")
+if "regardless of the engine's `invent_class`" not in t:
+    need.append("enforce:invent_class-override")
+if "Only `safe` withholds the burst" not in t:
+    need.append("enforce:safe-only-invent-dry-routing")
+# the stale pre-reversal default-path wording must stay gone
+if "by default codmaster may dispatch it" in t:
+    need.append("regression:may-dispatch-default-growth")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md codmaster summary documents enforced growth (safe-off burst regardless of invent_class; invent-dry routing relayed only under safe)"; else bad "codmaster enforced-growth summary missing/regressed in SKILL.md (pre-791a00f may-dispatch/invent-dry-reset wording may have drifted back)"; fi
