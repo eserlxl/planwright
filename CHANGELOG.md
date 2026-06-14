@@ -20,6 +20,28 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.58.0] - 2026-06-14
+
+### Added
+- Scoped autonomous drive: `codmaster path <X>` / `lib <X>` aims the whole front-door drive at one component. Pending items, structural debt, and convergence become Focus-restricted (threaded into the engine as `status.py --recommend --scope`), and the two whole-repo moves (`codshard`, `reset`) never auto-route under a scope — so the harden stays a scoped `codvisor`.
+- Dashboard active-branch subtitle: the dashboard shows the target's current branch under the project label, in both multi-project and single-project mode. A detached HEAD reads as no branch (via `git symbolic-ref`) rather than the literal `HEAD`, so a detached checkout is never mislabelled.
+
+### Changed
+- `codmaster` loop-mode termination is now decided at the lap boundary: a soft no-progress stall stops the infinite loop only after the post-growth harden completes, while hard failures still stop immediately.
+- Hardened final-point (`final.md`) parsing and fixed the `hot_uncovered` signal to ignore non-code nodes.
+- `bump-version.sh` writes every JSON manifest, SKILL frontmatter, and the CHANGELOG atomically (same-directory temp + `os.replace`), so an interrupted bump can never leave a half-written release file.
+- Typed the optional `fcntl` binding so `mypy` accepts both the imported module and the non-POSIX `None` fallback.
+
+### Tested
+- Property-based tests for the plan-format parser.
+- Cross-cwd test case for relative-root resolution.
+- Focused test for `status._branch`'s detached-HEAD / non-git contract (a real temp repo pins the `symbolic-ref` choice).
+- Test coverage for the `bump-version.sh` release tooling, including its atomic transactional restore.
+- Coverage for the scoped pending count's new-in-component-file branch.
+
+### Docs
+- Documented the multi-project dashboard registry flags in `usage.md` and corrected stale dashboard default-port descriptions.
+
 ## [1.57.0] - 2026-06-14
 
 ### Added
