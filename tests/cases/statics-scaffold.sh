@@ -103,15 +103,19 @@ else
 fi
 
 # --- Test 1c: a mid-run failure restores all files (transactional bump) ----------
-# Inject a failure AFTER the manifests are rewritten but BEFORE the changelog write by
-# making CHANGELOG.md read-only; the script must restore every file so no version drift
-# is left behind (the lockstep contract must hold under interruption too, not just on a
-# clean run).
+# Inject a failure AFTER the manifests are rewritten but BEFORE the changelog write. The
+# writes are atomic (same-directory temp + os.replace), so a read-only CHANGELOG.md no
+# longer blocks the write — rename only needs a writable directory. Make the changelog's
+# DIRECTORY read-only instead: the temp file cannot be created, so the changelog step
+# fails. The script must then restore every file so no version drift is left behind (the
+# lockstep contract must hold under interruption too, not just on a clean run). The JSON
+# manifests live in writable subdirectories, so step 1 still bumps them — exactly the
+# mid-run state the restore must roll back.
 pre_pj="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
-chmod 0444 "$WORK/CHANGELOG.md"
+chmod 0555 "$WORK"
 atomic_rc=0
 atomic_out="$("$WORK/scripts/bump-version.sh" patch -m "should be rolled back" 2>&1)" || atomic_rc=$?
-chmod 0644 "$WORK/CHANGELOG.md"
+chmod 0755 "$WORK"
 post_pj="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
 post_mm="$(ver "$WORK/.claude-plugin/marketplace.json" "['metadata']['version']")"
 post_cj="$(ver "$WORK/.codex-plugin/plugin.json" "['version']")"
