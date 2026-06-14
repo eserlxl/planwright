@@ -39,6 +39,10 @@
   var fetching = false;   // a fetch is in flight
   var refetch = false;    // a change arrived mid-fetch — coalesce into one trailing fetch
   var trend = [];         // client-timestamped count history for the session sparkline
+  var selectedProject = currentProjectId();  // the ?project=<id> in view, or null = launch root
+  var projectsList = [];  // last /projects.json projects[] (feeds the bottom-left switcher)
+  var es = null;          // the live EventSource, so a project switch can reconnect it
+  var titleProject = "";  // current project name, mixed into the browser-tab title
 
   function elt(tag, cls, text) {
     var e = document.createElement(tag);
@@ -172,20 +176,79 @@
     return s;
   }
 
-  function projectName(s) {
-    var root = (s && s.root) || "";
-    var parts = root.replace(/[\/\\]+$/, "").split(/[\/\\]/);
+  function baseOf(path) {
+    var parts = String(path || "").replace(/[\/\\]+$/, "").split(/[\/\\]/);
     return parts[parts.length - 1] || "";
+  }
+  function parentOf(path) {
+    var parts = String(path || "").replace(/[\/\\]+$/, "").split(/[\/\\]/);
+    return parts.length >= 2 ? parts[parts.length - 2] : "";
+  }
+  function projectName(s) { return baseOf((s && s.root) || ""); }
+
+  // A project's display name: its basename, disambiguated with the parent dir when another
+  // registered project shares the same basename (two different "web" repos stay distinct).
+  function displayName(p, all) {
+    var base = baseOf(p.path);
+    var clash = all.some(function (o) { return o.id !== p.id && baseOf(o.path) === base; });
+    var parent = parentOf(p.path);
+    return clash && parent ? parent + "/" + base : base;
+  }
+
+  // Which allow-listed project this view currently shows: the selected id, else the one whose
+  // path matches the served state.root.
+  function currentProject(s) {
+    var all = projectsList || [];
+    var cur = null;
+    if (selectedProject) cur = all.filter(function (p) { return p.id === selectedProject; })[0] || null;
+    if (!cur && s && s.root) cur = all.filter(function (p) { return p.path === s.root; })[0] || null;
+    return cur;
   }
 
   function renderBrand(s) {
     var el = byId("pw-project");
     if (!el) return;
-    var name = projectName(s);
-    if (!name) { el.hidden = true; el.textContent = ""; return; }
+    var all = projectsList || [];
+    var cur = currentProject(s);
+    var label = cur ? displayName(cur, all) : projectName(s);
+    if (!label) { el.hidden = true; el.textContent = ""; titleProject = ""; return; }
     el.hidden = false;
-    el.textContent = name;
-    el.title = (s && s.root) || name;
+    titleProject = label;
+    if (unreadTotal() === 0) restoreTitle();   // reflect the project in the tab title
+    if (all.length > 1) {
+      renderSwitcher(el, all, cur, s);          // multiple projects -> a switcher dropdown
+    } else {
+      el.className = "pw-project";               // single project -> today's plain-name look
+      el.textContent = label;
+      el.title = (s && s.root) || label;
+    }
+  }
+
+  // The bottom-left switcher: a native <select> (accessible + themeable, type-to-search built
+  // in) listing every allow-listed project, running ones first. Selecting one re-points the
+  // client at that project — purely client-side, no server restart and no control endpoint.
+  function renderSwitcher(el, all, cur, s) {
+    el.className = "pw-project pw-project--switch";
+    el.textContent = "";
+    el.title = (s && s.root) || "";
+    var sel = elt("select", "pw-project-select");
+    sel.setAttribute("aria-label", "Switch project");
+    var order = all.slice().sort(function (a, b) {
+      var ra = a.status === "active" ? 0 : 1, rb = b.status === "active" ? 0 : 1;
+      if (ra !== rb) return ra - rb;
+      return baseOf(a.path).localeCompare(baseOf(b.path));
+    });
+    order.forEach(function (p) {
+      var opt = elt("option");
+      opt.value = p.id;
+      var pend = p.counts ? p.counts.pending : 0;
+      opt.textContent = displayName(p, all) + " · " + p.status + (pend ? " (" + pend + "▸)" : "");
+      if (cur && p.id === cur.id) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener("change", function () { setSelectedProject(sel.value); });
+    sel.style.maxWidth = "100%";
+    el.appendChild(sel);
   }
 
   function renderOverview(s) {
@@ -297,13 +360,17 @@
     updateFavicon(state);
   }
 
+  // The browser-tab title is project-qualified on a multi-project server: "<project> ·
+  // planwright dashboard". titleProject is set by renderBrand; both the unread badge and the
+  // restored title route through baseTitle() so the project prefix survives either state.
+  function baseTitle() { return titleProject ? titleProject + " · " + TITLE_BASE : TITLE_BASE; }
   function pingTitle() {
     var now = Date.now();
     if (now - lastPing < 2000) return;   // throttle to ≤ 1 / 2s
     lastPing = now;
-    document.title = "● " + TITLE_BASE + " (" + unreadTotal() + ")";
+    document.title = "● " + baseTitle() + " (" + unreadTotal() + ")";
   }
-  function restoreTitle() { document.title = TITLE_BASE; }
+  function restoreTitle() { document.title = baseTitle(); }
 
   // ---- routing -------------------------------------------------------------------------
 
@@ -341,12 +408,56 @@
 
   // ---- fetch ---------------------------------------------------------------------------
 
+  function currentProjectId() {
+    try {
+      var q = new URLSearchParams(location.search).get("project");
+      if (q) return q;
+    } catch (e) {}
+    return lsGet("pw-project") || null;
+  }
+
+  // Append the selected project id (if any) as ?project=<id>; the server resolves it against
+  // its allow-list (absent = the launch --root; an unknown id 404s). The browser never sends a
+  // path — only an opaque id — which is what keeps selection inside the allow-list.
+  function withProject(path) {
+    return selectedProject ? path + "?project=" + encodeURIComponent(selectedProject) : path;
+  }
+
+  // Switch the whole client to another project: persist the id (localStorage + the URL search
+  // param, leaving the hash for tab routing), reconnect the SSE stream to that project, and
+  // refetch. View-state only — there is no server-side "current project".
+  function setSelectedProject(id) {
+    selectedProject = id || null;
+    if (selectedProject) lsSet("pw-project", selectedProject);
+    else { try { localStorage.removeItem("pw-project"); } catch (e) {} }
+    try {
+      var u = new URL(location.href);
+      if (selectedProject) u.searchParams.set("project", selectedProject);
+      else u.searchParams.delete("project");
+      history.replaceState(null, "", u.toString());
+    } catch (e) {}
+    reconnectEvents();
+    fetchState();
+    fetchProjects();
+  }
+
+  // The cross-repo project list that feeds the switcher (and the Fleet view). Cheap; refetched
+  // on every change so liveness stays current without a dedicated socket.
+  function fetchProjects() {
+    return fetch("/projects.json").then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (data) {
+      projectsList = (data && data.projects) || [];
+      renderBrand(state);
+    }).catch(function () {});
+  }
+
   function fetchState() {
     if (fetching) { refetch = true; return Promise.resolve(); }
     fetching = true;
     return Promise.all([
-      fetch("/state.json").then(function (r) { if (!r.ok) { throw new Error("state " + r.status); } return r.json(); }),
-      fetch("/graph.json").then(function (r) { return r.ok ? r.text() : null; })
+      fetch(withProject("/state.json")).then(function (r) { if (!r.ok) { throw new Error("state " + r.status); } return r.json(); }),
+      fetch(withProject("/graph.json")).then(function (r) { return r.ok ? r.text() : null; })
         .catch(function () { return null; }),
     ]).then(function (res) {
       state = res[0];
@@ -370,10 +481,18 @@
 
   function connectEvents() {
     if (typeof EventSource === "undefined") { setStatus("no live updates", "warn"); return; }
-    var es = new EventSource("/events");
-    es.addEventListener("change", function () { setStatus("live", "ok"); pulse(); fetchState(); });
+    es = new EventSource(withProject("/events"));
+    es.addEventListener("change", function () {
+      setStatus("live", "ok"); pulse(); fetchState(); fetchProjects();
+    });
     es.onopen = function () { setStatus("live", "ok"); };
     es.onerror = function () { setStatus("reconnecting…", "warn"); };
+  }
+
+  // A project switch re-points the SSE stream at the newly-selected project's .planwright/.
+  function reconnectEvents() {
+    if (es) { try { es.close(); } catch (e) {} es = null; }
+    connectEvents();
   }
 
   function hashKey() {
@@ -646,8 +765,16 @@
     document.addEventListener("visibilitychange", function () { updateFavicon(state); });
 
     selectTab(hashKey() || active, true);
-    fetchState();
-    connectEvents();
+    // Resolve the project list first so a stale saved id that no longer registers is dropped
+    // before the first /state.json fetch (otherwise that fetch would 404).
+    fetchProjects().then(function () {
+      if (selectedProject && !projectsList.some(function (p) { return p.id === selectedProject; })) {
+        selectedProject = null;
+        try { localStorage.removeItem("pw-project"); } catch (e) {}
+      }
+      fetchState();
+      connectEvents();
+    });
   }
 
   if (document.readyState === "loading") {

@@ -1476,3 +1476,18 @@ if python3 "$TMP/dash_projects_client.py" "$DASH" "$DPJ/a" "$DPJX" 2>/dev/null |
 else
   bad "dashboard /projects.json missing projects/status/counts (or not no-store)"
 fi
+
+# --- Test DSW: app.js wires the client-side project switcher ------------------------------
+# The bottom-left #pw-project becomes a switcher: app.js fetches /projects.json and re-points
+# its state/events fetches at ?project=<id> (purely client-side — no control endpoint). This
+# is a static wiring assertion (the DOM behavior has no JS test harness in this suite).
+APPJS="$ROOT/scripts/dashboard/app.js"
+if grep -q '/projects.json' "$APPJS" \
+   && grep -q 'withProject(' "$APPJS" \
+   && grep -q '"?project=" + encodeURIComponent' "$APPJS" \
+   && grep -q 'function setSelectedProject' "$APPJS" \
+   && grep -q 'id="pw-project"' "$ROOT/scripts/dashboard/index.html"; then
+  ok "app.js wires the project switcher (/projects.json + ?project= + setSelectedProject into #pw-project)"
+else
+  bad "app.js project-switcher wiring is incomplete (/projects.json, withProject, ?project=, or #pw-project missing)"
+fi

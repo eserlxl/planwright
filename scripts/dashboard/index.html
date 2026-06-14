@@ -62,7 +62,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
         </button>
       </nav>
 
-      <div class="pw-project" id="pw-project" hidden></div>
+      <!-- Project name / switcher: app.js paints the basename here, or a <select> of every
+           registered project on a multi-project server (fed by /projects.json). -->
+      <div class="pw-project" id="pw-project" role="group" aria-label="Current project" hidden></div>
 
       <div class="pw-sidebar-footer">
         <button class="pw-palette-open" id="pw-palette-open" type="button" aria-label="Open command palette (Ctrl+K)">
