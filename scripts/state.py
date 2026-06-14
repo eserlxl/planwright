@@ -340,6 +340,7 @@ def collect(root: str) -> dict:
         "schema_version": SCHEMA_VERSION,
         "root": base["root"],
         "head": base["head"],
+        "branch": base["branch"],
         "counts": {
             "pending": base["pending"],
             "completed": base["completed"],

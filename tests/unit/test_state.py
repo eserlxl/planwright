@@ -25,7 +25,7 @@ _APP_JS = os.path.join(_SCRIPTS, "dashboard", "app.js")
 # state.py emits for other consumers or that the UI derives itself (schema_version,
 # counts, pending_modes) are intentionally not in this contract.
 CONSUMED_KEYS = {
-    "root", "head", "pending", "completed", "rejected",
+    "root", "head", "branch", "pending", "completed", "rejected",
     "final_point", "graph", "converged",
 }
 

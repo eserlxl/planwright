@@ -235,9 +235,9 @@
     el.className = "pw-project pw-project--switch";
     el.textContent = "";
     el.title = (s && s.root) || "";
-    // A "Projects" mini-heading above the dropdown, styled like the "Recent contributions"
+    // A "Project" mini-heading above the dropdown, styled like the "Recent contributions"
     // label (.pw-section-mini) so the sidebar reads consistently.
-    el.appendChild(elt("span", "pw-section-mini pw-project-label", "Projects"));
+    el.appendChild(elt("span", "pw-section-mini pw-project-label", "Project"));
     var sel = elt("select", "pw-project-select");
     sel.setAttribute("aria-label", "Switch project");
     var order = all.slice().sort(function (a, b) {
@@ -259,6 +259,13 @@
     var wrap = elt("div", "pw-select-wrap");
     wrap.appendChild(sel);
     el.appendChild(wrap);
+    // A matching "Branch" subtitle + the selected project's active branch (s.branch from
+    // state.json, the symbolic-ref name). Hidden on a detached HEAD / non-git tree, where
+    // branch is "" — the overview's HEAD chip still carries the sha there.
+    if (s && s.branch) {
+      el.appendChild(elt("span", "pw-section-mini pw-project-label pw-branch-label", "Branch"));
+      el.appendChild(elt("span", "pw-project-branch", s.branch));
+    }
   }
 
   function renderOverview(s) {

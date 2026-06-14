@@ -223,6 +223,14 @@ body.pw-stale .aurora-bg { filter: blur(80px) saturate(0.5); }
 .pw-project-select:focus { outline: none; border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-accent-glow); }
 /* Native option popups ignore translucent panels, so paint them on a solid theme surface. */
 .pw-project-select option { background: var(--pw-bg); color: var(--pw-fg); }
+/* The active branch under the switcher: a "Branch" mini-heading (reusing .pw-project-label,
+   nudged down to read as its own section) with the ref name shown as a mono token. Rendered
+   only when state carries a branch (hidden on a detached HEAD / non-git tree). */
+.pw-branch-label { margin-top: var(--pw-s1); }
+.pw-project-branch {
+  font-family: var(--pw-font-mono); font-size: var(--pw-fs-xs); color: var(--pw-fg);
+  padding-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .pw-brand-glow {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: 120px; height: 40px; background: var(--pw-accent-glow); filter: blur(24px);

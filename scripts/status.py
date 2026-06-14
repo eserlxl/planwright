@@ -253,6 +253,21 @@ def _head_sha(root):
         return ""
 
 
+def _branch(root):
+    """The target's current branch name, or '' when detached / git unavailable.
+    symbolic-ref (not rev-parse --abbrev-ref) so a detached HEAD reads as '' rather
+    than the literal 'HEAD' — the dashboard then hides the branch line instead of
+    labelling a detached checkout as a branch (the HEAD sha still shows elsewhere)."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", root, "symbolic-ref", "--short", "-q", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return out.stdout.strip() if out.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
 def _parse_final(path):
     """Parse the recorded final point (final.md). Returns a dict with sha/date/
     deepest_tier/scope/invent_seed/invent_framing (each '' when absent) or None when
@@ -538,6 +553,7 @@ def collect(root: str, scope=None, focus=None) -> dict:
     # backlog its scoped harden can never drain (recommend() discloses this in a note).
     carried = 0 if scope is not None else _carried_count(os.path.join(pw, "digest.md"))
     head = _head_sha(root)
+    branch = _branch(root)
 
     final = _parse_final(os.path.join(pw, "final.md"))
     final_rec = None
@@ -614,6 +630,7 @@ def collect(root: str, scope=None, focus=None) -> dict:
     return {
         "root": os.path.abspath(root),
         "head": head,
+        "branch": branch,
         "pending": pending,
         "pending_titles": pending_titles,
         "pending_modes": pending_modes,
