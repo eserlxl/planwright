@@ -144,15 +144,35 @@ fi
 # --- Update JSON manifests -------------------------------------------------
 if [ -z "$DRY_RUN" ]; then
 python3 - "$PLUGIN_JSON" "$MARKET_JSON" "$CODEX_PLUGIN_JSON" "$NEW" <<'PY'
-import json, sys
+import json, os, sys, tempfile
 plugin_path, market_path, codex_plugin_path, new = sys.argv[1:5]
+
+def atomic_write(path, data):
+    # Same-directory temp + os.replace, mirroring scripts/lifecycle.py's write() and
+    # scripts/state.py's _write_activity(). A plain open(path, "w") truncates the file
+    # before the new bytes land, so a crash/OOM/power-loss between the truncate and the
+    # completed write (the one window the ERR/INT/TERM backup-restore trap cannot catch)
+    # would leave a partial/truncated manifest. The temp keeps the rename on one
+    # filesystem (atomic); on any failure it is removed and the error re-raised, leaving
+    # the original target untouched.
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".bump-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 with open(plugin_path) as f:
     plugin = json.load(f)
 name = plugin.get("name")
 plugin["version"] = new
-with open(plugin_path, "w") as f:
-    json.dump(plugin, f, indent=2); f.write("\n")
+atomic_write(plugin_path, json.dumps(plugin, indent=2) + "\n")
 
 with open(market_path) as f:
     market = json.load(f)
@@ -160,8 +180,7 @@ market.setdefault("metadata", {})["version"] = new
 for entry in market.get("plugins", []):
     if entry.get("name") == name:
         entry["version"] = new
-with open(market_path, "w") as f:
-    json.dump(market, f, indent=2); f.write("\n")
+atomic_write(market_path, json.dumps(market, indent=2) + "\n")
 
 try:
     with open(codex_plugin_path) as f:
@@ -170,8 +189,7 @@ except FileNotFoundError:
     codex_plugin = None
 if codex_plugin is not None:
     codex_plugin["version"] = new
-    with open(codex_plugin_path, "w") as f:
-        json.dump(codex_plugin, f, indent=2); f.write("\n")
+    atomic_write(codex_plugin_path, json.dumps(codex_plugin, indent=2) + "\n")
 PY
 fi
 
@@ -187,15 +205,31 @@ for skill in "$ROOT"/skills/*/SKILL.md; do
     if [ "$has_ver" = "1" ]; then SKILLS_SYNCED="$SKILLS_SYNCED $rel"; else echo "warning: no metadata 'version:' line in $rel; skipped" >&2; fi
   else
     changed="$(python3 - "$skill" "$NEW" <<'PY'
-import re, sys
+import os, re, sys, tempfile
 path, new = sys.argv[1], sys.argv[2]
+
+def atomic_write(path, data):
+    # Same-directory temp + os.replace (see the JSON-manifest step above): never
+    # truncate-then-write, so an interruption cannot leave a half-written SKILL.md.
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".bump-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
 with open(path) as f:
     text = f.read()
 # Rewrite the metadata version line in the YAML frontmatter (2-space indent).
 text, n = re.subn(r'(\n  version:\s*)"[^"]*"', rf'\g<1>"{new}"', text, count=1)
 if n:
-    with open(path, "w") as f:
-        f.write(text)
+    atomic_write(path, text)
 print(n)
 PY
 )"
@@ -210,8 +244,25 @@ done
 # --- Prepend a CHANGELOG entry --------------------------------------------
 if [ -z "$DRY_RUN" ]; then
 python3 - "$CHANGELOG" "$NEW" "$DATE" "$NOTE" <<'PY'
-import sys
+import os, sys, tempfile
 path, new, date, note = sys.argv[1:5]
+
+def atomic_write(path, data):
+    # Same-directory temp + os.replace (see the JSON-manifest step above): never
+    # truncate-then-write, so an interruption cannot leave a half-written CHANGELOG.
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".bump-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
 note = note or "Version bump."
 block = f"## [{new}] - {date}\n\n### Changed\n- {note}\n\n"
 with open(path) as f:
@@ -222,8 +273,7 @@ if idx is None:
     sys.stderr.write("warning: no '## [' version section in changelog; appending entry at end\n")
     idx = len(lines)
 lines[idx:idx] = [block]
-with open(path, "w") as f:
-    f.writelines(lines)
+atomic_write(path, "".join(lines))
 PY
 fi
 
