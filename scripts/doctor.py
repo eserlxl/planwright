@@ -77,6 +77,7 @@ BUNDLED = [
     ("dashboard/views/insights.js", "the Insights (risk/hotspot/frontier) view"),
     ("dashboard/views/commands.js", "the Commands (recommended next sweep) view"),
     ("dashboard/views/shards.js", "the Shards (per-component maturity) view"),
+    ("dashboard/views/fleet.js", "the Fleet (multi-project portfolio) view"),
     ("dashboard/views/doctor.js", "the Doctor (environment preflight) view"),
 ]
 
