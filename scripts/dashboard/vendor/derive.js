@@ -132,12 +132,15 @@
     var hotspots = nodesArr.slice().sort(function (a, b) { return b.risk - a.risk; });
     // "Hot" = the top tercile by risk RANK (robust to the many zero-risk ties that a
     // value threshold like risk_p66 collapses on). hotUncovered is the actionable subset:
-    // top-tercile risk, no covering test, not itself a test.
+    // top-tercile risk, no covering test, not itself a test, AND a real code node
+    // (branchCount > 0). A branch_count==0 node — config, license, declaration-only header
+    // — has nothing for a test to cover, so it must never count as an untested hotspot
+    // (the same "code nodes only" rule the frontier predicates below and status.py apply).
     var hotCount = Math.max(1, Math.ceil(hotspots.length / 3));
     var hotSet = hotspots.slice(0, hotCount);
     var hotPathSet = {};
     hotSet.forEach(function (n) { hotPathSet[n.path] = true; });
-    var hotUncovered = hotSet.filter(function (n) { return !n.covered && !n.isTest; });
+    var hotUncovered = hotSet.filter(function (n) { return !n.covered && !n.isTest && n.branchCount > 0; });
     // "Central but untested": high pagerank, no covering test — the actionable gap.
     var centralUntested = nodesArr.filter(function (n) {
       return !n.covered && !n.isTest && n.prPct >= 0.66;

@@ -335,8 +335,9 @@ keep forward motion. The decisive rule that prevents premature idling:
   already pending, completed, or rejected.
 
 **The final point** is reached only when **all four rungs are dry**. When a planning round determines
-that, it writes `.planwright/final.md` — one block recording the HEAD sha, the rungs surveyed, and why
-each is dry — and reports "final point reached". This is a *justified* terminal state, distinct from an
+that, it writes `.planwright/final.md` — one block recording the HEAD sha (as a `sha:` line — the
+canonical key the parser and lint-final read; a `HEAD:` line is tolerated as an alias), the rungs
+surveyed, and why each is dry — and reports "final point reached". This is a *justified* terminal state, distinct from an
 empty-dirty-set idle. A later run re-opens the ladder only if the project changed (non-empty dirty
 set), the mission/charter changed, or the user raises ambition — an explicit instruction, higher
 depth, or a **deeper escalation flag than the recorded point** (re-invoking `explore` over a plain
@@ -1016,9 +1017,25 @@ something to diff against:
 3. **Maintain `final.md`** — if this round wrote **≥1 item**, delete any stale `.planwright/final.md`
    (the ladder is live again). If this round wrote **0 items because all four maturity rungs were dry**
    (not merely an empty dirty set — the maturity-gated rungs were surveyed project-wide and produced
-   nothing above their value bar), write `.planwright/final.md` with one block: the HEAD sha, the date,
-   each rung (repair/coverage/opportunity/vision) marked dry, and a one-line reason per rung. Under
-   `explore`/`invent`, also record `deepest_tier:` (`hot-core` | `cold-frontier` | `expand` | `invent`)
+   nothing above their value bar), write `.planwright/final.md` with one block: the HEAD sha (a `sha:`
+   line — the canonical key; a `HEAD:` line is also accepted), the date,
+   each rung (repair/coverage/opportunity/vision) marked dry, and a one-line reason per rung.
+   **Each field is a bare `key: value` line that *starts* with the key — never a markdown bullet
+   (`- sha:`):** both `status.py::_parse_final` and `lint-final.py` match only lines beginning
+   `key:`, so a leading `- ` makes every field parse empty, and an unreadable `sha:` can never
+   equal HEAD — which silently pins `converged` false forever (the point reads stale/invalid, so a
+   `/codmaster` drive can never recognize it to grow). One field per line; last occurrence wins.
+   For example:
+   ```
+   sha: 869d212
+   date: 2026-06-14
+   deepest_tier: expand
+   repair: dry — no provably-wrong path remains after the cold-frontier sweep
+   coverage: dry — every confirmed gap has a focused test
+   opportunity: dry — the documented latent completions are implemented
+   vision: dry — no roadmap-level initiative remains within the explore ceiling
+   ```
+   Under `explore`/`invent`, also record `deepest_tier:` (`hot-core` | `cold-frontier` | `expand` | `invent`)
    — the furthest tier surveyed before drying; `deepest_tier: expand` (under `explore`) denotes the
    stronger **deep final point** (cold frontier + expand both dry). `deepest_tier: invent` is written
    **only** in the rare genuine empty where no net-new candidate clears the grounding floor + structural

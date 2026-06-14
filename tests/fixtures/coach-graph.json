@@ -1,5 +1,5 @@
 {
-  "comment": "Shared graph fixture for the coach debt-signal derivation — derive.js metrics() (tests/cases/derive.sh) and status.py _graph_signals() (tests/unit/test_status.py) must both derive exactly the `expected` numbers, pinning the hot-tercile tie semantics (hot set = max(1, ceil(n/3)) by risk RANK over node insertion order) to one ground truth.",
+  "comment": "Shared graph fixture for the coach debt-signal derivation — derive.js metrics() (tests/cases/derive.sh) and status.py _graph_signals() (tests/unit/test_status.py) must both derive exactly the `expected` numbers, pinning the hot-tercile tie semantics (hot set = max(1, ceil(n/3)) by risk RANK over node insertion order) to one ground truth. d.md is the TOP-risk node (highest churn+pagerank) but has branch_count 0, so it lands in the hot tercile yet must NOT count as hot_uncovered — both brains exclude branch_count==0 nodes (config/license/declaration-only files have nothing to cover). Without that exclusion hot_uncovered would be 2 (d.md + a.py); with it, 1 (a.py only).",
   "expected": {"import_cycles": 1, "articulation": 1, "hot_uncovered": 1, "coverage_pct": 33},
   "graph": {
     "graph_built_at_sha": "feedface",
@@ -8,7 +8,7 @@
       "a.py": {"git_churn": 10, "pagerank": 0.9, "covered_by_test": false, "is_test": false, "is_articulation": false, "lang": "python", "loc": 100, "branch_count": 5},
       "b.py": {"git_churn": 8, "pagerank": 0.8, "covered_by_test": true, "is_test": false, "is_articulation": true, "lang": "python", "loc": 80, "branch_count": 4},
       "c_test.py": {"git_churn": 6, "pagerank": 0.1, "covered_by_test": false, "is_test": true, "is_articulation": false, "lang": "python", "loc": 30, "branch_count": 2},
-      "d.md": {"git_churn": 0, "pagerank": 0.05, "covered_by_test": false, "is_test": false, "is_articulation": false, "lang": "markdown", "loc": 20, "branch_count": 0},
+      "d.md": {"git_churn": 20, "pagerank": 0.95, "covered_by_test": false, "is_test": false, "is_articulation": false, "lang": "markdown", "loc": 20, "branch_count": 0},
       "e.py": {"git_churn": 2, "pagerank": 0.3, "covered_by_test": false, "is_test": false, "is_articulation": false, "lang": "python", "loc": 40, "branch_count": 1},
       "f.py": {"git_churn": 1, "pagerank": 0.2, "covered_by_test": true, "is_test": false, "is_articulation": false, "lang": "python", "loc": 10, "branch_count": 1}
     }

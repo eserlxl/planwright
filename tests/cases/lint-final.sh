@@ -76,6 +76,20 @@ else
   bad "lint-final.py accepted a final.md with no sha (rc=$rc): $out"
 fi
 
+# --- Test LF5b: `HEAD:` is accepted as an alias for `sha:` -------------------------
+# An agent-written final.md may spell the recorded sha as `HEAD:` (SKILL.md Stage 11 calls
+# it "the HEAD sha"). status._parse_final and lint-final both tolerate it, so a natural
+# variant does not read as an unanchored, never-converging point (the bug that left rls-core
+# stuck on codvisor). LF5 above still fails when NEITHER sha: nor HEAD: is present.
+HA="$TMP/lf-head-alias"; mkdir -p "$HA/.planwright"
+_wellformed | sed 's/^sha:/HEAD:/' > "$HA/.planwright/final.md"   # sha: -> HEAD:
+rc=0; out="$(python3 "$LF" --root "$HA" --json)" || rc=$?
+if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q '"ok": true'; then
+  ok "lint-final.py accepts a HEAD: alias for the sha line"
+else
+  bad "lint-final.py rejected a HEAD: alias final.md (rc=$rc): $out"
+fi
+
 # --- Test LF6: a paired field without its partner FAILs (exit 1) ------------------
 # `scope:` asserts a scoped final point; `scope_focus_sha:` makes it replayable.
 PF="$TMP/lf-paired"; mkdir -p "$PF/.planwright"

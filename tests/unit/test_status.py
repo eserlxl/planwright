@@ -154,6 +154,70 @@ class TestCoachTable(unittest.TestCase):
             "coverage_pct": fx["expected"]["coverage_pct"],
         })
 
+    def test_branchless_nodes_are_not_hot_uncovered(self):
+        # A branch_count==0 node (config, license, declaration-only header) has nothing for a
+        # test to cover, so even when it lands in the hot tercile it must NOT count as an
+        # untested hotspot — else a tiny repo whose hot tercile is dominated by configs reports
+        # phantom debt and can never converge. `cfg` is engineered as the single hottest node
+        # (top churn + pagerank) yet branchless; `py` is the real uncovered code node. Hot set =
+        # ceil(4/3) = 2 = {cfg, py}; only `py` may count. (Drop the branch>0 guard and cfg also
+        # counts -> 2, failing this assertion — the mirror of derive.sh's coach-graph assertion.)
+        graph = {"graph_built_at_sha": "feed", "nodes": {
+            "cfg": {"git_churn": 99, "pagerank": 0.99, "covered_by_test": False,
+                    "is_test": False, "is_articulation": False, "branch_count": 0},
+            "py": {"git_churn": 50, "pagerank": 0.9, "covered_by_test": False,
+                   "is_test": False, "is_articulation": False, "branch_count": 7},
+            "lo1.py": {"git_churn": 1, "pagerank": 0.1, "covered_by_test": True,
+                       "is_test": False, "is_articulation": False, "branch_count": 2},
+            "lo2.py": {"git_churn": 0, "pagerank": 0.05, "covered_by_test": True,
+                       "is_test": False, "is_articulation": False, "branch_count": 1},
+        }}
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, ".planwright"))
+            with open(os.path.join(root, ".planwright", "graph.json"), "w",
+                      encoding="utf-8") as fh:
+                json.dump(graph, fh)
+            got = st._graph_signals(root)
+        self.assertEqual(got["hot_uncovered"], 1,
+                         "branchless cfg excluded; only the real code node py counts")
+
+
+class TestFinalPointParsing(unittest.TestCase):
+    """`HEAD:` is tolerated as an alias for `sha:` so an agent-written final.md (SKILL.md
+    Stage 11 calls the recorded value "the HEAD sha") is not read as a permanently-stale,
+    never-converging point. status._parse_final and lint-final agree on the alias."""
+
+    @staticmethod
+    def _final(root, body):
+        os.makedirs(os.path.join(root, ".planwright"), exist_ok=True)
+        path = os.path.join(root, ".planwright", "final.md")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        return path
+
+    def test_head_alias_populates_sha(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = self._final(root, "HEAD: deadbeefdeadbeef\nrepair: dry\n")
+            self.assertEqual(st._parse_final(path)["sha"], "deadbeefdeadbeef")
+
+    def test_explicit_sha_wins_over_head_alias(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = self._final(root, "HEAD: aaaa1111\nsha: bbbb2222\n")
+            self.assertEqual(st._parse_final(path)["sha"], "bbbb2222")
+
+    def test_neither_sha_nor_head_leaves_sha_empty(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = self._final(root, "date: 2026-06-14\nrepair: dry\n")
+            self.assertEqual(st._parse_final(path)["sha"], "")
+
+    def test_lint_final_accepts_head_alias(self):
+        lf = _load_lint_final()
+        with tempfile.TemporaryDirectory() as root:
+            self._final(root, "HEAD: deadbeefdeadbeef\ndeepest_tier: expand\n"
+                              "repair: dry\ncoverage: dry\nopportunity: dry\nvision: dry\n")
+            self.assertTrue(lf.collect(root)["ok"],
+                            "lint-final must accept a HEAD: alias for sha:")
+
 
 class TestCoachEvidence(unittest.TestCase):
     # _evidence is the chip line shown beneath the recommendation — served at /recommend.json

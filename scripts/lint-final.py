@@ -78,7 +78,11 @@ def collect(root: str) -> dict:
     lines = text.splitlines()
     viols = []
 
-    if not _field(lines, "sha"):
+    # `HEAD:` is tolerated as an alias for `sha:` (status._parse_final mirrors this): SKILL.md
+    # Stage 11 calls the recorded value "the HEAD sha", so a natural-variant marker that spells
+    # it `HEAD:` must not read as unanchored. An explicit `sha:` wins; either, present and
+    # non-empty, satisfies the contract.
+    if not (_field(lines, "sha") or _field(lines, "HEAD")):
         viols.append("missing or empty `sha:` line — a final point must record its HEAD sha")
 
     for rung in RUNGS:

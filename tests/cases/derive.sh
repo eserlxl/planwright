@@ -151,6 +151,21 @@ const gfxS = C.signals({ pending: [], completed: [], rejected: [] }, gfxM);
 assert.strictEqual(gfxS.articulation, GFX.expected.articulation, "coach-graph: articulation");
 assert.strictEqual(gfxS.coveragePct, GFX.expected.coverage_pct, "coach-graph: coverage pct");
 
+// branchless exclusion: a branch_count==0 node (config/license/declaration-only header) that
+// lands in the hot tercile must NOT count as hot-uncovered — it has nothing for a test to
+// cover. cfg is the single hottest node yet branchless; only the real code node `py` counts.
+// (Mirrors test_status.py test_branchless_nodes_are_not_hot_uncovered; dropping the
+// branchCount>0 guard makes this read 2.)
+const gBL = JSON.stringify({ graph_built_at_sha: "bl01", nodes: {
+  "cfg":    { git_churn: 99, pagerank: 0.99, covered_by_test: false, is_test: false, branch_count: 0, lang: "ini" },
+  "py":     { git_churn: 50, pagerank: 0.9,  covered_by_test: false, is_test: false, branch_count: 7, lang: "python" },
+  "lo1.py": { git_churn: 1,  pagerank: 0.1,  covered_by_test: true,  is_test: false, branch_count: 2, lang: "python" },
+  "lo2.py": { git_churn: 0,  pagerank: 0.05, covered_by_test: true,  is_test: false, branch_count: 1, lang: "python" },
+} });
+const mBL = D.metrics(gBL);
+assert.strictEqual(mBL.hotUncovered.length, 1, "coach-graph: branchless hot node excluded, real code counts");
+assert.strictEqual(mBL.hotUncovered[0].path, "py", "coach-graph: the counted hot-uncovered node is the real code node");
+
 // graph.adapt: the Coupling Web's data contract — top-N selection + keepSet pruning
 assert(D.graph && typeof D.graph.adapt === "function", "PW_DERIVE.graph.adapt missing");
 const N = 62;

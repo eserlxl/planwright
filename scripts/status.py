@@ -265,11 +265,20 @@ def _parse_final(path):
         return None
     fields = {"sha": "", "date": "", "deepest_tier": "", "scope": "",
               "invent_seed": "", "invent_framing": ""}
+    head_alias = ""
     for line in text.splitlines():
         for key in fields:
             prefix = key + ":"
             if line.startswith(prefix):
                 fields[key] = line[len(prefix):].strip()
+        if line.startswith("HEAD:"):  # last-wins, mirroring the keyed fields above
+            head_alias = line[len("HEAD:"):].strip()
+    # Tolerate `HEAD:` as an alias for `sha:`. SKILL.md Stage 11 calls the recorded value
+    # "the HEAD sha", so an agent-written final.md may spell it `HEAD:`; an explicit `sha:`
+    # always wins, but otherwise the HEAD line populates sha so a natural-variant marker is
+    # not read as a permanently-stale, never-converging point. lint-final mirrors this alias.
+    if not fields["sha"] and head_alias:
+        fields["sha"] = head_alias
     return fields
 
 
@@ -507,6 +516,7 @@ def _graph_signals(root):
                 "covered": bool(n.get("covered_by_test")),
                 "is_test": bool(n.get("is_test")),
                 "articulation": bool(n.get("is_articulation")),
+                "branch": int(n.get("branch_count") or 0),
             })
         churns = sorted(a["churn"] for a in arr)
         prs = sorted(a["pagerank"] for a in arr)
@@ -514,8 +524,13 @@ def _graph_signals(root):
             a["risk"] = _pct_rank(churns, a["churn"]) * _pct_rank(prs, a["pagerank"])
         hotspots = sorted(arr, key=lambda a: -a["risk"])  # stable: ties keep node order
         hot_count = max(1, -(-len(hotspots) // 3))  # ceil(n/3), like derive.js
+        # Only nodes with executable branches can be "untested" — a branch_count==0 node
+        # (config, license, declaration-only header) has nothing for a test to cover, so it
+        # must never count as an untested hotspot (mirrors build-graph.py / derive.js's
+        # "code nodes only" rule, branch_count > 0). Without this a tiny repo whose hot
+        # tercile is dominated by configs reports phantom debt and can never converge.
         hot_uncovered = sum(1 for a in hotspots[:hot_count]
-                            if not a["covered"] and not a["is_test"])
+                            if not a["covered"] and not a["is_test"] and a["branch"] > 0)
         covered = sum(1 for a in arr if a["covered"])
         # JS Math.round (half away from zero), not Python banker's rounding
         coverage_pct = int(covered / len(arr) * 100 + 0.5) if arr else None
