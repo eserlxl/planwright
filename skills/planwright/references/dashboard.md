@@ -10,8 +10,10 @@ agent, edits nothing, and exposes no action buttons.
 
 **Canonical server.** Prefer the bundled, test-covered `<scripts>/dashboard.py` (resolve `<scripts>`
 per **Procedure → Bundled scripts**, beside `status.py`/`state.py`): run
-`python3 <scripts>/dashboard.py --root <target>` — it binds `127.0.0.1` on an ephemeral port (or
-`--port <N>`), prints the URL (add `--open` to also launch a browser), and serves until interrupted.
+`python3 <scripts>/dashboard.py --root <target>` — it binds `127.0.0.1` on a stable default home
+port (`8765`, attaching to an already-running planwright dashboard if one holds it, else falling back
+to an ephemeral port) or an explicit `--port <N>` (`--port 0` = ephemeral); it prints the URL (add
+`--open` to also launch a browser) and serves until interrupted.
 Stdlib only (no Flask/websocket libs, no build step). It exposes:
 
 1. **`/state.json`** — the current snapshot built on demand by `<scripts>/state.py`

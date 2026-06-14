@@ -1,6 +1,6 @@
 ---
-description: Launch the planwright dashboard — a local, read-only live web view of the planning state — and open it in your browser. Binds 127.0.0.1 on an ephemeral port (or `--port N`) and serves until you stop it. Read-only: it mirrors `.planwright/`, launches no agent, and never mutates the repo.
-argument-hint: "[--port N] [--root DIR] | (empty = ephemeral port, current repo, open browser)"
+description: Launch the planwright dashboard — a local, read-only live web view of the planning state — and open it in your browser. Binds 127.0.0.1 on a stable default port (reusing an already-running instance) or `--port N`, and serves until you stop it. Read-only: it mirrors `.planwright/`, launches no agent, and never mutates the repo.
+argument-hint: "[--port N] [--root DIR] | (empty = stable port, current repo, open browser)"
 ---
 
 You are running the **`/dashboard`** command: start planwright's bundled **read-only**
@@ -30,8 +30,10 @@ same rule the other commands use), and call `<scripts>/dashboard.py`:
 
 From `$ARGUMENTS` (all optional; echo the canonical form you resolved):
 
-- `--port <N>` (or bare `port <N>`) → bind that fixed port, so the URL is stable across
-  launches; default `0` (ephemeral, printed in the banner).
+- `--port <N>` (or bare `port <N>`) → bind that fixed port. With no `--port` the server binds a
+  stable home port (`8765`) so the URL is bookmarkable, and a second launch attaches to the
+  already-running instance instead of failing; `--port 0` picks an ephemeral port. The bound URL is
+  printed in the banner.
 - `--root <DIR>` (or a bare directory path) → the repo to mirror; default `.` (the current
   directory). `<DIR>` selects which repo's `.planwright/` the server reads — it is not a
   subtree view. With no registry this is a single-project view, exactly as before.
