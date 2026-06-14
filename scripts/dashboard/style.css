@@ -194,10 +194,13 @@ body.pw-stale .aurora-bg { filter: blur(80px) saturate(0.5); }
 /* Multi-project mode turns the plain project name into a labelled switcher. The label reuses
    the "Recent contributions" mini-heading (.pw-section-mini) so the sidebar reads consistently,
    and the native <select> is restyled into a panel-matched dropdown with a custom chevron. */
-.pw-project--switch {
+.pw-project--switch, .pw-project--solo {
   display: flex; flex-direction: column; gap: var(--pw-s2);
   overflow: visible; white-space: normal;
 }
+/* Single-project mode: the plain name keeps its muted .pw-project look but becomes a flex
+   child, so it carries its own one-line ellipsis and aligns with the Branch subtitle below. */
+.pw-project-name { padding-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pw-project-label { padding-left: 2px; }
 .pw-select-wrap { position: relative; width: 100%; }
 .pw-select-wrap::after {

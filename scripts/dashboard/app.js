@@ -221,11 +221,29 @@
     if (unreadTotal() === 0) restoreTitle();   // reflect the project in the tab title
     if (all.length > 1) {
       renderSwitcher(el, all, cur, s);          // multiple projects -> a switcher dropdown
+    } else if (s && s.branch) {
+      // single project with a known branch -> the plain name plus the same Branch subtitle the
+      // switcher carries (no dropdown, since there is nothing to switch between).
+      el.className = "pw-project pw-project--solo";
+      el.textContent = "";
+      el.title = (s && s.root) || label;
+      el.appendChild(elt("span", "pw-project-name", label));
+      appendBranch(el, s);
     } else {
-      el.className = "pw-project";               // single project -> today's plain-name look
+      el.className = "pw-project";               // single project, no branch -> plain-name look
       el.textContent = label;
       el.title = (s && s.root) || label;
     }
+  }
+
+  // Appends the "Branch" subtitle + the active branch value (s.branch) to a project header,
+  // shared by the switcher and the single-project header. No-op when branch is "" (detached
+  // HEAD / non-git tree), so the line is hidden rather than labelled "HEAD"; the overview's
+  // HEAD chip still carries the sha there.
+  function appendBranch(el, s) {
+    if (!(s && s.branch)) return;
+    el.appendChild(elt("span", "pw-section-mini pw-project-label pw-branch-label", "Branch"));
+    el.appendChild(elt("span", "pw-project-branch", s.branch));
   }
 
   // The bottom-left switcher: a native <select> (accessible + themeable, type-to-search built
@@ -259,13 +277,7 @@
     var wrap = elt("div", "pw-select-wrap");
     wrap.appendChild(sel);
     el.appendChild(wrap);
-    // A matching "Branch" subtitle + the selected project's active branch (s.branch from
-    // state.json, the symbolic-ref name). Hidden on a detached HEAD / non-git tree, where
-    // branch is "" — the overview's HEAD chip still carries the sha there.
-    if (s && s.branch) {
-      el.appendChild(elt("span", "pw-section-mini pw-project-label pw-branch-label", "Branch"));
-      el.appendChild(elt("span", "pw-project-branch", s.branch));
-    }
+    appendBranch(el, s);                          // the selected project's active branch line
   }
 
   function renderOverview(s) {
