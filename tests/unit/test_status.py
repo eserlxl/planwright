@@ -781,5 +781,40 @@ class TestRecommendScope(unittest.TestCase):
         self.assertIn("whole-repo wipe", rec["why"])
 
 
+class TestBranch(unittest.TestCase):
+    """status._branch reports the current branch, and deliberately yields '' on a
+    detached HEAD (symbolic-ref, NOT rev-parse --abbrev-ref, which would return the
+    literal 'HEAD') and on a non-git path — the contract the dashboard branch
+    subtitle relies on. A real repo pins the git-command choice itself, which a
+    mocked subprocess.run could not catch."""
+
+    _ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+            "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+
+    def _git(self, repo, *args):
+        st.subprocess.run(["git", "-C", repo, *args], check=True,
+                          capture_output=True, text=True, env=self._ENV)
+
+    def test_branch_name_then_detached_head(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._git(d, "init", "-q")
+            with open(os.path.join(d, "f"), "w") as fh:
+                fh.write("x\n")
+            self._git(d, "add", "f")
+            self._git(d, "commit", "-qm", "c1")
+            self._git(d, "branch", "-m", "trunk")
+            self.assertEqual(st._branch(d), "trunk")
+            # Detach HEAD: symbolic-ref must yield "" — NOT the literal "HEAD". This
+            # is the assertion that fails if _branch switches to rev-parse --abbrev-ref.
+            self._git(d, "checkout", "-q", "--detach")
+            self.assertEqual(st._branch(d), "",
+                             "detached HEAD must read as '' (symbolic-ref), not 'HEAD'")
+
+    def test_non_git_path(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(st._branch(d), "")
+
+
 if __name__ == "__main__":
     unittest.main()
