@@ -670,6 +670,29 @@ class TestScopeResolution(unittest.TestCase):
         self.assertEqual(scoped["pending_titles"], ["auth fix"])
         self.assertEqual(scoped["scope"], "path:src/auth/")
 
+    def test_collect_scopes_counts_new_in_component_file(self):
+        # _in_focus's prefix fallback (status.py): a planned NEW in-scope file (New Surfaces, not
+        # yet a tracked Focus node) still counts toward the scoped pending total, while a
+        # false-sibling that only shares the prefix STRING (src/authz.py vs the src/auth scope)
+        # and an out-of-scope item are excluded. `focus` deliberately omits the new file, so only
+        # the `p == scope_val or p.startswith(scope_val + "/")` branch — not focus membership —
+        # can land it; if that fallback were dropped, scoped pending would read 0 (false
+        # convergence). pending_modes also pins the scoped _mode_tally over the in-focus subset.
+        with tempfile.TemporaryDirectory() as root:
+            pw = os.path.join(root, ".planwright")
+            os.makedirs(pw)
+            with open(os.path.join(pw, "plan.md"), "w", encoding="utf-8") as fh:
+                fh.write("- [ ] new auth file\n      Mode: develop\n"
+                         "      New Surfaces: src/auth/new.py\n      Verification: true\n"
+                         "- [ ] authz sibling\n      Mode: repair\n"
+                         "      Surfaces: src/authz.py\n      Verification: true\n"
+                         "- [ ] api fix\n      Mode: repair\n"
+                         "      Surfaces: src/api/c.py\n      Verification: true\n")
+            scoped = st.collect(root, "path:src/auth/", focus={"src/auth/a.py"})
+        self.assertEqual(scoped["pending"], 1)
+        self.assertEqual(scoped["pending_titles"], ["new auth file"])
+        self.assertEqual(scoped["pending_modes"], {"develop": 1})
+
 
 class TestRecommendScope(unittest.TestCase):
     """Scoped recommend() — reuses TestRecommendOverlay's deterministic sensor patches (via a
