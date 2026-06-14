@@ -326,8 +326,8 @@ update the clone or copied skill and reload the host context if it caches instru
 ## Dashboard (live read-only web view)
 
 ```bash
-planwright dashboard            # bind 127.0.0.1 on an ephemeral port, print the URL
-planwright dashboard --port 8765
+planwright dashboard            # bind 127.0.0.1 on the stable home port 8765 (reuse a running instance), print the URL
+planwright dashboard --port N   # bind a fixed port instead (--port 0 picks an ephemeral port)
 planwright dashboard --open     # also open the printed URL in a browser
 ```
 
