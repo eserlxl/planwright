@@ -19,6 +19,9 @@
 
   window.PW_VIEWS = window.PW_VIEWS || {};
   window.PW_UI = window.PW_UI || { planMode: "all" };
+  // Exposed for the Fleet view (views/fleet.js): the live project list + the switch action.
+  window.PW_PROJECTS = window.PW_PROJECTS || [];
+  window.PW_SWITCH_PROJECT = function (id) { setSelectedProject(id); };
 
   var VIEWS = [
     { key: "console", container: "view-console" },
@@ -28,6 +31,7 @@
     { key: "graph", container: "view-graph" },
     { key: "insights", container: "view-insights" },
     { key: "shards", container: "view-shards" },
+    { key: "fleet", container: "view-fleet" },
     { key: "doctor", container: "view-doctor" },
   ];
   var KEYS = VIEWS.map(function (v) { return v.key; });
@@ -448,7 +452,9 @@
       return r.ok ? r.json() : null;
     }).then(function (data) {
       projectsList = (data && data.projects) || [];
+      window.PW_PROJECTS = projectsList;
       renderBrand(state);
+      if (active === "fleet") renderActive();   // keep the Fleet grid live
     }).catch(function () {});
   }
 
@@ -464,6 +470,7 @@
       captureTrend(state);
       ctx = buildCtx(state, res[1]);
       ctx.trend = trend;
+      ctx.projects = projectsList;
       writeAura(state);
       catchUp(state);
       updateFavicon(state);
@@ -677,7 +684,7 @@
     // g-chord (g then a letter within 600ms)
     if (gPending && Date.now() - gPending < 600) {
       gPending = 0;
-      var map = { c: "console", m: "commands", p: "plan", i: "insights", w: "graph", t: "timeline", s: "shards", d: "doctor" };
+      var map = { c: "console", m: "commands", p: "plan", i: "insights", w: "graph", t: "timeline", s: "shards", f: "fleet", d: "doctor" };
       if (map[k]) { selectTab(map[k]); ev.preventDefault(); return; }
     }
     if (k === "g") { gPending = Date.now(); return; }
@@ -688,7 +695,7 @@
     if (k === "d") { toggleTheme(); ev.preventDefault(); return; }
     if (k === "u") { var b = byId("pw-banner"); if (b && !b.hidden && b.focus) b.focus(); return; }
 
-    if (k >= "1" && k <= "8") {
+    if (k >= "1" && k <= "9") {
       var idx = (+k) - 1;
       if (KEYS[idx]) { selectTab(KEYS[idx]); ev.preventDefault(); }
       return;

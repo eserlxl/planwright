@@ -1491,3 +1491,21 @@ if grep -q '/projects.json' "$APPJS" \
 else
   bad "app.js project-switcher wiring is incomplete (/projects.json, withProject, ?project=, or #pw-project missing)"
 fi
+
+# --- Test DFLEET: the Fleet view is loaded and consumes the project list ------------------
+# The Fleet view renders every tracked project's reactor state from /projects.json (bridged
+# by app.js into window.PW_PROJECTS). Static wiring assertion (no JS DOM harness in this suite).
+IDX="$ROOT/scripts/dashboard/index.html"
+FLEET="$ROOT/scripts/dashboard/views/fleet.js"
+APPJS="$ROOT/scripts/dashboard/app.js"
+if grep -q '/views/fleet.js' "$IDX" \
+   && grep -q 'id="view-fleet"' "$IDX" \
+   && grep -q 'data-view="fleet"' "$IDX" \
+   && grep -q 'PW_VIEWS.fleet' "$FLEET" \
+   && grep -q 'PW_PROJECTS' "$FLEET" \
+   && grep -q 'window.PW_PROJECTS = projectsList' "$APPJS" \
+   && grep -q '{ key: "fleet"' "$APPJS"; then
+  ok "Fleet view is loaded (tab + section + script) and consumes the project list (PW_PROJECTS)"
+else
+  bad "Fleet view wiring incomplete (script/tab/section, PW_VIEWS.fleet, or PW_PROJECTS bridge)"
+fi
