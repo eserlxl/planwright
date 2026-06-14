@@ -208,11 +208,14 @@ starts; `rejected.md` survives, so rejected work stays suppressed across laps) a
 lap with the growth burst re-armed — only an interruption or a hard stop ends it. The lifecycle ladder: pending items → `execute`; structural debt, a stale final point, or a
 carried backlog → `codvisor` (`codshard explore` on a mechanically large repo: ≥120 tracked files
 and ≥2 shardable dirs); a clean but unconverged tree → the same harden sweep; a converged tree →
-`codinventor` — growth is **default-on**, and the banner discloses invent's rare, dwell-gated
-committed `MISSION.md` edits; converged at `deepest_tier: invent` (the earned empty) → the
-cold-start `reset` plus a fresh harden sweep, but only when really necessary — the point must be
-unseeded and the cold frontier shown drained, else it re-surveys or hardens without wiping audit
-memory. Blockers (a dirty tree, doctor failures, a missing
+`codinventor` — growth is **enforced whenever `safe` is off**: at every converged terminal
+codmaster takes one `codinventor` burst regardless of the engine's per-state routing (the banner
+discloses invent's rare, dwell-gated committed `MISSION.md` edits). The engine still routes a
+converged `deepest_tier: invent` point (the earned empty) to a cold-start `reset` plus a fresh
+harden sweep when really necessary — the point must be unseeded and the cold frontier shown
+drained, else it re-surveys or hardens without wiping audit memory — but that invent-dry routing is
+what **`safe`** relays; a default (non-`safe`) drive overrides it with the enforced burst
+(planwright's must-generate `invent` re-surveys a "dry" point and lands the next groundable item). Blockers (a dirty tree, doctor failures, a missing
 commit identity before a mutating run) stop it mechanically before any dispatch.
 
 ```bash

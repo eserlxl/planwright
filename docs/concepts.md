@@ -46,10 +46,11 @@ Three words tune it:
   (keeping the record of rejected ideas, so bad ideas stay buried) and starts a fresh lap, until
   you interrupt it or a hard stop ends the drive.
 
-codmaster adds no behavior of its own — everything it runs is an ordinary planwright command at
-full depth; it only chooses and sequences. And the choosing is mechanical, not vibes: a tested
+The *per-state* choice — which command does this state need? — is mechanical, not vibes: a tested
 decision table (the same one the dashboard's Commands view renders) maps the repo's state to the
-next command.
+next command, and codmaster runs it at full depth. What codmaster adds on top is the **lap
+orchestration**: it drives that table step after step and, unless you pass `safe`, enforces one
+`codinventor` burst per lap before hardening — so a default drive always grows.
 
 ## Cycle and the maturity ladder
 
