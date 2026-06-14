@@ -78,6 +78,22 @@ def _env_float(name, default):
     return default
 
 
+def _env_int(name, default):
+    """A positive int (>= 1) from the environment, else the default. Mirrors _env_float for
+    count-style caps that must be a whole number of slots: a fractional ("0.5"), sub-1, or
+    non-numeric value is invalid and falls back to the default, never silently flooring to 0
+    (int(0.5) == 0 would leave a zero-slot semaphore that 503s every client)."""
+    raw = os.environ.get(name)
+    if raw is not None:
+        try:
+            v = int(raw)
+            if v >= 1:
+                return v
+        except ValueError:
+            pass
+    return default
+
+
 # How often the /events stream polls .planwright/ for changes (seconds).
 POLL_INTERVAL = _env_float("PW_DASH_POLL", 1.0)
 
@@ -92,7 +108,7 @@ HEARTBEAT_INTERVAL = _env_float("PW_DASH_HEARTBEAT", 15.0)
 # without a bound, repeated open/close churn can pile up live threads. A BoundedSemaphore
 # caps the live streams; an over-cap client gets a retriable 503 instead of a new thread.
 # Overridable via PW_DASH_MAX_SSE_CLIENTS (invalid/absent -> 64).
-MAX_SSE_CLIENTS = int(_env_float("PW_DASH_MAX_SSE_CLIENTS", 64))
+MAX_SSE_CLIENTS = _env_int("PW_DASH_MAX_SSE_CLIENTS", 64)
 _sse_slots = threading.BoundedSemaphore(MAX_SSE_CLIENTS)
 
 
