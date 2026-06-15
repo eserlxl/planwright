@@ -519,7 +519,8 @@ assert "never precomputes a chain" in body, "no-precomputed-chain polarity missi
 assert "at-most-once growth burst" in body, "growth bound missing"
 assert "never self-terminates" in body, "growth-bound rationale missing"
 assert "stops at the first convergence" in body, "safe-mode terminal missing"
-assert "in `safe` mode or with the growth step already taken: STOP" in body, "converged terminal check not anchored at the step site"
+assert "in `safe` mode or with the growth step already taken" in body, "converged terminal check not anchored at the step site"
+assert "the post-growth terminal" in body, "bare terminal not re-anchored on the post-growth (qb) step"
 # growth is ENFORCED whenever `safe` is off: at a converged terminal codmaster takes one invent
 # burst REGARDLESS of the engine's invent_class — the engine's invent-dry routing is advisory and
 # is relayed only under `safe`. Only `safe` withholds the burst.
@@ -559,12 +560,48 @@ assert "HEAD unchanged" in body, "no-progress HEAD predicate missing"
 assert "identical recommendation" in body, "no-progress recommendation predicate missing"
 assert "no progress" in body, "no-progress stop reason missing"
 assert "step cap" in body, "step-cap stop reason missing"
+# qb intent-replan — codmaster's top escalation rung (above codinventor): fires only at a
+# post-growth converged terminal (growth already taken this lap), at-most-once per lap, behind a
+# qb >= 0.8.0 capability guard; runs `/qb-plan auto`, parses the deterministic QB_PLAN_AUTO_* line,
+# merges its pending items (deduped vs completed/rejected, re-validated by planwright's OWN
+# validator) and executes them. `safe` can never reach qb (gated on "codinventor already ran"), and
+# qb's dryness — not codinventor's — now defines the loop's final convergence point.
+assert "qb intent-replan" in body, "qb closing-step (top escalation rung) missing"
+assert "closing escalation rung" in body, "qb closing-rung framing missing"
+assert "top rung of the escalation ladder" in body, "qb escalation-ladder position missing"
+assert "Capability/version guard" in body, "qb capability/version guard missing"
+assert "/qb-plan auto" in body, "qb auto-mode invocation missing"
+assert "QB_PLAN_AUTO_OK" in body, "qb success result-line parse missing"
+assert "QB_PLAN_AUTO_ERROR" in body, "qb error result-line parse missing"
+assert "pre-0.8.0" in body, "qb pre-0.8.0 capability fall-through missing"
+assert "skip qb" in body, "qb absent/old skip path missing"
+assert "hanging an unattended loop" in body, "qb pre-0.8.0 interactive-hang rationale missing"
+assert "rejected intent items stay suppressed across laps" in body, "qb dedup-vs-rejected (cross-lap suppression) missing"
+assert "not qb's vendored copy" in body, "qb merge re-validation by planwright's own validator missing"
+assert "zero net-new items after dedup" in body, "qb zero-net-new dry criterion missing"
+assert "qb dry" in body, "qb-dry fall-through label missing"
+assert "the gate enforces the `safe` rule for free" in body, "qb safe-gate (codinventor-already-ran) free-enforcement missing"
+assert "qb run and its follow-on" in body, "qb step-accounting (counts against the 12-step cap) missing"
+# qb at-most-once-per-lap must be ENFORCED, not merely asserted: an explicit per-lap flag (mirroring
+# the growth burst's flag) + a gate conjunct that bars a post-execute re-convergence re-running qb.
+assert "qb-replan taken this lap" in body, "qb at-most-once flag (mirroring the growth flag) missing — re-run on the OK->execute->re-converge path"
+assert "qb intent-replan was not yet taken this lap" in body, "qb at-most-once gate conjunct missing (gate must be codinventor-ran AND qb-not-yet-taken)"
+assert "run /qb-plan auto, then merge .qb/plan.md pending items into .planwright/plan.md and execute" in body, "safe qb hand-off paste line missing"
+# safe prints a DEDICATED banner (not a fragile strike-edit of the growth/loop banner), so the
+# safe-loop banner carries a harden-only termination model with NO qb-dependent termination clause
+# that would contradict "qb intent-replan does not run".
+assert "print a dedicated safe banner" in body, "safe dedicated-banner structure missing (regressed to strike-editing the growth banner)"
+assert "each lap runs harden-only (no growth, no qb)" in body, "safe-loop harden-only termination model missing/contradicts the qb-does-not-run notice"
+assert "run the qb closing step here first" in body, "bare terminal qb-before-STOP wiring missing"
+assert "qb replan's execute included" in body, "loop fully-dry criterion not extended to include qb's execute"
+assert "qb's dryness, not codinventor's" in body, "loop final-point redefinition (qb dryness defines done) missing"
+assert "qb's merged-and-executed seeds" in body, "loop relap-on-qb-net-new path missing"
 # report honesty
 assert "verbatim" in body, "stop-relay verbatim rule missing"
 assert "suppress any next-step suggestion" in body, "broken-stop suggestion suppression missing"
 assert "Print nothing of your own" in body, "print-nothing-else rule missing"
 PY
-then ok "commands/codmaster.md relays the tested coach table and owns its lap orchestration (engine-delegation, safe word, post-growth sharded harden in every lap, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its coach-table-delegation/safe/post-growth-codshard/disclosure contract"; fi
+then ok "commands/codmaster.md relays the tested coach table and owns its lap orchestration (engine-delegation, safe word, post-growth sharded harden in every lap, qb intent-replan closing rung, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its coach-table-delegation/safe/post-growth-codshard/qb-closing-rung/disclosure contract"; fi
 
 # --- commands/dashboard.md launches the bundled read-only dashboard server ---
 # /dashboard wraps `dashboard.py --open`; guard that it resolves the bundled <scripts>

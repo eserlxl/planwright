@@ -1,5 +1,5 @@
 ---
-description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is enforced whenever `safe` is off — at every converged terminal codmaster takes one invent burst (`codinventor`) regardless of the engine's per-state recommendation, at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); after the growth burst the harden is sharded (`codshard explore`, when the repo is shardable) so each lap deep-hardens its freshly-grown code per-component, in every drive — not only under `loop`. The loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step-per-lap safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; `loop` makes the drive infinite — each converged terminal triggers the cold-start reset itself (keeps rejected.md) and begins a new lap with the growth burst re-armed, until interrupted, a hard stop, or a fully-dry lap (the final convergence point, decided only at the lap boundary after the post-growth codshard — never at an intermediate step; `safe loop` composes) — each lap's post-growth harden is sharded by the same general rule above. `parallel` forwards codshard's read-only recon prefetch: a step that dispatches `codshard` gets `parallel` appended to its args (Claude-Code-only, routing-only, never Evidence — degrades to sequential elsewhere), while any step that does not route to codshard prints a one-line nudge to run `/codshard parallel` directly. `parallel` never changes which command the engine chooses — only how a `codshard` dispatch runs (composes with `safe`/`loop`).
+description: The front door. An autonomous driver over planwright's whole capability set — it senses the repo's planning state with the read-only coach engine (status.py --recommend, the same truth table the dashboard's Commands view renders), then runs the required commands consecutively — dispatch, re-sense, dispatch — until the repo reaches a recorded final point, using whatever the state calls for (execute, codvisor, codshard explore, codinventor, the cold-start reset) at maximum depth (10). Growth is enforced whenever `safe` is off — at every converged terminal codmaster takes one invent burst (`codinventor`) regardless of the engine's per-state recommendation, at most once per run (the banner discloses invent's rare, dwell-gated committed MISSION.md edits); after the growth burst the harden is sharded (`codshard explore`, when the repo is shardable) so each lap deep-hardens its freshly-grown code per-component, in every drive — not only under `loop`. Once that post-growth harden re-converges, codmaster runs one **qb intent-replan** — `/qb-plan auto` (when the installed qb is ≥ 0.8.0) — merging its pending items into the plan (deduped against completed/rejected, re-validated) and executing them, the top rung of the escalation ladder (execute → codvisor → codinventor → qb → execute); `safe` never runs qb. The loop stops at convergence, on any hard blocker or failed broad verify, on no progress, or at the 12-step-per-lap safety cap. `advise` prints the recommendation and stops; `safe` runs the same loop without invention capability — it stops at the first convergence and prints the growth command to paste; `loop` makes the drive infinite — each converged terminal triggers the cold-start reset itself (keeps rejected.md) and begins a new lap with the growth burst re-armed, until interrupted, a hard stop, or a lap whose qb intent-replan itself comes up dry (the final convergence point, decided only at the lap boundary after the post-growth codshard and qb replan — never at an intermediate step; `safe loop` composes) — each lap's post-growth harden is sharded by the same general rule above. `parallel` forwards codshard's read-only recon prefetch: a step that dispatches `codshard` gets `parallel` appended to its args (Claude-Code-only, routing-only, never Evidence — degrades to sequential elsewhere), while any step that does not route to codshard prints a one-line nudge to run `/codshard parallel` directly. `parallel` never changes which command the engine chooses — only how a `codshard` dispatch runs (composes with `safe`/`loop`).
 argument-hint: "advise | safe | loop | parallel [J] | (empty = sense → dispatch → re-sense, consecutively until the final point)"
 ---
 
@@ -78,12 +78,12 @@ missing script), print
 and STOP — never substitute a prose decision table.
 
 **Main loop** (cases 3 and 4). First print exactly one cost banner:
-`codmaster: autonomous drive to the final point — sense → dispatch → re-sense, at depth 10, until convergence (max 12 steps); the converged terminal always earns one enforced invent burst (codinventor) unless run with safe, after which the harden is sharded (codshard explore) when the repo is shardable. Note: invent may make rare, small committed edits to repo files, including MISSION.md.`
+`codmaster: autonomous drive to the final point — sense → dispatch → re-sense, at depth 10, until convergence (max 12 steps); the converged terminal always earns one enforced invent burst (codinventor) unless run with safe, after which the harden is sharded (codshard explore) when the repo is shardable; then, once converged after growth, codmaster runs one qb intent-replan (/qb-plan auto, qb ≥ 0.8.0) and executes its merged items before stopping. Note: invent may make rare, small committed edits to repo files, including MISSION.md.`
 In `loop` mode print this first clause instead:
-`codmaster: infinite drive — laps of sense → dispatch → re-sense at depth 10; each lap hardens → grows (codinventor) → deep-hardens the grown code per-component (codshard, when the repo is shardable) → resets (cold-start, keeps rejected.md) into the next, until interrupted, a hard stop, or a fully-dry lap (final convergence) — termination is decided only at the lap boundary, never mid-lap (max 12 steps per lap).`
-In `safe` mode (either banner), the trailing invent notice is replaced by:
-`safe: invention capability off — the loop stops at the first convergence.`
-(in `safe loop`, by: `safe: invention capability off — each lap runs harden-only.`)
+`codmaster: infinite drive — laps of sense → dispatch → re-sense at depth 10; each lap hardens → grows (codinventor) → deep-hardens the grown code per-component (codshard, when the repo is shardable) → on re-convergence runs a qb intent-replan (/qb-plan auto, qb ≥ 0.8.0) and executes its merged items → resets (cold-start, keeps rejected.md) into the next; the drive ends only when interrupted, on a hard stop, or on a lap whose qb replan itself comes up dry (final convergence) — termination is decided only at the lap boundary, never mid-lap (max 12 steps per lap).`
+In `safe` mode, do **not** strike-edit either growth banner above — print a dedicated safe banner instead (safe runs neither invention nor qb, so no growth/qb disclosure and no qb-dependent termination clause appear at all):
+- `safe` without `loop`: `codmaster: drive to the final point — sense → dispatch → re-sense, at depth 10, until convergence (max 12 steps). safe: invention capability off — the loop stops at the first convergence; qb intent-replan does not run — to replan manually, run /qb-plan auto, then merge .qb/plan.md pending items into .planwright/plan.md and execute.`
+- `safe loop`: `codmaster: infinite drive — laps of sense → dispatch → re-sense at depth 10; each lap runs harden-only (no growth, no qb) then resets (cold-start, keeps rejected.md) into the next, until interrupted, a hard stop, or a fully-dry lap (final convergence) — termination is decided only at the lap boundary, never mid-lap (max 12 steps per lap). safe: invention capability off — qb intent-replan does not run — to replan manually, run /qb-plan auto, then merge .qb/plan.md pending items into .planwright/plan.md and execute.`
 In `parallel` mode (any banner), append this clause to the printed banner:
 `parallel: each codshard dispatch fans out read-only recon subagents (J at a time, else host-capped) — extra model calls bought for wall-clock; routing-only, never Evidence, Claude-Code-only (sequential elsewhere).`
 In **scope** mode (any banner), append this clause to the printed banner:
@@ -128,29 +128,38 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
      engine's invent-dry choice (a bare or `loop` drive grows instead).
    - otherwise, in `loop` mode: the converged terminal continues instead of stopping — **but the
      termination decision is taken here, at the lap boundary, after the post-growth codshard
-     harden, never at an intermediate step**: if the whole lap advanced HEAD zero times (every
-     `commits_i` of this lap was 0, the growth burst included; the lap-opening `reset` moves
+     harden, never at an intermediate step, and (when `safe` is off) only after the qb intent-replan closing step (the named block below, at-most-once per lap — its flag bars re-running it on the re-convergence after its own `execute`) has run at this same boundary**: if the whole lap advanced HEAD zero times (every
+     `commits_i` of this lap was 0, the growth burst and the qb replan's execute included; the lap-opening `reset` moves
      nothing in git — it only clears gitignored `.planwright/` tool-state — so it never masks a
      dry lap), the project has reached its **final convergence point** — STOP and report `no progress` (a fully-dry lap is the only
      honest "done" for an infinite drive: invent's must-generate mandate means a lap that grew
-     and still moved nothing has nothing groundable left). Otherwise the lap made progress, so
+     and still moved nothing has nothing groundable left, and the lap's qb intent-replan came up dry too — qb's dryness, not codinventor's, now defines this final "done"). Otherwise the lap made progress (the growth burst, or qb's merged-and-executed seeds, moved HEAD), so
      relap: print the next lap's header `=== codmaster lap L ===`, dispatch planwright with
      `reset` as this step (typing `loop` is the consent for repeated cold starts; `reset` keeps
      `rejected.md`, so rejected work stays suppressed across laps), restart the step counter,
-     re-arm the growth burst, and continue — the next SENSE reads first contact and routes to a
+     re-arm the growth burst and the qb intent-replan, and continue — the next SENSE reads first contact and routes to a
      fresh harden sweep. **Under a scope, the lap-boundary relap does not reset** — `reset` is a
      whole-repo `.planwright` wipe the scope forbids (step 0, where codmaster never auto-routes the
      whole-repo moves), so a scoped `loop` drive instead re-senses the scoped component directly at
-     the lap boundary (re-arm the growth burst, restart the step counter, **no `reset` dispatch**),
+     the lap boundary (re-arm the growth burst and the qb intent-replan, restart the step counter, **no `reset` dispatch**),
      keeping sibling components' audit memory intact; only an **unscoped** loop relap dispatches
      `reset`. The infinite drive ends only on interruption or a hard stop (a blocker,
      a hard blocker, or a broad-verify failure — these stop it immediately at any step), or, at
      this lap boundary, a fully-dry lap (the final convergence point); the soft no-progress guard
      never stops a lap mid-flight.
-   - otherwise, in `safe` mode or with the growth step already taken: STOP the loop — the
-     recorded final point is the terminal state. (In `safe` mode print the growth recommendation
-     and the exact line to paste — `/planwright:codinventor`, or the `/codinventor` alias — plus
-     the `reset_nudge` alternative when present.)
+   - otherwise, in `safe` mode or with the growth step already taken — the post-growth terminal.
+     **When `safe` is off AND the qb intent-replan has not yet run this lap, run the qb closing step
+     here first** (the named block below: guard → run `/qb-plan auto` → merge → execute → re-sense):
+     if qb merged net-new items, executing them un-converges the plan, so the next SENSE resumes the
+     main loop (still under the 12-step cap) rather than stopping; only when qb comes up dry (error /
+     absent / zero net-new) is there nothing left to execute, so STOP the loop — the recorded final
+     point is the terminal state. When the qb intent-replan **has already run this lap** — the
+     re-convergence after its own `execute` — its at-most-once flag bars a second run, so this
+     terminal is a plain STOP. In `safe` mode qb never runs — its gate is "codinventor already ran", which `safe`
+     never satisfies — so STOP at once and print the growth recommendation and the exact line to
+     paste (`/planwright:codinventor`, or the `/codinventor` alias), plus the qb hand-off line
+     `safe: run /qb-plan auto, then merge .qb/plan.md pending items into .planwright/plan.md and
+     execute.`, and the `reset_nudge` alternative when present.
 4. **Dispatch the record's command** under a step header
    `=== codmaster step i/12: <command> <args> ===`. Before the dispatch, re-stamp the beacon
    with the step as its detail —
@@ -213,7 +222,8 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    the guaranteed-to-generate growth burst rather than be misread as "done"; the 12-step cap is
    the mid-lap runaway backstop, and the no-progress verdict is instead evaluated once at the lap
    boundary (the terminal check above), where a lap that moved HEAD zero times across all its
-   steps — through the post-growth codshard harden — is the final convergence point.
+   steps — through the post-growth codshard harden and the qb intent-replan's execute — is the
+   final convergence point.
 
 **The reset decision — only when really necessary** (shown, not assumed; the engine's
 `_reset_necessity` rule). This engine-`reset` relay is reached only under `safe` — outside `safe`
@@ -241,12 +251,46 @@ engine's `invent_class`:
   capability — everything else (execute, codvisor, codshard, reset, and the engine's invent-dry
   routing) still dispatches; the growth recommendation is printed to paste instead.
 
+**The qb intent-replan — the closing escalation rung.** Once the growth burst has been taken this
+lap **and** the post-growth harden has re-converged — so this is a converged terminal reached with
+the growth step already done, never the first pre-growth convergence — and **only when `safe` is
+off**, codmaster runs one **qb intent-replan** as the top rung of the escalation ladder
+(`execute → codvisor → codinventor → qb intent-replan → execute → done`). It is **at-most-once per
+lap**, enforced exactly like the growth burst by an explicit "qb-replan taken this lap" flag (set
+the moment this step runs, reset on relap), and gated on **"codinventor already ran this lap AND the
+qb intent-replan was not yet taken this lap"**. The first conjunct makes `safe`, which never grows,
+unable to ever reach it — the gate enforces the `safe` rule for free; the second bars a post-`execute`
+re-convergence from re-running qb within the same lap (without it, the OK→execute→re-sense path of
+step 5 would loop back into this terminal and dispatch `/qb-plan auto` again). The step:
+1. **Capability/version guard.** Confirm the installed qb exposes the auto-mode contract — qb ≥
+   0.8.0, i.e. `/qb-plan auto` runs non-interactively and prints the single machine-detectable
+   result line `QB_PLAN_AUTO_OK:` / `QB_PLAN_AUTO_ERROR:`. If qb is absent or pre-0.8.0, **skip qb**
+   and fall through to today's terminal behavior — this prevents a pre-0.8.0 qb from silently
+   dropping to interactive gates and hanging an unattended loop.
+2. **Run `/qb-plan auto`** under a step header `=== codmaster step i/12: qb-plan auto ===`, marking
+   the qb-replan taken this lap (it writes only under `.qb/`, never source); wait for it to finish,
+   and parse its single final result line.
+3. On **`QB_PLAN_AUTO_OK`**, **merge** `.qb/plan.md`'s pending items into `.planwright/plan.md`:
+   take its pending items, **dedup** against existing pending + `completed.md` + `rejected.md`
+   (rejected persists across `reset`, so rejected intent items stay suppressed across laps — the
+   linchpin that keeps an infinite drive honest), tag the merged items with qb provenance, and
+   **re-validate** the merged `.planwright/plan.md` with planwright's own current validator, not
+   qb's vendored copy.
+4. **Run `execute`** on the merged seeds (implement + verify each). Merging pending items
+   un-converges the plan, so the next SENSE would route to `execute` anyway; making it an explicit
+   step guarantees it rather than leaving it emergent.
+5. **Re-sense** and continue under the normal main loop.
+On `QB_PLAN_AUTO_ERROR`, qb absent/pre-0.8.0, or **zero net-new items after dedup**, treat it as
+**qb dry**: nothing to execute, fall through to the existing terminal/stop path — so a fully-dry
+lap is one whose qb replan itself came up dry. The qb run and its follow-on `execute` each count
+against the 12-step/lap cap, and qb re-arms on relap alongside the growth burst.
+
 **REPORT** (after the loop ends — terminal, cap, or early stop). First remove the run-activity
 beacon: `python3 <scripts>/state.py activity stop --root .` (best-effort, never block — this
 applies to every way the loop ends, including hard stops). Then print a short cumulative
 summary: steps taken (out of 12 for the lap), the per-step commands and verified-commit counts in
-order (e.g. `codvisor 3 → execute 2 → codinventor 1 → codvisor 0` ), whether the growth burst
-ran, whether `parallel` was active and whether a `codshard` dispatch consumed it (if `parallel`
+order (e.g. `codvisor 3 → execute 2 → codinventor 1 → codshard 0 → qb-plan 1 → execute 2` ), whether the growth burst
+ran, whether the qb intent-replan ran (and whether it merged net-new items), whether `parallel` was active and whether a `codshard` dispatch consumed it (if `parallel`
 was active but codshard was never dispatched, append `parallel had no effect this run — use
 /codshard parallel directly`), the final-point state from the last SENSE relayed verbatim, and
 the stop reason (`converged

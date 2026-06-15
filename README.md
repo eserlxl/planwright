@@ -347,6 +347,10 @@ Then ask the assistant to run `planwright` or use the `cod*` shortcut commands (
 
 On large repos or at higher planning depths, the plan path's mechanical stages (especially Stage 1 scan and Stage 1.5 graph build) can emit bulky `rg`/`git` output. The skill can route that through [context-mode](https://github.com/mksglu/context-mode) (`ctx_execute` / `ctx_batch_execute`) so only summarized results enter the session. The integration is optional on every host; without it, Planwright falls back to capped Shell output or the by-hand fallbacks in the skill.
 
+## Optional: qb (deep intent-replan)
+
+[qb](https://github.com/eserlxl/qb.git) is a separate deep project planner. When it is installed (**qb ≥ 0.8.0**, which exposes the non-interactive `/qb-plan auto` mode), `codmaster` uses it as the **top rung of its escalation ladder**: at a converged terminal — after the `codinventor` growth burst and its post-growth harden re-converge — `codmaster` runs `/qb-plan auto`, merges the resulting `.qb/plan.md` pending items into `.planwright/plan.md` (deduped against completed/rejected and re-validated by Planwright's own validator), and executes them. In a `loop` drive the final convergence point then becomes a lap whose qb replan itself comes up dry. The dependency is **optional**: if qb is absent or older than 0.8.0, `codmaster` simply skips the qb step and behaves exactly as before, and `safe` mode never runs qb at all.
+
 ## Quick Start
 
 Examples below use Claude Code slash-command spelling. On Codex, Cursor, Antigravity, or Gemini, use

@@ -126,14 +126,14 @@ at every converged terminal (any tier, including `deepest_tier: invent`) codmast
 disclosing invent's rare dwell-gated `MISSION.md` edits. Only `safe` withholds the burst and instead
 relays the engine's invent-dry routing → `reset` plus a fresh harden sweep, but **only when really
 necessary** — the point must be unseeded and the cold frontier shown drained; a seed-scoped point
-re-surveys and an undrained frontier hardens instead. Its `advise` word prints the recommendation
+re-surveys and an undrained frontier hardens instead. After the post-growth harden re-converges, a non-`safe` drive runs one **qb intent-replan** (`/qb-plan auto`, when qb ≥ 0.8.0) as the closing escalation rung — merging its pending items into the plan (deduped against completed/rejected, re-validated by planwright's own validator) and executing them. Its `advise` word prints the recommendation
 (plus, at an invent-dry terminal, the notice that a non-`safe` drive would grow there instead) and
-stops; its `safe` word runs the same loop but never invents — it withholds the growth burst (printing
-the `codinventor` line to paste) while still dispatching every non-invent move, including the engine's
+stops; its `safe` word runs the same loop but never invents and never runs qb — it withholds the growth burst (printing
+the `codinventor` line and the qb hand-off to paste) while still dispatching every non-invent move, including the engine's
 invent-dry `reset`/`codvisor`; its `loop` word makes the drive infinite — each lap grows, deep-hardens
-the grown code, then resets (cold-start, keeps `rejected.md`) into the next with growth re-armed, until
-interrupted, a hard stop, or a fully-dry lap (the final convergence point, decided at the lap boundary
-after the post-growth harden, never mid-lap) (`safe loop` composes). A `path <X>` / `lib <X>` scope aims
+the grown code, runs the qb intent-replan and executes its merged items, then resets (cold-start, keeps `rejected.md`) into the next with growth and qb re-armed, until
+interrupted, a hard stop, or a lap whose qb replan itself comes up dry (the final convergence point, decided at the lap boundary
+after the post-growth harden and qb replan, never mid-lap) (`safe loop` composes). A `path <X>` / `lib <X>` scope aims
 the whole drive at one component — it threads into the engine (`status.py --recommend --scope`) so
 pending, debt, and convergence are Focus-restricted, and the two whole-repo moves (`codshard`, `reset`)
 never auto-route under it, so the harden stays a scoped `codvisor`. The decision table lives in the
