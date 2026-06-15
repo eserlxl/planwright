@@ -598,6 +598,21 @@ assert "qb's merged-and-executed seeds" in body, "loop relap-on-qb-net-new path 
 # report honesty
 assert "verbatim" in body, "stop-relay verbatim rule missing"
 assert "suppress any next-step suggestion" in body, "broken-stop suggestion suppression missing"
+# the closed stop set: codmaster owns NO discretionary stop — it never ends/pauses/aborts the drive
+# on its own judgment (cost, "marginal value", a "judgment checkpoint", an "already-mature tree", or
+# leads that stopped reproducing are NOT stop reasons). A dispatched sub-run (esp. codshard) runs to
+# completion; an interruption counts only when it arrives from OUTSIDE (never self-declared); and at
+# least one full lap must complete before codmaster stops of its own accord. (Regression: a real loop
+# run paused mid-codshard at "Shard 2/3" citing a self-declared "judgment checkpoint" / "marginal value".)
+assert "No discretionary stop — the stop set is closed." in body, "closed-stop-set rule missing"
+assert "\"I judged it not worth continuing\" is a forbidden one" in body, "discretionary-stop prohibition missing"
+assert "A dispatched sub-run runs to its own completion or its own hard stop." in body, "dispatched-sub-run-to-completion rule missing (codshard must finish all shards + closing round)"
+assert "never because the orchestrator decided from the outside" in body, "outside-the-run sub-run abort guard missing"
+assert "At least one full lap must complete" in body, "one-full-lap floor missing (must not stop before a lap closes)"
+assert "re-survey, do not quit" in body, "maturity-is-a-reason-to-finish rule missing"
+assert "interruption counts only when it arrives from outside the drive" in body, "external-only interruption rule missing (closes the self-declared-interruption escape hatch)"
+assert "codmaster never *declares* an interruption on its own" in body, "self-attributed interruption prohibition missing"
+assert "never by treating a lap boundary as an interruption point" in body, "lap-boundary-is-not-an-interruption-point guard missing (closes the boundary seam: a model could relabel a self-chosen boundary stop an 'anticipated interruption')"
 assert "Print nothing of your own" in body, "print-nothing-else rule missing"
 PY
 then ok "commands/codmaster.md relays the tested coach table and owns its lap orchestration (engine-delegation, safe word, post-growth sharded harden in every lap, qb intent-replan closing rung, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its coach-table-delegation/safe/post-growth-codshard/qb-closing-rung/disclosure contract"; fi

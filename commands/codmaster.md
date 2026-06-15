@@ -225,6 +225,57 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    steps — through the post-growth codshard harden and the qb intent-replan's execute — is the
    final convergence point.
 
+**No discretionary stop — the stop set is closed.** codmaster has **no authority to end, pause, or
+abort the drive on its own judgment**, in any mode; the stop reasons named above are the *whole* set,
+and codmaster never adds one of its own. A stop is legitimate **only when some named mechanism
+produced it** — a signal codmaster **receives**, never a verdict it **decides**: the engine record's
+`blockers` array (the mechanical blocker stop); the dispatched run's own hard blocker or broad-verify
+failure (its own stops, relayed verbatim); the no-progress predicate — HEAD unchanged **AND** the
+fresh SENSE yields the identical recommendation — which stops only a **bare** (non-`loop`) run; the
+**12-step-per-lap** runaway cap; the **converged terminal** (`converged at the final point`), which a
+non-`loop` drive takes once the post-growth harden re-converges and the qb intent-replan rung is spent
+for the lap (dry, or its net-new already merged-and-executed under the at-most-once flag), and which
+in `safe` is the first convergence (safe runs neither growth nor qb); a genuine external
+**interruption**; or — in `loop` — the **lap-boundary fully-dry lap** (every `commits_i` of the lap,
+the growth burst and the qb replan's `execute` included, was 0), decided at the boundary *after* the
+post-growth `codshard` harden and the qb intent-replan have both run. "The engine returned a blocker /
+the dispatched run hard-stopped / the predicate matched / the plan converged with qb dry / the lap
+came up fully dry" is an allowed stop; **"I judged it not worth continuing" is a forbidden one** —
+asserting it is a spec violation, not a verdict. So codmaster never stops, and never aborts an
+in-flight dispatch, for **cost**, token/compute budget, effort, or wall-clock; for **"marginal
+value"**, **"diminishing returns"**, or **"low ROI"**; for a **"clean / natural / honest boundary"**
+or a self-declared **"judgment checkpoint"**; for a tree that **"looks mature / already-hardened /
+effectively converged"** (a *recorded* converged final point is the allowed stop, an *eyeballed* one
+is not); for **"leads that stopped reproducing"**; or for any asserted **"nothing groundable left"**
+that is not a *recorded* convergence or a *completed* fully-dry lap — none of these is in the set, and
+a pause that does not relap **is** a stop. A maturing or "dry-looking" tree is **exactly** what the
+enforced growth burst (`codinventor`'s must-generate mandate) and the qb intent-replan exist to push
+past — so maturity is a reason to **finish** the lap, never to end it: **re-survey, do not quit.**
+
+An **interruption counts only when it arrives from outside the drive** — an actual user message or
+host cancellation (Ctrl-C) that codmaster *receives*; codmaster never *declares* an interruption on
+its own, never pauses **"to check in"** or to **"await confirmation"**, and a self-narrated mid-lap
+pause ("a clean place to stop", "awaiting your go-ahead") is a forbidden discretionary stop, not an
+interruption. Absent a genuine external signal it can point to (not one it infers), codmaster may
+stop only when one of the **named mechanisms above** fires — never at a self-chosen mid-lap point, and
+never by treating a lap boundary as an interruption point.
+
+**A dispatched sub-run runs to its own completion or its own hard stop.** Once a `codshard` sweep is
+dispatched it must finish **all** shards **and** its closing whole-repo round before the next SENSE —
+and the same holds for any dispatched `execute`/`cycle`. While such a sub-run is in flight — e.g. at
+"Shard 2/3" — codmaster waits it out; it may stop the sub-run early **only** because that run itself
+surfaced a hard blocker or a failing broad verify (a signal from *inside* the run), **never because
+the orchestrator decided from the outside** that the remaining shards weren't worth it.
+
+**At least one full lap must complete before codmaster stops of its own accord.** Because the stop set
+is mechanical, no drive ends because codmaster *chose* to end it — and a healthy drive cannot close
+before its lap does: in a default or `loop` drive that means through the post-growth `codshard` harden
+and the qb intent-replan; in `safe`, through the harden to its first convergence (safe runs neither
+growth nor qb). A mechanism may end a drive earlier — a hard stop (a `blockers` entry, a hard blocker,
+or a broad-verify failure), the bare-run no-progress predicate, the 12-step cap, or a genuine external
+interruption — but codmaster never manufactures one, and never ends a lap mid-flight on judgment.
+There is no "stop early because it looks done."
+
 **The reset decision — only when really necessary** (shown, not assumed; the engine's
 `_reset_necessity` rule). This engine-`reset` relay is reached only under `safe` — outside `safe`
 the enforced growth burst pre-empts the engine's invent-dry routing, so a bare or `loop` drive
