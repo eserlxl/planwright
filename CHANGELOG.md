@@ -20,6 +20,20 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.59.0] - 2026-06-15
+
+### Added
+- `codmaster` now wires qb `/qb-plan auto` in as the top escalation rung at the post-growth terminal — at most once per lap, guarded by a flag so a dry qb replan redefines the loop final point. Safe drives never reach qb (they keep their dedicated banners). A presence-only guard replaces the earlier version-gating, so qb is invoked whenever it is installed.
+- `make-plugin.sh` scaffolds `AGENTS.md` and `GEMINI.md` alongside the existing host adapters.
+
+### Changed
+- Plugin-only distribution: dropped `.claude-plugin/marketplace.json`; planwright now publishes via the `eserlxl/claude-marketplace` aggregator. `bump-version` and the version-contract tests no longer manage a marketplace manifest, and the README/install docs point at the aggregator.
+
+### Fixed
+- Dashboard SSE-client cap now validates `PW_DASH_MAX_SSE_CLIENTS` as a positive integer, falling back safely on fractional or invalid input (with regression coverage).
+- Command-layer `<scripts>` references resolve via `CLAUDE_PLUGIN_ROOT` so they work from any working directory.
+- `check-links.py` now checks raw HTML `src` targets in docs links.
+
 ## [1.58.1] - 2026-06-15
 
 ### Changed
