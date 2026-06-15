@@ -349,7 +349,7 @@ On large repos or at higher planning depths, the plan path's mechanical stages (
 
 ## Optional: qb (deep intent-replan)
 
-[qb](https://github.com/eserlxl/qb.git) is a separate deep project planner. When it is installed (**qb ≥ 0.8.0**, which exposes the non-interactive `/qb-plan auto` mode), `codmaster` uses it as the **top rung of its escalation ladder**: at a converged terminal — after the `codinventor` growth burst and its post-growth harden re-converge — `codmaster` runs `/qb-plan auto`, merges the resulting `.qb/plan.md` pending items into `.planwright/plan.md` (deduped against completed/rejected and re-validated by Planwright's own validator), and executes them. In a `loop` drive the final convergence point then becomes a lap whose qb replan itself comes up dry. The dependency is **optional**: if qb is absent or older than 0.8.0, `codmaster` simply skips the qb step and behaves exactly as before, and `safe` mode never runs qb at all.
+[qb](https://github.com/eserlxl/qb.git) is a separate deep project planner. When it is installed, `codmaster` uses it as the **top rung of its escalation ladder**: at a converged terminal — after the `codinventor` growth burst and its post-growth harden re-converge — `codmaster` runs `/qb-plan auto` (qb's non-interactive planning mode), merges the resulting `.qb/plan.md` pending items into `.planwright/plan.md` (deduped against completed/rejected and re-validated by Planwright's own validator), and executes them. In a `loop` drive the final convergence point then becomes a lap whose qb replan itself comes up dry. The dependency is **optional**: if qb is not installed, `codmaster` simply skips the qb step and behaves exactly as before, and `safe` mode never runs qb at all.
 
 ## Quick Start
 
