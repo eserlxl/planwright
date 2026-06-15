@@ -83,7 +83,7 @@ fi
 # skills/*/SKILL.md frontmatter in lockstep; nothing else guards that a hand-edit /
 # partial bump did not drift them, which would make version/upgrade report a wrong
 # version. Assert all three agree. (This repo is plugin-only — it ships no
-# marketplace.json; it is published via the external eserlxl/marketplace aggregator.)
+# marketplace.json; it is published via the external eserlxl/claude-marketplace aggregator.)
 if python3 - "$ROOT" <<'PY' 2>/dev/null
 import json, os, re, sys
 root = sys.argv[1]

@@ -23,7 +23,7 @@ milestones, read these:
 ## [1.58.1] - 2026-06-15
 
 ### Changed
-- Plugin-only: drop .claude-plugin/marketplace.json; publish via the eserlxl/marketplace aggregator. bump-version and the version-contract tests no longer manage a marketplace manifest.
+- Plugin-only: drop .claude-plugin/marketplace.json; publish via the eserlxl/claude-marketplace aggregator. bump-version and the version-contract tests no longer manage a marketplace manifest.
 
 ## [1.58.0] - 2026-06-14
 

@@ -38,7 +38,7 @@ The difference is control. Planwright is local, free, agent-neutral, and file-ba
 On Claude Code:
 
 ```bash
-/plugin marketplace add eserlxl/marketplace
+/plugin marketplace add eserlxl/claude-marketplace
 /plugin install planwright@eserlxl
 ```
 
@@ -227,7 +227,7 @@ Because of this, any agent that reliably reads a project `AGENTS.md` file can ho
 
 The recommended path is the plugin install — the same two commands as
 [Quick Install](#quick-install). Planwright is published as a plugin through the
-dedicated [`eserlxl/marketplace`](https://github.com/eserlxl/marketplace)
+dedicated [`eserlxl/claude-marketplace`](https://github.com/eserlxl/claude-marketplace)
 aggregator and ships no marketplace manifest of its own, so a local clone cannot
 be added as a marketplace. To work from a local clone, copy the skill directly:
 copy `skills/planwright/` into `~/.claude/skills/`.
