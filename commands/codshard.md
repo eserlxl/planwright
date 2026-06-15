@@ -103,6 +103,9 @@ target repo) — and run `python3 <scripts>/state.py activity start codshard --r
 sandbox when available. The beacon is best-effort telemetry — if the script cannot run, skip it
 and proceed; never block on it.
 
+Also record the **run-start ref** here — `git rev-parse HEAD` (best-effort) — the HEAD the sweep
+opens at; it is the `--since` anchor for the run-close reconciliation below.
+
 **Parallel recon (opt-in, Claude Code only).** When `parallel` was passed and the host exposes a
 subagent primitive (Claude Code's Agent tool), launch — before the shard loop — one recon subagent
 per selected `path` shard (`lib` shards get no recon — their paths resolve only inside planwright),
@@ -155,7 +158,14 @@ stopped on a broken tree) — run the closing phase **exactly once**:
   flag would only double-spend on the attention redistribution sharding itself provides, which
   is why the shard loop never escalates.
 
-After the closing round (or an early stop), first remove the run-activity beacon:
+After the closing round (or an early stop), first **reconcile the run's commits** — the mechanical
+safety net behind SKILL.md's completion-accounting invariant: a shard or closing round that
+committed a fix inline without landing it would otherwise silently miss `completed.md`, the only
+file the dashboard reads. Run
+`python3 <scripts>/lifecycle.py reconcile-sweep --since <run-start ref> --mode repair --root .planwright`
+(same `<scripts>` as the beacon) — it records every non-merge, non-release commit since the
+run-start ref that `completed.md` does not already carry, idempotently and git-verified; best-effort,
+never block (per-item `land` stays the primary path, the sweep only catches drift). Then remove the run-activity beacon:
 `python3 <scripts>/state.py activity stop --root .` (best-effort, never block — this applies to
 every way the run ends, including hard stops). Then print a short cumulative summary: shards completed (out
 of `K`), the per-shard verified-commit counts in order (e.g. `commits 2 → 0 → 1 across shards

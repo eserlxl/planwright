@@ -94,6 +94,11 @@ Then stamp the run-activity beacon so the dashboard's reactor names this run: ru
 (same `<scripts>` as SENSE). The beacon is best-effort telemetry — if the script cannot run, skip
 it and proceed; never block on it.
 
+Also record the **lap-start ref** here — `git rev-parse HEAD` (best-effort) — the HEAD this lap
+opens at. It is the `--since` anchor for the lap-close reconciliation in REPORT; in `loop` mode
+re-record it at each new lap (the relap step below), and because the lap-opening `reset` moves
+nothing in git the ref is stable across it.
+
 Then repeat, for each step `i` (from 1, **never exceeding 12 steps** per lap — the runaway
 safety cap; a bare run is a single lap, and in `loop` mode the counter restarts each lap):
 
@@ -137,11 +142,12 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
      relap: print the next lap's header `=== codmaster lap L ===`, dispatch planwright with
      `reset` as this step (typing `loop` is the consent for repeated cold starts; `reset` keeps
      `rejected.md`, so rejected work stays suppressed across laps), restart the step counter,
-     re-arm the growth burst and the qb intent-replan, and continue — the next SENSE reads first contact and routes to a
+     re-arm the growth burst and the qb intent-replan, re-record the lap-start ref
+     (`git rev-parse HEAD`), and continue — the next SENSE reads first contact and routes to a
      fresh harden sweep. **Under a scope, the lap-boundary relap does not reset** — `reset` is a
      whole-repo `.planwright` wipe the scope forbids (step 0, where codmaster never auto-routes the
      whole-repo moves), so a scoped `loop` drive instead re-senses the scoped component directly at
-     the lap boundary (re-arm the growth burst and the qb intent-replan, restart the step counter, **no `reset` dispatch**),
+     the lap boundary (re-arm the growth burst and the qb intent-replan, restart the step counter, re-record the lap-start ref, **no `reset` dispatch**),
      keeping sibling components' audit memory intact; only an **unscoped** loop relap dispatches
      `reset`. The infinite drive ends only on interruption or a hard stop (a blocker,
      a hard blocker, or a broad-verify failure — these stop it immediately at any step), or, at
@@ -334,7 +340,18 @@ On `QB_PLAN_AUTO_ERROR`, qb absent, or **zero net-new items after dedup**, treat
 lap is one whose qb replan itself came up dry. The qb run and its follow-on `execute` each count
 against the 12-step/lap cap, and qb re-arms on relap alongside the growth burst.
 
-**REPORT** (after the loop ends — terminal, cap, or early stop). First remove the run-activity
+**REPORT** (after the loop ends — terminal, cap, or early stop; in `loop` mode also at the end of
+every lap, just before its reset step). First **reconcile the lap's commits** — the mechanical
+safety net behind SKILL.md's completion-accounting invariant: a step that committed a fix inline
+without landing it (a `codshard`/`codinventor`/`execute` commit not recorded) would otherwise
+silently miss `completed.md`, the only file the dashboard reads. Run
+`python3 <scripts>/lifecycle.py reconcile-sweep --since <lap-start ref> --mode repair --root .planwright`
+(same `<scripts>` as SENSE) — it records every non-merge, non-release commit since this lap's
+lap-start ref that `completed.md` does not already carry, idempotently and git-verified. This is
+best-effort bookkeeping that runs at **every** lap close (in `loop` before each lap's reset,
+otherwise at the drive's end) — **never block on it, and it is not a stop or a judgment** (it
+records, it never decides); per-item `land` stays the primary path, the sweep only catches drift.
+Then remove the run-activity
 beacon: `python3 <scripts>/state.py activity stop --root .` (best-effort, never block — this
 applies to every way the loop ends, including hard stops). Then print a short cumulative
 summary: steps taken (out of 12 for the lap), the per-step commands and verified-commit counts in

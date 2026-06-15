@@ -440,6 +440,23 @@ sys.exit(1 if need else 0)
 PY
 then ok "commands/codshard.md peels a path/lib scope into a single-entry shard list (cycle stays first token)"; else bad "commands/codshard.md scope-peel missing or its scope-to-shard-list rule was dropped"; fi
 
+# --- Test 16d: codshard wires the run-close reconcile-sweep (completion-accounting net) ---
+# A shard or closing round that commits a fix inline without landing it would silently miss
+# completed.md (the only file the dashboard reads). codshard must capture a run-start ref and run
+# lifecycle.py reconcile-sweep --since <ref> at run-end so those drifted commits are recorded.
+CMD="$ROOT/commands/codshard.md"
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+need = []
+if "run-start ref" not in t: need.append("run-start-ref-capture")
+if "lifecycle.py reconcile-sweep --since" not in t: need.append("reconcile-sweep-call")
+if "completion-accounting" not in t: need.append("invariant-framing")
+if "${CLAUDE_PLUGIN_ROOT}/scripts" not in t: need.append("scripts-resolution")
+sys.exit(1 if need else 0)
+PY
+then ok "commands/codshard.md wires a run-close reconcile-sweep over the run's commits (completion-accounting net)"; else bad "commands/codshard.md lost the run-close reconcile-sweep wiring (run-start ref / --since / invariant framing)"; fi
+
 # --- Test 17: commands/codmaster.md is the autonomous front-door driver ---
 # codmaster owns NO decision logic: the table lives in status.py --recommend (cross-pinned
 # against the dashboard coach via tests/fixtures/coach-table.json), and codmaster senses,
@@ -616,6 +633,28 @@ assert "never by treating a lap boundary as an interruption point" in body, "lap
 assert "Print nothing of your own" in body, "print-nothing-else rule missing"
 PY
 then ok "commands/codmaster.md relays the tested coach table and owns its lap orchestration (engine-delegation, safe word, post-growth sharded harden in every lap, qb intent-replan closing rung, verbatim relay, no prose table)"; else bad "commands/codmaster.md malformed or lost its coach-table-delegation/safe/post-growth-codshard/qb-closing-rung/disclosure contract"; fi
+
+# --- Test 17b: codmaster wires the lap-close reconcile-sweep (completion-accounting net) ---
+# A step that commits a fix inline without landing it (codshard/codinventor/execute) would silently
+# miss completed.md, the only file the dashboard reads. codmaster must capture a lap-start ref (and
+# re-record it on relap) and run lifecycle.py reconcile-sweep --since <ref> at every lap close — as
+# best-effort bookkeeping, explicitly NOT a stop or a judgment (the stop set is closed; a new stop
+# would violate the no-discretionary-stop rule).
+CMD="$ROOT/commands/codmaster.md"
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+need = []
+if "lap-start ref" not in t: need.append("lap-start-ref-capture")
+if "re-record the lap-start ref" not in t: need.append("relap-ref-rerecord")
+if "lifecycle.py reconcile-sweep --since" not in t: need.append("reconcile-sweep-call")
+if "completion-accounting" not in t: need.append("invariant-framing")
+# framed as bookkeeping, never a stop — the closed stop-set rule forbids a new stop reason
+if "not a stop or a judgment" not in t: need.append("not-a-stop-framing")
+if "${CLAUDE_PLUGIN_ROOT}/scripts" not in t: need.append("scripts-resolution")
+sys.exit(1 if need else 0)
+PY
+then ok "commands/codmaster.md wires a lap-close reconcile-sweep as best-effort bookkeeping (not a stop), capturing and re-recording the lap-start ref"; else bad "commands/codmaster.md lost the lap-close reconcile-sweep wiring (lap-start ref / relap re-record / --since / not-a-stop framing)"; fi
 
 # --- commands/dashboard.md launches the bundled read-only dashboard server ---
 # /dashboard wraps `dashboard.py --open`; guard that it resolves the bundled <scripts>
