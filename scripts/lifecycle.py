@@ -352,6 +352,67 @@ def reconcile(completed_path, repo, ref, mode, title=None):
     return short, item_title, True
 
 
+# Subjects that are not fixes and must never be recorded as completed plan items, even
+# when they land inside a swept range: releases, version bumps, chore commits, and merges
+# (`--no-merges` already drops merge commits in _rev_list; the `Merge ` prefix is
+# belt-and-braces against a non-merge commit that happens to start that way).
+def _is_nonfix_subject(subject):
+    s = (subject or "").strip()
+    return (s.startswith("Release ") or s.startswith("Merge ")
+            or s.startswith("chore") or "bump-version" in s)
+
+
+def _rev_list(repo, since):
+    """Full shas of the non-merge commits in <since>..HEAD in <repo>, OLDEST first (so a
+    sweep records them in chronological order, matching how per-item landing reads). Raises
+    LookupError when <since> is not a commit, the range is unresolvable, or git is
+    unavailable/times out — a sweep must never silently record nothing because its range
+    failed to resolve (the typo class the reconcile-sweep gate exists to catch). The 5s
+    timeout mirrors _git_commit_meta: a wedged git fails the transaction cleanly and
+    releases the lock rather than hanging every other planwright process on this root."""
+    rng = since + "..HEAD"
+    try:
+        out = subprocess.run(
+            ["git", "-C", repo, "rev-list", "--no-merges", "--reverse", rng],
+            check=True, capture_output=True, text=True, timeout=5).stdout
+    except subprocess.TimeoutExpired as e:
+        raise LookupError(f"git timed out resolving range '{rng}' in {repo}") from e
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        raise LookupError(
+            f"cannot resolve range '{rng}' in {repo} (is '{since}' a commit?)") from e
+    return [ln.strip() for ln in out.splitlines() if ln.strip()]
+
+
+def reconcile_sweep(completed_path, rejected_path, repo, since, mode, dry_run=False):
+    """Record every non-merge, non-release commit in <since>..HEAD that completed.md does
+    not already carry — the mechanical safety net behind the completion-accounting
+    invariant for inline orchestration commits (codmaster/codshard/codvisor) that landed in
+    git but were never reconciled. Reuses reconcile() per commit, so each stays git-verified
+    and idempotent (full-sha prefix match) and completed.md stays FIFO-capped. A candidate is
+    skipped when it is already recorded in completed.md, already recorded in rejected.md
+    (never resurrect a rejected item), or a release/merge/chore/bump commit (_is_nonfix_subject).
+    With dry_run, records nothing and reports only what WOULD be recorded (the detector use).
+    Returns (recorded, skipped): recorded is a list of (short, title, status), skipped a list
+    of (short, title, reason)."""
+    recorded, skipped = [], []
+    have_rejected = os.path.isfile(rejected_path)
+    for full in _rev_list(repo, since):
+        short, _full, subject = _git_commit_meta(repo, full)
+        title = (subject or short).strip()
+        if _is_nonfix_subject(subject):
+            skipped.append((short, title, "non-fix"))
+        elif _already_recorded(completed_path, full):
+            skipped.append((short, title, "already-recorded"))
+        elif have_rejected and _already_recorded(rejected_path, full):
+            skipped.append((short, title, "rejected"))
+        elif dry_run:
+            recorded.append((short, title, "would-record"))
+        else:
+            s, t, did = reconcile(completed_path, repo, full, mode)
+            recorded.append((s, t, "recorded" if did else "already-recorded"))
+    return recorded, skipped
+
+
 def reset_if_empty(plan_path):
     """Delete plan.md when it holds no pending (- [ ], non-rejected) item AND no
     undrained rejected item. Returns True if it was deleted. Pending items are left
@@ -410,7 +471,8 @@ def main():
     ap = argparse.ArgumentParser(description="planwright Stage 0 lifecycle housekeeping.")
     ap.add_argument("command",
                     choices=["drain-completed", "drain-rejected", "reset-if-empty", "housekeep",
-                             "land", "reject", "reconcile", "reset", "fresh", "clean"])
+                             "land", "reject", "reconcile", "reconcile-sweep",
+                             "reset", "fresh", "clean"])
     ap.add_argument("index", nargs="?", type=int, default=None,
                     help="pending item number, 1-based in plan order (land/reject only)")
     ap.add_argument("--root", default=".planwright",
@@ -420,13 +482,18 @@ def main():
     ap.add_argument("--reason", default=None, metavar="TEXT",
                     help="the one-line Rejection: reason to record on the item (reject only)")
     ap.add_argument("--mode", default=None, metavar="MODE",
-                    help="the plan mode to record on a reconciled item (reconcile only; one of "
-                         "develop/improve/repair/docs/reorganize)")
+                    help="the plan mode to record on a reconciled item (reconcile / "
+                         "reconcile-sweep; one of develop/improve/repair/docs/reorganize)")
     ap.add_argument("--title", default=None, metavar="TEXT",
                     help="override the recorded title (reconcile only; defaults to the commit subject)")
     ap.add_argument("--repo", default=None, metavar="DIR",
-                    help="the git repo to resolve --commit against (reconcile only; defaults to "
-                         "the parent of --root)")
+                    help="the git repo to resolve --commit/--since against (reconcile / "
+                         "reconcile-sweep; defaults to the parent of --root)")
+    ap.add_argument("--since", default=None, metavar="REF",
+                    help="reconcile-sweep only: record every non-merge, non-release commit in "
+                         "<REF>..HEAD that completed.md does not already carry")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="reconcile-sweep only: report what WOULD be recorded, modifying nothing")
     ap.add_argument("--quiet", action="store_true", help="suppress the report line")
     ap.add_argument("--json", action="store_true",
                     help="emit the report as a JSON object (command/compacted/rejected_drained/"
@@ -511,6 +578,70 @@ def main():
             else:
                 print(f"lifecycle: commit {short} already recorded -> completed.md (no change)")
         return 0
+
+    # reconcile-sweep: the mechanical safety net behind the completion-accounting invariant —
+    # record every non-merge, non-release commit in <since>..HEAD that completed.md does not
+    # already carry. Handled (like reconcile) before the option guards because it legitimately
+    # uses --since/--mode/--repo/--dry-run.
+    if args.command == "reconcile-sweep":
+        if (args.index is not None or args.reason is not None
+                or args.commit is not None or args.title is not None):
+            sys.stderr.write("lifecycle: reconcile-sweep takes --since/--mode/--repo/--dry-run, "
+                             "not an item index, --commit, --reason, or --title\n")
+            return 2
+        since = (args.since or "").strip()
+        # --since is a git ref fed to `git rev-list`: reject empty, whitespace/control, and a
+        # leading '-' (which rev-list would parse as an option — flag injection), exactly as
+        # reconcile guards --commit.
+        bad_since = (not since
+                     or since.startswith("-")
+                     or any(ch.isspace() or ord(ch) < 0x20 or ch == "\x7f" for ch in since))
+        mode = (args.mode or "").strip()
+        if bad_since or mode not in VALID_MODES:
+            sys.stderr.write(
+                "Usage: lifecycle.py reconcile-sweep --since <ref> "
+                "--mode <develop|improve|repair|docs|reorganize> "
+                "[--repo DIR] [--dry-run] [--root DIR]\n")
+            return 2
+        repo = args.repo or os.path.dirname(os.path.abspath(root))
+        if not os.path.isdir(root):
+            if os.path.exists(root):
+                sys.stderr.write(f"lifecycle: --root {root!r} is not a directory; "
+                                 "nothing was modified\n")
+                return 2
+            os.makedirs(root, exist_ok=True)
+        try:
+            with _state_lock(root):
+                recorded, skipped = reconcile_sweep(
+                    os.path.join(root, "completed.md"),
+                    os.path.join(root, "rejected.md"),
+                    repo, since, mode, dry_run=args.dry_run)
+        except LookupError as e:
+            sys.stderr.write(f"lifecycle: {e}; nothing was modified\n")
+            return 2
+        except (UnicodeDecodeError, NotADirectoryError, IsADirectoryError, PermissionError) as e:
+            sys.stderr.write(f"lifecycle: cannot read completed.md "
+                             f"({e.__class__.__name__}: {e}); nothing was modified\n")
+            return 2
+        if not args.quiet and args.json:
+            print(json.dumps({
+                "command": "reconcile-sweep", "since": since, "mode": mode,
+                "dry_run": args.dry_run,
+                "recorded": [{"commit": s, "title": t, "status": st} for (s, t, st) in recorded],
+                "skipped": [{"commit": s, "title": t, "reason": r} for (s, t, r) in skipped]}))
+        elif not args.quiet:
+            verb = "would record" if args.dry_run else "recorded"
+            print(f"lifecycle: reconcile-sweep {since}..HEAD — {verb} {len(recorded)}, "
+                  f"skipped {len(skipped)}")
+            for (s, t, _st) in recorded:
+                print(f"  {verb}: {s} {t}")
+        return 0
+
+    # --since/--dry-run belong to reconcile-sweep alone; a stray one elsewhere is a mistype.
+    if args.command != "reconcile-sweep" and (args.since is not None or args.dry_run):
+        sys.stderr.write("lifecycle: --since and --dry-run are valid only with the "
+                         "reconcile-sweep subcommand\n")
+        return 2
 
     # --mode/--title/--repo belong to reconcile alone; a stray one elsewhere is a mistype.
     if args.mode is not None or args.title is not None or args.repo is not None:

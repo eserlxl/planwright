@@ -752,3 +752,78 @@ if [ "$lrc_rc" = 2 ] && [ "$lld_rc" = 2 ] \
 else
   bad "lifecycle.py reconcile/land mishandled an unreadable state file (recon=$lrc_rc land=$lld_rc): $lrc_err | $lld_err"
 fi
+
+
+# --- Test L21: reconcile-sweep records run commits missing from completed.md ----------
+# The mechanical safety net behind the completion-accounting invariant: a codmaster/codshard
+# lap that commits fixes inline without landing them leaves completed.md (the only file the
+# dashboard reads) short. reconcile-sweep --since <ref> records every non-merge, non-release
+# commit in <ref>..HEAD that completed.md does not already carry — skipping release/chore
+# commits, already-recorded commits, and rejected ones — git-verified and idempotent.
+SWT="$TMP/lc21"; mkdir -p "$SWT/.planwright"
+(
+  cd "$SWT" || exit
+  git init -q
+  git config user.email t@example.com
+  git config user.name t
+  git config commit.gpgsign false
+  printf '0\n' > f.txt;  git add -A; git commit -qm "init"
+  printf 'a\n' >> f.txt; git add -A; git commit -qm "Fix alpha defect"
+  printf 'b\n' >> f.txt; git add -A; git commit -qm "Release v9.9.9"
+  printf 'c\n' >> f.txt; git add -A; git commit -qm "Fix beta defect"
+  printf 'd\n' >> f.txt; git add -A; git commit -qm "chore: tidy whitespace"
+  printf 'e\n' >> f.txt; git add -A; git commit -qm "Fix gamma defect"
+) >/dev/null 2>&1
+SW_BASE="$(git -C "$SWT" rev-parse HEAD~5)"   # the "init" commit (excluded from since..HEAD)
+SW_BETA="$(git -C "$SWT" rev-parse HEAD~2)"   # "Fix beta defect"
+# pre-record beta so the sweep must SKIP it as already-recorded
+python3 "$LC" reconcile --commit "$SW_BETA" --mode repair --root "$SWT/.planwright" >/dev/null 2>&1
+sw_before="$(grep -c '^- \[x\]' "$SWT/.planwright/completed.md" 2>/dev/null || true)"
+sw_out="$(python3 "$LC" reconcile-sweep --since "$SW_BASE" --mode repair --root "$SWT/.planwright")"
+sw_after="$(grep -c '^- \[x\]' "$SWT/.planwright/completed.md" 2>/dev/null || true)"
+sw_alpha_ln="$(grep -n 'Fix alpha defect' "$SWT/.planwright/completed.md" | cut -d: -f1)"
+sw_gamma_ln="$(grep -n 'Fix gamma defect' "$SWT/.planwright/completed.md" | cut -d: -f1)"
+if [ "$sw_before" = 1 ] && [ "$sw_after" = 3 ] \
+   && grep -q -- '- \[x\] Fix alpha defect' "$SWT/.planwright/completed.md" \
+   && grep -q -- '- \[x\] Fix gamma defect' "$SWT/.planwright/completed.md" \
+   && grep -q -- '      Mode: repair' "$SWT/.planwright/completed.md" \
+   && ! grep -q 'Release v9.9.9' "$SWT/.planwright/completed.md" \
+   && ! grep -q 'chore: tidy'    "$SWT/.planwright/completed.md" \
+   && [ "$sw_alpha_ln" -lt "$sw_gamma_ln" ]; then
+  ok "lifecycle.py reconcile-sweep records missing fixes, excludes release/chore, skips already-recorded (chronological)"
+else
+  bad "lifecycle.py reconcile-sweep wrong (before=$sw_before after=$sw_after out='$sw_out')"
+fi
+
+# --- Test L21b: reconcile-sweep is idempotent (a second sweep records nothing new) ----
+python3 "$LC" reconcile-sweep --since "$SW_BASE" --mode repair --root "$SWT/.planwright" >/dev/null 2>&1
+sw_idem="$(grep -c '^- \[x\]' "$SWT/.planwright/completed.md" 2>/dev/null || true)"
+if [ "$sw_idem" = 3 ]; then
+  ok "lifecycle.py reconcile-sweep is idempotent (a second sweep records nothing new)"
+else
+  bad "lifecycle.py reconcile-sweep duplicated records on re-run (count=$sw_idem)"
+fi
+
+# --- Test L21c: --dry-run reports what WOULD be recorded and writes nothing ------------
+# Fresh root (nothing pre-recorded), --repo points at the SWT git repo: would-record is all
+# three fix commits; the two non-fix commits are excluded; no completed.md is created.
+mkdir -p "$TMP/lc21c/.planwright"
+dry_out="$(python3 "$LC" reconcile-sweep --since "$SW_BASE" --mode repair --root "$TMP/lc21c/.planwright" --repo "$SWT" --dry-run --json)"
+if printf '%s' "$dry_out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"]=="reconcile-sweep" and d["dry_run"] is True and {x["title"] for x in d["recorded"]}=={"Fix alpha defect","Fix beta defect","Fix gamma defect"} and len(d["skipped"])==2' 2>/dev/null \
+   && [ ! -f "$TMP/lc21c/.planwright/completed.md" ]; then
+  ok "lifecycle.py reconcile-sweep --dry-run reports the would-record set and writes nothing"
+else
+  bad "lifecycle.py reconcile-sweep --dry-run wrong (out='$dry_out')"
+fi
+
+# --- Test L21d: unknown/flag-like --since and --since on a non-sweep command refused ---
+mkdir -p "$TMP/lc21d/.planwright"
+bad_since_rc=0;   python3 "$LC" reconcile-sweep --since deadbeefcafe --mode repair --root "$TMP/lc21d/.planwright" --repo "$SWT" >/dev/null 2>&1 || bad_since_rc=$?
+flag_since_rc=0;  python3 "$LC" reconcile-sweep --since=-HEAD --mode repair --root "$TMP/lc21d/.planwright" --repo "$SWT" >/dev/null 2>&1 || flag_since_rc=$?
+stray_since_rc=0; python3 "$LC" housekeep --root "$TMP/lc21d/.planwright" --since "$SW_BASE" >/dev/null 2>&1 || stray_since_rc=$?
+if [ "$bad_since_rc" = 2 ] && [ "$flag_since_rc" = 2 ] && [ "$stray_since_rc" = 2 ] \
+   && [ ! -f "$TMP/lc21d/.planwright/completed.md" ]; then
+  ok "lifecycle.py reconcile-sweep refuses an unknown/flag-like --since and rejects --since on a non-sweep command (exit 2)"
+else
+  bad "lifecycle.py reconcile-sweep validation wrong (bad=$bad_since_rc flag=$flag_since_rc stray=$stray_since_rc)"
+fi
