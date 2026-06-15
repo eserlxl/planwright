@@ -6,7 +6,7 @@
 # after tests/lib.sh — NOT standalone (uses ROOT/TMP/ok/bad/ver).
 #
 # bump-version.sh rewrites the version in lockstep across .claude-plugin/plugin.json,
-# .claude-plugin/marketplace.json, .codex-plugin/plugin.json and every skills/*/SKILL.md
+# .codex-plugin/plugin.json and every skills/*/SKILL.md
 # frontmatter, prepends a CHANGELOG entry, and is transactional (restore-on-failure). A
 # regression in its SemVer computation or its lockstep sync would ship drifted versions
 # silently — exactly what the lockstep contract forbids — yet nothing exercised it. These
@@ -21,7 +21,6 @@ _bv_fixture() {
   local d="$1" ver="$2"
   mkdir -p "$d/.claude-plugin" "$d/.codex-plugin" "$d/scripts" "$d/skills/demo"
   printf '{\n  "name": "demo",\n  "version": "%s"\n}\n' "$ver" > "$d/.claude-plugin/plugin.json"
-  printf '{\n  "metadata": {\n    "version": "%s"\n  },\n  "plugins": [\n    {\n      "name": "demo",\n      "version": "%s"\n    }\n  ]\n}\n' "$ver" "$ver" > "$d/.claude-plugin/marketplace.json"
   printf '{\n  "name": "demo",\n  "version": "%s"\n}\n' "$ver" > "$d/.codex-plugin/plugin.json"
   printf -- '# Changelog\n\n## [%s] - 2026-01-01\n\n### Changed\n- seed\n' "$ver" > "$d/CHANGELOG.md"
   printf -- '---\nname: demo\nmetadata:\n  version: "%s"\n---\n\n# demo\n' "$ver" > "$d/skills/demo/SKILL.md"
@@ -35,9 +34,6 @@ if ALLOW_DIRTY=1 bash "$BV1/scripts/bump-version.sh" minor -m "Add a thing" >"$T
 import json, re, sys
 d = sys.argv[1]; new = "1.3.0"
 assert json.load(open(d + "/.claude-plugin/plugin.json"))["version"] == new, "plugin.json"
-m = json.load(open(d + "/.claude-plugin/marketplace.json"))
-assert m["metadata"]["version"] == new, "marketplace metadata"
-assert all(e["version"] == new for e in m["plugins"] if e.get("name") == "demo"), "marketplace entry"
 assert json.load(open(d + "/.codex-plugin/plugin.json"))["version"] == new, "codex plugin.json"
 assert re.search(r'\n  version:\s*"' + re.escape(new) + '"', open(d + "/skills/demo/SKILL.md").read()), "SKILL frontmatter"
 cl = open(d + "/CHANGELOG.md").read()

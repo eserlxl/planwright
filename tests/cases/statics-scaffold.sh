@@ -65,14 +65,12 @@ mkdir -p "$WORK"
 before="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
 bs_out="$("$WORK/scripts/bump-version.sh" patch -m "smoke-test bump")"
 pj="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
-mm="$(ver "$WORK/.claude-plugin/marketplace.json" "['metadata']['version']")"
-me="$(ver "$WORK/.claude-plugin/marketplace.json" "['plugins'][0]['version']")"
 cj="$(ver "$WORK/.codex-plugin/plugin.json" "['version']")"
 
 if printf '%s' "$bs_out" | grep -q "Bumped:"; then ok "bump-version prints Bumped: summary on success"; else bad "bump-version missing Bumped: summary on success"; fi
 if printf '%s' "$bs_out" | grep -q "updated skills/"; then ok "bump-version reports updated skill files on success"; else bad "bump-version missing skill file update report"; fi
 if [ "$pj" != "$before" ]; then ok "bump-version changed version ($before -> $pj)"; else bad "version unchanged"; fi
-if [ "$pj" = "$mm" ] && [ "$pj" = "$me" ] && [ "$pj" = "$cj" ]; then ok "manifests in lockstep ($pj)"; else bad "out of sync: plugin=$pj meta=$mm entry=$me codex=$cj"; fi
+if [ "$pj" = "$cj" ]; then ok "manifests in lockstep ($pj)"; else bad "out of sync: plugin=$pj codex=$cj"; fi
 if grep -q "## \[$pj\]" "$WORK/CHANGELOG.md"; then ok "changelog gained [$pj] section"; else bad "changelog missing [$pj]"; fi
 if grep -q "### Changed" "$WORK/CHANGELOG.md"; then ok "changelog entry has ### Changed section"; else bad "changelog entry missing ### Changed section"; fi
 if grep -q "smoke-test bump" "$WORK/CHANGELOG.md"; then ok "changelog -m note appears in entry"; else bad "changelog -m note missing from entry"; fi
@@ -117,16 +115,15 @@ atomic_rc=0
 atomic_out="$("$WORK/scripts/bump-version.sh" patch -m "should be rolled back" 2>&1)" || atomic_rc=$?
 chmod 0755 "$WORK"
 post_pj="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
-post_mm="$(ver "$WORK/.claude-plugin/marketplace.json" "['metadata']['version']")"
 post_cj="$(ver "$WORK/.codex-plugin/plugin.json" "['version']")"
 if [ "$atomic_rc" != 0 ]; then ok "bump-version fails when a write step cannot complete"; else bad "bump-version did not fail on an unwritable CHANGELOG (out=[$atomic_out])"; fi
 # The three JSON manifests are rewritten in the first write step, so a mid-run failure
 # would leave them bumped if the transaction were not rolled back. (The skill frontmatter
 # in this WORK copy was deliberately left unquoted by Test 1b, so it is skipped, not bumped.)
-if [ "$post_pj" = "$pre_pj" ] && [ "$post_mm" = "$pre_pj" ] && [ "$post_cj" = "$pre_pj" ]; then
+if [ "$post_pj" = "$pre_pj" ] && [ "$post_cj" = "$pre_pj" ]; then
   ok "bump-version restores all manifests after a mid-run failure (no version drift)"
 else
-  bad "bump-version left version drift after a mid-run failure: plugin=$post_pj meta=$post_mm codex=$post_cj (was $pre_pj)"
+  bad "bump-version left version drift after a mid-run failure: plugin=$post_pj codex=$post_cj (was $pre_pj)"
 fi
 if ! grep -q "should be rolled back" "$WORK/CHANGELOG.md"; then ok "bump-version did not commit the changelog note on a failed run"; else bad "bump-version left a changelog note after a failed run"; fi
 
@@ -307,8 +304,8 @@ mkdir -p "$MINRR"
 "$MINRR/scripts/bump-version.sh" minor >/dev/null
 minpj="$(python3 -c "import json;print(json.load(open('$MINRR/.claude-plugin/plugin.json'))['version'])")"
 if python3 -c "v='$minpj'; exit(0 if v.split('.')[2]=='0' else 1)"; then ok "minor increment resets patch to 0 ($minpj)"; else bad "minor increment did not reset patch to 0: $minpj"; fi
-minmm="$(python3 -c "import json;print(json.load(open('$MINRR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
-if [ "$minpj" = "$minmm" ]; then ok "minor increment synced across manifests ($minpj)"; else bad "minor increment not synced: plugin=$minpj market=$minmm"; fi
+minmc="$(python3 -c "import json;print(json.load(open('$MINRR/.codex-plugin/plugin.json'))['version'])")"
+if [ "$minpj" = "$minmc" ]; then ok "minor increment synced across manifests ($minpj)"; else bad "minor increment not synced: plugin=$minpj codex=$minmc"; fi
 
 # --- Test 7: bump-version.sh major increment resets minor and patch to 0 ----
 MAJRR="$TMP/majrr"
@@ -317,8 +314,8 @@ mkdir -p "$MAJRR"
 "$MAJRR/scripts/bump-version.sh" major >/dev/null
 majpj="$(python3 -c "import json;print(json.load(open('$MAJRR/.claude-plugin/plugin.json'))['version'])")"
 if python3 -c "v='$majpj'; parts=v.split('.'); exit(0 if parts[1]=='0' and parts[2]=='0' else 1)"; then ok "major increment resets minor and patch to 0 ($majpj)"; else bad "major increment did not reset minor/patch to 0: $majpj"; fi
-majmm="$(python3 -c "import json;print(json.load(open('$MAJRR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
-if [ "$majpj" = "$majmm" ]; then ok "major increment synced across manifests ($majpj)"; else bad "major increment not synced: plugin=$majpj market=$majmm"; fi
+majmc="$(python3 -c "import json;print(json.load(open('$MAJRR/.codex-plugin/plugin.json'))['version'])")"
+if [ "$majpj" = "$majmc" ]; then ok "major increment synced across manifests ($majpj)"; else bad "major increment not synced: plugin=$majpj codex=$majmc"; fi
 
 # --- Test 7b: bump-version.sh accepts explicit X.Y.Z version pinning -------
 PINRR="$TMP/pinrr"
@@ -327,8 +324,8 @@ mkdir -p "$PINRR"
 "$PINRR/scripts/bump-version.sh" 2.5.0 >/dev/null
 pinpj="$(python3 -c "import json;print(json.load(open('$PINRR/.claude-plugin/plugin.json'))['version'])")"
 if [ "$pinpj" = "2.5.0" ]; then ok "X.Y.Z explicit pin sets version to 2.5.0"; else bad "X.Y.Z explicit pin failed: got $pinpj"; fi
-pinmm="$(python3 -c "import json;print(json.load(open('$PINRR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
-if [ "$pinpj" = "$pinmm" ]; then ok "X.Y.Z explicit pin synced across manifests"; else bad "X.Y.Z pin not synced: plugin=$pinpj market=$pinmm"; fi
+pinmc="$(python3 -c "import json;print(json.load(open('$PINRR/.codex-plugin/plugin.json'))['version'])")"
+if [ "$pinpj" = "$pinmc" ]; then ok "X.Y.Z explicit pin synced across manifests"; else bad "X.Y.Z pin not synced: plugin=$pinpj codex=$pinmc"; fi
 
 # --- Test 7b2: explicit pin accepts a SemVer pre-release / build suffix -----
 # bump-version.sh's version-arg regex accepts an optional -pre and +build suffix
@@ -340,8 +337,8 @@ mkdir -p "$PRERR"
 "$PRERR/scripts/bump-version.sh" 2.6.0-rc.1+build.5 >/dev/null
 prepj="$(python3 -c "import json;print(json.load(open('$PRERR/.claude-plugin/plugin.json'))['version'])")"
 if [ "$prepj" = "2.6.0-rc.1+build.5" ]; then ok "explicit pin accepts a pre-release/build suffix (round-trips verbatim)"; else bad "pre-release pin failed: got $prepj"; fi
-premm="$(python3 -c "import json;print(json.load(open('$PRERR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
-if [ "$prepj" = "$premm" ]; then ok "pre-release pin synced across manifests"; else bad "pre-release pin not synced: plugin=$prepj market=$premm"; fi
+premc="$(python3 -c "import json;print(json.load(open('$PRERR/.codex-plugin/plugin.json'))['version'])")"
+if [ "$prepj" = "$premc" ]; then ok "pre-release pin synced across manifests"; else bad "pre-release pin not synced: plugin=$prepj codex=$premc"; fi
 
 # --- Test 7c: bump-version.sh exits non-zero when a required file is missing -
 MISRR="$TMP/misrr"
@@ -362,16 +359,13 @@ DRYR="$TMP/dryr"
 mkdir -p "$DRYR"
 ( cd "$ROOT" && tar --exclude=.git --exclude=.planwright -cf - . ) | ( cd "$DRYR" && tar -xf - )
 dr_before="$(python3 -c "import json;print(json.load(open('$DRYR/.claude-plugin/plugin.json'))['version'])")"
-dr_market_before="$(python3 -c "import json;print(json.load(open('$DRYR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
 dr_codex_before="$(python3 -c "import json;print(json.load(open('$DRYR/.codex-plugin/plugin.json'))['version'])")"
 dr_cl_before="$(wc -l < "$DRYR/CHANGELOG.md")"
 dr_out="$("$DRYR/scripts/bump-version.sh" patch --dry-run 2>/dev/null)"
 dr_after="$(python3 -c "import json;print(json.load(open('$DRYR/.claude-plugin/plugin.json'))['version'])")"
-dr_market_after="$(python3 -c "import json;print(json.load(open('$DRYR/.claude-plugin/marketplace.json'))['metadata']['version'])")"
 dr_codex_after="$(python3 -c "import json;print(json.load(open('$DRYR/.codex-plugin/plugin.json'))['version'])")"
 dr_cl_after="$(wc -l < "$DRYR/CHANGELOG.md")"
 if [ "$dr_before" = "$dr_after" ]; then ok "--dry-run did not modify plugin.json"; else bad "--dry-run modified plugin.json ($dr_before -> $dr_after)"; fi
-if [ "$dr_market_before" = "$dr_market_after" ]; then ok "--dry-run did not modify marketplace.json"; else bad "--dry-run modified marketplace.json ($dr_market_before -> $dr_market_after)"; fi
 if [ "$dr_codex_before" = "$dr_codex_after" ]; then ok "--dry-run did not modify codex plugin.json"; else bad "--dry-run modified codex plugin.json ($dr_codex_before -> $dr_codex_after)"; fi
 if [ "$dr_cl_before" = "$dr_cl_after" ]; then ok "--dry-run did not modify CHANGELOG.md"; else bad "--dry-run modified CHANGELOG.md (lines: $dr_cl_before -> $dr_cl_after)"; fi
 if printf '%s' "$dr_out" | grep -q "dry-run:"; then ok "--dry-run output shows version info"; else bad "--dry-run output missing version info"; fi
@@ -381,11 +375,9 @@ if printf '%s' "$dr_note_out" | grep -q "dry note"; then ok "--dry-run -m flag s
 
 # --- Test 9: the repo's own version sources agree at rest ------------------
 rv="$(ver "$ROOT/.claude-plugin/plugin.json" "['version']")"
-rmeta="$(ver "$ROOT/.claude-plugin/marketplace.json" "['metadata']['version']")"
-rentry="$(ver "$ROOT/.claude-plugin/marketplace.json" "['plugins'][0]['version']")"
 rcodex="$(ver "$ROOT/.codex-plugin/plugin.json" "['version']")"
 rskill="$(grep -m1 '  version:' "$ROOT/skills/planwright/SKILL.md" | sed -E 's/.*"([^"]+)".*/\1/')"
-if [ "$rv" = "$rmeta" ] && [ "$rv" = "$rentry" ] && [ "$rv" = "$rcodex" ] && [ "$rv" = "$rskill" ]; then ok "repo version sources agree at rest ($rv)"; else bad "repo version drift: plugin=$rv meta=$rmeta entry=$rentry codex=$rcodex skill=$rskill"; fi
+if [ "$rv" = "$rcodex" ] && [ "$rv" = "$rskill" ]; then ok "repo version sources agree at rest ($rv)"; else bad "repo version drift: plugin=$rv codex=$rcodex skill=$rskill"; fi
 if grep -q "## \[$rv\]" "$ROOT/CHANGELOG.md"; then ok "CHANGELOG.md has a section for the current version [$rv]"; else bad "CHANGELOG.md missing a section for the current version [$rv]"; fi
 
 

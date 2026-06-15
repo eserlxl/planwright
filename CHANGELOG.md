@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.58.1] - 2026-06-15
+
+### Changed
+- Plugin-only: drop .claude-plugin/marketplace.json; publish via the eserlxl/marketplace aggregator. bump-version and the version-contract tests no longer manage a marketplace manifest.
+
 ## [1.58.0] - 2026-06-14
 
 ### Added

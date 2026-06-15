@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Bump the plugin version in lockstep across Claude/Codex manifests,
-# marketplace.json, skill frontmatter, and CHANGELOG.md.
+# skill frontmatter, and CHANGELOG.md.
 #
 # This script updates version numbers and the changelog — it does NOT create a
 # git tag or GitHub release. Tags should only be created at release milestones:
@@ -22,7 +22,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_JSON="$ROOT/.claude-plugin/plugin.json"
-MARKET_JSON="$ROOT/.claude-plugin/marketplace.json"
 CODEX_PLUGIN_JSON="$ROOT/.codex-plugin/plugin.json"
 CHANGELOG="$ROOT/CHANGELOG.md"
 
@@ -51,7 +50,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-for f in "$PLUGIN_JSON" "$MARKET_JSON" "$CHANGELOG"; do
+for f in "$PLUGIN_JSON" "$CHANGELOG"; do
   [ -f "$f" ] || { echo "Missing required file: $f" >&2; exit 1; }
 done
 
@@ -122,7 +121,7 @@ DATE="$(date -u +%Y-%m-%d)"
 # so a partial bump is impossible — the bump is all-or-nothing. (Skipped on
 # --dry-run, which writes nothing.)
 if [ -z "$DRY_RUN" ]; then
-  _bump_targets=("$PLUGIN_JSON" "$MARKET_JSON" "$CHANGELOG")
+  _bump_targets=("$PLUGIN_JSON" "$CHANGELOG")
   [ -f "$CODEX_PLUGIN_JSON" ] && _bump_targets+=("$CODEX_PLUGIN_JSON")
   for _skill in "$ROOT"/skills/*/SKILL.md; do
     [ -f "$_skill" ] && _bump_targets+=("$_skill")
@@ -143,9 +142,9 @@ fi
 
 # --- Update JSON manifests -------------------------------------------------
 if [ -z "$DRY_RUN" ]; then
-python3 - "$PLUGIN_JSON" "$MARKET_JSON" "$CODEX_PLUGIN_JSON" "$NEW" <<'PY'
+python3 - "$PLUGIN_JSON" "$CODEX_PLUGIN_JSON" "$NEW" <<'PY'
 import json, os, sys, tempfile
-plugin_path, market_path, codex_plugin_path, new = sys.argv[1:5]
+plugin_path, codex_plugin_path, new = sys.argv[1:4]
 
 def atomic_write(path, data):
     # Same-directory temp + os.replace, mirroring scripts/lifecycle.py's write() and
@@ -170,17 +169,8 @@ def atomic_write(path, data):
 
 with open(plugin_path) as f:
     plugin = json.load(f)
-name = plugin.get("name")
 plugin["version"] = new
 atomic_write(plugin_path, json.dumps(plugin, indent=2) + "\n")
-
-with open(market_path) as f:
-    market = json.load(f)
-market.setdefault("metadata", {})["version"] = new
-for entry in market.get("plugins", []):
-    if entry.get("name") == name:
-        entry["version"] = new
-atomic_write(market_path, json.dumps(market, indent=2) + "\n")
 
 try:
     with open(codex_plugin_path) as f:
@@ -298,7 +288,6 @@ if [ -n "$DRY_RUN" ]; then
 else
   echo "Bumped: $CURRENT -> $NEW"
   echo "  updated $(relpath "$PLUGIN_JSON")"
-  echo "  updated $(relpath "$MARKET_JSON")"
   [ -f "$CODEX_PLUGIN_JSON" ] && echo "  updated $(relpath "$CODEX_PLUGIN_JSON")"
   [ -n "$SKILLS_SYNCED" ] && echo "  updated$SKILLS_SYNCED"
   echo "  changelog entry added ($DATE)"

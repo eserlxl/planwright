@@ -52,7 +52,6 @@ scripts/bump-version.sh <major|minor|patch|X.Y.Z> [-m "note"]
 
 This script bumps the version globally across the plugin files. It updates:
 - `.claude-plugin/plugin.json`
-- `.claude-plugin/marketplace.json`
 - `.codex-plugin/plugin.json` when present
 - Every `skills/*/SKILL.md` frontmatter
 - `CHANGELOG.md`
