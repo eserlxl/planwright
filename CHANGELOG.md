@@ -20,6 +20,12 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.60.0] - 2026-06-16
+
+### Added
+- `lifecycle.py reconcile-sweep --since <ref>` records every non-merge, non-release commit in `<ref>..HEAD` that `completed.md` does not already carry — the mechanical safety net behind the completion-accounting invariant. It reuses the idempotent, git-verified `reconcile` primitive, skips already-recorded, rejected, and `Release`/`Merge`/`chore`/`bump-version` commits, records oldest-first, and supports `--dry-run` (detector use) and `--json`.
+- `codmaster` and `codshard` now run the sweep at every lap close / run-end, from a captured lap-start / run-start ref, so an autonomous loop that commits a fix inline without landing it can no longer silently drop it from the dashboard's completed history (`completed.md` is the only record the dashboard reads). It is best-effort bookkeeping, explicitly never a stop or a judgment — per-item `land` stays the primary path, the sweep only catches drift.
+
 ## [1.59.0] - 2026-06-15
 
 ### Added
