@@ -561,21 +561,20 @@ assert "identical recommendation" in body, "no-progress recommendation predicate
 assert "no progress" in body, "no-progress stop reason missing"
 assert "step cap" in body, "step-cap stop reason missing"
 # qb intent-replan — codmaster's top escalation rung (above codinventor): fires only at a
-# post-growth converged terminal (growth already taken this lap), at-most-once per lap, behind a
-# qb >= 0.8.0 capability guard; runs `/qb-plan auto`, parses the deterministic QB_PLAN_AUTO_* line,
+# post-growth converged terminal (growth already taken this lap), at-most-once per lap, behind an
+# availability guard (skipped when qb is not installed); runs `/qb-plan auto`, parses the deterministic QB_PLAN_AUTO_* line,
 # merges its pending items (deduped vs completed/rejected, re-validated by planwright's OWN
 # validator) and executes them. `safe` can never reach qb (gated on "codinventor already ran"), and
 # qb's dryness — not codinventor's — now defines the loop's final convergence point.
 assert "qb intent-replan" in body, "qb closing-step (top escalation rung) missing"
 assert "closing escalation rung" in body, "qb closing-rung framing missing"
 assert "top rung of the escalation ladder" in body, "qb escalation-ladder position missing"
-assert "Capability/version guard" in body, "qb capability/version guard missing"
+assert "Availability guard" in body, "qb availability guard missing"
 assert "/qb-plan auto" in body, "qb auto-mode invocation missing"
 assert "QB_PLAN_AUTO_OK" in body, "qb success result-line parse missing"
 assert "QB_PLAN_AUTO_ERROR" in body, "qb error result-line parse missing"
-assert "pre-0.8.0" in body, "qb pre-0.8.0 capability fall-through missing"
-assert "skip qb" in body, "qb absent/old skip path missing"
-assert "hanging an unattended loop" in body, "qb pre-0.8.0 interactive-hang rationale missing"
+assert "Confirm qb is installed" in body, "qb availability (presence) check missing"
+assert "skip qb" in body, "qb-absent skip path missing"
 assert "rejected intent items stay suppressed across laps" in body, "qb dedup-vs-rejected (cross-lap suppression) missing"
 assert "not qb's vendored copy" in body, "qb merge re-validation by planwright's own validator missing"
 assert "zero net-new items after dedup" in body, "qb zero-net-new dry criterion missing"
