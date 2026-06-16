@@ -701,6 +701,26 @@ else
   bad "build-graph --select scope/lang= regression (scoped=[$sel_scoped] le_rc=$sel_le_rc)"
 fi
 
+# --- Test 11c2j3: --select oversized slices the >300-loc modules (Stage 2a threshold) -----
+# Stage 2a flags "oversized modules (>300 lines)" as a first-class structural category; the
+# `oversized` predicate exposes that slice scriptably over the per-node loc field and composes
+# in a conjunction (oversized,lang=python) like every other --select member. Own fixture so it
+# does not perturb 11c2j's node-set assertions: one >300-line module + one small module.
+OSREPO="$TMP/osrepo"; mkdir -p "$OSREPO"
+git -C "$OSREPO" init -q
+{ printf 'def big():\n'; for _i in $(seq 1 400); do printf '    pass\n'; done; } > "$OSREPO/big.py"
+printf 'def small():\n    return 1\n' > "$OSREPO/small.py"
+git -C "$OSREPO" add -A && git -C "$OSREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+sel_os="$(python3 "$ROOT/scripts/build-graph.py" --root "$OSREPO" --select oversized 2>/dev/null)"
+sel_os_py="$(python3 "$ROOT/scripts/build-graph.py" --root "$OSREPO" --select oversized,lang=python 2>/dev/null)"
+sel_os_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$OSREPO" --select bogus2 >/dev/null 2>"$TMP/os_err" || sel_os_rc=$?
+if [ "$sel_os" = "big.py" ] && [ "$sel_os_py" = "big.py" ] \
+   && [ "$sel_os_rc" = 2 ] && grep -q "oversized" "$TMP/os_err"; then
+  ok "build-graph --select oversized slices >300-loc modules, composes with lang=, and is in the allowed set"
+else
+  bad "build-graph --select oversized wrong (os=[$sel_os] os_py=[$sel_os_py] rc=$sel_os_rc)"
+fi
+
 # --- Test 11c2j3: --select comma-ANDs predicate conjunctions (multi-signal, no jq) --
 # Each comma-separated token resolves through the same closed vocabulary and a node must
 # match ALL of them. lang=python,no-is_test on SELREPO is a strict subset of lang=python

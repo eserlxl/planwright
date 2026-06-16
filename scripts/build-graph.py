@@ -1677,6 +1677,11 @@ def _select_token_pred(e):
         return lambda n: n.get("lang") == want
     if e == "code":
         return lambda n: (n.get("branch_count") or 0) > 0
+    if e == "oversized":
+        # The Stage 2a "oversized modules (>300 lines)" structural-audit category, exposed as a
+        # scriptable slice over the per-node `loc` field (keep the 300 threshold in sync with
+        # SKILL.md Stage 2a). Composes, e.g. `oversized,no-covered_by_test` = large untested files.
+        return lambda n: (n.get("loc") or 0) > 300
     if e == "swallows":
         # The silent-failure analogue of `code`: nodes carrying a detected error-swallowing
         # site (swallow_count>0), the per-file half of the Stage 2b swallow promotion. Lets a
@@ -1700,7 +1705,7 @@ def _select_token_pred(e):
         return lambda n: bool(n.get(e))
     allowed = ", ".join(list(_SELECT_BOOL_FIELDS)
                         + ["no-" + b for b in _SELECT_BOOL_FIELDS]
-                        + ["code", "swallows", "never-audited", "stale-audited", "lang=NAME"])
+                        + ["code", "oversized", "swallows", "never-audited", "stale-audited", "lang=NAME"])
     raise ValueError(f"unknown --select predicate '{e}'; allowed: {allowed}")
 
 
@@ -1711,7 +1716,8 @@ def to_select(graph, expr):
     conjunction of them (`code,no-covered_by_test`), where a node must match EVERY member:
     a boolean field name (is_articulation | covered_by_test | is_test) selects nodes where
     it is true; a `no-` prefix on one selects where it is false; `code` selects
-    branch_count>0; `never-audited` selects nodes with no reachable audit stamp
+    branch_count>0; `oversized` selects loc>300 (the Stage 2a oversized-module threshold);
+    `never-audited` selects nodes with no reachable audit stamp
     (audit_age_commits null); `lang=NAME` (NAME non-empty) selects nodes of that language.
     Under a --scope build the result is restricted to the Context node set, matching
     --dot so the two non-JSON output modes agree on scope. Raises ValueError on an unknown
