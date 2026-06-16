@@ -570,7 +570,9 @@ Stage 2b uses `ranked_code`.
 ### Where state lives (tool-owned — never edit by hand as a plan Surface)
 
 - `.planwright/plan.md` — pending + completed items.
-- `.planwright/completed.md` / `rejected.md` — drained history (FIFO-capped at 100); rejected reasons feed
+- `.planwright/completed.md` / `rejected.md` — drained history (FIFO-capped at 100, applied at Stage 0 of
+  each run — never mid-run, so a single run that records more than 100 items stays fully visible to the
+  dashboard until the next run trims it back); rejected reasons feed
   the next run. Completed items carry a `Commit: <short-sha>` provenance stamp (appended by the
   execute path on pass), so each traces to the exact commit that landed it.
 - `.planwright/graph.json` / `digest.md` — audit routing memory. **Routing only — never valid Evidence.**

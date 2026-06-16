@@ -75,10 +75,11 @@ else
   bad "lifecycle.py altered or deleted a plan that still had pending items"
 fi
 
-# --- Test L4: completed.md is FIFO-capped at 100 (oldest dropped) --------------
-# Seed completed.md with 100 items (c001..c100), then drain 3 fresh completed items.
-# Result must be exactly 100, with the 3 oldest (c001..c003) dropped and the newest
-# kept (FIFO: drop from the top).
+# --- Test L4: the FIFO cap is DEFERRED to the next run's housekeep, never applied -----
+# mid-run. Seed completed.md with 100 items (c001..c100), then move 3 more completed items
+# in (the execute-side drain). The drain must NOT cap — all 103 are kept so the dashboard
+# sees the whole run. Only the next run's `housekeep` (Stage 0) trims back to 100, dropping
+# the 3 oldest (c001..c003) and keeping the newest (FIFO: drop from the top).
 LCF="$TMP/lc4/.planwright"; mkdir -p "$LCF"
 { for i in $(seq -w 1 100); do
     printf -- '- [x] c%s\n      Mode: improve\n      Verification: true\n\n' "$i"
@@ -88,15 +89,24 @@ LCF="$TMP/lc4/.planwright"; mkdir -p "$LCF"
     printf -- '- [x] c%s\n      Mode: improve\n      Verification: true\n\n' "$i"
   done; } > "$LCF/plan.md"
 python3 "$LC" drain-completed --root "$LCF" >/dev/null
-total="$(grep -c '^- \[x\]' "$LCF/completed.md")"
-if [ "$total" = "100" ] \
+total_drain="$(grep -c '^- \[x\]' "$LCF/completed.md")"
+if [ "$total_drain" = "103" ] && grep -q '^- \[x\] c001$' "$LCF/completed.md"; then
+  ok "lifecycle.py drain (execute side) does NOT cap — all 103 kept, oldest retained"
+else
+  bad "lifecycle.py drain wrongly capped mid-run (total=$total_drain)"
+fi
+# Next run's Stage 0 housekeep applies the deferred cap and reports completed_capped.
+cap_json="$(python3 "$LC" housekeep --root "$LCF" --json)"
+total_hk="$(grep -c '^- \[x\]' "$LCF/completed.md")"
+if [ "$total_hk" = "100" ] \
    && ! grep -q '^- \[x\] c001$' "$LCF/completed.md" \
    && ! grep -q '^- \[x\] c003$' "$LCF/completed.md" \
    && grep -q '^- \[x\] c004$' "$LCF/completed.md" \
-   && grep -q '^- \[x\] c103$' "$LCF/completed.md"; then
-  ok "lifecycle.py FIFO-caps completed.md at 100 (drops the 3 oldest, keeps the newest)"
+   && grep -q '^- \[x\] c103$' "$LCF/completed.md" \
+   && printf '%s' "$cap_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["completed_capped"]==3, d' 2>/dev/null; then
+  ok "lifecycle.py housekeep applies the deferred FIFO cap at 100 (drops 3 oldest, reports completed_capped=3)"
 else
-  bad "lifecycle.py FIFO cap wrong (total=$total)"
+  bad "lifecycle.py deferred FIFO cap wrong (total=$total_hk json=$cap_json)"
 fi
 
 # --- Test L5: SKILL.md Stage 0 wires lifecycle.py and deletes (not archives) ----
@@ -255,9 +265,10 @@ else
 fi
 
 # --- Test L7: housekeep --json emits a structured report (parity with the siblings) -
-# A CI/wrapper consumes {command,compacted,rejected_drained,plan_deleted} instead of
-# parsing the "lifecycle: ..." text line. One completed + one rejected + one pending ->
-# compacted 1, rejected_drained 1, plan_deleted false. --quiet still wins (no output).
+# A CI/wrapper consumes {command,compacted,rejected_drained,completed_capped,rejected_capped,
+# plan_deleted} instead of parsing the "lifecycle: ..." text line. One completed + one
+# rejected + one pending -> compacted 1, rejected_drained 1, both *_capped 0 (well under the
+# FIFO cap), plan_deleted false. --quiet still wins (no output).
 LCJ="$TMP/lc7/.planwright"; mkdir -p "$LCJ"
 cat > "$LCJ/plan.md" <<'EOF'
 # planwright Plan — .
@@ -278,8 +289,8 @@ cat > "$LCJ/plan.md" <<'EOF'
       Verification: true
 EOF
 jout="$(python3 "$LC" housekeep --root "$LCJ" --json)"
-if printf '%s' "$jout" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"]=="housekeep" and d["compacted"]==1 and d["rejected_drained"]==1 and d["plan_deleted"] is False' 2>/dev/null; then
-  ok "lifecycle.py housekeep --json emits a structured compacted/rejected_drained/plan_deleted report"
+if printf '%s' "$jout" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"]=="housekeep" and d["compacted"]==1 and d["rejected_drained"]==1 and d["completed_capped"]==0 and d["rejected_capped"]==0 and d["plan_deleted"] is False' 2>/dev/null; then
+  ok "lifecycle.py housekeep --json emits a structured compacted/rejected_drained/completed_capped/rejected_capped/plan_deleted report"
 else
   bad "lifecycle.py housekeep --json wrong (out='$jout')"
 fi

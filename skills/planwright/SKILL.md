@@ -522,17 +522,21 @@ yourself. The numbered steps below are the **specification** it implements; foll
 as a fallback when the script cannot run.
 
 1. If `plan.md` exists, move every completed item (`- [x] ...` and its indented continuation lines)
-   into `completed.md` (append). Then enforce the **FIFO cap of 100**: if `completed.md` holds more
-   than 100 items, drop the oldest (top of file) until 100 remain.
+   into `completed.md` (append). Then — **at Stage 0 only**, never during execute's per-item landing —
+   enforce the **FIFO cap of 100**: if `completed.md` holds more than 100 items, drop the oldest (top
+   of file) until 100 remain. Execute's `land`/`reject` never truncate, so a single run that records
+   more than 100 items keeps its **full** record (the dashboard's accepted/rejected counts reflect the
+   whole current plan, not a mid-run-truncated 100) until **this stage runs on the next run** and trims
+   it back.
 2. Drain any item carrying a `Status:Rejected` / `Status: Rejected` continuation line into
    `rejected.md` (append, preserving its `Rejection:` reason line), removing it from `plan.md`. Then
-   enforce the **FIFO cap of 100** on `rejected.md` the same way.
+   enforce the **FIFO cap of 100** on `rejected.md` the same way (Stage-0 only, same deferral).
 3. If, after that, **no pending (`- [ ]`) items remain**, **delete `plan.md`** to start fresh — an
    empty plan is deleted, never archived (backing up an empty plan is only clutter). When pending
    items remain, leave `plan.md` untouched so this run merges its new items into them (Stage 11).
 4. Read the remaining **pending** (`- [ ]`) items — these are the existing plan you must not duplicate.
 
-Report counts: compacted, rejected-drained, plan kept/deleted.
+Report counts: compacted, rejected-drained, completed-capped / rejected-capped (blocks dropped by the deferred FIFO cap), plan kept/deleted.
 
 ### Stage 1 — Scan (mechanical)
 
@@ -1290,15 +1294,18 @@ For each targeted pending item, in plan order:
    `Commit: <short-sha>` continuation line (the landing commit's `git rev-parse --short HEAD`) to the
    item, so its completed record traces back to the exact change without git-log archaeology
    (`Commit` is a recognised lifecycle field in `plan_parse.py`'s KNOWN_FIELDS, like
-   `Status`/`Rejection`). Move the stamped item to `completed.md` and enforce the FIFO cap of 100.
+   `Status`/`Rejection`). Move the stamped item to `completed.md` (**append only — execute never
+   truncates**; the FIFO cap of 100 is deferred to the next run's Stage 0 housekeep, so a run that
+   lands more than 100 items keeps its full record on the dashboard).
    **Canonical script:** prefer `python3 <scripts>/lifecycle.py land <N> --commit $(git rev-parse
    --short HEAD) --root <target>/.planwright` (N = the item's 1-based pending number) — it flips,
-   stamps, drains, and FIFO-caps in one deterministic, test-covered step; the prose above is the
+   stamps, and drains (no cap) in one deterministic, test-covered step; the prose above is the
    by-hand fallback when the script cannot run.
 5. **On FAIL** — make up to **2 repair attempts** (re-read the error, adjust, re-verify). If it still
    fails, **reject**: revert this item's edits (`git restore` / `git checkout --` the touched paths so
    no partial change is committed), append a `Status:Rejected` and `Rejection: <one-line reason>` to
-   the item, move it to `rejected.md` (FIFO cap 100), and continue. **Canonical script:** prefer
+   the item, move it to `rejected.md` (append only — the FIFO cap is the next run's Stage 0 concern),
+   and continue. **Canonical script:** prefer
    `python3 <scripts>/lifecycle.py reject <N> --reason "<one-line reason>" --root <target>/.planwright`
    — it appends the canonical Status/Rejection lines (the exact spelling the drain and the next plan's
    PREVIOUSLY REJECTED reader key on) and drains the block in one deterministic, test-covered step;

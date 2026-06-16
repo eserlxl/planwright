@@ -6,25 +6,29 @@
 # housekeeping"), so the most error-prone bookkeeping has a deterministic, test-covered
 # backing instead of being done by hand:
 #
-#   1. drain-completed — move every completed (`- [x]`) item to completed.md (append),
-#      then FIFO-cap completed.md at 100 (drop the oldest from the top).
+#   1. drain-completed — move every completed (`- [x]`) item to completed.md (append only).
 #   2. drain-rejected  — move every item carrying a `Status: Rejected` line to
-#      rejected.md (append, preserving its `Rejection:` reason), FIFO-cap at 100.
+#      rejected.md (append only, preserving its `Rejection:` reason).
 #   3. reset-if-empty  — if no pending (`- [ ]`) items remain, DELETE plan.md (start
 #      fresh). An empty plan is deleted, never archived; when pending items remain the
 #      plan is left untouched so the next run merges into it.
-#   housekeep — run 1 -> 2 -> 3 in order and print the Stage 0 report.
+#   housekeep — run 1 -> 2, then enforce the FIFO cap of 100 on completed.md and rejected.md
+#      (drop the oldest from the top), then run 3 and print the Stage 0 report. The cap is the
+#      DEFERRED, run-boundary bound: the per-item append paths (land / reject / reconcile,
+#      i.e. execute) never truncate, so a single run that records more than 100 items keeps
+#      its full record on the dashboard until the NEXT run's Stage 0 housekeep trims it back.
 #
 # It also mechanizes the execute path's per-item "On PASS" bookkeeping (SKILL.md
 # Execute step 4, NOT part of Stage 0):
 #   land <N> --commit <short-sha> — flip pending item N (1-based over the pending,
 #      non-rejected blocks in plan order — the same numbering `execute N` uses) to
 #      checked, append the `Commit: <short-sha>` provenance stamp, and drain exactly
-#      that block to completed.md (FIFO cap 100), leaving every other block
-#      byte-identical. One tested step instead of four hand-rolled ones.
+#      that block to completed.md (append only — execute never truncates; the FIFO cap is
+#      deferred to the next run's housekeep), leaving every other block byte-identical. One
+#      tested step instead of four hand-rolled ones.
 #   reject <N> --reason "<one-line>" — append the canonical `Status: Rejected` and
 #      `Rejection: <reason>` continuation lines to pending item N (same numbering)
-#      and drain exactly that block to rejected.md (FIFO cap 100). The exact
+#      and drain exactly that block to rejected.md (append only — execute never truncates). The exact
 #      Status: Rejected spelling is what the drain and the next plan's PREVIOUSLY
 #      REJECTED reader key on — mechanizing it keeps the feedback loop machine-readable.
 #   reconcile --commit <sha> --mode <mode> [--title T] — record an ALREADY-committed fix
@@ -32,7 +36,7 @@
 #      (an inline codshard/codvisor/execute fix that was committed directly). Resolves
 #      <sha> to its short sha + commit subject (in the repo that is the parent of --root,
 #      or --repo) and appends a canonical `- [x] <title>` / `Mode:` / `Commit:` block to
-#      completed.md (FIFO cap 100). Idempotent by short sha, and git-verified so it can
+#      completed.md (append only; FIFO cap deferred to housekeep). Idempotent by short sha, and git-verified so it can
 #      never record a fix that is not a real commit. This is the escape hatch that keeps
 #      the "a committed fix is ALWAYS recorded as completed" contract satisfiable for work
 #      that did not flow through plan.md -> land.
@@ -220,21 +224,38 @@ def write(path, preamble, blocks):
         raise
 
 
-def append_capped(path, new_blocks):
-    """Append new_blocks to a lifecycle file, then keep only the most recent FIFO_CAP."""
+def append_blocks(path, new_blocks):
+    """Append new_blocks to a lifecycle file (NO truncation). The FIFO cap is deliberately
+    NOT applied here: it is deferred to the next run's Stage 0 housekeep (cap_log), so a
+    single run — even one execute pass that records more than FIFO_CAP items — keeps its
+    full completed/rejected record. The dashboard's accepted/rejected counts must reflect
+    the whole current plan, not a mid-run-truncated 100."""
     pre, existing = read_blocks(path)
-    combined = existing + new_blocks
-    if len(combined) > FIFO_CAP:
-        combined = combined[len(combined) - FIFO_CAP:]
-    write(path, pre, combined)
+    write(path, pre, existing + new_blocks)
+
+
+def cap_log(path):
+    """Enforce the FIFO cap on a lifecycle log: keep only the most-recent FIFO_CAP blocks,
+    dropping the oldest from the top. This is the DEFERRED, run-boundary bound — invoked only
+    by housekeep (Stage 0 of the *next* run), never by the per-item append paths (land /
+    reject / reconcile) — so the cap can never truncate the record of the run currently
+    executing. Returns the number of blocks dropped (0 when the file is missing or already
+    within the cap, in which case it is left byte-untouched — no needless rewrite)."""
+    pre, blocks = read_blocks(path)
+    if len(blocks) <= FIFO_CAP:
+        return 0
+    dropped = len(blocks) - FIFO_CAP
+    write(path, pre, blocks[dropped:])
+    return dropped
 
 
 def drain(plan_path, target_path, pred):
-    """Move blocks matching pred out of plan.md into target_path (FIFO-capped)."""
+    """Move blocks matching pred out of plan.md into target_path (append only; the FIFO
+    cap is enforced separately by housekeep, never on this move)."""
     pre, blocks = read_blocks(plan_path)
     moved = [b for b in blocks if pred(b)]
     if moved:
-        append_capped(target_path, moved)
+        append_blocks(target_path, moved)
         write(plan_path, pre, [b for b in blocks if not pred(b)])
     return len(moved)
 
@@ -257,13 +278,14 @@ def land(plan_path, target_path, index, commit):
     """The execute path's "On PASS" bookkeeping (SKILL.md Execute step 4) for ONE item,
     in one tested step: flip pending item `index`'s checkbox, append the
     `Commit: <commit>` provenance stamp as its last continuation line, and drain
-    exactly that block to completed.md (FIFO-capped), leaving every other block
-    byte-identical. Returns the landed item's title."""
+    exactly that block to completed.md (append only — execute never truncates; the FIFO cap
+    is deferred to the next run's housekeep), leaving every other block byte-identical.
+    Returns the landed item's title."""
     pre, blocks, block = _take_pending(plan_path, index)
     block["lines"][0] = block["lines"][0].replace("- [ ]", "- [x]", 1)
     block["checked"] = True
     block["lines"].append(f"      Commit: {commit}")
-    append_capped(target_path, [block])
+    append_blocks(target_path, [block])
     write(plan_path, pre, [b for b in blocks if b is not block])
     return block["lines"][0].split("]", 1)[1].strip()
 
@@ -272,15 +294,16 @@ def reject(plan_path, target_path, index, reason):
     """The execute path's "On FAIL" / value-gate bookkeeping (SKILL.md Execute steps 1
     and 5) for ONE item, in one tested step: append the canonical `Status: Rejected`
     and `Rejection: <reason>` continuation lines to pending item `index` and drain
-    exactly that block to rejected.md (FIFO-capped), leaving every other block
-    byte-identical. The exact `Status: Rejected` spelling is what drain_rejected and
+    exactly that block to rejected.md (append only — execute never truncates; the FIFO cap
+    is deferred to the next run's housekeep), leaving every other block byte-identical. The
+    exact `Status: Rejected` spelling is what drain_rejected and
     the Stage 1 PREVIOUSLY REJECTED reader key on — mechanizing the append is what
     keeps the rejection feedback loop machine-readable. Returns the item's title."""
     pre, blocks, block = _take_pending(plan_path, index)
     block["lines"].append("      Status: Rejected")
     block["lines"].append(f"      Rejection: {reason}")
     block["rejected"] = True
-    append_capped(target_path, [block])
+    append_blocks(target_path, [block])
     write(plan_path, pre, [b for b in blocks if b is not block])
     return block["lines"][0].split("]", 1)[1].strip()
 
@@ -336,7 +359,7 @@ def reconcile(completed_path, repo, ref, mode, title=None):
     WITHOUT a plan.md item to land (an inline codshard/codvisor/execute fix committed
     directly). Resolves <ref> to its short sha + subject in <repo>, then appends a
     canonical `- [x] <title>` / `Mode: <mode>` / `Commit: <short-sha>` block to
-    completed.md (FIFO-capped) so the dashboard's completed history reflects the fix.
+    completed.md (append only; FIFO cap deferred to housekeep) so the dashboard's completed history reflects the fix.
     Idempotent: a commit already recorded (matched by full-sha prefix, so abbreviation-
     length drift cannot duplicate it) is skipped. Returns (short_sha, title, recorded);
     recorded is False when it was already present."""
@@ -348,7 +371,7 @@ def reconcile(completed_path, repo, ref, mode, title=None):
              "lines": [f"- [x] {item_title}",
                        f"      Mode: {mode}",
                        f"      Commit: {short}"]}
-    append_capped(completed_path, [block])
+    append_blocks(completed_path, [block])
     return short, item_title, True
 
 
@@ -388,7 +411,8 @@ def reconcile_sweep(completed_path, rejected_path, repo, since, mode, dry_run=Fa
     not already carry — the mechanical safety net behind the completion-accounting
     invariant for inline orchestration commits (codmaster/codshard/codvisor) that landed in
     git but were never reconciled. Reuses reconcile() per commit, so each stays git-verified
-    and idempotent (full-sha prefix match) and completed.md stays FIFO-capped. A candidate is
+    and idempotent (full-sha prefix match); like every append path it does not cap (the FIFO
+    bound is enforced only by the next run's housekeep). A candidate is
     skipped when it is already recorded in completed.md, already recorded in rejected.md
     (never resurrect a rejected item), or a release/merge/chore/bump commit (_is_nonfix_subject).
     With dry_run, records nothing and reports only what WOULD be recorded (the detector use).
@@ -497,7 +521,8 @@ def main():
     ap.add_argument("--quiet", action="store_true", help="suppress the report line")
     ap.add_argument("--json", action="store_true",
                     help="emit the report as a JSON object (command/compacted/rejected_drained/"
-                         "plan_deleted for housekeep; command/cleared/rejected_kept for reset; "
+                         "completed_capped/rejected_capped/plan_deleted for housekeep; "
+                         "command/cleared/rejected_kept for reset; "
                          "command/commit/title/mode/recorded for reconcile) for CI "
                          "(parity with the sibling scripts); --quiet still suppresses all output")
     args = ap.parse_args()
@@ -729,6 +754,7 @@ def main():
     rejected = os.path.join(root, "rejected.md")
 
     compacted = rdrained = 0
+    completed_capped = rejected_capped = 0
     deleted = False
     try:
         with _state_lock(root):
@@ -736,6 +762,13 @@ def main():
                 compacted = drain(plan, completed, lambda b: b["checked"])
             if args.command in ("drain-rejected", "housekeep"):
                 rdrained = drain(plan, rejected, lambda b: b["rejected"])
+            # The deferred FIFO cap. housekeep is Stage 0 of the *next* run, so trimming the
+            # accumulated logs HERE (and only here — never on a standalone drain or on the
+            # execute-path append) bounds completed.md/rejected.md to FIFO_CAP without ever
+            # truncating the record of the run that just executed.
+            if args.command == "housekeep":
+                completed_capped = cap_log(completed)
+                rejected_capped = cap_log(rejected)
             if args.command in ("reset-if-empty", "housekeep"):
                 deleted = reset_if_empty(plan)
     except (UnicodeDecodeError, NotADirectoryError, IsADirectoryError, PermissionError) as e:
@@ -752,6 +785,9 @@ def main():
             report["compacted"] = compacted
         if args.command in ("drain-rejected", "housekeep"):
             report["rejected_drained"] = rdrained
+        if args.command == "housekeep":
+            report["completed_capped"] = completed_capped
+            report["rejected_capped"] = rejected_capped
         if args.command in ("reset-if-empty", "housekeep"):
             report["plan_deleted"] = deleted
         print(json.dumps(report))
@@ -761,6 +797,10 @@ def main():
             bits.append(f"compacted {compacted}")
         if args.command in ("drain-rejected", "housekeep"):
             bits.append(f"rejected-drained {rdrained}")
+        if args.command == "housekeep" and completed_capped:
+            bits.append(f"completed-capped {completed_capped}")
+        if args.command == "housekeep" and rejected_capped:
+            bits.append(f"rejected-capped {rejected_capped}")
         if args.command in ("reset-if-empty", "housekeep"):
             bits.append(f"plan {'deleted (empty)' if deleted else 'kept'}")
         print("lifecycle: " + ", ".join(bits))

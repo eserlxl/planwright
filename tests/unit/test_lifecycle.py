@@ -141,15 +141,46 @@ class TestLand(unittest.TestCase):
         self.assertEqual(self._run("land", "1", "--reason", "x"), 2)
         self.assertEqual(self._run("reject", "1", "--commit", "abc1234"), 2)
 
-    def test_land_keeps_completed_fifo_cap(self):
+    def test_land_does_not_cap_completed(self):
+        # Execute (land) must NEVER truncate: a run that lands past FIFO_CAP items keeps its
+        # full record so the dashboard's accepted count reflects the whole current plan rather
+        # than a mid-run-truncated 100. The cap is deferred to the next run's Stage 0 housekeep
+        # (see test_housekeep_caps_completed_log).
         blocks = "".join(f"- [x] old {i}\n      Mode: docs\n\n" for i in range(lc.FIFO_CAP))
         with open(self.completed, "w", encoding="utf-8") as fh:
             fh.write(blocks)
         self.assertEqual(self._run("land", "1", "--commit", "abc1234"), 0)
         done = self._read(self.completed)
-        self.assertIn("- [x] first thing", done)
-        self.assertNotIn("- [x] old 0\n", done)        # oldest dropped to hold the cap
+        self.assertIn("- [x] first thing", done)        # the freshly landed item
+        self.assertIn("- [x] old 0\n", done)            # oldest RETAINED — execute never caps
+        self.assertEqual(done.count("- [x] "), lc.FIFO_CAP + 1)
+
+    def test_housekeep_caps_completed_log(self):
+        # The deferred FIFO bound: housekeep (Stage 0 of the *next* run) trims the accumulated
+        # log back to FIFO_CAP, dropping the oldest from the top. plan.md is removed first so
+        # the drain moves nothing and this isolates the cap step.
+        over = lc.FIFO_CAP + 3
+        blocks = "".join(f"- [x] old {i}\n      Mode: docs\n\n" for i in range(over))
+        with open(self.completed, "w", encoding="utf-8") as fh:
+            fh.write(blocks)
+        os.remove(self.plan)
+        self.assertEqual(self._run("housekeep"), 0)
+        done = self._read(self.completed)
         self.assertEqual(done.count("- [x] "), lc.FIFO_CAP)
+        self.assertNotIn("- [x] old 0\n", done)         # oldest 3 (0,1,2) dropped to hold the cap
+        self.assertNotIn("- [x] old 2\n", done)
+        self.assertIn("- [x] old 3\n", done)            # 4th-oldest is the new floor
+        self.assertIn(f"- [x] old {over - 1}\n", done)  # newest kept
+
+    def test_housekeep_below_cap_leaves_completed_untouched(self):
+        # Under the cap, housekeep must not rewrite completed.md (cap_log returns 0).
+        blocks = "".join(f"- [x] old {i}\n      Mode: docs\n\n" for i in range(5))
+        with open(self.completed, "w", encoding="utf-8") as fh:
+            fh.write(blocks)
+        before = self._read(self.completed)
+        os.remove(self.plan)
+        self.assertEqual(self._run("housekeep"), 0)
+        self.assertEqual(self._read(self.completed), before)
 
 
 if __name__ == "__main__":
