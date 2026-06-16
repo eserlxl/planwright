@@ -6,8 +6,9 @@
 # after tests/lib.sh — NOT standalone (uses ROOT/TMP/ok/bad/ver).
 #
 # bump-version.sh rewrites the version in lockstep across .claude-plugin/plugin.json,
-# .codex-plugin/plugin.json and every skills/*/SKILL.md
-# frontmatter, prepends a CHANGELOG entry, and is transactional (restore-on-failure). A
+# .codex-plugin/plugin.json, every skills/*/SKILL.md frontmatter and the root
+# README.md shields.io version badge, prepends a CHANGELOG entry, and is
+# transactional (restore-on-failure). A
 # regression in its SemVer computation or its lockstep sync would ship drifted versions
 # silently — exactly what the lockstep contract forbids — yet nothing exercised it. These
 # checks build a hermetic temp repo, copy the script in (so its BASH_SOURCE/.. ROOT resolves
@@ -24,6 +25,11 @@ _bv_fixture() {
   printf '{\n  "name": "demo",\n  "version": "%s"\n}\n' "$ver" > "$d/.codex-plugin/plugin.json"
   printf -- '# Changelog\n\n## [%s] - 2026-01-01\n\n### Changed\n- seed\n' "$ver" > "$d/CHANGELOG.md"
   printf -- '---\nname: demo\nmetadata:\n  version: "%s"\n---\n\n# demo\n' "$ver" > "$d/skills/demo/SKILL.md"
+  # A README carrying a shields.io version badge pinned at a sentinel (0.0.0), so a
+  # successful bump must rewrite the message to the new version. The seed message is
+  # deliberately NOT $ver: the assertions then prove the rewrite happened rather than
+  # accidentally matching a pre-existing value.
+  printf -- '# demo\n\n[![version](https://img.shields.io/badge/version-0.0.0-2563EB)](CHANGELOG.md)\n[![license](https://img.shields.io/badge/license-GPL--3.0-16A34A)](LICENSE)\n' > "$d/README.md"
   cp "$BV" "$d/scripts/bump-version.sh"
 }
 
@@ -58,9 +64,41 @@ else bad "bump-version.sh pre-release patch failed (got $(ver "$BV3/.claude-plug
 
 # --- Test BV4: --dry-run reports the transition and writes nothing -------------------
 BV4="$TMP/bv-dry"; _bv_fixture "$BV4" "1.2.3"
-_bv_before="$(cat "$BV4/.claude-plugin/plugin.json" "$BV4/CHANGELOG.md")"
+_bv_before="$(cat "$BV4/.claude-plugin/plugin.json" "$BV4/CHANGELOG.md" "$BV4/README.md")"
 if ALLOW_DIRTY=1 bash "$BV4/scripts/bump-version.sh" major --dry-run >"$TMP/bv4.out" 2>"$TMP/bv4.err" \
-   && [ "$(cat "$BV4/.claude-plugin/plugin.json" "$BV4/CHANGELOG.md")" = "$_bv_before" ] \
-   && grep -q "1.2.3 -> 2.0.0" "$TMP/bv4.out"; then
-  ok "bump-version.sh --dry-run reports the transition and writes nothing"
+   && [ "$(cat "$BV4/.claude-plugin/plugin.json" "$BV4/CHANGELOG.md" "$BV4/README.md")" = "$_bv_before" ] \
+   && grep -q "1.2.3 -> 2.0.0" "$TMP/bv4.out" \
+   && grep -q "would update.*version badge -> 2.0.0" "$TMP/bv4.out"; then
+  ok "bump-version.sh --dry-run reports the transition (incl. README badge) and writes nothing"
 else bad "bump-version.sh --dry-run mutated files or misreported: $(cat "$TMP/bv4.err" 2>/dev/null)"; fi
+
+# --- Test BV5: a real bump rewrites the README shields.io version badge in lockstep --
+BV5="$TMP/bv-readme"; _bv_fixture "$BV5" "1.2.3"
+if ALLOW_DIRTY=1 bash "$BV5/scripts/bump-version.sh" minor >"$TMP/bv5.out" 2>"$TMP/bv5.err" \
+   && grep -q "img.shields.io/badge/version-1.3.0-2563EB" "$BV5/README.md" \
+   && ! grep -q "version-0.0.0-" "$BV5/README.md" \
+   && [ "$(ver "$BV5/.claude-plugin/plugin.json" '["version"]')" = "1.3.0" ]; then
+  ok "bump-version.sh rewrites the README shields.io version badge in lockstep with the manifests"
+else bad "bump-version.sh README badge sync failed: $(cat "$TMP/bv5.err" 2>/dev/null)"; fi
+
+# --- Test BV6: a missing README is non-fatal — the bump still succeeds ---------------
+# The README badge step is documented as best-effort; a regression making it fatal must
+# fail this case. BV6 removes the fixture's README entirely and asserts the bump still
+# completes (exit 0) and the manifest version still advanced.
+BV6="$TMP/bv-noreadme"; _bv_fixture "$BV6" "1.2.3"; rm -f "$BV6/README.md"
+if ALLOW_DIRTY=1 bash "$BV6/scripts/bump-version.sh" minor >"$TMP/bv6.out" 2>"$TMP/bv6.err" \
+   && [ "$(ver "$BV6/.claude-plugin/plugin.json" '["version"]')" = "1.3.0" ]; then
+  ok "bump-version.sh still bumps (exit 0) when no README.md is present — badge sync is non-fatal"
+else bad "bump-version.sh aborted on a missing README (should be non-fatal): $(cat "$TMP/bv6.err" 2>/dev/null)"; fi
+
+# --- Test BV7: a README with no version badge warns and is skipped (non-fatal) -------
+# The other half of the best-effort contract: a README that exists but carries no
+# shields.io version badge must warn-and-skip, not abort. Assert exit 0, the version
+# still bumped, and the exact skip warning on stderr.
+BV7="$TMP/bv-nobadge"; _bv_fixture "$BV7" "1.2.3"
+printf -- '# demo\n\nNo version badge in this README.\n' > "$BV7/README.md"
+if ALLOW_DIRTY=1 bash "$BV7/scripts/bump-version.sh" minor >"$TMP/bv7.out" 2>"$TMP/bv7.err" \
+   && [ "$(ver "$BV7/.claude-plugin/plugin.json" '["version"]')" = "1.3.0" ] \
+   && grep -q "no shields.io version badge in README.md; skipped" "$TMP/bv7.err"; then
+  ok "bump-version.sh bumps and warns (non-fatal) when README.md has no version badge"
+else bad "bump-version.sh mishandled a badge-less README: $(cat "$TMP/bv7.err" 2>/dev/null)"; fi

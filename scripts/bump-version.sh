@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Bump the plugin version in lockstep across Claude/Codex manifests,
-# skill frontmatter, and CHANGELOG.md.
+# skill frontmatter, CHANGELOG.md, and the root README.md shields.io version badge.
 #
 # This script updates version numbers and the changelog — it does NOT create a
 # git tag or GitHub release. Tags should only be created at release milestones:
@@ -24,6 +24,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_JSON="$ROOT/.claude-plugin/plugin.json"
 CODEX_PLUGIN_JSON="$ROOT/.codex-plugin/plugin.json"
 CHANGELOG="$ROOT/CHANGELOG.md"
+README_FILE="$ROOT/README.md"
 
 # Portable repo-relative path. GNU realpath's relative mode is unavailable on
 # stock macOS without Homebrew; python3 is already required by this script.
@@ -123,6 +124,7 @@ DATE="$(date -u +%Y-%m-%d)"
 if [ -z "$DRY_RUN" ]; then
   _bump_targets=("$PLUGIN_JSON" "$CHANGELOG")
   [ -f "$CODEX_PLUGIN_JSON" ] && _bump_targets+=("$CODEX_PLUGIN_JSON")
+  [ -f "$README_FILE" ] && _bump_targets+=("$README_FILE")
   for _skill in "$ROOT"/skills/*/SKILL.md; do
     [ -f "$_skill" ] && _bump_targets+=("$_skill")
   done
@@ -231,6 +233,60 @@ PY
   fi
 done
 
+# --- Rewrite the root README shields.io version badge ----------------------
+# The version badge lives in README prose, outside the manifest/SKILL.md
+# frontmatter lockstep, so without this step the published badge would silently
+# drift behind the real version. Best-effort and non-fatal, mirroring the
+# SKILL.md sync: a missing README, or a README with no version badge, warns and
+# is skipped so the bump still succeeds. The python handles its own dry-run
+# (prints "would" and writes nothing) so --dry-run reports accurately.
+README_STATUS=""
+if [ -f "$README_FILE" ]; then
+  README_STATUS="$(python3 - "$README_FILE" "$NEW" "${DRY_RUN:-0}" <<'PY'
+import os, re, sys, tempfile
+path, new, dry = sys.argv[1], sys.argv[2], sys.argv[3]
+
+def atomic_write(path, data):
+    # Same-directory temp + os.replace (see the JSON-manifest step above): never
+    # truncate-then-write, so an interruption cannot leave a half-written README.
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".bump-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+# shields.io escapes '-' as '--' and '_' as '__' inside the message field; a
+# plain X.Y.Z version is unaffected, but a pre-release like 1.0.0-rc1 is not.
+message = new.replace("-", "--").replace("_", "__")
+with open(path, encoding="utf-8") as f:
+    text = f.read()
+# label 'version', then the message (non-greedy), then a 6-hex color + closing paren.
+pat = re.compile(r"(https://img\.shields\.io/badge/version-).+?(-[0-9A-Fa-f]{6}\))")
+# A function replacement avoids re.sub interpreting backslashes in `message`.
+new_text, n = pat.subn(lambda m: m.group(1) + message + m.group(2), text)
+if n == 0:
+    print("nobadge"); raise SystemExit
+if new_text == text:
+    print("same"); raise SystemExit
+if dry != "0":
+    print("would"); raise SystemExit
+atomic_write(path, new_text)
+print("changed")
+PY
+)"
+  case "$README_STATUS" in
+    nobadge) echo "warning: no shields.io version badge in $(relpath "$README_FILE"); skipped" >&2 ;;
+    "") echo "warning: README badge sync produced no result; skipped" >&2 ;;
+  esac
+fi
+
 # --- Prepend a CHANGELOG entry --------------------------------------------
 if [ -z "$DRY_RUN" ]; then
 python3 - "$CHANGELOG" "$NEW" "$DATE" "$NOTE" <<'PY'
@@ -285,11 +341,14 @@ if [ -n "$DRY_RUN" ]; then
   # test would otherwise become the script's exit status, making --dry-run exit 1 whenever no
   # skill is syncable — while the real run exits 0. Keep the probe's exit code trustworthy.
   if [ -n "$SKILLS_SYNCED" ]; then echo "  would sync$SKILLS_SYNCED"; fi
+  # Same if/fi rule: a false `[ = ]` here as the branch's last statement would leak exit 1.
+  if [ "$README_STATUS" = "would" ]; then echo "  would update $(relpath "$README_FILE") version badge -> $NEW"; fi
 else
   echo "Bumped: $CURRENT -> $NEW"
   echo "  updated $(relpath "$PLUGIN_JSON")"
   [ -f "$CODEX_PLUGIN_JSON" ] && echo "  updated $(relpath "$CODEX_PLUGIN_JSON")"
   [ -n "$SKILLS_SYNCED" ] && echo "  updated$SKILLS_SYNCED"
+  [ "$README_STATUS" = "changed" ] && echo "  updated $(relpath "$README_FILE") (version badge)"
   echo "  changelog entry added ($DATE)"
   echo
   echo "Next: review the diff, commit, then refresh/reinstall in the host you are testing."

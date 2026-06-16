@@ -2,6 +2,10 @@
 
 **A free, local control loop for AI coding agents: grounded planning, verification, execution, and repeatable codebase improvement.**
 
+[![version](https://img.shields.io/badge/version-1.61.0-2563EB)](CHANGELOG.md)
+[![license](https://img.shields.io/badge/license-GPL--3.0-16A34A)](LICENSE)
+[![platforms](https://img.shields.io/badge/platforms-claude--code%20%C2%B7%20codex%20%C2%B7%20cursor%20%C2%B7%20antigravity%20%C2%B7%20gemini-2563EB)](#why-any-agent-can-host-it)
+
 > Use `/codvisor` to repair and harden a repo, `/codinventor` to add grounded new capability,
 > `/codcycle` to alternate both, `/codshard` to mature a large repo shard by shard — or
 > `/codmaster`, the front door that senses what the repo needs and drives it, command by command,
@@ -183,7 +187,7 @@ A plan item is a checkbox title plus seven required continuation fields (an opti
 - [ ] Guard README plan examples against schema drift
       Mode: docs
       Rationale: The README teaches the plan item format users copy into `.planwright/plan.md`.
-      Evidence: README.md:173 names the required shape for plan items.
+      Evidence: README.md:174 names the required shape for plan items.
       Surfaces: README.md, tests/run.sh
       Development: Keep the example aligned with the SKILL.md OUTPUT FORMAT and lint-plan.py checks.
       Acceptance: The example shows the checkbox title and every required continuation field.
@@ -397,7 +401,7 @@ The full reference — request-seeded plans (`/planwright "add OAuth login"`), t
 bash tests/run.sh
 bash tests/run.sh lint-plan lifecycle   # just those topic cases, for a focused loop
 
-# Bump the version in manifests + CHANGELOG (does NOT tag or release)
+# Bump the version in manifests + CHANGELOG + README version badge (does NOT tag or release)
 scripts/bump-version.sh patch -m "what changed"
 
 # Preview a bump without modifying files
