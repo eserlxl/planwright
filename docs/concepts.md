@@ -33,7 +33,10 @@ In plain terms, one run behaves like a careful maintainer:
   or an out-of-date "all done" marker triggers the deep repair sweep (`codvisor`; on a large repo,
   the shard-by-shard `codshard`).
 - **Grow once it's clean** — a healthy, converged tree gets one `codinventor` burst of genuinely
-  new, grounded capability; codmaster then hardens that new work and stops.
+  new, grounded capability; codmaster then deep-hardens that new work and, as a final step, runs one
+  **qb intent-replan** (`/qb-plan auto`, when qb is installed) — folding qb's pending items into the
+  plan and implementing them — before it stops. (`safe` does neither: it never invents and never
+  runs qb.)
 - **It always explains itself** — every step prints what it chose, why, and the numbers behind the
   decision, and blockers (a dirty git tree, a broken environment) stop it before anything runs.
 

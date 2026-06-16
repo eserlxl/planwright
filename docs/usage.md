@@ -209,14 +209,19 @@ terminal triggers the cold-start `reset` itself (typing `loop` is the consent fo
 starts; `rejected.md` survives, so rejected work stays suppressed across laps) and begins a new
 lap with the growth burst re-armed — an interruption or a hard failure (a blocker, hard blocker,
 or broad-verify failure) ends it immediately, and otherwise it stops only at a **lap boundary**
-when a whole lap (through the post-growth `codshard` harden) made no net progress — a *fully-dry
-lap* is the **final convergence point**. The soft no-progress guard never stops a `loop` lap
+when a whole lap (through the post-growth `codshard` harden **and** the closing qb intent-replan's
+execute) made no net progress — a *fully-dry lap* (qb's replan included) is the **final convergence
+point**. The soft no-progress guard never stops a `loop` lap
 mid-flight; the termination decision is taken only after the final post-growth harden. The lifecycle ladder: pending items → `execute`; structural debt, a stale final point, or a
 carried backlog → `codvisor` (`codshard explore` on a mechanically large repo: ≥120 tracked files
 and ≥2 shardable dirs); a clean but unconverged tree → the same harden sweep; a converged tree →
 `codinventor` — growth is **enforced whenever `safe` is off**: at every converged terminal
 codmaster takes one `codinventor` burst regardless of the engine's per-state routing (the banner
-discloses invent's rare, dwell-gated committed `MISSION.md` edits). The engine still routes a
+discloses invent's rare, dwell-gated committed `MISSION.md` edits). Once that post-growth harden
+re-converges, a non-`safe` drive runs one **qb intent-replan** (`/qb-plan auto`, when qb is
+installed) as the **top rung** of the escalation ladder — merging qb's pending items into the plan
+(deduped against completed/rejected, re-validated by planwright's own validator) and executing them
+— before the terminal stop; `safe` never runs qb. The engine still routes a
 converged `deepest_tier: invent` point (the earned empty) to a cold-start `reset` plus a fresh
 harden sweep when really necessary — the point must be unseeded and the cold frontier shown
 drained, else it re-surveys or hardens without wiping audit memory — but that invent-dry routing is
