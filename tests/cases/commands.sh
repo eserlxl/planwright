@@ -625,6 +625,89 @@ assert "qb run and its follow-on" in body, "qb step-accounting (counts against t
 assert "qb-replan taken this lap" in body, "qb at-most-once flag (mirroring the growth flag) missing — re-run on the OK->execute->re-converge path"
 assert "qb intent-replan was not yet taken this lap" in body, "qb at-most-once gate conjunct missing (gate must be codinventor-ran AND qb-not-yet-taken)"
 assert "run /qb-plan auto, then merge .qb/plan.md pending items into .planwright/plan.md and execute" in body, "safe qb hand-off paste line missing"
+# defense-in-depth: a consumer must not blindly trust a non-independent qb result. The qb rung detects
+# qb's QB_PLAN_AUTO_WARN disclosure (in-session fallback — audit not independently delegated) and
+# downgrades trust. The downgrade must target the RIGHT signal: codmaster never gated the merge on qb's
+# audit= verdict (it independently re-validates + verifies every item regardless of PASS/WARN/BLOCKED,
+# since QB_PLAN_AUTO_OK only attests the export validated) — so the trust a WARN actually threatens is
+# qb's DRYNESS (a non-independent self-audit is exactly how a real gap is rubber-stamped as "0 items").
+# A WARN-tagged dry result is therefore an UNVERIFIED convergence: codmaster still stops (must not spin)
+# but marks the final point non-independent and recommends an independent re-run rather than a clean done.
+assert "QB_PLAN_AUTO_WARN" in body, "qb rung must detect qb's non-independent-audit disclosure (QB_PLAN_AUTO_WARN)"
+assert "codmaster never gates the merge on qb's audit status at all" in body, "merge must not gate on qb's audit verdict (so a non-independent audit= has no merge-gate to short-circuit)"
+assert "only attests that the export validated" in body, "codmaster must know QB_PLAN_AUTO_OK can ride a BLOCKED audit (OK != audit passed)"
+# the downgrade must follow the CONVERGENCE, not just the qb-dry branch: a WARN-tainted audit's
+# coverage risk is false *incompleteness* too, so the OK+merged-then-re-converged plain STOP rests on
+# the same non-independent rung and must be downgraded identically (the P1 the 2nd review caught).
+assert "whichever convergence closes the lap" in body, "WARN taint must cover BOTH terminals (dry STOP and post-merge re-convergence), not the dry path alone"
+assert "the post-merge re-convergence" in body, "the post-merge re-convergence terminal must be named as a downgraded convergence (not just the dry path)"
+# closed stop-set preserved: NO new stop reason — the reason stays `converged at the final point`,
+# only QUALIFIED as non-independent in the REPORT (P2: an invented terminal label would break the set).
+assert "only when this lap's qb closing rung was independent" in body, "REPORT must gate clean-converged on qb-rung independence"
+assert "codmaster adds no stop reason of its own" in body, "WARN downgrade must NOT add a stop reason (closed stop-set) — qualify the existing converged reason instead"
+assert "qb closing audit non-independent" in body, "the REPORT qualifier for a non-independent converged stop missing"
+# still terminates (no spin) and never silently re-runs the unavailable-Task-tool qb.
+assert "must not spin" in body, "WARN downgrade must still terminate (no infinite loop) — closed-stop-set consistency"
+assert "qb_audit_independent=false" in body, "qb audit-independence flag (the single per-lap fact the downgrade keys on) missing"
+assert "downgrade trust, not an **in-lap** retry" in body, "qb WARN must downgrade trust, not trigger a futile in-lap re-run (Task tool was unavailable)"
+assert "fresh attempt (independence re-evaluated from scratch)" in body, "the 'not retry' rule must be scoped to in-lap — a next-lap re-run is a fresh attempt, not the forbidden retry"
+# the per-lap independence flag must RE-ARM at the lap boundary like every other per-lap flag, else a
+# stale `false` from lap L mislabels lap L+1's convergence in loop mode (round-3 P2 — stale-taint bleed).
+assert "re-arms with the other per-lap flags on relap" in body, "qb_audit_independent must be documented as a per-lap flag that re-arms on relap"
+assert "per-lap qb audit-independence flag to independent" in body, "the relap re-arm set must reset the PER-LAP qb audit-independence flag (loop-mode stale-taint bleed)"
+# the downgrade must key on the FLAG across every done-terminal, not one stop-reason string: loop's
+# fully-dry final point reports `no progress`, NOT `converged at the final point` (round-3 P2/P3).
+assert "not a stop-reason string" in body, "WARN downgrade must follow qb_audit_independent across all done-terminals, not a single stop-reason string"
+# the downgrade-applies set is defined by 'would otherwise print the clean-done recommendation', which
+# must include a BARE drive's post-qb `no progress` stall — the self-contradiction the round-7 review
+# caught (an incomplete stop-reason enumeration left bare no-progress unqualified).
+assert "a bare drive's post-qb" in body, "a bare-drive post-qb `no progress` stall must be a downgraded done-terminal, not an unqualified clean stall"
+assert "would otherwise print the clean-done steady-state recommendation" in body, "the downgrade-applies set must be defined by clean-done presentation, not a stop-reason enumeration that omits cases"
+assert "takes no qualifier" in body, "stops that print no steady-state recommendation (step cap / hard stops) take no qualifier"
+# CROSS-HOST P1: the WARN suffix is host-specific (Claude Code 'in-session fallback — audit not
+# independently delegated' vs Cursor/Codex 'in-session audit — not subagent-isolated on this host').
+# planwright runs on all of them, so codmaster MUST match the QB_PLAN_AUTO_WARN: PREFIX, never the
+# exact suffix — else the downgrade silently misses on Cursor/Codex, where in-session is every-run.
+assert "never an exact full-line suffix" in body, "the WARN scan must match the QB_PLAN_AUTO_WARN: prefix, never the host-specific suffix (cross-host P1)"
+assert "subagent-isolation wording" in body, "codmaster must be aware the Cursor/Codex WARN suffix differs (subagent-isolation wording), not assume the Claude-Code wording"
+assert "the **every-run** norm" in body, "must note in-session (hence the WARN) is the every-run norm on Cursor/Codex, where trusting audit=PASS is most dangerous"
+# a crashed/cut-off qb (no result line) must itself be fail-closed — never laundered into a clean done.
+assert "no-result-line case is itself fail-closed" in body, "a WARN-less qb crash (no result line) must still downgrade — a hard failure is not frontier exhaustion"
+# fail-closed inference governs only the REPORT trust LABEL, never a stop — consistent with the
+# closed stop-set's receive-don't-decide rule.
+assert "absence of a confirmed-independent" in body, "the fail-closed default must be framed as absence-of-signal touching only the trust label, not a self-decided stop"
+# the availability guard must NOT conflate 'no result line' with 'absent': availability is the command
+# existing (judged before running); a launched-then-crashed qb is the step-3 fail-closed case, not a
+# clean skip (round-9 self-introduced contradiction between step 1 and the step-3 no-result-line case).
+assert "not by whether a given run emits a line" in body, "availability must be judged by the command existing, not by whether a run emits a line (absent vs crashed seam)"
+# the label-only scope is a DELIBERATE design boundary, made explicit: codmaster can't get an
+# independent verdict in-session and must not spin, so disclose-and-stop is the honest floor (round-9).
+assert "cannot manufacture an independent qb verdict in-session" in body, "the label-only (no termination-gate) scope must be justified, not silent — disclose-and-stop is the honest floor"
+assert "there is no next lap" in body, "the next-lap 'fresh attempt' reassurance must be scoped — a WARN-on-dry lap STOPs and has no next lap"
+assert "no qb rung runs at all" in body, "the clean-done invariant must explicitly handle safe mode (no qb rung => default-independent => clean)"
+# the flag must be set on the WARN ITSELF (step 2), before the OK/ERROR split — else a WARN followed by
+# QB_PLAN_AUTO_ERROR (in-session audit runs, THEN the export fails) leaves the flag independent and the
+# dry terminal renders a clean done (round-4 P1: the WARN+ERROR leak).
+assert "regardless of whether the result line is" in body, "the qb_audit_independent flag must be set on the WARN itself, regardless of OK/ERROR (covers WARN+ERROR)"
+assert "covers a WARN followed by an error" in body, "WARN+QB_PLAN_AUTO_ERROR path must be explicitly covered by the trust downgrade"
+# loop laundering: a WARN-tainted PROGRESS-MAKING lap relaps (does not STOP) and the relap re-arms the
+# per-lap flag, so the per-lap downgrade alone lets a later independent lap report a clean drive-end
+# 'done' over a tree grown from a non-independently-audited replan. A STICKY drive-level marker that
+# never re-arms must carry the taint to the drive-end REPORT (round-5 P2).
+assert "qb_audit_independent_drive" in body, "a sticky drive-level non-independence marker (survives relap) is required to close the loop-laundering seam"
+assert "never re-arms on relap" in body, "the drive-level marker must be documented as sticky (never re-arms on relap)"
+assert "cannot be laundered into a clean drive-end done by a later independent lap" in body, "the drive-end REPORT must disclose a WARN-tainted earlier lap so it can't be laundered into a clean done"
+# fidelity to qb's contract: the in-session fallback fires when the Task tool OR the qb-* subagents are
+# unavailable, not the Task tool alone (round-5 P3).
+assert "(or the qb-* subagents)" in body, "codmaster must mirror qb's full fallback trigger (Task tool OR qb-* subagents unavailable), not the Task tool alone"
+# the WARN scan is the SOLE trigger of the whole downgrade, so it must be fail-CLOSED: if codmaster
+# cannot observe qb's full output (truncated / file-routed / swallowed by the ctx sandbox), an
+# unconfirmed-independent run must be treated as non-independent, never defaulted to trust (round-6 P2).
+assert "Fail closed on observation" in body, "the WARN-scan downgrade must be fail-closed (unobserved output => non-independent), not fail-open on detection"
+assert "must treat the run as non-independent" in body, "an unconfirmed-independent qb run (unparsed/truncated/sandboxed output) must be downgraded like an observed WARN"
+# a WARN run that then produces NO parseable result line (qb crashed after WARN) must have a defined
+# terminal — treat as qb dry (flag already false) rather than undefined control flow (round-6 P3c).
+assert "no parseable result line" in body, "a WARN-then-no-result-line run must be classified (qb dry), not left as undefined control flow"
 # safe prints a DEDICATED banner (not a fragile strike-edit of the growth/loop banner), so the
 # safe-loop banner carries a harden-only termination model with NO qb-dependent termination clause
 # that would contradict "qb intent-replan does not run".

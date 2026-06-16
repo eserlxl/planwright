@@ -138,16 +138,17 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
      nothing in git — it only clears gitignored `.planwright/` tool-state — so it never masks a
      dry lap), the project has reached its **final convergence point** — STOP and report `no progress` (a fully-dry lap is the only
      honest "done" for an infinite drive: invent's must-generate mandate means a lap that grew
-     and still moved nothing has nothing groundable left, and the lap's qb intent-replan came up dry too — qb's dryness, not codinventor's, now defines this final "done"). Otherwise the lap made progress (the growth burst, or qb's merged-and-executed seeds, moved HEAD), so
+     and still moved nothing has nothing groundable left, and the lap's qb intent-replan came up dry too — qb's dryness, not codinventor's, now defines this final "done"; when that closing qb rung ran non-independently the drive still STOPs here, but the REPORT marks even this terminal unverified per the qb-rung downgrade below, since a non-independent dry may be a false zero). Otherwise the lap made progress (the growth burst, or qb's merged-and-executed seeds, moved HEAD), so
      relap: print the next lap's header `=== codmaster lap L ===`, dispatch planwright with
      `reset` as this step (typing `loop` is the consent for repeated cold starts; `reset` keeps
      `rejected.md`, so rejected work stays suppressed across laps), restart the step counter,
-     re-arm the growth burst and the qb intent-replan, re-record the lap-start ref
+     re-arm the growth burst and the qb intent-replan, reset the qb audit-independence flag to
+     independent, re-record the lap-start ref
      (`git rev-parse HEAD`), and continue — the next SENSE reads first contact and routes to a
      fresh harden sweep. **Under a scope, the lap-boundary relap does not reset** — `reset` is a
      whole-repo `.planwright` wipe the scope forbids (step 0, where codmaster never auto-routes the
      whole-repo moves), so a scoped `loop` drive instead re-senses the scoped component directly at
-     the lap boundary (re-arm the growth burst and the qb intent-replan, restart the step counter, re-record the lap-start ref, **no `reset` dispatch**),
+     the lap boundary (re-arm the growth burst and the qb intent-replan, reset the per-lap qb audit-independence flag to independent (the sticky drive-level marker does not re-arm), restart the step counter, re-record the lap-start ref, **no `reset` dispatch**),
      keeping sibling components' audit memory intact; only an **unscoped** loop relap dispatches
      `reset`. The infinite drive ends only on interruption or a hard stop (a blocker,
      a hard blocker, or a broad-verify failure — these stop it immediately at any step), or, at
@@ -161,7 +162,9 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
      absent / zero net-new) is there nothing left to execute, so STOP the loop — the recorded final
      point is the terminal state. When the qb intent-replan **has already run this lap** — the
      re-convergence after its own `execute` — its at-most-once flag bars a second run, so this
-     terminal is a plain STOP. In `safe` mode qb never runs — its gate is "codinventor already ran", which `safe`
+     terminal is a plain STOP **— and if this lap's qb closing rung ran non-independently
+     (`qb_audit_independent=false`), the REPORT downgrades this convergence exactly as it does the
+     qb-dry terminal, since the same non-independent rung closed the lap either way**. In `safe` mode qb never runs — its gate is "codinventor already ran", which `safe`
      never satisfies — so STOP at once and print the growth recommendation and the exact line to
      paste (`/planwright:codinventor`, or the `/codinventor` alias), plus the qb hand-off line
      `safe: run /qb-plan auto, then merge .qb/plan.md pending items into .planwright/plan.md and
@@ -338,25 +341,106 @@ qb intent-replan was not yet taken this lap"**. The first conjunct makes `safe`,
 unable to ever reach it — the gate enforces the `safe` rule for free; the second bars a post-`execute`
 re-convergence from re-running qb within the same lap (without it, the OK→execute→re-sense path of
 step 5 would loop back into this terminal and dispatch `/qb-plan auto` again). The step:
-1. **Availability guard.** Confirm qb is installed — i.e. `/qb-plan auto` is available and emits the
-   single machine-detectable result line `QB_PLAN_AUTO_OK:` / `QB_PLAN_AUTO_ERROR:`. If qb is
-   **absent**, **skip qb** and fall through to today's terminal behavior (no qb step, no error).
+1. **Availability guard.** Confirm qb is installed — i.e. the `/qb-plan auto` command is available
+   to dispatch (its run-contract is to emit the single machine-detectable result line
+   `QB_PLAN_AUTO_OK:` / `QB_PLAN_AUTO_ERROR:`). Judge availability **before** running, by whether the
+   command exists — **not by whether a given run emits a line**. If qb is **absent** (the command is
+   not installed at all), **skip qb** and fall through to today's terminal behavior (no qb step, no
+   error). A qb that *is* installed, launches, but then produces no parseable line is **not** "absent":
+   it ran and died, and is handled as the fail-closed no-result-line crash case in step 3 (downgraded),
+   never as a clean skip.
 2. **Run `/qb-plan auto`** under a step header `=== codmaster step i/12: qb-plan auto ===`, marking
    the qb-replan taken this lap (it writes only under `.qb/`, never source); wait for it to finish,
-   and parse its single final result line.
+   and parse its single final result line. **Also scan qb's output for any line carrying the
+   `QB_PLAN_AUTO_WARN:` prefix — the host-neutral, machine-detectable marker that qb's Step 3 audit
+   ran in-session instead of via an independent subagent. Match the `QB_PLAN_AUTO_WARN:` *prefix*,
+   never an exact full-line suffix: the wording after the colon is host-specific (Claude Code's
+   `in-session fallback — audit not independently delegated` vs the subagent-isolation wording Cursor
+   and Codex emit, e.g. `in-session audit — not subagent-isolated on this host`), so a literal
+   full-line match would silently miss the WARN on exactly the hosts — Cursor and Codex — where
+   in-session is the **every-run** norm, not a rare fallback, and trusting `audit=PASS` is most
+   dangerous. The moment such a line is present, set this lap's `qb_audit_independent` flag `false`
+   (it defaults to **independent** at lap start and re-arms with the other per-lap flags on relap) —
+   set it here, on the WARN itself, **regardless of whether the result line is `QB_PLAN_AUTO_OK` or
+   `QB_PLAN_AUTO_ERROR`**, so the downgrade also covers a WARN followed by an error (the in-session
+   audit ran, then the export/validate failed); the flag governs how far to trust the result in
+   step 3 and how the convergence is rendered in the REPORT. **Also raise the sticky drive-level
+   marker `qb_audit_independent_drive` to non-independent here — unlike the per-lap flag it
+   **never re-arms on relap** (only a fresh `/codmaster` invocation clears it), so a WARN-tainted
+   *progress-making* lap whose merged growth moves HEAD and relaps instead of stopping still leaves a
+   drive-level mark the final REPORT must disclose; it cannot be laundered into a clean drive-end
+   "done" by a later independent lap. (This sticky marker matters in a `loop` drive, where relap
+   resets the per-lap flag; in a bare single-lap drive the per-lap flag already covers the lone
+   terminal, so the sticky raise is a harmless no-op there.) **Fail closed on observation.** The WARN
+   scan is the *sole* trigger of this whole downgrade, so codmaster must read qb's **complete** output
+   to run it. If it cannot reliably observe qb's full output — truncated, routed to a file or a
+   context-mode sandbox, or otherwise unparsed — it **must treat the run as non-independent** (set
+   both flags) rather than default to trust: an *unconfirmed-independent* qb run is downgraded exactly
+   like an observed WARN. Only output codmaster actually saw, in full, and found WARN-free counts as
+   an independent rung. This conservative default governs only the REPORT's **trust label** — never a
+   stop or a dispatch decision (those stay signal-driven, per the closed stop-set's receive-don't-
+   decide rule); an unconfirmable observation is just the **absence of a confirmed-independent
+   signal**, so the honest default is to disclose non-independence, not to assert a clean done.
+   **Why label-only and not a termination gate:** a non-independent qb *dryness* may be a false zero,
+   but codmaster **cannot manufacture an independent qb verdict in-session** (the Task tool is
+   unavailable — that is what the WARN means) and the closed stop-set forbids spinning, so refusing to
+   stop would loop forever on the same false dry. Disclose-and-stop is therefore the honest floor: the
+   irreducible residual coverage risk is handed to the operator via the recommend-independent-re-run
+   nudge (run on a host where the Task tool works), not papered over by a gate codmaster has no
+   independent means to satisfy. The independent per-lap codvisor/codinventor/codshard passes still
+   re-survey the tree each lap, so only qb-unique intent coverage is exposed — exactly what the nudge
+   asks the operator to confirm.**
 3. On **`QB_PLAN_AUTO_OK`**, **merge** `.qb/plan.md`'s pending items into `.planwright/plan.md`:
    take its pending items, **dedup** against existing pending + `completed.md` + `rejected.md`
    (rejected persists across `reset`, so rejected intent items stay suppressed across laps — the
    linchpin that keeps an infinite drive honest), tag the merged items with qb provenance, and
    **re-validate** the merged `.planwright/plan.md` with planwright's own current validator, not
-   qb's vendored copy.
+   qb's vendored copy. **The WARN downgrade distrusts qb's *dryness*, not its `audit=` verdict.**
+   codmaster never gates the merge on qb's audit status at all: every merged item is independently
+   re-validated above and verified per-item in step 4 **whatever qb reported** — `audit=PASS`,
+   `PASS_WITH_WARNINGS`, or even `BLOCKED` (`QB_PLAN_AUTO_OK` only attests that the export validated,
+   not that the audit passed) — so a non-independent audit verdict has no merge-gate to short-circuit
+   and **must never be allowed one**. What a `QB_PLAN_AUTO_WARN` actually threatens is qb's
+   **coverage**: a non-independent in-session audit by the plan's own author is exactly how a real
+   gap is rubber-stamped — as a false "0 items" (a false dry) *or* as a non-empty result that is
+   silently missing items it should have caught. The items qb did surface are independently re-gated
+   above, but **the convergence they eventually reach is itself unverified**: the
+   `qb_audit_independent=false` flag set in step 2 (whenever the WARN fired) taints **whichever convergence
+   closes the lap**, the qb-dry STOP *and* the post-merge re-convergence alike — and the REPORT
+   downgrades that converged stop accordingly (never rendered a clean done; it carries a
+   recommend-an-independent-re-run nudge). (Do **not** re-run `/qb-plan auto` to chase independence —
+   the WARN means the Task tool (or the qb-* subagents) was genuinely unavailable in that run, so a
+   retry would only reproduce the same non-independent audit; the correct response is to downgrade
+   trust, not an **in-lap** retry. This bars only re-dispatching qb *within this lap* to chase a
+   cleaner verdict; the normal `loop` re-arm that re-runs `/qb-plan auto` on the **next** lap is a
+   fresh attempt (independence re-evaluated from scratch), not the forbidden retry — and the sticky
+   drive marker keeps any earlier non-independent lap honest regardless. (That next-lap re-arm is
+   reachable only for a WARN-on-**progress** lap, which relaps; a WARN-on-**dry** lap is fully dry and
+   STOPs at the boundary, so for it the response is purely downgrade-and-disclose — there is no next
+   lap, and the operator nudge is the only remaining path to an independent re-check.)
 4. **Run `execute`** on the merged seeds (implement + verify each). Merging pending items
    un-converges the plan, so the next SENSE would route to `execute` anyway; making it an explicit
    step guarantees it rather than leaving it emergent.
 5. **Re-sense** and continue under the normal main loop.
-On `QB_PLAN_AUTO_ERROR`, qb absent, or **zero net-new items after dedup**, treat it as
-**qb dry**: nothing to execute, fall through to the existing terminal/stop path — so a fully-dry
-lap is one whose qb replan itself came up dry. The qb run and its follow-on `execute` each count
+On `QB_PLAN_AUTO_ERROR`, qb absent, **zero net-new items after dedup**, or qb leaving **no parseable
+result line** (it ran — perhaps even printed the WARN — then crashed or was cut off before any
+`QB_PLAN_AUTO_*` line), treat it as **qb dry**: nothing to execute, fall through to the existing
+terminal/stop path — so a fully-dry lap is one whose qb replan itself came up dry. **The
+no-result-line case is itself fail-closed:** a crashed or cut-off qb yields no confirmed, complete
+result, so set `qb_audit_independent` false for it (even with no observed WARN) — a hard qb failure
+must never be laundered into a clean "frontier exhausted" done; its dryness is unverified. (A clean
+`qb absent` is different — there qb never ran, so there is no audit to distrust and the flag stays
+independent.) That terminal/stop path is unchanged here: a bare
+drive STOPs at the converged terminal, and in `loop` a WARN-on-dry qb is still only a 0-commit step
+that ends the drive solely at a lap boundary whose **whole** lap was fully dry — it never stops a
+progress-making lap mid-flight. What the WARN adds is not a new stop but a **downgrade of the
+resulting convergence**: when the WARN fired (`qb_audit_independent=false`, set in step 2 — including
+the WARN+`QB_PLAN_AUTO_ERROR` case, where the in-session audit ran before the export/validate failed,
+and excluding a clean `qb absent` where no audit ran at all), the REPORT renders that
+converged stop non-independent / unverified rather than a clean done (a non-independent audit is
+exactly how a real gap is rubber-stamped as "0 items", so this "dry" may be a false zero, not true
+frontier exhaustion), while codmaster still **must not spin** — it has no independent way to mine
+more through a qb whose Task tool is unavailable. The qb run and its follow-on `execute` each count
 against the 12-step/lap cap, and qb re-arms on relap alongside the growth burst.
 
 **REPORT** (after the loop ends — terminal, cap, or early stop; in `loop` mode also at the end of
@@ -375,7 +459,7 @@ beacon: `python3 <scripts>/state.py activity stop --root .` (best-effort, never 
 applies to every way the loop ends, including hard stops). Then print a short cumulative
 summary: steps taken (out of 12 for the lap), the per-step commands and verified-commit counts in
 order (e.g. `codvisor 3 → execute 2 → codinventor 1 → codshard 0 → qb-plan 1 → execute 2` ), whether the growth burst
-ran, whether the qb intent-replan ran (and whether it merged net-new items), whether `parallel` was active and whether a `codshard` dispatch consumed it (if `parallel`
+ran, whether the qb intent-replan ran (and whether it merged net-new items, **and whether qb's audit was independent — surface the `QB_PLAN_AUTO_WARN` trust downgrade when it fired**), whether `parallel` was active and whether a `codshard` dispatch consumed it (if `parallel`
 was active but codshard was never dispatched, append `parallel had no effect this run — use
 /codshard parallel directly`), the final-point state from the last SENSE relayed verbatim, and
 the stop reason (`converged
@@ -383,9 +467,33 @@ at the final point`, `hard blocker`, `broad-verify failed`, `blockers`, `no prog
 `step cap`, or — in `loop` mode — `interrupted`; in `loop`, `no progress` is reached only at a
 lap boundary — a fully-dry lap — never mid-lap). In `loop` mode also print this summary at the
 end of every lap (just before its reset step), and a final overall line when the drive ends:
-laps completed, total steps, total verified commits. On a clean converged stop, also print the engine's steady-state recommendation as
+laps completed, total steps, total verified commits, **and — when the sticky
+`qb_audit_independent_drive` is non-independent — a drive-level disclosure that one or more laps
+closed a non-independent qb replan whose merged growth is now baked into the converged tree, its
+coverage unverified (a non-independent audit can silently miss items, and planwright's per-item
+verify cannot check items it was never handed); recommend an independent `/qb-plan auto` re-run
+before trusting the drive's "done". This sticky marker never re-arms on relap, so a WARN-tainted
+progress-making lap cannot be laundered into a clean drive-end done by a later independent lap.**
+**A done terminal — any stop that would otherwise print the clean-done steady-state recommendation —
+counts as *clean* only when this lap's qb closing rung was independent.** That set is every
+`converged at the final point` (the bare drive's terminal and the post-merge re-convergence) and
+every `no progress` stall: both `loop`'s fully-dry-lap final point **and a bare drive's post-qb
+stall** (the merged items committed nothing, so HEAD is unchanged and re-sense repeats the
+recommendation). (In `safe`, no qb rung runs at all, so the flag stays at its independent default and
+every `safe` terminal is clean — there is no audit to distrust.) On a clean such stop, also print the engine's steady-state recommendation as
 the suggested next step in both spellings (e.g. `next: /codinventor — <why>` and
-`or just run /codmaster again`), plus the `reset_nudge` when present.
+`or just run /codmaster again`), plus the `reset_nudge` when present. **When instead
+`qb_audit_independent=false` (a `QB_PLAN_AUTO_WARN` closed the lap), that 'done' is not clean. The
+downgrade follows the *flag*, not a stop-reason string — so it fires at every done terminal in that
+set, whether the reason printed is `converged at the final point` or `no progress`, loop or bare.
+Keep the emitted stop reason unchanged (codmaster adds no stop reason of its own) but qualify it
+`(qb closing audit non-independent — unverified)`, and in place of the clean-done steady-state
+recommendation print a one-line nudge to confirm with an independent `/qb-plan auto` re-run on a
+host/session where the Task tool (and the qb-* subagents) are available before trusting "done". A
+stop that already signals incompleteness and prints **no** steady-state recommendation — `step cap`,
+or a hard `blockers`/`hard blocker`/`broad-verify failed` — claims no 'done', so it takes no
+qualifier; the always-printed summary line above ('whether qb's audit was independent') still carries
+the `QB_PLAN_AUTO_WARN` fact.**
 
 Print nothing of your own except the Usage line (cases 1 and 3), the advise report (case 2), the
 cost banner (including the parallel disclosure clause), the per-step headers and one-line whys,
