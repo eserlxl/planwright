@@ -98,6 +98,28 @@ PY
 done
 if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates carry the six-helper family with scoped codvisor/codinventor resolution"; else bad "host instruction templates lost a helper (codcycle/codshard/codmaster) or the scoped resolution rules"; fi
 
+# --- Test 14b: codvisor/codinventor pin their load-bearing cost banner (both cases) ---
+# The flagship banner exists "so the heavy run is never silent" (codvisor.md case 1), and the
+# closing "print nothing of your own except the cost banner in cases 1 and 2" line is what makes
+# the always-depth-10 custom-N form (case 2) disclose its cost too. codshard's banner is already
+# pinned (Test 16), but codvisor/codinventor's were not — so an edit could silently delete them
+# and reintroduce the silent-heavy-run regression uncaught. Guard all three contract points.
+banner_ok=1
+for cmd in codvisor codinventor; do
+  if [ "$cmd" = codvisor ]; then run=advisor; else run=inventor; fi
+  python3 - "$ROOT/commands/$cmd.md" "$run" <<'PY' 2>/dev/null || banner_ok=0
+import sys
+t = open(sys.argv[1], encoding="utf-8").read(); run = sys.argv[2]
+# the case-1 flagship banner text is load-bearing output
+assert f"max-intensity {run} run" in t, "case-1 cost banner text missing"
+# its stated rationale: a heavy run must never run silently
+assert "never silent" in t, "never-silent banner rationale missing"
+# case 2 (custom-N, always depth 10) is disclosed by widening the closing line to cases 1 and 2
+assert "the cost banner in cases 1 and 2" in t, "case-2 banner not disclosed (closing line not widened to cases 1 and 2)"
+PY
+done
+if [ "$banner_ok" = 1 ]; then ok "codvisor/codinventor disclose their cost banner for both the flagship and the custom-N (case 2) forms"; else bad "a codvisor/codinventor cost banner (case-1 text, never-silent rationale, or case-2 closing-line coverage) was dropped"; fi
+
 # --- Test 15: commands/codcycle.md is a well-formed planwright orchestration command ---
 # /codcycle drives planwright across an explore→invent rhythm per outer cycle (both phases fixed at
 # cycle 3 depth 10; the invent phase rotates its generative framing via a per-outer-cycle seed), then
