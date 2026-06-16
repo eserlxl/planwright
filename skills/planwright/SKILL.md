@@ -14,7 +14,7 @@ description: >
 license: GPL-3.0-or-later
 metadata:
   author: Eser KUBALI
-  version: "1.60.0"
+  version: "1.61.0"
 ---
 
 # planwright
@@ -49,6 +49,7 @@ thereafter jump to the path you are running.
 - **Plan path (read-only)** — [Procedure](#procedure): Stage 0 → 11
   ([0 Lifecycle](#stage-0--lifecycle-housekeeping-mechanical) ·
   [1 Scan](#stage-1--scan-mechanical) · [1.5 Graph](#stage-15--build-code-graph-mechanical) ·
+  [1.6 Recon](#stage-16--parallel-recon-opt-in-read-only-prefetch) ·
   [2 Audit](#stage-2--audit-mechanical--reasoning) ·
   [3–7 Dossier](#stages-37--cumulative-planning-dossier-reasoning-passes) ·
   [8 Draft](#stage-8--draft) · [9 Finalize](#stage-9--finalize) ·
@@ -107,9 +108,12 @@ one). An opt-in `explore` flag escalates **only that closing round** (`cycle <M>
 — per-shard rounds never escalate, and `invent`/`seed` do not compose with sharding at all. The
 point is depth, not speed: a scoped round concentrates the whole depth budget on one
 component, and each shard's findings drain through execute before the next shard starts. Its opt-in
-`parallel` flag prefetches read-only recon leads via subagents on hosts that have a subagent
-primitive (Claude Code); the leads are routing-only re-verification seeds — never Evidence — the
-rounds themselves stay sequential, and every other host runs identically without recon. Each round
+`parallel` flag prefetches read-only recon leads via the host's native subagent backend (a host with
+a subagent primitive, e.g. Claude Code); an explicit `parallel external` opts into an **entirely
+optional** external-agent CLI backend (agy/codex/claude via the external-agents plugin) that runs
+anywhere but ships code to a third-party provider — planwright never requires it, and it is never
+auto-engaged. The leads are routing-only re-verification seeds — never Evidence — the rounds
+themselves stay sequential, and a host with no available backend runs identically without recon. Each round
 is an ordinary run of this `SKILL.md`; `codshard` only sequences them.
 
 `codmaster` is the front door — for anyone who does not want to choose among the commands above. It
@@ -180,6 +184,7 @@ PLAN (read-only)
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
 /planwright dry-run              Do all stages but print the plan instead of writing the file
+/planwright parallel [agent|external] [J]   Read-only recon prefetch before the audit (Stage 1.6); native by default, external = optional CLI backend
 
 SCOPE (aim a run at one component; composes with plan / execute / cycle)
 /planwright path <X>             Restrict to a subtree/glob: plan items land in that Focus,
@@ -237,6 +242,7 @@ Plan options may be combined with an instruction, e.g.
 | `explore` | off | **cycle only**: at the final point, escalate instead of stopping — cold-frontier sweep, then the **expand** tier (complete latent capability), spending the remaining cycle budget (see **Escalation ladder**) |
 | `invent` | off | **cycle only**: superset of `explore` — additionally permits net-new, seam-bound capability (the **invent** tier, a bounded ≤3-cycle burst) after the expand tier is dry (see **Escalation ladder**) |
 | `seed <S>` | none (deterministic) | **`invent` only**: focus the invent generative survey through one seeded **framing** (a recorded vantage from a fixed catalog). *Scopes* which net-new ideas a single run surveys — comprehensiveness is recovered across the seed sequence (cross-run), so successive seeds explore different regions instead of re-deriving the same ideas. No effect without `invent`; an unseeded `invent` stays comprehensive and deterministic. Integer. Recorded in `final.md` as `invent_seed`/`invent_framing` (see **Escalation ladder**, Stage 5) |
+| `parallel [agent\|external] [J]` | off | **read-only recon prefetch** before the audit — warm attention with up to 8 routing-only leads over the run's Focus. Native subagent backend by default; `parallel external` is the explicit opt-in to the **entirely optional** external-agent CLI backend (never required, never auto-engaged). Ignored under `invent`/`execute`. See **Stage 1.6 — Parallel recon** |
 | `help` | — | print Usage and stop |
 
 Precedence: **inline option > built-in default.** There is no settings file; options are per-run only.
@@ -697,6 +703,58 @@ If the build cannot run (no `git`/`rg`, or a tooling error), record the failure,
 routing **and incremental skipping** for this run, and fall back to depth's default selection over the
 whole tree — never block planning, and never skip audit work when the graph is unavailable.
 
+### Stage 1.6 — Parallel recon (opt-in, read-only prefetch)
+
+Runs **only when `parallel` was passed**, and **once per invocation** — in a `cycle N` run the
+prefetch runs before cycle 1 and is **not** repeated each cycle (later cycles reuse the warmed
+attention; the leads are re-proven every cycle anyway). It is **ignored under `invent`** (the
+generative tier — defect/gap leads do not serve it) and on `execute` — print a one-line note and skip
+it there. It launches one or more **read-only** recon readers over the run's **Focus** (the `path`/`lib`
+scope, else the whole repo), each replying with at most 8 candidate leads
+(`file:line — one-line suspected defect or gap`) to warm attention for the Stage 2 audit and the
+dossier. The optional `J` **sets fan-out** — launch up to `J` readers concurrently; without `J`, fan
+all at once and let the host cap concurrency. `J` changes only parallelism, never the ≤8-lead reply
+each reader returns. This prefetch **writes no files of its own** (no `.planwright` state); the leads live only in
+the conversation as **routing-only re-verification seeds** that are **never Evidence** — every lead must
+be **re-proven** from a code re-read inside this run's single-agent audit, or silently dropped, **no
+matter which backend** produced it, and it may order the reading but never becomes an item's `Evidence:`.
+The pipeline stays single-agent; recon only buys wall-clock, never a second source of truth.
+
+Two backends plus a fallback, selected by the qualifier on `parallel` (`agent`/`external`):
+
+- **Native subagent backend** (`parallel agent`, and the default when the host exposes a subagent
+  primitive — Claude Code's Agent tool): launch read-only recon readers over the Focus (Claude Code:
+  the read-only Explore agent type). No external egress. When the host has no subagent primitive and
+  `external` was not requested, recon is skipped and the run proceeds without it.
+- **External-agent CLI backend** (`parallel external` only — **never auto-selected**, because it is the
+  one backend that contacts a third-party provider). It is **entirely optional**: planwright **never
+  requires** the external-agents plugin or any agy/codex/claude CLI (no OpenAI/Google subscription is
+  needed), so a user who has none simply never passes `parallel external`. It is how recon is
+  **delegated to external agents**, and it is **host-neutral** (Codex/Cursor/Gemini included). Resolve
+  the external-agents plugin's `run-agent.sh` by best-effort discovery — a host-exported
+  `${EXTERNAL_AGENTS_ROOT}/scripts`, else the installed plugin cache
+  (`~/.claude/plugins/cache/*/external-agents/*/scripts`), else a sibling `../external-agents/scripts`
+  checkout, else `run-agent.sh` on `PATH` — then preflight it with `run-agent.sh --check` (it lists
+  which of agy/codex/claude are on `PATH`). When at least one CLI is installed, run the read-only recon
+  with `run-agent.sh --agent all --read-only --target <T> --prompt-file -` (recon prompt on stdin),
+  where `<T>` is the **smallest directory containing the run's Focus** — the `path` scope when it is a
+  directory, else the common-ancestor directory of the Focus paths (the repo root only for a
+  whole-repo run) — and the prompt always names the run's Focus, so a scoped run never egresses more
+  of the tree than its Focus's enclosing directory. `--agent all` fans every enabled CLI (agy + codex by default) out
+  concurrently and reports per-agent failures, so harvest whatever agents returned leads and skip the
+  rest. This backend **ships the targeted tree to external providers** (agy and codex are external
+  services), so it must never target a tree holding private IP; codex read-only is hard-enforced, while
+  **agy read-only is best-effort** (its `--sandbox` does not hard-block edit tools), tolerated only
+  because every lead is re-proven from code regardless. Harvest each agent's `===== <agent> … =====`
+  stdout block (or its `<out>/<agent>.md` transcript) for leads.
+
+Regardless of backend, the recon prompt MUST state verbatim that the reader is **read-only** — no file
+edits, no writes, no state, no mutating commands. Recon **never errors and never blocks**: a missing
+native primitive (bare `parallel`), an explicit `parallel external` whose optional CLIs are not
+installed (no `run-agent.sh`, or `run-agent.sh --check` shows none usable), a timeout, or empty output
+all make planwright **skip recon and continue** — print
+`planwright: parallel recon unavailable — continuing without recon.` and run the audit unchanged.
+
 ### Stage 2 — Audit (mechanical + reasoning)
 
 Run the named sub-passes **enabled by the run's depth** (see the Depth table) in order — 2a alone at
@@ -918,7 +976,9 @@ yours:
 - Evidence cites a real AUDIT FINDING or non-comment SIGNAL proving the gap (not "related code exists").
 - Evidence must never cite `.planwright/graph.json` or `.planwright/digest.md`; the graph routes
   attention only — proof must come from code re-read this run. An item whose Evidence references graph
-  memory fails the gate.
+  memory fails the gate. The same bar applies to **Stage 1.6 parallel-recon leads**: they route
+  attention only and are never Evidence — an item whose Evidence rests on a recon lead rather than a
+  code re-read this run fails the gate.
 - For `repair` items, Evidence must name a specific execution path or return value that is wrong —
   "X is absent" is insufficient; cite the call site (file:line), the incorrect output, and the
   expected output. For `improve` and `docs` items, structural absence Evidence remains acceptable.
@@ -1324,10 +1384,14 @@ stops only at a hard blocker, a failed broad verify, or a **recorded final point
    `explore` or no flag). When present, Stage 1.5 passes `--seed <S>` and the invent tier surveys through
    the seeded framing (Stage 5); when absent, invent stays comprehensive and deterministic (and, on an
    empty survey, auto-rotates the framings before it may conclude dry — Stage 5).
+   **Resolve `parallel [agent|external]`** here too: it enables the **Stage 1.6** read-only recon
+   prefetch, which runs **once before cycle 1** (not per cycle) over the run's Focus, and is ignored
+   under `invent` (the generative tier); `parallel external` is the explicit, **entirely optional**
+   external-agent CLI backend — never auto-engaged.
 4. **Announce** — print the current branch (`git branch --show-current`), the cycle mode
    (`N cycles` or `unlimited`), the planning depth (`depth <D>`, default 6), and which escalation flag is
    on (`explore`, `invent`, or none) before starting any work; if a seed is active, also print
-   `seed <S> (framing: <key>)`. **Under `invent`, also warn up front** that invent may make rare, small,
+   `seed <S> (framing: <key>)`; if `parallel` is active, also print the recon backend (native subagent, or — for `parallel external` — the optional external-agent CLIs). **Under `invent`, also warn up front** that invent may make rare, small,
    committed edits to repo files **including `MISSION.md`** (dwell-gated — see Stage 5's mission
    amendment), so whoever runs `invent` is on notice that the charter itself can change. Then stamp
    the run-activity beacon: `python3 <scripts>/state.py activity start cycle --if-absent --root <target>`
@@ -1342,7 +1406,7 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
 
 1. **Print header** — `=== Cycle i/N ===` (or `=== Cycle i/∞ ===` for unlimited) so progress is
    visible in long runs.
-2. **Plan** — run the full planning Procedure (Stages 0–11) at the cycle's depth (the `depth <D>`
+2. **Plan** — run the full planning Procedure (Stages 0–11; the Stage 1.6 recon prefetch ran once before cycle 1 and is **not** re-run here) at the cycle's depth (the `depth <D>`
    passed to `cycle`, else default **6**) with otherwise-default settings: depth-derived `propose`,
    no instruction, no `no-compact`, no `dry-run`. The same depth applies to every round. A **Scope**
    (`path <X>` / `lib <X>`) passed to `cycle` likewise applies to every round, and the ladder climbs

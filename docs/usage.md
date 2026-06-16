@@ -32,6 +32,7 @@ plan items in `.planwright/plan.md`.
 /planwright max <N>              Override the pending-item cap for this run
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
 /planwright dry-run              Do all stages but print the plan instead of writing the file
+/planwright parallel [agent|external] [J]  Read-only recon prefetch before the audit (Stage 1.6); native by default, external = optional CLI backend
 /planwright path <X>             Scope the run to a subtree/glob (composes with execute/cycle)
 /planwright lib <X>              Scope to a logical component (cluster / build target / package / dir)
 /planwright help                 Show the help and stop
@@ -188,18 +189,23 @@ within that budget, and the expand tier gets at most `M - 1` cycles — for a co
 escalation, follow `/codshard` with `/codvisor` rather than raising `M`, which multiplies the whole
 shard loop by `K`. An escalated closing round can also spend its budget on swept work and finish
 *without* recording a final point where the plain round would have — it converted the would-be stop
-into landed items; re-run (or follow with `/codvisor`) to earn the deeper recorded point. On
-Claude Code an opt-in
-`parallel [J]` flag prefetches read-only recon leads per shard via subagents before the loop; the
-leads are routing-only re-verification seeds (never Evidence), the rounds themselves stay
-sequential, and every other host simply runs without recon.
+into landed items; re-run (or follow with `/codvisor`) to earn the deeper recorded point. An opt-in
+`parallel [J]` flag enables planwright's **Stage 1.6** read-only recon prefetch — a base `planwright`
+option that `/codshard` forwards to each per-shard run (and `/codvisor` / `/codcycle` forward it too).
+It warms attention with routing-only re-verification seeds (never Evidence; re-proven in the
+single-agent audit) over each run's Focus; the host's native subagent backend runs it by default, and a
+host without one simply runs without recon. An explicit `parallel external` opts into an **entirely
+optional** external-agent CLI backend (agy/codex/claude via the external-agents plugin) that runs
+anywhere but ships code to a third-party provider — planwright never requires it, and it is never
+auto-engaged.
 
 ```bash
 /codshard                  Auto-enumerated shards, cycle 3 depth 10 per shard + one closing whole-repo round
 /codshard 2 8              cycle 2 depth 8 per shard (cycles, depth)
 /codshard shards src,tests Explicit shard list (paths or lib names)
 /codshard explore          Escalate only the closing whole-repo round (cycle 3 depth 10 explore); shard rounds stay plain
-/codshard parallel         Claude Code only: read-only recon prefetch per shard (routing-only; rounds stay sequential)
+/codshard parallel         Read-only recon prefetch per shard via the host's native subagent backend (routing-only; rounds stay sequential; no recon where the host has none)
+/codshard parallel external Opt into the OPTIONAL external-agent CLI recon backend (agy/codex via the external-agents plugin; off-Claude recon; ships code to external providers — planwright never requires it)
 ```
 
 `/codmaster` is the front door for all of the above: it runs the read-only coach engine

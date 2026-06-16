@@ -45,6 +45,55 @@ sys.exit(1 if missing else 0)
 PY
 then ok "SKILL.md structural lint passes (stages, sections, item fields present)"; else bad "SKILL.md structural lint failed (missing stage/section/field)"; fi
 
+# --- Test 10d: SKILL.md owns the canonical parallel-recon contract (Stage 1.6) ---
+# Recon moved from the command layer into the base skill (commands now just FORWARD `parallel`).
+# Stage 1.6 must keep the full read-only / routing-only / never-Evidence ceiling, the two-backend
+# ladder (native subagent + the OPTIONAL, never-auto external-agent CLI), the run-agent.sh contract,
+# egress disclosure, and the degrade-to-no-recon fallback — anchored INSIDE the Stage 1.6 section so a
+# clause can't be satisfied from elsewhere, and the external rung stays explicit + optional (no forced
+# OpenAI/Google subscription).
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+# normalize whitespace so a legitimate rewrap can neither break nor save an assertion
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+need = []
+if "### Stage 1.6 — Parallel recon" not in t: need.append("stage-1.6-heading")
+a = t.find("### Stage 1.6 — Parallel recon")
+b = t.find("### Stage 2 — Audit")
+if a < 0 or b < 0 or b <= a:
+    need.append("recon-section-bounds"); para = ""
+else:
+    para = t[a:b]
+for tok, tag in (
+    ("read-only", "read-only"),
+    ("no file edits, no writes, no state, no mutating commands", "no-mutation-clause"),
+    ("at most 8 candidate leads", "lead-cap"),
+    ("routing-only re-verification seeds", "routing-only"),
+    ("never Evidence", "never-evidence"),
+    ("re-proven", "re-proven"),
+    ("writes no files of its own", "no-state-files"),
+    ("no matter which backend", "never-evidence-all-backends"),
+    ("single-agent", "single-agent-charter"),
+    ("Native subagent backend", "native-backend"),
+    ("External-agent CLI backend", "external-cli-backend"),
+    ("never auto-selected", "ea-explicit-only"),
+    ("entirely optional", "ea-optional"),
+    ("never requires", "ea-not-required"),
+    ("delegated to external agents", "ea-delegation"),
+    ("host-neutral", "host-neutral"),
+    ("run-agent.sh --check", "ea-availability-probe"),
+    ("--agent all --read-only", "ea-readonly-invocation"),
+    ("external providers", "ea-egress-disclosure"),
+    ("best-effort", "agy-best-effort"),
+    ("sets fan-out", "j-defined"),
+    ("ignored under `invent`", "invent-skip"),
+    ("continuing without recon", "fallback-continues"),
+):
+    if tok not in para: need.append(tag)
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md Stage 1.6 owns the parallel-recon contract (read-only, routing-only, never-Evidence, native + optional/never-auto external backend, run-agent.sh, egress, degrade)"; else bad "SKILL.md Stage 1.6 parallel-recon contract lost a guard (read-only/routing-only/never-Evidence/backend/optional-external/fallback)"; fi
+
 # --- Test 10a2: Execute Preconditions hard-block on unconfigured git identity ---
 # The mutating Execute path commits every passing item, so an unset git user.name/user.email
 # makes the first per-item `git commit` fail (exit 128) and crash the run mid-execution.

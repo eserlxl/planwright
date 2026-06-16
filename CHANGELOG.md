@@ -20,6 +20,21 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.61.0] - 2026-06-16
+
+### Added
+- **`parallel` read-only recon prefetch — a base `planwright` option (Stage 1.6).** Any code-reading run (`planwright`, `cycle`, `explore`) can pass `parallel` to warm attention before the audit with up to 8 routing-only leads over the run's Focus. Recon lives in the base skill (`SKILL.md` Stage 1.6); the orchestrators just **forward** it — `codshard` appends it to each per-shard run, `codvisor` to its single run, `codcycle` to each explore phase (never the invent phase). Ignored under `invent`/`execute`.
+- **Optional, host-neutral external-agent backend.** Bare `parallel`/`parallel agent` use the host's native subagent backend (e.g. Claude Code's Agent tool). A new **explicit** `parallel external` opts into an **entirely optional** external-agent CLI backend (`agy`/`codex`/`claude` driven by the external-agents plugin's `run-agent.sh --agent all --read-only`), so recon can also run on Codex, Cursor, Gemini, and any host with those CLIs. planwright **never requires** the external-agents plugin or any paid CLI — no OpenAI/Google subscription is needed — and the external backend is **never auto-engaged**: only `parallel external` contacts a third-party provider. It is read-only (codex hard-enforced, agy best-effort), probes availability with `run-agent.sh --check`, harvests whatever agents return leads, and degrades to no-recon when unavailable — never a stop or an error.
+
+### Changed
+- `codmaster` forwards bare `parallel` (the native subagent backend only) and **never auto-engages** the optional external backend under its autonomous loop — that backend is an explicit `/codshard parallel external` opt-in. `SKILL.md`'s Usage/Options, `docs/usage.md`, and the `AGENTS.md` & `GEMINI.md` adapter templates document the base `parallel` option, the native default, and the optional explicit external opt-in.
+
+### Invariants
+- The recon trust model is the same on every backend and at every layer: leads stay **routing-only re-verification seeds, never Evidence** — re-proven from code inside the run's single-agent audit or dropped, never becoming an item's `Evidence:` — no matter which backend produced them. The pipeline stays single-agent (recon only buys wall-clock); recon writes no `.planwright` state. The external rung ships the targeted tree to external providers, so it is strictly opt-in, never required, and must never target private IP.
+
+### Tested
+- `skill-contract.sh` Test 10d pins the canonical Stage 1.6 recon contract (read-only, routing-only, never-Evidence, native + optional/never-auto external backend, `run-agent.sh`, egress, degrade). `commands.sh` Test 16b/13e/15b rewritten as **forwarding** guards (codshard/codvisor/codcycle append `parallel` to their planwright runs, don't re-implement recon; codcycle forwards to explore phases only). Test 17 pins that codmaster never auto-engages the optional external backend. Suite 559 → 562.
+
 ## [1.60.0] - 2026-06-16
 
 ### Added

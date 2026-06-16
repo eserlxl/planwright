@@ -36,11 +36,23 @@ Resolve them in this order:
    `--path <X>` → `path <X>`, `--lib <X>` → `lib <X>`, `--scope <X>` → `path <X>` (both `--opt <X>`
    and `--opt=<X>` spellings).
 
+0a. **Peel `parallel`** (optionally a backend qualifier `agent` or `external`) from `<rest>` as
+   `<parallel>`: an opt-in read-only **recon prefetch**. Recon lives in the base skill — **append
+   `<parallel>` to each `explore`-phase invocation** (Phase A of every outer cycle, and the closing
+   final explore — **never the `invent` phase**), and planwright's **Stage 1.6** runs the prefetch
+   before that explore phase. Peel `parallel` and its qualifier out of `<rest>` before classifying
+   the remainder, so the integer below is always `N`, never a recon count (codcycle takes **no** `J`
+   — recon concurrency is host-capped). Bare `parallel`/`parallel agent` select the native subagent
+   backend; `parallel external` is the explicit opt-in to the **entirely optional** external-agents
+   CLI backend (which planwright never requires; only `parallel external` contacts a third-party
+   provider, so it is **never auto-engaged**). A token after `parallel` that is neither `agent` nor
+   `external` is not a qualifier — it stays in `<rest>`.
+
 1. **`<rest>` empty**: run **10 outer cycles** (the default).
 2. **`<rest>` is a single integer `N`** (nothing else): run `N` outer cycles. `N` may be **negative**,
    which runs **forever** (until a stop condition fires or the user interrupts). `N` must be non-zero.
 3. **`<rest>` is `help` / `--help` / `-h` / `?`**: print
-   `Usage: /codcycle [N] [path <X> | lib <X>]   (N != 0; negative = infinite; default 10; a path/lib scope aims every phase at one component). Each outer cycle = explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed; the meta-final-point needs a full framing rotation to come up dry; one final explore closes the whole run.`
+   `Usage: /codcycle [N] [path <X> | lib <X>] [parallel [agent|external]]   (N != 0; negative = infinite; default 10; a path/lib scope aims every phase at one component; parallel runs a read-only recon prefetch before each explore phase — native subagent by default, the entirely optional external-agents CLI backend only on parallel external). Each outer cycle = explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed; the meta-final-point needs a full framing rotation to come up dry; one final explore closes the whole run.`
    and STOP — do not run anything.
 4. **Anything else** (including `N == 0` or a non-integer): print that same `Usage:` line and STOP.
 
@@ -48,6 +60,8 @@ For cases 1 and 2, **first print exactly one cost-banner line** so this heavy ru
 also doubles as the `invent` awareness notice — the invent phase may make rare, small, committed edits
 to repo files, including `MISSION.md`):
 `codcycle: max-intensity framing-rotated sweep — <N or ∞> outer cycle(s), each running explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed that sweeps the vantage catalog (power-user → integration → onboarding → reliability → automation), then one final explore phase to close the run. Note: the invent phase may make rare, small committed edits to repo files, including MISSION.md.`
+When `parallel` was peeled, append one clause to that banner:
+` parallel: a read-only recon prefetch runs before each explore phase (native subagent; routing-only, never Evidence; the phases themselves are unaffected) — with parallel external the optional external-agent CLIs run too and ship the tree to external providers once per explore phase.`
 
 Then stamp the run-activity beacon so the dashboard's reactor names this run: resolve `<scripts>`
 the same way `/dashboard` does — prefer the host-exported `${CLAUDE_PLUGIN_ROOT}/scripts`, else
@@ -62,8 +76,11 @@ Then run the loop. For each outer cycle `i` (from 1 to `N`, or unbounded when `N
   beacon with the cycle as its detail first:
   `python3 <scripts>/state.py activity start codcycle --detail "cycle i/N" --root .`
   (best-effort, never block).
-- **Phase A (harden):** invoke planwright with `cycle 3 depth 10 explore <scope>`. Wait for it to finish.
-- **Phase B (grow):** invoke planwright with `cycle 3 depth 10 invent seed <i> <scope>` — a fixed 3-cycle
+- **Phase A (harden):** invoke planwright with `cycle 3 depth 10 explore <scope>` — **appending
+  `<parallel>` (after `<scope>`) when `parallel` was peeled**, so planwright's **Stage 1.6** runs the
+  read-only recon prefetch before this explore phase. Wait for it to finish.
+- **Phase B (grow):** invoke planwright with `cycle 3 depth 10 invent seed <i> <scope>` (**never
+  `<parallel>`** — the generative invent phase gets no recon) — a fixed 3-cycle
   invent burst under the **framing seed `<i>`** (the outer-cycle index), which rotates the invent
   survey's vantage (see **Framing rotation** below). Wait for it to finish.
 - Record `commits_i` = the number of **verified (committed) items** produced this outer cycle across
@@ -96,7 +113,8 @@ meta-final-point (but **not** when it stopped on a broken tree, see below) — r
 
 - Print a header line `=== codcycle final explore ===`, re-stamping the beacon's detail to
   `final explore` first (same invocation shape; best-effort, never block).
-- **Final phase (closing harden):** invoke planwright with `cycle 3 depth 10 explore <scope>`. Wait for
+- **Final phase (closing harden):** invoke planwright with `cycle 3 depth 10 explore <scope>` —
+  **appending `<parallel>` when `parallel` was peeled** (Stage 1.6 runs the recon). Wait for
   it to finish. This is the single final explore that ends the whole run; it hardens whatever the last
   invent landed (and, when the loop already converged, simply confirms the stable meta-final-point).
 
@@ -123,6 +141,16 @@ the **per-cycle verified-commit counts and the framing each cycle surveyed** (e.
 `commits 2 → 0 → 0 across framings power-user → integration → onboarding`), and the stop reason
 (`meta-final-point — full framing rotation dry`, `N-budget`, `hard blocker`, or `broad-verify failed`).
 
+**Parallel recon (opt-in, forwarded to planwright).** codcycle does **not** run recon itself: when
+`parallel` was peeled it is appended to each **explore**-phase invocation (Phase A and the final
+explore — **never the invent phase**), and the base skill's **Stage 1.6** runs the read-only prefetch
+over that phase's Focus (the full backend ladder, the read-only contract, the external-agents
+discovery, the egress disclosure, and the degrade-to-no-recon fallback all live in
+`skills/planwright/SKILL.md`). The leads stay **routing-only** re-verification seeds, **never
+Evidence**, re-proven inside planwright's single-agent cycle. `parallel external` is the explicit,
+**entirely optional** external-agent CLI backend; it is **never auto-engaged**, and with it the
+external CLIs run once per explore phase (an opt-in egress).
+
 Print nothing of your own except the cost banner (cases 1–2), the per-outer-cycle headers, the final
-explore header, and the final summary; each planwright phase prints its own per-cycle output, which
-stands as-is.
+explore header, and the final summary; each planwright phase prints its own per-cycle output
+(including any Stage 1.6 recon notice), which stands as-is.

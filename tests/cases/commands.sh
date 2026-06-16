@@ -87,7 +87,10 @@ for tok in ["path <X>", "lib <X>", "peel", "append",
             # each template names all three, the codcycle/codshard recipe files, and
             # the codmaster sense engine (never a prose decision table)
             "codcycle", "codshard", "codmaster",
-            "commands/codcycle.md", "commands/codshard.md", "status.py"]:
+            "commands/codcycle.md", "commands/codshard.md", "status.py",
+            # host-neutral recon must be DISCOVERABLE off Claude Code: each adapter names the
+            # opt-in parallel recon and its external-agents CLI backend (routing-only, never Evidence)
+            "parallel", "external-agents", "routing-only", "never Evidence", "host-neutral"]:
     if tok not in t:
         need.append(tok)
 for resolved in ["cycle 10 depth 10 explore path", "cycle 5 depth 8 invent lib"]:
@@ -96,7 +99,7 @@ for resolved in ["cycle 10 depth 10 explore path", "cycle 5 depth 8 invent lib"]
 sys.exit(1 if need else 0)
 PY
 done
-if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates carry the six-helper family with scoped codvisor/codinventor resolution"; else bad "host instruction templates lost a helper (codcycle/codshard/codmaster) or the scoped resolution rules"; fi
+if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates carry the six-helper family with scoped codvisor/codinventor resolution and host-neutral external-agents recon"; else bad "host instruction templates lost a helper (codcycle/codshard/codmaster), the scoped resolution rules, or the host-neutral parallel-recon rung"; fi
 
 # --- Test 14b: codvisor/codinventor pin their load-bearing cost banner (both cases) ---
 # The flagship banner exists "so the heavy run is never silent" (codvisor.md case 1), and the
@@ -119,6 +122,49 @@ assert "the cost banner in cases 1 and 2" in t, "case-2 banner not disclosed (cl
 PY
 done
 if [ "$banner_ok" = 1 ]; then ok "codvisor/codinventor disclose their cost banner for both the flagship and the custom-N (case 2) forms"; else bad "a codvisor/codinventor cost banner (case-1 text, never-silent rationale, or case-2 closing-line coverage) was dropped"; fi
+
+# --- Test 13e: codvisor FORWARDS `parallel` to its single planwright run (recon owned by SKILL.md) ---
+# Recon lives in the base skill (Stage 1.6, guarded by skill-contract Test 10d). codvisor must NOT
+# re-implement it — it peels `parallel [agent|external] [J]` as <parallel> and APPENDS it to the
+# planwright invocation, so Stage 1.6 runs the prefetch over the run's Focus. Guard the forwarding,
+# the brief routing-only/never-Evidence ceiling, and the optional/never-auto external framing,
+# anchored in codvisor's own recon paragraph; the heavy mechanics are asserted in SKILL.md, not here.
+CMD="$ROOT/commands/codvisor.md"
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import sys
+# normalize whitespace so a legitimate rewrap can neither break nor save an assertion
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+need = []
+if "Peel `parallel`" not in t: need.append("parallel-peel")
+# the invocation must APPEND <parallel> so the base skill's Stage 1.6 fires — pin BOTH the step-0
+# peel prose and the dispatch-site append form, so the actual invocation line can't be dropped while
+# the peel survives (defense-in-depth against a prose-but-no-dispatch regression)
+if "append `<parallel>`" not in t: need.append("forward-append")
+if "appending `<parallel>` (after `<scope>`)" not in t: need.append("forward-append-dispatch")
+# anchor the forwarding contract INSIDE codvisor's recon paragraph (bounded between the heading and
+# the closing 'After resolving' instruction) so it can't be satisfied from elsewhere in the file
+a = t.find("**Parallel recon")
+b = t.find("After resolving")
+if a < 0 or b < 0 or b <= a:
+    need.append("recon-paragraph-bounds"); para = ""
+else:
+    para = t[a:b]
+for tok, tag in (
+    # codvisor FORWARDS to the base skill, does not own the mechanics
+    ("Stage 1.6", "cites-stage-1.6"),
+    ("skills/planwright/SKILL.md", "cites-skill"),
+    ("not** run recon itself", "delegates-not-owns"),
+    # the brief trust ceiling + optional-external framing stays local (can't be inverted here)
+    ("routing-only", "routing-only"),
+    ("never Evidence", "never-evidence"),
+    ("re-proven", "re-proven"),
+    ("entirely optional", "ea-optional"),
+    ("never auto-engaged", "ea-explicit-only"),
+):
+    if tok not in para: need.append(tag)
+sys.exit(1 if need else 0)
+PY
+then ok "commands/codvisor.md forwards parallel to its planwright run (recon owned by SKILL.md Stage 1.6; routing-only/never-Evidence + optional/never-auto external framing kept local)"; else bad "commands/codvisor.md parallel forwarding lost a guard (append <parallel>/Stage-1.6 cite/routing-only/never-Evidence/optional-external)"; fi
 
 # --- Test 15: commands/codcycle.md is a well-formed planwright orchestration command ---
 # /codcycle drives planwright across an explore→invent rhythm per outer cycle (both phases fixed at
@@ -166,6 +212,44 @@ assert "10 outer cycles" in body, "no-arg default of 10 outer cycles not stated"
 assert "negative" in body.lower(), "negative=infinite rule not stated"
 PY
 then ok "commands/codcycle.md orchestrates the explore→invent rhythm with a rotating invent framing and a closing explore"; else bad "commands/codcycle.md malformed or lost its rhythm/framing-rotation/closing-explore/delegation/default contract"; fi
+
+# --- Test 15b: codcycle FORWARDS `parallel` to its explore-phase planwright runs (recon owned by SKILL.md) ---
+# Recon lives in the base skill (Stage 1.6, guarded by skill-contract Test 10d). codcycle must NOT
+# re-implement it — it peels `parallel [agent|external]` as <parallel> and APPENDS it to each EXPLORE
+# phase (Phase A + final explore), NEVER the invent phase, so Stage 1.6 runs the prefetch there. Guard
+# the explore-only forwarding + the brief routing-only/never-Evidence + optional/never-auto external
+# framing, anchored in codcycle's own recon paragraph; the heavy mechanics are asserted in SKILL.md.
+CMD="$ROOT/commands/codcycle.md"
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import sys
+# normalize whitespace so a legitimate rewrap can neither break nor save an assertion
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+need = []
+if "Peel `parallel`" not in t: need.append("parallel-peel")
+# forwarded to explore phases by appending <parallel>; the invent phase explicitly gets none
+if "appending `<parallel>`" not in t: need.append("forward-append")
+if "never `<parallel>`" not in t: need.append("invent-no-recon")
+a = t.find("**Parallel recon")
+b = t.find("Print nothing of your own")
+if a < 0 or b < 0 or b <= a:
+    need.append("recon-paragraph-bounds"); para = ""
+else:
+    para = t[a:b]
+for tok, tag in (
+    ("Stage 1.6", "cites-stage-1.6"),
+    ("skills/planwright/SKILL.md", "cites-skill"),
+    ("not** run recon itself", "delegates-not-owns"),
+    ("never the invent phase", "explore-only-not-invent"),
+    ("routing-only", "routing-only"),
+    ("never Evidence", "never-evidence"),
+    ("re-proven", "re-proven"),
+    ("entirely optional", "ea-optional"),
+    ("never auto-engaged", "ea-explicit-only"),
+):
+    if tok not in para: need.append(tag)
+sys.exit(1 if need else 0)
+PY
+then ok "commands/codcycle.md forwards parallel to its explore-phase runs only (recon owned by SKILL.md Stage 1.6; invent gets none; routing-only/never-Evidence + optional/never-auto external kept local)"; else bad "commands/codcycle.md parallel forwarding lost a guard (append <parallel>/explore-only/Stage-1.6 cite/routing-only/never-Evidence/optional-external)"; fi
 
 # --- Test 15b: commands/codcycle.md peels a path/lib scope and trails it after the seed ---
 # Test 13c guards the path/lib scope-peel for codvisor/codinventor but iterates ONLY those two
@@ -396,24 +480,26 @@ assert "stop reason" in body, "stop-reason reporting missing"
 PY
 then ok "commands/codshard.md orchestrates per-shard scoped cycles with an unscoped closing round (sequential, ordered, stop-guarded, delegation intact)"; else bad "commands/codshard.md malformed or lost its shard-loop/closing-round/ordering/stop-rule/delegation contract"; fi
 
-# --- Test 16b: codshard's parallel recon contract (Claude-Code-only, routing-only, read-only) ---
-# The opt-in `parallel` flag may spawn subagents ONLY for read-only recon whose leads are
-# re-verification seeds — never Evidence — with a stated serial fallback on hosts without a
-# subagent primitive, and no state files of its own. Guard every clause: dropping any one of
-# them silently converts recon from a routing prefetch into a second source of truth (or breaks
-# the non-Claude hosts the skill promises to support).
+# --- Test 16b: codshard FORWARDS `parallel` to each per-shard planwright run (recon owned by SKILL.md) ---
+# Recon now lives in the base skill (Stage 1.6, guarded by skill-contract Test 10d). codshard must NOT
+# re-implement it — it peels `parallel [agent|external] [J]` and APPENDS it to each per-shard run, so
+# planwright's Stage 1.6 runs the read-only prefetch over that shard's Focus. Guard the forwarding, the
+# brief routing-only/never-Evidence ceiling, and the optional/never-auto external framing, anchored in
+# codshard's own recon paragraph; the heavy backend mechanics are asserted in SKILL.md, not here.
 CMD="$ROOT/commands/codshard.md"
 if python3 - "$CMD" <<'PY' 2>/dev/null
 import sys
 # normalize whitespace so a legitimate rewrap can neither break nor save an assertion
 t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
 need = []
-# the flag and its J binding rule (J must not be mistaken for M or D)
+# the flag, its J binding rule, and the backend selector survive the move to forwarding
 if "parallel [J]" not in t: need.append("parallel-flag")
 if "binds to it" not in t: need.append("J-binding-rule")
-# anchor every recon clause INSIDE the recon paragraph — 'never Evidence' and 'routing-only'
-# also appear in the graph-ordering paragraph, so a file-wide match would let the recon
-# clauses be inverted (leads promoted to Evidence) while the suite stays green
+if "parallel agent" not in t: need.append("qualifier-agent")
+if "parallel external" not in t: need.append("qualifier-external")
+# the per-shard invocation must APPEND parallel so Stage 1.6 fires per shard
+if "appending `parallel" not in t: need.append("per-shard-forward")
+# anchor the forwarding contract inside codshard's own recon paragraph
 a = t.find("**Parallel recon")
 b = t.find("Then run the **shard loop")
 if a < 0 or b < 0 or b <= a:
@@ -422,25 +508,22 @@ if a < 0 or b < 0 or b <= a:
 else:
     para = t[a:b]
 for tok, tag in (
-    ("read-only", "read-only"),
-    ("MUST state verbatim", "prompt-must-state"),
-    ("no file edits, no writes, no state, no mutating commands", "no-mutation-clause"),
-    ("at most 8 candidate leads", "lead-cap"),
+    # codshard FORWARDS to the base skill — it does not own the mechanics
+    ("Stage 1.6", "cites-stage-1.6"),
+    ("skills/planwright/SKILL.md", "cites-skill"),
+    ("not** run recon itself", "delegates-not-owns"),
+    ("append it to each per-shard", "forward-per-shard"),
+    # the brief trust ceiling + optional-external framing stays local (can't be inverted here)
     ("routing-only", "routing-only"),
-    ("re-verification seeds", "reverification-seeds"),
     ("never Evidence", "never-evidence"),
     ("re-proven", "re-proven"),
-    ("writes no files of its own", "no-state-files"),
-    ("single-agent", "single-agent-charter"),
-    ("nothing is appended to the planwright argument string", "no-arg-injection"),
-    ("lib` shards get no recon", "lib-recon-skip"),
-    ("parallel recon unavailable on this host", "fallback-note"),
-    ("continuing sequential without recon", "fallback-continues"),
+    ("entirely optional", "ea-optional"),
+    ("never auto-engaged", "ea-explicit-only"),
 ):
     if tok not in para: need.append(tag)
 sys.exit(1 if need else 0)
 PY
-then ok "commands/codshard.md keeps parallel recon read-only, routing-only, stateless, and host-degradable (clauses anchored in the recon paragraph)"; else bad "commands/codshard.md lost a parallel-recon guard (read-only/routing-only/never-Evidence/fallback/stateless)"; fi
+then ok "commands/codshard.md forwards parallel to each per-shard run (recon owned by SKILL.md Stage 1.6; routing-only/never-Evidence + optional/never-auto external framing kept local)"; else bad "commands/codshard.md parallel forwarding lost a guard (forward-per-shard/Stage-1.6 cite/routing-only/never-Evidence/optional-external)"; fi
 
 # --- Test 16c: codshard peels a path/lib scope into a single-entry shard list ---
 # Tests 13c/15b guard the scope-peel for the other commands, where the scope is appended after
@@ -549,6 +632,11 @@ assert "parallel only affects codshard" in body, "parallel non-codshard nudge mi
 assert "/codshard parallel directly" in body, "parallel /codshard suggestion missing"
 assert "parallel had no effect this run" in body, "parallel no-effect report note missing"
 assert "accelerates the harden sweep that dominates each lap restart" in body, "parallel not forwarded to the reset follow-up codshard sweep (loop parallel)"
+# codmaster forwards bare `parallel` (the native subagent backend only) and must NEVER auto-engage
+# the optional external-agent CLI backend under its autonomous loop — that backend contacts a
+# third-party provider and is an explicit `/codshard parallel external` opt-in. Pin it so an edit
+# can't quietly make the driver auto-egress to a paid external service.
+assert "never auto-engages the optional external" in body, "codmaster must not auto-engage the optional external-agent CLI backend (explicit /codshard parallel external opt-in only)"
 # the loop contract: consecutive dispatch to the final point, fresh sensing between steps,
 # the at-most-once growth bound, the stall guard, and the runaway cap
 assert "run the required commands consecutively" in body, "consecutive-drive contract missing"
