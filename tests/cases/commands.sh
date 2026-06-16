@@ -631,6 +631,15 @@ assert "run /qb-plan auto, then merge .qb/plan.md pending items into .planwright
 assert "print a dedicated safe banner" in body, "safe dedicated-banner structure missing (regressed to strike-editing the growth banner)"
 assert "each lap runs harden-only (no growth, no qb)" in body, "safe-loop harden-only termination model missing/contradicts the qb-does-not-run notice"
 assert "run the qb closing step here first" in body, "bare terminal qb-before-STOP wiring missing"
+# The no-progress guard must NOT pre-empt the qb rung on a bare drive: an already-converged re-run
+# whose enforced codinventor burst comes up dry (0 commits, SENSE re-recommends codinventor) would
+# otherwise trip the HEAD-unchanged+identical predicate and STOP before qb ever runs. qb (the top
+# escalation rung) must run once per non-safe lap before any convergence/stall stop.
+assert "The qb intent-replan must run once per lap before any convergence stop" in body, "no-progress guard must defer to the pending qb rung on a bare drive (qb must run even when an already-converged re-run's growth burst comes up dry)"
+# the deferral is narrow: ONLY at a converged terminal — a genuine non-converged stall still stops,
+# so a pre-growth harden that cannot advance does not spin to the 12-step cap.
+assert "deferral is only for the *converged* terminal that qb owns" in body, "no-progress qb-deferral must be scoped to the converged terminal (a non-converged stall still stops normally)"
+assert "never fires **at a converged terminal** while the qb intent-replan rung is still" in body, "closed-stop-set: no-progress predicate must not fire at a converged terminal while the qb rung is pending (non-safe drive)"
 assert "qb replan's execute included" in body, "loop fully-dry criterion not extended to include qb's execute"
 assert "qb's dryness, not codinventor's" in body, "loop final-point redefinition (qb dryness defines done) missing"
 assert "qb's merged-and-executed seeds" in body, "loop relap-on-qb-net-new path missing"

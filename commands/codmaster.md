@@ -223,7 +223,23 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    any next-step suggestion except the remediation for that stop.
 6. **No-progress guard.** If the step ended with HEAD unchanged AND the fresh SENSE yields the
    identical recommendation (same command and args): **outside `loop`**, STOP and report
-   `no progress` — an honest stall report beats spinning on the same dispatch. **In `loop` mode
+   `no progress` — an honest stall report beats spinning on the same dispatch — **unless the fresh
+   SENSE is *converged*, `safe` is off, and the qb intent-replan has not yet run this lap: then this
+   guard does *not* stop the drive here, because the next terminal check (step 3) routes that
+   growth-taken converged terminal to the qb intent-replan. The qb intent-replan must run once per lap
+   before any convergence stop** (in a non-`safe` drive — the qb closing rung is the top of the
+   escalation ladder, so it is spent before any non-`loop` convergence stop, exactly as the converged
+   terminal already requires). The case this catches: a **0-commit growth burst** — an
+   already-converged re-run where the enforced `codinventor` burst comes up dry and the fresh SENSE
+   re-recommends `codinventor` (identical to the just-dispatched growth burst) — which must be allowed
+   to advance to the qb intent-replan rather than be misread as "done". The guard fires at a converged
+   repo *only* after a `codinventor` dispatch (SENSE is `codinventor` at convergence), so growth is
+   always already taken when this exemption applies. **A genuine *non-converged* stall — the fresh
+   SENSE still names a harden the 0-commit dispatch could not advance — is a real dead-end and stops
+   normally even before qb; the deferral is only for the *converged* terminal that qb owns.** Once the
+   qb intent-replan has run this lap (it came up dry, or its merged items were executed under the
+   at-most-once flag), a subsequent no-progress match stops the bare drive normally; in `safe` (which
+   never runs qb) the guard stops as before. **In `loop` mode
    this guard does not stop the lap mid-flight** — a 0-commit harden must be allowed to advance to
    the guaranteed-to-generate growth burst rather than be misread as "done"; the 12-step cap is
    the mid-lap runaway backstop, and the no-progress verdict is instead evaluated once at the lap
@@ -237,7 +253,10 @@ and codmaster never adds one of its own. A stop is legitimate **only when some n
 produced it** — a signal codmaster **receives**, never a verdict it **decides**: the engine record's
 `blockers` array (the mechanical blocker stop); the dispatched run's own hard blocker or broad-verify
 failure (its own stops, relayed verbatim); the no-progress predicate — HEAD unchanged **AND** the
-fresh SENSE yields the identical recommendation — which stops only a **bare** (non-`loop`) run; the
+fresh SENSE yields the identical recommendation — which stops only a **bare** (non-`loop`) run, and
+in a non-`safe` drive never fires **at a converged terminal** while the qb intent-replan rung is still
+pending (the rung must run once per lap before any convergence stop; a non-converged stall still
+stops normally); the
 **12-step-per-lap** runaway cap; the **converged terminal** (`converged at the final point`), which a
 non-`loop` drive takes once the post-growth harden re-converges and the qb intent-replan rung is spent
 for the lap (dry, or its net-new already merged-and-executed under the at-most-once flag), and which

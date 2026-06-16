@@ -17,6 +17,9 @@ __pycache__/
 # Test scratch
 .planwright/
 
+# QB planning store (qb-plan auto writes .qb/; transient planning state, like .planwright/)
+.qb/
+
 # Custom Agent Prompt
 GEMINI.md
 
