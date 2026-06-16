@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.62.0] - 2026-06-16
+
+### Changed
+- Add README badges; bump-version.sh now syncs the README version badge
+
 ## [1.61.0] - 2026-06-16
 
 ### Added

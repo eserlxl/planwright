@@ -2,7 +2,7 @@
 
 **A free, local control loop for AI coding agents: grounded planning, verification, execution, and repeatable codebase improvement.**
 
-[![version](https://img.shields.io/badge/version-1.61.0-2563EB)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.62.0-2563EB)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-GPL--3.0-16A34A)](LICENSE)
 [![platforms](https://img.shields.io/badge/platforms-claude--code%20%C2%B7%20codex%20%C2%B7%20cursor%20%C2%B7%20antigravity%20%C2%B7%20gemini-2563EB)](#why-any-agent-can-host-it)
 
