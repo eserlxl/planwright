@@ -32,7 +32,10 @@ Resolve them in this order:
    with no scope, or `cycle 10 depth 10 explore path src/auth/` when a scope was peeled).
 
 2. **`<rest>` is one or two integers** (whitespace-separated, nothing else): the advisor workflow with
-   a custom cycle count `N`; **depth defaults to 10** (the explore flagship runs deep).
+   a custom cycle count `N`; **depth defaults to 10** (the explore flagship runs deep). First print
+   exactly one cost-banner line so this heavy run is never silent (case 2 is still a depth-10-class
+   flagship sweep), naming the resolved cycle count and depth:
+   `codvisor: max-intensity advisor run — up to <N> plan→execute rounds at depth <D> with the explore cold-frontier sweep.`
    - `N` (one integer, e.g. `15`): invoke planwright with `cycle <N> depth 10 explore <scope>`.
    - `N D` (two integers, e.g. `5 8` → 5 cycles, depth 8): invoke planwright with
      `cycle <N> depth <D> explore <scope>`. First number = cycles, second = depth.
@@ -43,4 +46,4 @@ Resolve them in this order:
    with any scope riding along after the subcommand.
 
 After resolving, invoke the planwright skill once with the resolved arguments. Print nothing
-of your own except the cost banner in case 1.
+of your own except the cost banner in cases 1 and 2.
