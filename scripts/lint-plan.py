@@ -54,6 +54,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 
@@ -529,6 +530,26 @@ _EVIDENCE_ANCHOR_RE = re.compile(
     r"(?::(\d+)(?:-\d+)?|\s*\(line\s+(\d+)\))")  # the start line is captured (groups 2/3) for range checks
 
 
+_IGNORE_CACHE = {}
+
+
+def is_gitignored(root, relpath):
+    """True when <relpath> (repo-relative) is excluded by the target repo's .gitignore, so the
+    Evidence range check never opens a file git deliberately ignores (a generated dist/ bundle,
+    a vendored file). Memoized per (root, path). git missing or a non-work-tree -> False
+    (undeterminable): fall through, so this only ADDS skipping when git confirms a path ignored.
+    `git check-ignore -q` exits 0 = ignored, 1 = not ignored, 128 = error/not a repo."""
+    key = (root, relpath)
+    if key not in _IGNORE_CACHE:
+        try:
+            proc = subprocess.run(["git", "-C", root, "check-ignore", "-q", "--", relpath],
+                                  capture_output=True, text=True)
+            _IGNORE_CACHE[key] = proc.returncode == 0
+        except OSError:
+            _IGNORE_CACHE[key] = False
+    return _IGNORE_CACHE[key]
+
+
 def evidence_anchor_issues(ev, root):
     """Verify every repo-relative `path:N` (or `path (line N)`) anchor the Evidence cites — the
     single most important grounding signal. Returns a list of (path, kind, detail) issues:
@@ -564,6 +585,13 @@ def evidence_anchor_issues(ev, root):
             continue
         line_s = m.group(2) or m.group(3)
         if not os.path.isfile(full):
+            continue
+        # Never open a gitignored file to count its lines: a citation may point at an on-disk
+        # but gitignored path (a generated dist/ bundle, a vendored file), and the range check
+        # must not read a file git deliberately excludes. Skip the range check for it — the same
+        # degrade an unreadable file gets below (the missing-file check above still flags a
+        # fabricated citation regardless of ignore status).
+        if is_gitignored(root, cand):
             continue
         try:
             with open(full, "rb") as fh:

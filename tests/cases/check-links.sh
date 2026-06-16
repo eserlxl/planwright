@@ -344,3 +344,24 @@ if [ "$ng_rc" = "2" ] && printf '%s' "$ng_out" | grep -q 'could not enumerate ma
 else
   bad "check-links.py enumeration-failure contract wrong (rc=$ng_rc quiet_rc=$ngq_rc out='$ngq_out' err='$ngq_err')"
 fi
+
+# --- Test CL17: a link into a gitignored tree is skipped, never read or flagged -----
+# planwright must never scan gitignored files. A tracked doc links into a present-but-
+# gitignored tree (a vendored/generated dir). The ignored file even carries a real heading,
+# so a PRE-FIX run could only resolve the #vendored-title anchor — and only report the bogus
+# #nope anchor — by opening it. Post-fix the target is out of scope: not opened, not flagged
+# broken, so the run stays exit 0 and never names the ignored path.
+GI="$TMP/cl-gitignore"; mkdir -p "$GI/vendor"
+git -C "$GI" init -q
+printf 'vendor/\n' > "$GI/.gitignore"
+printf '# Doc\n\n[v](vendor/lib.md)\n[v-anchor](vendor/lib.md#vendored-title)\n[v-bad](vendor/lib.md#nope)\n' > "$GI/index.md"
+printf '# Vendored Title\n\ntext\n' > "$GI/vendor/lib.md"
+git -C "$GI" add -A   # vendor/ is gitignored, so only index.md + .gitignore are tracked
+gi_rc=0; gi_out="$(python3 "$CL" --root "$GI")" || gi_rc=$?
+if [ "$gi_rc" = "0" ] \
+   && printf '%s' "$gi_out" | grep -q 'markdown file(s) OK' \
+   && ! printf '%s' "$gi_out" | grep -q 'vendor/lib.md'; then
+  ok "check-links.py skips links into a gitignored tree (never opened, never flagged broken)"
+else
+  bad "check-links.py scanned or flagged a gitignored link target (rc=$gi_rc): $gi_out"
+fi

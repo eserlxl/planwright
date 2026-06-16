@@ -536,8 +536,14 @@ Report counts: compacted, rejected-drained, plan kept/deleted.
 
 ### Stage 1 — Scan (mechanical)
 
-Build three context sets the later stages MUST be grounded in. Prefer `rg`/`fd`; for large output,
-route through context-mode (`ctx_batch_execute`) so raw bytes stay out of context.
+Build three context sets the later stages MUST be grounded in. **Scan only git-tracked files — never
+read a gitignored path.** Enumerate and search with gitignore-respecting tools only: `git ls-files`
+for enumeration, and `rg`/`fd` in their **default** ignore mode for search. **Never** use `grep -r`,
+`find`, `os.walk`, the Glob tool, or `rg --no-ignore`/`-u` — they walk `node_modules/`, `dist/`, build
+artifacts, vendored deps, and `.env` into the audit. If `rg`/`fd` are unavailable, fall back to
+`git grep` / `git ls-files` (still tracked-only), never to bare `grep`/`find`. For large output, route
+through context-mode (`ctx_batch_execute`) so raw bytes stay out of context. (The only gitignored tree
+planwright ever reads is its own `.planwright/` tool-state, by design — never the target's ignored source.)
 
 - **PROJECT FILE PATHS** — repo-relative paths of real source/header/test/config files.
 - **PROJECT IMPLEMENTATION SIGNALS** — actual non-comment symbols: function/method/type names,
@@ -743,13 +749,18 @@ Two backends plus a fallback, selected by the qualifier on `parallel` (`agent`/`
   of the tree than its Focus's enclosing directory. `--agent all` fans every enabled CLI (agy + codex by default) out
   concurrently and reports per-agent failures, so harvest whatever agents returned leads and skip the
   rest. This backend **ships the targeted tree to external providers** (agy and codex are external
-  services), so it must never target a tree holding private IP; codex read-only is hard-enforced, while
+  services), so it must never target a tree holding private IP, and its recon prompt carries the
+  git-tracked-only restriction above so the agent skips the directory's gitignored contents
+  (`node_modules/`, build output, vendored deps); codex read-only is hard-enforced, while
   **agy read-only is best-effort** (its `--sandbox` does not hard-block edit tools), tolerated only
   because every lead is re-proven from code regardless. Harvest each agent's `===== <agent> … =====`
   stdout block (or its `<out>/<agent>.md` transcript) for leads.
 
 Regardless of backend, the recon prompt MUST state verbatim that the reader is **read-only** — no file
-edits, no writes, no state, no mutating commands. Recon **never errors and never blocks**: a missing
+edits, no writes, no state, no mutating commands — and that it must read **only git-tracked files,
+never a gitignored path** (no `node_modules/`, `dist/`, build artifacts, vendored deps, or `.env`):
+enumerate the Focus with `git ls-files`/`git grep`/`rg`/`fd` in their default ignore mode, never
+`grep -r`/`find`/`--no-ignore`. Recon **never errors and never blocks**: a missing
 native primitive (bare `parallel`), an explicit `parallel external` whose optional CLIs are not
 installed (no `run-agent.sh`, or `run-agent.sh --check` shows none usable), a timeout, or empty output
 all make planwright **skip recon and continue** — print

@@ -123,8 +123,8 @@ def check_tools():
         "name": "rg (ripgrep)",
         "status": "ok" if rg else "warn",
         "detail": _tool_version("rg") if rg else "not found on PATH",
-        "degrades": "Stage 1 scanning falls back to slower grep/find (build-graph.py "
-                    "reads files itself and is unaffected)",
+        "degrades": "Stage 1 scanning falls back to git grep / git ls-files (still "
+                    "gitignore-respecting; build-graph.py reads files itself and is unaffected)",
     })
 
     fd = shutil.which("fd") or shutil.which("fdfind")
@@ -132,7 +132,7 @@ def check_tools():
         "name": "fd",
         "status": "ok" if fd else "warn",
         "detail": _tool_version(fd) if fd else "not found on PATH (optional)",
-        "degrades": "file enumeration falls back to git ls-files / find (no functional loss)",
+        "degrades": "file enumeration falls back to git ls-files (gitignore-respecting; no functional loss)",
     })
     return recs
 

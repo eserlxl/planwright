@@ -73,6 +73,27 @@ def list_markdown(root):
     return files
 
 
+_IGNORE_CACHE = {}
+
+
+def is_gitignored(root, relpath):
+    """True when <relpath> (repo-relative) is excluded by the target repo's .gitignore, so
+    link/anchor resolution never stats or opens a file git deliberately ignores (a generated
+    dist/ doc, a vendored node_modules/ README). Memoized per (root, path). git missing or a
+    non-work-tree -> False (undeterminable): fall through to the existing checks, so this only
+    ADDS skipping when git positively confirms a path is ignored, never removes a check.
+    `git check-ignore -q` exits 0 = ignored, 1 = not ignored, 128 = error/not a repo."""
+    key = (root, relpath)
+    if key not in _IGNORE_CACHE:
+        try:
+            proc = subprocess.run(["git", "-C", root, "check-ignore", "-q", "--", relpath],
+                                  capture_output=True, text=True)
+            _IGNORE_CACHE[key] = proc.returncode == 0
+        except OSError:
+            _IGNORE_CACHE[key] = False
+    return _IGNORE_CACHE[key]
+
+
 def slugify(heading, keep_underscores=False):
     """GitHub-style heading slug: drop inline code/emphasis markers, lowercase, keep
     [a-z0-9 -], turn spaces into hyphens, collapse repeats, trim. Conservative — used
@@ -240,6 +261,13 @@ def check_file(root, relpath, anchor_cache):
             contained = False  # different drive / uncomparable -> treat as escaping
         if not contained:
             broken.append((lineno, target, "escapes repo root"))
+            return
+        # A tracked doc may link into an on-disk but gitignored tree (a generated dist/ doc, a
+        # vendored node_modules/ README); resolving such a link would stat and — for `.md` —
+        # open and read a file git deliberately excludes. Treat a gitignored target as out of
+        # scope and skip it, the same posture by which list_markdown's git enumeration keeps
+        # ignored trees from being walked as sources (never-false-fail: it is not reported broken).
+        if is_gitignored(root, dest):
             return
         if not os.path.exists(os.path.join(root, dest)):
             broken.append((lineno, target, "file does not exist"))

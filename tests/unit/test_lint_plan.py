@@ -9,6 +9,8 @@
 
 import importlib.util
 import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -45,6 +47,39 @@ class TestEvidenceAnchorEscape(unittest.TestCase):
             issues = lp.evidence_anchor_issues("see x.py:1", root)
             self.assertFalse(any(kind == "escape" for _, kind, _ in issues),
                              f"unexpected escape issue, got {issues}")
+
+
+class TestEvidenceAnchorGitignore(unittest.TestCase):
+    """planwright must never scan gitignored files — the Evidence range check must not open
+    a file git deliberately excludes (a generated dist/ bundle, a vendored file)."""
+
+    @staticmethod
+    def _git(root, *args):
+        subprocess.run(["git", "-C", root, *args], check=True,
+                       capture_output=True, text=True)
+
+    @unittest.skipUnless(shutil.which("git"), "git required for the gitignore guard")
+    def test_gitignored_citation_is_not_opened(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._git(root, "init")
+            with open(os.path.join(root, ".gitignore"), "w") as fh:
+                fh.write("dist/\n")
+            os.mkdir(os.path.join(root, "dist"))
+            with open(os.path.join(root, "dist", "bundle.js"), "w") as fh:
+                fh.write("a\nb\n")  # 2 lines, but gitignored
+            os.mkdir(os.path.join(root, "src"))
+            with open(os.path.join(root, "src", "app.js"), "w") as fh:
+                fh.write("a\nb\n")  # 2 lines, NOT ignored
+            # A citation into the gitignored tree must NOT be opened: its line count is never
+            # read, so an out-of-range cited line cannot be flagged (the file is out of scope).
+            ign = lp.evidence_anchor_issues("see dist/bundle.js:9999", root)
+            self.assertEqual([], ign,
+                             f"a gitignored citation must not be opened/range-checked, got {ign}")
+            # Control: an identical citation to a non-ignored file IS range-checked, proving the
+            # skip above is the gitignore guard, not a parsing miss.
+            tracked = lp.evidence_anchor_issues("see src/app.js:9999", root)
+            self.assertTrue(any(kind == "out-of-range" for _, kind, _ in tracked),
+                            f"a non-ignored citation should still be range-checked, got {tracked}")
 
 
 class TestProseVerification(unittest.TestCase):

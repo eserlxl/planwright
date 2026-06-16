@@ -66,6 +66,7 @@ else:
     para = t[a:b]
 for tok, tag in (
     ("read-only", "read-only"),
+    ("git-tracked files", "recon-tracked-only"),
     ("no file edits, no writes, no state, no mutating commands", "no-mutation-clause"),
     ("at most 8 candidate leads", "lead-cap"),
     ("routing-only re-verification seeds", "routing-only"),
@@ -93,6 +94,32 @@ for tok, tag in (
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md Stage 1.6 owns the parallel-recon contract (read-only, routing-only, never-Evidence, native + optional/never-auto external backend, run-agent.sh, egress, degrade)"; else bad "SKILL.md Stage 1.6 parallel-recon contract lost a guard (read-only/routing-only/never-Evidence/backend/optional-external/fallback)"; fi
+
+# --- Test 10e: SKILL.md Stage 1 mandates a git-tracked-only scan (never gitignored) ---
+# planwright must never scan gitignored files. Stage 1's scan instruction must state the
+# tracked-only invariant and name the gitignore-blind tools it forbids, anchored INSIDE the
+# Stage 1 section so the rule cannot be satisfied from unrelated prose elsewhere.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+a = t.find("### Stage 1 — Scan")
+b = t.find("### Stage 1.5")
+need = []
+if a < 0 or b < 0 or b <= a:
+    need.append("stage-1-bounds"); para = ""
+else:
+    para = t[a:b]
+for tok, tag in (
+    ("Scan only git-tracked files", "tracked-only-mandate"),
+    ("never read a gitignored path", "no-gitignored-read"),
+    ("git ls-files", "git-ls-files-enum"),
+    ("grep -r", "forbids-grep-r"),
+    ("--no-ignore", "forbids-no-ignore"),
+):
+    if tok not in para: need.append(tag)
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md Stage 1 mandates a git-tracked-only scan and forbids gitignore-blind tools"; else bad "SKILL.md Stage 1 lost the git-tracked-only scan invariant (gitignore exclusion regressed)"; fi
 
 # --- Test 10a2: Execute Preconditions hard-block on unconfigured git identity ---
 # The mutating Execute path commits every passing item, so an unset git user.name/user.email
