@@ -1298,6 +1298,70 @@ else
   ok "dashboard view render() check skipped (node not installed)"
 fi
 
+# --- Test DASH-INSIGHTS-RENDER: the Insights view's render OUTPUT (not just registration) ----
+# The views block above asserts only "insights rendered something" (children.length>0). This pins
+# the actionable content: given an uncovered articulation hotspot (hot.py), insights.render() must
+# surface that file in the Risk Ledger, render the "Coverage by language" panel, and show the
+# uncovered flag. (An independent QB audit found the views were registration-smoke-tested, not
+# output-asserted — console/timeline get deep output checks above, insights did not.) Node-gated
+# with a clean skip, like derive.sh; no npm/network.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/insights_render_test.js" <<'JS'
+const fs = require("fs"); const vm = require("vm"); const assert = require("assert");
+const BASE = process.argv[2];
+function El(t){ this.tagName=(t||"div").toUpperCase(); this.children=[]; this._attr={}; this.dataset={};
+  this.style={setProperty(){},removeProperty(){},getPropertyValue(){return "";}};
+  this.classList={_s:{},add(c){this._s[c]=true;},remove(c){delete this._s[c];},toggle(){},contains(c){return !!this._s[c];}};
+  this.textContent=""; this.innerHTML=""; this.className=""; this.tabIndex=0; this.value=""; this.hidden=false; }
+El.prototype.appendChild=function(c){ this.children.push(c); return c; };
+El.prototype.append=function(){ for(var i=0;i<arguments.length;i++) this.children.push(arguments[i]); };
+El.prototype.prepend=function(c){ this.children.unshift(c); return c; };
+El.prototype.insertBefore=function(c){ this.children.push(c); return c; };
+El.prototype.setAttribute=function(k,v){ this._attr[k]=String(v); };
+El.prototype.setAttributeNS=function(ns,k,v){ this._attr[k]=String(v); };
+El.prototype.getAttribute=function(k){ return (k in this._attr)?this._attr[k]:null; };
+El.prototype.addEventListener=function(){}; El.prototype.remove=function(){};
+El.prototype.querySelector=function(){return null;}; El.prototype.querySelectorAll=function(){return [];};
+El.prototype.getContext=function(){return null;};
+const doc={ createElement(t){return new El(t);}, createElementNS(ns,t){return new El(t);},
+  createTextNode(t){var n=new El("#text"); n.textContent=String(t); return n;}, getElementById(){return new El();},
+  body:new El("body"), documentElement:new El("html"), head:new El("head"), addEventListener(){} };
+const win={ PW_VIEWS:{}, PW_UI:{planMode:"all"},
+  PW_BUS:{ onFocus(){return function(){};}, focusNode(){}, clearFocus(){}, getFocus(){return null;}, setNavigator(){}, goto(){} },
+  addEventListener(){}, matchMedia(){return {matches:false,addEventListener(){},addListener(){}};}, requestAnimationFrame(){return 0;} };
+global.window=win; global.document=doc;
+vm.runInThisContext(fs.readFileSync(BASE+"/vendor/derive.js","utf8"));
+vm.runInThisContext(fs.readFileSync(BASE+"/views/insights.js","utf8"));
+assert(typeof win.PW_VIEWS.insights==="function","insights view did not register render()");
+const graphText=JSON.stringify({ graph_built_at_sha:"deadbeef", frontier:{never_audited:1,stale:1},
+  nodes:{ "hot.py":{git_churn:10,pagerank:0.9,covered_by_test:false,is_test:false,lang:"python",loc:100,branch_count:5,is_articulation:true,imports:["cold.py"]},
+          "cold.py":{git_churn:1,pagerank:0.1,covered_by_test:true,is_test:false,lang:"python",loc:10,branch_count:1,is_articulation:false,imports:[]} },
+  coupling_edges:[], clusters:[{label:"core",members:["hot.py","cold.py"]}], import_cycles:[] });
+const metrics=win.PW_DERIVE.metrics(graphText);
+assert(metrics && metrics.hotspots && metrics.hotspots.length===2, "fixture metrics built (2 hotspots)");
+const ctx={ graphText:graphText, metrics:metrics, builtSha:"deadbeef", stale:false, head:"deadbeef" };
+const root=new El("section");
+win.PW_VIEWS.insights(root, { counts:{} }, ctx);
+function textOf(n){ var t=n.textContent||""; (n.children||[]).forEach(function(c){ t+=" "+textOf(c); }); return t; }
+const out=textOf(root);
+assert(root.children.length>0, "insights rendered nothing on a full snapshot");
+assert(/hot\.py/.test(out), "Risk Ledger did not surface the uncovered hotspot hot.py");
+assert(/uncovered/.test(out), "insights did not surface the uncovered coverage flag");
+assert(/Coverage by language/.test(out), "insights did not render the by-language Coverage panel");
+// degraded snapshot (no metrics) must not throw
+win.PW_VIEWS.insights(new El("section"), { counts:{} }, { graphText:null, metrics:null, builtSha:"", stale:false, head:"deadbeef" });
+console.log("INSIGHTS-RENDER-OK");
+JS
+  if node "$TMP/insights_render_test.js" "$ROOT/scripts/dashboard" >"$TMP/insights_render.out" 2>"$TMP/insights_render.err" \
+     && grep -q INSIGHTS-RENDER-OK "$TMP/insights_render.out"; then
+    ok "dashboard Insights view render OUTPUT asserts the hotspot Risk-Ledger row + by-language Coverage panel + uncovered flag (not just registration)"
+  else
+    bad "dashboard Insights render-output assertion failed: $(cat "$TMP/insights_render.err" 2>/dev/null)"
+  fi
+else
+  ok "dashboard Insights render-output check skipped (node not installed)"
+fi
+
 # --- Test DASH-ACT-SIG: the beacon's TTL crossing changes the /events signature ------
 # The activity beacon's stale flip happens by TTL, not by a file write — an interrupted
 # run leaves activity.json untouched, so without a derived bit in _mtime_signature the
