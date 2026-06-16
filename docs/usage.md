@@ -127,7 +127,7 @@ it after each dispatched subcommand so `cycle`/`execute` stays the first token p
 `codmaster` additionally threads it into its sense engine so the whole drive is Focus-restricted.
 
 ```bash
-/codvisor                  Flagship advisor run: cycle 10 depth 10 explore (prints a cost banner first)
+/codvisor                  Flagship advisor run: cycle 10 depth 10 explore
 /codvisor 15               cycle 15 depth 10 explore (one number = cycles; depth defaults to 10)
 /codvisor 5 8              cycle 5 depth 8 explore (cycles, depth)
 /codvisor 15 path src/     cycle 15 depth 10 explore path src/ (a peeled scope is re-appended after the subcommand)
@@ -135,6 +135,10 @@ it after each dispatched subcommand so `cycle`/`execute` stays the first token p
 /codinventor 15            cycle 15 depth 10 invent
 /codinventor 5 8           cycle 5 depth 8 invent (cycles, depth)
 ```
+
+Every `/codvisor` and `/codinventor` form prints a one-line cost banner before dispatching — the
+flagship *and* the always-depth-10 custom-N case-2 form — so a heavy run is never launched without
+disclosing its cost (it is never silent).
 
 `/codcycle` is a Claude Code orchestration command (not a single-invocation alias): per *outer cycle*
 it drives the planwright skill through two phases back-to-back — `cycle 3 depth 10 explore`, then
