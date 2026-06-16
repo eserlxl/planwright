@@ -721,6 +721,33 @@ else
   bad "build-graph --select oversized wrong (os=[$sel_os] os_py=[$sel_os_py] rc=$sel_os_rc)"
 fi
 
+# --- Test 11c2j5: --select dirty slices the incremental-audit dirty set (--prior only) -----
+# `dirty` is a graph-LEVEL predicate (graph["dirty"]["nodes"], not a per-node field): it exposes the
+# incremental dirty set (changed nodes + 1-hop blast radius) scriptably and composes like every other
+# --select member. Meaningful only with --prior — a fresh build is first-run-dirty (whole tree), so
+# without --prior `dirty` matches every node. Fixture: two import-unconnected files; change one and
+# rebuild with --prior, and dirty == just the changed file (no edges => no blast radius).
+DRTREPO="$TMP/drtrepo"; mkdir -p "$DRTREPO"
+git -C "$DRTREPO" init -q
+printf 'x = 1\n' > "$DRTREPO/a.py"
+printf 'y = 2\n' > "$DRTREPO/b.py"
+git -C "$DRTREPO" add -A && git -C "$DRTREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+python3 "$ROOT/scripts/build-graph.py" --root "$DRTREPO" > "$TMP/drt_prior.json" 2>/dev/null
+# no --prior: first-run-dirty, so `dirty` matches every node (degenerate, documented)
+sel_drt_np="$(python3 "$ROOT/scripts/build-graph.py" --root "$DRTREPO" --select dirty 2>/dev/null | sort | tr '\n' ' ')"
+printf 'x = 99\n' > "$DRTREPO/a.py"
+git -C "$DRTREPO" add -A && git -C "$DRTREPO" -c user.name=t -c user.email=t@e.com commit -qm change
+sel_drt="$(python3 "$ROOT/scripts/build-graph.py" --root "$DRTREPO" --prior "$TMP/drt_prior.json" --select dirty 2>/dev/null)"
+sel_drt_py="$(python3 "$ROOT/scripts/build-graph.py" --root "$DRTREPO" --prior "$TMP/drt_prior.json" --select dirty,lang=python 2>/dev/null)"
+sel_drt_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$DRTREPO" --select nope3 >/dev/null 2>"$TMP/drt_err" || sel_drt_rc=$?
+if [ "$sel_drt" = "a.py" ] && [ "$sel_drt_py" = "a.py" ] \
+   && [ "$sel_drt_np" = "a.py b.py " ] \
+   && [ "$sel_drt_rc" = 2 ] && grep -q "dirty" "$TMP/drt_err"; then
+  ok "build-graph --select dirty slices the incremental dirty set (--prior only; first-run-dirty without), composes, and is in the allowed set"
+else
+  bad "build-graph --select dirty wrong (drt=[$sel_drt] py=[$sel_drt_py] np=[$sel_drt_np] rc=$sel_drt_rc)"
+fi
+
 # --- Test 11c2j3: --select comma-ANDs predicate conjunctions (multi-signal, no jq) --
 # Each comma-separated token resolves through the same closed vocabulary and a node must
 # match ALL of them. lang=python,no-is_test on SELREPO is a strict subset of lang=python

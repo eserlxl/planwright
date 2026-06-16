@@ -1705,7 +1705,7 @@ def _select_token_pred(e):
         return lambda n: bool(n.get(e))
     allowed = ", ".join(list(_SELECT_BOOL_FIELDS)
                         + ["no-" + b for b in _SELECT_BOOL_FIELDS]
-                        + ["code", "oversized", "swallows", "never-audited", "stale-audited", "lang=NAME"])
+                        + ["code", "oversized", "swallows", "never-audited", "stale-audited", "dirty", "lang=NAME"])
     raise ValueError(f"unknown --select predicate '{e}'; allowed: {allowed}")
 
 
@@ -1718,7 +1718,9 @@ def to_select(graph, expr):
     it is true; a `no-` prefix on one selects where it is false; `code` selects
     branch_count>0; `oversized` selects loc>300 (the Stage 2a oversized-module threshold);
     `never-audited` selects nodes with no reachable audit stamp
-    (audit_age_commits null); `lang=NAME` (NAME non-empty) selects nodes of that language.
+    (audit_age_commits null); `lang=NAME` (NAME non-empty) selects nodes of that language; `dirty`
+    selects the incremental-audit dirty set (graph["dirty"]["nodes"] — changed nodes + their 1-hop
+    blast radius), meaningful only with `--prior` (a fresh build has no baseline to diff).
     Under a --scope build the result is restricted to the Context node set, matching
     --dot so the two non-JSON output modes agree on scope. Raises ValueError on an unknown
     or malformed predicate token (including a bare `lang=` or an empty conjunction member)
@@ -1728,9 +1730,22 @@ def to_select(graph, expr):
     # `--scope X --select ...` answers about that component, not the whole repo. Absent => all.
     context = graph.get("context")
     visible = set(context) if context is not None else set(nodes)
-    preds = [_select_token_pred(t.strip()) for t in (expr or "").split(",")]
+    # `dirty` is a graph-LEVEL member (the dirty set is graph["dirty"]["nodes"], not a per-node
+    # field), so peel it out as a set-membership filter; every other member still resolves through
+    # _select_token_pred, so a bad or bare member still raises exactly as before. Meaningful only
+    # with --prior (a fresh build's dirty set is degenerate), like the audit-stamp predicates.
+    dirty_set = None
+    node_preds = []
+    for t in (expr or "").split(","):
+        tok = t.strip()
+        if tok == "dirty":
+            dirty_set = set((graph.get("dirty") or {}).get("nodes") or [])
+        else:
+            node_preds.append(_select_token_pred(tok))
     return sorted(p for p, n in nodes.items()
-                  if p in visible and all(pred(n) for pred in preds))
+                  if p in visible
+                  and (dirty_set is None or p in dirty_set)
+                  and all(pred(n) for pred in node_preds))
 
 
 def main():
