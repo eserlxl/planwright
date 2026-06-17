@@ -1393,6 +1393,37 @@ var shNo = new El("section");
 win.PW_VIEWS.shards(shNo, state, fullCtx);
 assert(/No shard enumeration/.test(textOf(shNo)), "Shards view did not degrade to the no-repo empty state");
 
+// Targeted (Phase 4.3): the Fleet view's POPULATED multi-project grid path. The VIEWS loop
+// renders fleet on the base fixture, which carries no projects, so only the empty state runs —
+// the grid, cards, and project-count note (fleet.js populated branch) were never executed.
+// Drive it via window.PW_PROJECTS (the bridge app.js fills) and assert the grid renders one
+// card per project + the plural/singular note; zero projects falls back to the no-projects note.
+// (Per-card dot/count VALUES + sort order are item 87.) Restore PW_PROJECTS so no later block sees it.
+var savedPWP = win.PW_PROJECTS;
+win.PW_PROJECTS = [
+  { id: "p1", name: "alpha", path: "/repos/alpha", status: "active", counts: { pending: 4, done: 7 } },
+  { id: "p2", name: "beta", path: "/repos/beta", status: "converged", counts: { pending: 0, done: 3 } },
+  { id: "p3", name: "gamma", path: "/repos/gamma", status: "stale", counts: { pending: 2, done: 1 } },
+];
+var fleetC = new El("section");
+win.PW_VIEWS.fleet(fleetC, state, fullCtx);
+assert(findByClass(fleetC, "pw-fleet-grid").length === 1, "Fleet did not render the multi-project grid");
+assert(findByClass(fleetC, "pw-fleet-card").length === 3, "Fleet grid did not render one card per project");
+assert(findByClass(fleetC, "pw-fleet-empty").length === 0, "Fleet rendered the empty state on a populated snapshot");
+var fleetNote = textOf(findByClass(fleetC, "pw-fleet-note")[0]);
+assert(/3 projects/.test(fleetNote) && /click a card to switch/.test(fleetNote), "Fleet note did not reflect the 3-project count");
+win.PW_PROJECTS = [{ id: "p1", name: "alpha", path: "/repos/alpha", status: "active", counts: { pending: 1, done: 0 } }];
+var fleetOne = new El("section");
+win.PW_VIEWS.fleet(fleetOne, state, fullCtx);
+assert(/1 project/.test(textOf(findByClass(fleetOne, "pw-fleet-note")[0])) && !/1 projects/.test(textOf(fleetOne)) && findByClass(fleetOne, "pw-fleet-card").length === 1,
+  "Fleet did not singularize the note / render one card for a single project");
+win.PW_PROJECTS = [];
+var fleetEmpty = new El("section");
+win.PW_VIEWS.fleet(fleetEmpty, state, fullCtx);
+assert(/No projects registered yet/.test(textOf(fleetEmpty)) && findByClass(fleetEmpty, "pw-fleet-card").length === 0,
+  "Fleet did not render the empty state for zero projects");
+win.PW_PROJECTS = savedPWP;
+
 // doctor view: fetch-based (not state-driven), so it sits outside the VIEWS render loop —
 // load its file here (registers PW_VIEWS.doctor) and cover it explicitly: render() must show
 // the sync placeholder immediately, and once the stubbed /doctor.json promise flushes,
