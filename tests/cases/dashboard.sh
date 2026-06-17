@@ -871,6 +871,26 @@ win.PW_VIEWS.console(idleC, Object.assign({}, state, {
 }), fullCtx);
 assert(/IDLE/.test(textOf(idleC)), "Reactor did not read IDLE on a drained plan with no final point");
 
+// Targeted (Phase 1.2): the Reactor satellite strip reflects the accepted/pending/rejected
+// counts so a renamed engine field renders a wrong count instead of failing silently. The
+// verdict + carried-satellite assertions above never pin the accepted/pending NUMBERS; sat()
+// renders value then label, so the strip reads "1 accepted 2 pending 1 rejected" for the base
+// fixture (completed:[1], pending:[2], rejected:[1]).
+var reSats = findByClass(fc, "pw-reactor-sats");
+assert(reSats.length === 1, "Console reactor did not render the satellite strip");
+var reSatText = textOf(reSats[0]);
+assert(/1\s+accepted/.test(reSatText), "Reactor 'accepted' satellite did not reflect completed.length=1");
+assert(/2\s+pending/.test(reSatText), "Reactor 'pending' satellite did not reflect pending.length=2");
+assert(/1\s+rejected/.test(reSatText), "Reactor 'rejected' satellite did not reflect rejected.length=1");
+// A renamed/mis-counted completed field must move the accepted satellite — add a second
+// completed item and assert the count tracks it (the negative the strip exists to catch).
+var moreDone = new El("section");
+win.PW_VIEWS.console(moreDone, Object.assign({}, state, {
+  completed: state.completed.concat([{ title: "also shipped", mode: "improve", commit: "def5678" }]),
+}), fullCtx);
+assert(/2\s+accepted/.test(textOf(findByClass(moreDone, "pw-reactor-sats")[0])),
+  "Reactor 'accepted' satellite did not track a second completed item");
+
 // Targeted: the run-activity beacon line (under the reactor note) appears ONLY when
 // state.activity carries a well-formed beacon — the base fixture omits the field (an
 // older snapshot) and must render the reactor unchanged; a stale beacon reads "stale?"
