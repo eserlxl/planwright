@@ -59,7 +59,7 @@ def list_markdown(root):
     inherited) so a non-git root's `fatal: not a git repository` never leaks past the
     --quiet contract — parity with status._head_sha's captured subprocess.run."""
     proc = subprocess.run(["git", "-C", root, "ls-files", "*.md", "**/*.md"],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, timeout=15)
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, proc.args,
                                             proc.stdout, proc.stderr)
@@ -87,7 +87,7 @@ def is_gitignored(root, relpath):
     if key not in _IGNORE_CACHE:
         try:
             proc = subprocess.run(["git", "-C", root, "check-ignore", "-q", "--", relpath],
-                                  capture_output=True, text=True)
+                                  capture_output=True, text=True, timeout=5)
             _IGNORE_CACHE[key] = proc.returncode == 0
         except OSError:
             _IGNORE_CACHE[key] = False

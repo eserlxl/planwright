@@ -110,6 +110,38 @@ else
   bad "a scripts/*.py subprocess call passes an interpolated string as argv"
 fi
 
+# --- Test 0g: scripts/*.py subprocess calls are time-bounded ---------------
+# Every git/external subprocess call must carry an explicit timeout= so a hung tool can never
+# block planning or the dashboard indefinitely. ast-checked across the whole scripts/*.py glob.
+# Popen is excluded (its constructor takes no timeout=; the codebase uses run/check_output only).
+if python3 - "$ROOT" >/dev/null 2>&1 <<'PY'
+import ast, glob, os, sys
+root = sys.argv[1]
+CALLS = {"run", "check_output", "check_call", "call"}
+bad = []
+for path in sorted(glob.glob(os.path.join(root, "scripts", "*.py"))):
+    with open(path) as fh:
+        tree = ast.parse(fh.read())
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        if not (isinstance(fn, ast.Attribute) and fn.attr in CALLS):
+            continue
+        if not (isinstance(fn.value, ast.Name) and fn.value.id == "subprocess"):
+            continue
+        if "timeout" not in {k.arg for k in node.keywords}:
+            bad.append("%s:%d" % (os.path.basename(path), node.lineno))
+if bad:
+    sys.stderr.write("unbounded subprocess call(s): " + " ".join(bad) + "\n")
+    sys.exit(1)
+PY
+then
+  ok "scripts/*.py subprocess calls carry an explicit timeout= (bounded git/external calls)"
+else
+  bad "a scripts/*.py subprocess call has no timeout= (unbounded git/external call)"
+fi
+
 # --- Test 1: bump-version.sh syncs version across all three files ----------
 WORK="$TMP/repo"
 mkdir -p "$WORK"
