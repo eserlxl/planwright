@@ -1424,6 +1424,36 @@ assert(/No projects registered yet/.test(textOf(fleetEmpty)) && findByClass(flee
   "Fleet did not render the empty state for zero projects");
 win.PW_PROJECTS = savedPWP;
 
+// Targeted (Phase 4.3): the Fleet per-card VALUES + sort order. #86 pins the grid structure;
+// this pins what a swapped status->dot map, a pending/done transpose, or a broken sort would
+// corrupt: each card's reactor-state dot class encodes its status, the counts line carries
+// pending/done, the active project shows the "running" label, and the grid sorts active before
+// stale (ties by name). fleet.js sort rank: active=0, idle/converged=1, stale=2.
+var savedPWP2 = win.PW_PROJECTS;
+win.PW_PROJECTS = [
+  { id: "z", name: "zulu", path: "/r/zulu", status: "stale", counts: { pending: 0, done: 1 } },
+  { id: "b", name: "bravo", path: "/r/bravo", status: "active", counts: { pending: 2, done: 5 } },
+  { id: "c", name: "charlie", path: "/r/c", status: "converged", counts: { pending: 0, done: 9 } },
+];
+var flV = new El("section");
+win.PW_VIEWS.fleet(flV, state, fullCtx);
+var flVNames = findByClass(flV, "pw-fleet-name").map(function (n) { return textOf(n).trim(); });
+assert(flVNames[0] === "bravo" && flVNames[flVNames.length - 1] === "zulu",
+  "Fleet did not sort active before stale (got: " + flVNames.join(",") + ")");
+[["bravo", "active", /2 pending/, /5 done/, "running"],
+ ["zulu", "stale", /0 pending/, /1 done/, "stale"]].forEach(function (exp) {
+  var card = findByClass(flV, "pw-fleet-card").filter(function (c) { return textOf(c).indexOf(exp[0]) >= 0; });
+  assert(card.length === 1, "Fleet card for " + exp[0] + " not found");
+  var dot = findByClass(card[0], "pw-fleet-dot");
+  assert(dot.length === 1 && classOf(dot[0]).indexOf("pw-fleet-dot--" + exp[1]) >= 0,
+    "Fleet card " + exp[0] + " dot did not encode status " + exp[1] + " (got: " + (dot[0] && classOf(dot[0])) + ")");
+  var ctext = textOf(card[0]);
+  assert(exp[2].test(ctext) && exp[3].test(ctext),
+    "Fleet card " + exp[0] + " did not render its pending/done counts (got: " + ctext + ")");
+  assert(ctext.indexOf(exp[4]) >= 0, "Fleet card " + exp[0] + " did not render status label '" + exp[4] + "'");
+});
+win.PW_PROJECTS = savedPWP2;
+
 // doctor view: fetch-based (not state-driven), so it sits outside the VIEWS render loop —
 // load its file here (registers PW_VIEWS.doctor) and cover it explicitly: render() must show
 // the sync placeholder immediately, and once the stubbed /doctor.json promise flushes,
