@@ -380,11 +380,61 @@ fi
 # The Commands view's codmaster front-door panel must consume /recommend.json and gate the
 # paint on the recUsable shape guard (an error body / older server degrades to an absent
 # panel, never an error state). Same grep-able-guard posture as the COACH.reset pin.
-if grep -q 'fetch("/recommend.json")' "$ROOT/scripts/dashboard/views/commands.js" \
-   && grep -q 'function recUsable' "$ROOT/scripts/dashboard/views/commands.js"; then
-  ok "Commands view wires the codmaster front-door panel (/recommend.json + recUsable shape guard)"
+if grep -q 'fetch("/recommend.json")' "$ROOT/scripts/dashboard/views/commands.js"; then
+  ok "Commands view wires the codmaster front-door panel (/recommend.json fetch)"
 else
-  bad "Commands view lost the front-door panel wiring (/recommend.json fetch or its shape guard)"
+  bad "Commands view lost the front-door panel wiring (/recommend.json fetch)"
+fi
+
+# --- Test DASH-CMD-UNIT: commands.js recUsable / dispatchInvocation pure-function units ----
+# Replaces the `function recUsable` source grep above. The front-door render path only covers
+# recUsable's all-present/all-absent extremes and dispatchInvocation's codshard branch, so the
+# individual recUsable conditions (command:string, base, blockers:array) and dispatchInvocation's
+# HELPERS/default branches were ungated. Exercise both pure helpers directly on valid + malformed
+# payloads (exposed on the view function), so a dropped condition or dispatch branch fails CI.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/cmd_unit_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { makeDoc, makeWin, install, loadCommon, loadView } = VM;
+const doc = makeDoc(); const win = makeWin(doc); install(win, doc);
+loadCommon(BASE);            // derive.js (PW_DERIVE.coach) + graph.js + ui.js commands.js needs
+loadView(BASE, "commands");
+const cmd = win.PW_VIEWS.commands;
+assert(typeof cmd.recUsable === "function" && typeof cmd.dispatchInvocation === "function",
+  "commands.js did not expose recUsable/dispatchInvocation for unit testing");
+// recUsable: a usable record needs command:string + base + blockers:array — each condition gates.
+assert(cmd.recUsable({ command: "codshard", base: { key: "x" }, blockers: [] }) === true,
+  "recUsable rejected a well-formed record");
+assert(cmd.recUsable(null) === false, "recUsable accepted null");
+assert(cmd.recUsable({ total: 1, checks: [] }) === false, "recUsable accepted a doctor-shaped body");
+assert(cmd.recUsable({ command: 0, base: { key: "x" }, blockers: [] }) === false,
+  "recUsable accepted a non-string command");
+assert(cmd.recUsable({ command: "x", blockers: [] }) === false, "recUsable accepted a record with no base");
+assert(cmd.recUsable({ command: "x", base: { key: "x" } }) === false, "recUsable accepted a record with no blockers");
+assert(cmd.recUsable({ command: "x", base: { key: "x" }, blockers: "nope" }) === false,
+  "recUsable accepted a non-array blockers");
+// dispatchInvocation: codshard maps to its helper (+ explore arg only), a known helper maps to
+// itself, and any other command falls back to the bare planwright invocation with its args.
+assert(cmd.dispatchInvocation({ command: "codshard", args: "explore" }) === "/planwright:codshard explore",
+  "dispatchInvocation lost the codshard+explore mapping");
+assert(cmd.dispatchInvocation({ command: "codshard", args: "" }) === "/planwright:codshard",
+  "dispatchInvocation added a stray arg to a bare codshard dispatch");
+assert(cmd.dispatchInvocation({ command: "codvisor", args: "" }) === "/planwright:codvisor",
+  "dispatchInvocation lost the HELPERS-table mapping for a known helper command");
+assert(cmd.dispatchInvocation({ command: "execute", args: "execute" }) === "/planwright:planwright execute",
+  "dispatchInvocation default branch did not map to the bare planwright invocation");
+console.log("CMD-UNIT-OK");
+JS
+  if node "$TMP/cmd_unit_test.js" "$ROOT/scripts/dashboard" >"$TMP/cmd_unit.out" 2>"$TMP/cmd_unit.err" \
+     && grep -q CMD-UNIT-OK "$TMP/cmd_unit.out"; then
+    ok "commands.js recUsable/dispatchInvocation pure functions assert valid + malformed payloads"
+  else
+    bad "commands.js recUsable/dispatchInvocation unit assertion failed: $(cat "$TMP/cmd_unit.err" 2>/dev/null)"
+  fi
+else
+  ok "commands.js recUsable/dispatchInvocation unit check skipped (node not installed)"
 fi
 
 # --- Test DASH-SSE-PING: an idle /events stream emits the keep-alive `: ping` ----------

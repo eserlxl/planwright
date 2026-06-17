@@ -294,5 +294,10 @@
     container.appendChild(window.PW_UI.contribCard(state, { compact: false }));
   }
 
+  // recUsable + dispatchInvocation are pure shape/dispatch helpers; expose them on the view
+  // function (not the global) so tests can assert their branches directly without re-deriving
+  // the logic. This does not change render behavior.
+  render.recUsable = recUsable;
+  render.dispatchInvocation = dispatchInvocation;
   window.PW_VIEWS.commands = render;
 })();
