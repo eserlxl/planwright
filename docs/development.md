@@ -108,3 +108,24 @@ python3 scripts/check-links.py
 # Exit-code only, no output
 python3 scripts/check-links.py --quiet
 ```
+
+## Shell-safety conventions
+
+The `scripts/*.sh` helpers run external tools with an argv list, never a shell string (the same
+least-privilege rule the Python helpers follow, gated in `tests/cases/statics-scaffold.sh`). Two
+shell-specific invariants apply when a helper interpolates user-supplied or environment-supplied
+values:
+
+- **JSON-escape untrusted scalars before interpolating them into generated JSON.** A free-text
+  value (author name, email, description) dropped raw into a `plugin.json` heredoc could contain a
+  quote or backslash and produce invalid JSON — or worse, inject structure. `make-plugin.sh` routes
+  every such scalar through its `json_escape()` helper (`python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))'`,
+  which emits the surrounding quotes) so the interpolated token is always a single valid JSON string.
+- **Reject empty path arguments rather than defaulting silently.** An unset variable passed as a path
+  (`--dir "$VAR"` with `VAR` unset) collapses to an empty argument that a later command could misread
+  as the current directory. `install-aliases.sh` guards its `--dir` option with `[ -n "$2" ]` (and a
+  final `[ -z "$TARGET_DIR" ]` check) and exits non-zero with a clear error instead of proceeding.
+
+When adding or editing a `scripts/*.sh` helper that interpolates untrusted scalars or accepts path
+arguments, follow both conventions.
+
