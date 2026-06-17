@@ -108,6 +108,33 @@ cat > "$REPAIR_OK" <<'EOF'
       Verification: bash tests/run.sh
 EOF
 if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$REPAIR_OK" --quiet; then ok "lint-plan.py passes a repair item with a file:line anchor"; else bad "lint-plan.py false-failed a well-anchored repair item"; fi
+# Test 11c: the gate checks ALL FIVE modes, not just develop/improve/repair. A `docs`
+# item and a `reorganize` item with structural-absence Evidence (no file:line anchor)
+# must pass — only `repair` requires the anchor (Stage 10 / VALID_MODES). Regression for
+# qb-exported plans, which legitimately carry docs/reorganize items.
+ALLMODES="$TMP/all_modes_plan.md"
+cat > "$ALLMODES" <<'EOF'
+# planwright Plan — .
+
+- [ ] Document the plan export hand-off
+      Mode: docs
+      Rationale: the hand-off step is undocumented.
+      Evidence: docs/usage.md has no section describing the plan export hand-off.
+      Surfaces: docs/usage.md
+      Development: add a hand-off subsection.
+      Acceptance: the hand-off is documented.
+      Verification: bash tests/run.sh
+
+- [ ] Split parsing from metrics in build-graph
+      Mode: reorganize
+      Rationale: parsing and metric computation live in one module.
+      Evidence: scripts/build-graph.py combines import parsing and metric computation in one file.
+      Surfaces: scripts/build-graph.py
+      Development: group the metric helpers into their own section.
+      Acceptance: behavior preserved, layout clearer.
+      Verification: bash tests/run.sh
+EOF
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$ALLMODES" --quiet; then ok "lint-plan.py accepts docs + reorganize items with structural-absence Evidence (anchor is repair-only; gate checks all five modes)"; else bad "lint-plan.py false-failed a valid docs/reorganize item (gate must check all five modes)"; fi
 # A pending item with all eight fields and no path issues must pass; the same item
 # completed (- [x]) is skipped by default and only checked under --all.
 DONE_PLAN="$TMP/done_plan.md"

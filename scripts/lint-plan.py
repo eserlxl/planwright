@@ -13,8 +13,8 @@
 #   * Evidence never cites .planwright/graph.json or .planwright/digest.md
 #     (graph memory routes attention, it is never proof);
 #   * a `repair` item's Evidence carries a file:line anchor (`:N` / `line N`)
-#     whose cited file exists, not bare structural absence — improve/docs are
-#     exempt;
+#     whose cited file exists, not bare structural absence — the other four
+#     modes (develop/improve/docs/reorganize) are exempt;
 #   * Surfaces are existing repo files; New Surfaces do not already exist;
 #     no path appears in both Surfaces and New Surfaces; no Surface is under the
 #     tool-owned .planwright/ tree;
@@ -200,7 +200,7 @@ def lint_item(item, root):
     # Require a real path-anchored citation (_EVIDENCE_ANCHOR_RE: `file.ext:N` or
     # `file.ext (line N)`) or an explicit `line(s) N`; a bare `:N` is not enough, so a
     # version/time/ratio token ("python 3.10:5", "30:00") no longer satisfies the gate.
-    # improve/docs may use structural-absence Evidence and are exempt.
+    # develop/improve/docs/reorganize may use structural-absence Evidence and are exempt.
     if mode == "repair" and ev and not (
             _EVIDENCE_ANCHOR_RE.search(ev) or re.search(r"\blines?\s+\d+", ev, re.IGNORECASE)):
         v.append("repair Evidence lacks a file:line anchor "

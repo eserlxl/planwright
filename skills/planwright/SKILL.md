@@ -996,7 +996,8 @@ yours:
   code re-read this run fails the gate.
 - For `repair` items, Evidence must name a specific execution path or return value that is wrong —
   "X is absent" is insufficient; cite the call site (file:line), the incorrect output, and the
-  expected output. For `improve` and `docs` items, structural absence Evidence remains acceptable.
+  expected output. For every other mode (`develop`, `improve`, `docs`, `reorganize`), structural-absence
+  Evidence remains acceptable.
 - No behavioral claim inferred from filenames/comments/type names alone.
 - No stale file/test-creation claims when the path/target already exists.
 - No header-only template impl moved into `.cpp` unless instantiations are explicitly preserved.
@@ -1013,8 +1014,12 @@ yours:
   the in-Focus symptom traces to that site (cite the in-Focus call path and the upstream defect). This
   keeps a scoped run from patching a symptom in Focus when the real cause is one hop upstream. (No-op
   when no scope is active — the whole repo is Focus.)
-- Mode correct: `develop` = new runtime/security behavior, `improve` = behavior-preserving quality,
-  `repair` = confirmed defect only.
+- Mode correct (judge against all five): `develop` = new runtime/security behavior, `improve` =
+  behavior-preserving quality, `repair` = confirmed defect only (Evidence carries a `file:line`
+  anchor), `docs` = documentation-only change, `reorganize` = behavior-preserving file-layout /
+  structural move. An item whose declared Mode does not match the change it describes fails the gate
+  (e.g. a behavior change filed as `docs`, or a confirmed defect filed as `improve` to dodge the
+  repair anchor).
 - Development tells the engineer *where and how*; Acceptance describes observable + preserved behavior;
   Verification covers every declared surface using exact PROJECT TEST TARGETS.
 - No item depends on an unresolved design decision unless the design item precedes it or the decision
