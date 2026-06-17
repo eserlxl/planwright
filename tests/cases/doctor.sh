@@ -447,3 +447,32 @@ if [ -z "$dq_err" ]; then
 else
   bad "doctor --quiet leaked stderr on a non-UTF-8 final.md: $dq_err"
 fi
+
+# --- Test DR13: a syntactically broken bundled view FAILs the client-JS check (exit 1) ---
+# check_scripts only confirms each bundled view/asset FILE exists; check_dashboard_js confirms
+# each PARSES (`node --check`). A corrupt/truncated install (a half-written view) must FAIL
+# (exit 1), not pass like the presence-only check. The BUNDLED tree resolves from doctor.py's
+# OWN directory, so copy the whole scripts/ tree (every BUNDLED file present, so check_scripts
+# stays ok and only the JS check can fail), corrupt one view, and run that copy. Node-gated:
+# without node the loadability check degrades to ok by design, so skip the broken-copy assertion.
+if command -v node >/dev/null 2>&1; then
+  DJS="$TMP/doctor-brokenjs"; mkdir -p "$DJS/scripts"
+  ( cd "$ROOT/scripts" && tar -cf - . ) | ( cd "$DJS/scripts" && tar -xf - )
+  printf 'function ( {\n' > "$DJS/scripts/dashboard/views/plan.js"   # deliberately invalid JS
+  djs_rc=0
+  djs_out="$(python3 "$DJS/scripts/doctor.py" --root "$DJS" --json)" || djs_rc=$?
+  djs_fail=0
+  printf '%s' "$djs_out" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+c={r["name"]:r["status"] for r in d["checks"]}
+sys.exit(0 if c.get("dashboard client JS is loadable")=="fail" else 1)
+' && djs_fail=1
+  if [ "$djs_rc" = "1" ] && [ "$djs_fail" = "1" ]; then
+    ok "doctor.py FAILs (exit 1) when a bundled dashboard view fails node --check"
+  else
+    bad "doctor.py did not FAIL on a syntactically broken bundled view (rc=$djs_rc fail=$djs_fail)"
+  fi
+else
+  ok "doctor.py client-JS check skipped (node not on PATH — degrades to ok by design)"
+fi

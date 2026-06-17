@@ -362,6 +362,52 @@ def check_node(root):
     }]
 
 
+def check_dashboard_js(root):
+    """Validate that the bundled dashboard client JS is syntactically loadable, not merely
+    present. check_scripts above confirms each view/asset FILE exists; this confirms each
+    actually parses, so a corrupt or truncated install (a half-written app.js, a broken view)
+    is caught here instead of surfacing as a blank dashboard that 404s or throws in the
+    browser. The .js inventory is derived from BUNDLED (the same install-completeness list),
+    so a newly bundled view is covered automatically. Uses `node --check` per file when Node
+    is on PATH; without Node the loadability check cannot run, so it degrades to ok (presence
+    is already covered by the bundled-script check above). FAIL — a real broken install — only
+    when Node is present and a present file fails to parse; a missing file is left to
+    check_scripts so it is never double-reported."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = [name for name, _ in BUNDLED if name.endswith(".js")]
+    name = "dashboard client JS is loadable"
+    degrades = ("a syntactically broken bundled view/asset script loads in the browser as a "
+                "blank or throwing dashboard; reinstall planwright to restore the asset tree")
+    node = shutil.which("node")
+    if not node:
+        return [{
+            "name": name, "status": "ok",
+            "detail": "n/a (node not on PATH; file presence is covered by the bundled-script check)",
+            "degrades": degrades,
+        }]
+    broken, checked = [], 0
+    for rel in js:
+        path = os.path.join(here, rel)
+        if not os.path.isfile(path):
+            continue  # a missing file is already a FAIL in check_scripts — do not double-report
+        checked += 1
+        try:
+            out = subprocess.run([node, "--check", path],
+                                 capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            continue  # node could not run this file — unverifiable, not proof of breakage
+        if out.returncode != 0:
+            broken.append(rel)
+    if broken:
+        status = "fail"
+        detail = "%d of %d client JS file(s) failed node --check: %s" % (
+            len(broken), checked, ", ".join(broken))
+    else:
+        status = "ok"
+        detail = "%d bundled client JS file(s) pass node --check" % checked
+    return [{"name": name, "status": status, "detail": detail, "degrades": degrades}]
+
+
 GLYPH = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL"}
 
 
@@ -423,7 +469,7 @@ def collect(root: str) -> dict:
     records = (check_tools() + check_scripts() + check_target(root)
                + check_gitignore(root) + check_git_identity(root)
                + check_final_point(root) + check_dashboard_port(root)
-               + check_node(root))
+               + check_node(root) + check_dashboard_js(root))
     fails = sum(1 for r in records if r["status"] == "fail")
     warns = sum(1 for r in records if r["status"] == "warn")
     return {"ok": fails == 0, "fail": fails, "warn": warns,
