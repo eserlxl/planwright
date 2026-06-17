@@ -67,6 +67,49 @@ else
   ok "no shell=True / os.system / os.popen in scripts/*.py (structured-argv only)"
 fi
 
+# --- Test 0f: scripts/*.py subprocess calls pass argv, never an interpolated string -------
+# Beyond no-shell-string (0e): the subprocess first argument must be argv (a list literal or a
+# variable list), never an interpolated command string, so a tool name + args can never be
+# reparsed by a shell. ast-checked so a multi-line call and an f-string / concat / .format()
+# string all count the same; a variable argv (e.g. build-graph's `args`) stays allowed.
+if python3 - "$ROOT" >/dev/null 2>&1 <<'PY'
+import ast, glob, os, sys
+root = sys.argv[1]
+CALLS = {"run", "Popen", "check_output", "check_call", "call"}
+def is_str_interp(n):
+    if isinstance(n, ast.Constant) and isinstance(n.value, str):
+        return True
+    if isinstance(n, ast.JoinedStr):           # f"..."
+        return True
+    if isinstance(n, ast.BinOp):               # "git " + x  /  "git %s" % x
+        return is_str_interp(n.left) or is_str_interp(n.right)
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "format":
+        return is_str_interp(n.func.value)     # "git {}".format(x)
+    return False
+bad = []
+for path in sorted(glob.glob(os.path.join(root, "scripts", "*.py"))):
+    with open(path) as fh:
+        tree = ast.parse(fh.read())
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        if not (isinstance(fn, ast.Attribute) and fn.attr in CALLS):
+            continue
+        if not (isinstance(fn.value, ast.Name) and fn.value.id == "subprocess"):
+            continue
+        if node.args and is_str_interp(node.args[0]):
+            bad.append("%s:%d" % (os.path.basename(path), node.lineno))
+if bad:
+    sys.stderr.write("interpolated-string subprocess argv: " + " ".join(bad) + "\n")
+    sys.exit(1)
+PY
+then
+  ok "scripts/*.py subprocess calls pass argv, not an interpolated command string"
+else
+  bad "a scripts/*.py subprocess call passes an interpolated string as argv"
+fi
+
 # --- Test 1: bump-version.sh syncs version across all three files ----------
 WORK="$TMP/repo"
 mkdir -p "$WORK"
