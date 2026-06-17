@@ -1453,6 +1453,34 @@ else
   ok "dashboard JS V8-coverage emission check skipped (node not installed)"
 fi
 
+# --- Test DASH-JS-COV-PCT: js-coverage-report.py reduces V8 coverage to a deterministic % --
+# Phase 1.4: run the committed coverage collector under NODE_V8_COVERAGE, then reduce it with
+# the reporter. Assert a deterministic percentage line, that re-running yields the identical
+# number (so a CI floor can gate it), and that --fail-under exits non-zero below / zero above.
+# This pins the reporter behaviorally — its own Verification (check-links) is a false green.
+# No new framework: Node built-ins + the stdlib reporter.
+if command -v node >/dev/null 2>&1; then
+  PCTDIR="$TMP/js_cov_pct"; mkdir -p "$PCTDIR"
+  if NODE_V8_COVERAGE="$PCTDIR" node "$ROOT/tests/cases/lib/dashboard-coverage-load.js" "$ROOT/scripts/dashboard" \
+       >"$TMP/js_cov_pct.out" 2>"$TMP/js_cov_pct.err" \
+     && grep -q COV-LOAD-OK "$TMP/js_cov_pct.out"; then
+    rep1="$(python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT")"
+    rep2="$(python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT")"
+    rc_hi=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 100 >/dev/null 2>&1 || rc_hi=$?
+    rc_lo=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 1 >/dev/null 2>&1 || rc_lo=$?
+    if printf '%s' "$rep1" | grep -qE 'JS coverage \(scripts/dashboard\): [0-9]+\.[0-9]+%' \
+       && [ "$rep1" = "$rep2" ] && [ "$rc_hi" = "2" ] && [ "$rc_lo" = "0" ]; then
+      ok "js-coverage-report.py reduces V8 coverage to one deterministic % (--fail-under gates correctly)"
+    else
+      bad "js-coverage-report.py % non-deterministic or --fail-under mis-gated (hi=$rc_hi lo=$rc_lo): '$rep1' vs '$rep2'"
+    fi
+  else
+    bad "JS coverage collector failed: $(cat "$TMP/js_cov_pct.err" 2>/dev/null)"
+  fi
+else
+  ok "JS coverage % reporter check skipped (node not installed)"
+fi
+
 # --- Test DASH-INSIGHTS-RENDER: the Insights view's render OUTPUT (not just registration) ----
 # The views block above asserts only "insights rendered something" (children.length>0). This pins
 # the actionable content: given an uncovered articulation hotspot (hot.py), insights.render() must

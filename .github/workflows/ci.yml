@@ -65,3 +65,12 @@ jobs:
           bash tests/run.sh
           coverage combine
           coverage report --fail-under=90
+
+      # JS coverage for the dashboard client modules — the analog of the Python gate above.
+      # Loads every view under NODE_V8_COVERAGE via the shared collector, then reduces the V8
+      # output to one deterministic percentage over scripts/dashboard/ (vendor/ excluded).
+      - name: JS coverage (dashboard)
+        run: |
+          export NODE_V8_COVERAGE="$PWD/.jscov"
+          node tests/cases/lib/dashboard-coverage-load.js "$PWD/scripts/dashboard"
+          python3 scripts/js-coverage-report.py "$PWD/.jscov" --root .
