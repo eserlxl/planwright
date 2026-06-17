@@ -838,3 +838,19 @@ if [ "$bad_since_rc" = 2 ] && [ "$flag_since_rc" = 2 ] && [ "$stray_since_rc" = 
 else
   bad "lifecycle.py reconcile-sweep validation wrong (bad=$bad_since_rc flag=$flag_since_rc stray=$stray_since_rc)"
 fi
+
+# --- Test L21e: reconcile-sweep skips a commit already recorded in rejected.md ---------
+# The rejected-skip branch (never resurrect a deliberately rejected item, reconcile_sweep
+# reason "rejected"): pre-seed a Commit: block for "Fix alpha defect" into rejected.md on a
+# FRESH root, then sweep. alpha must be SKIPPED with reason "rejected" and must NOT appear in
+# completed.md; beta+gamma (the other two Fix commits; Release/chore are non-fix) still record.
+mkdir -p "$TMP/lc21e/.planwright"
+SW_ALPHA="$(git -C "$SWT" rev-parse HEAD~4)"   # "Fix alpha defect"
+printf -- '- [ ] Previously rejected alpha\n      Status: Rejected\n      Commit: %s\n      Rejection: value-gate: not wanted\n' "$SW_ALPHA" > "$TMP/lc21e/.planwright/rejected.md"
+rej_out="$(python3 "$LC" reconcile-sweep --since "$SW_BASE" --mode repair --root "$TMP/lc21e/.planwright" --repo "$SWT" --json)"
+if printf '%s' "$rej_out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert any(x["title"]=="Fix alpha defect" and x["reason"]=="rejected" for x in d["skipped"]); assert {x["title"] for x in d["recorded"]}=={"Fix beta defect","Fix gamma defect"}' 2>/dev/null \
+   && ! grep -q 'Fix alpha defect' "$TMP/lc21e/.planwright/completed.md"; then
+  ok "lifecycle.py reconcile-sweep skips a commit already recorded in rejected.md (never resurrected)"
+else
+  bad "lifecycle.py reconcile-sweep rejected-skip wrong (out='$rej_out')"
+fi
