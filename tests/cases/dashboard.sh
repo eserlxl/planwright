@@ -1426,6 +1426,11 @@ const BASE = process.argv[2];
 // second copy of the DOM shim. BASE is .../scripts/dashboard.
 const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
 const { El, makeDoc, makeWin, install, loadScript, findByClass } = VM;
+// Capture event handlers so the ledger filter input is drivable from the harness:
+// el.dispatch(type) fires the stored listeners (storing alone is inert; only an explicit
+// dispatch runs them, so a plain render is never perturbed).
+El.prototype.addEventListener = function (type, fn) { this._ev = this._ev || {}; (this._ev[type] = this._ev[type] || []).push(fn); };
+El.prototype.dispatch = function (type) { var fns = (this._ev && this._ev[type]) || []; for (var i = 0; i < fns.length; i++) { fns[i].call(this, { type: type }); } };
 const doc = makeDoc();
 const win = makeWin(doc);
 install(win, doc);
@@ -1466,6 +1471,32 @@ win.PW_VIEWS.insights(multiRoot, { counts: {} },
 var langOrder = findByClass(multiRoot, "pw-cov-lang").map(textOf).map(function (s) { return s.trim(); });
 assert(JSON.stringify(langOrder) === JSON.stringify(["python", "shell", "javascript"]),
   "Coverage-by-language not ordered by uncovered-descending (want python, shell, javascript; got " + langOrder.join(",") + ")");
+// Phase 1.3: the Risk-Ledger path filter narrows metrics.hotspots and shows a (filtered)
+// affordance; an empty query shows all rows. The render assertions above never drive the input.
+// The fixture has 2 hotspots (hot.py, cold.py); a "hot" query keeps only hot.py.
+var ledgerRoot = new El("section");
+win.PW_VIEWS.insights(ledgerRoot, { counts: {} }, ctx);
+var fInput = findByClass(ledgerRoot, "pw-ledger-filter")[0];
+var fCount = findByClass(ledgerRoot, "pw-ledger-count")[0];
+assert(fInput && fCount, "Risk-Ledger filter input/count did not render");
+// The "showing N of M" count reflects metrics.hotspots.filter(query); a "(filtered)" suffix is the
+// non-empty-query affordance. (The DOM row count is unreliable here: the shim's textContent='' does
+// not clear children like the real DOM, so paint() accumulates rows across re-paints — the count is
+// the faithful signal of the filter predicate.)
+assert(/showing 2 of 2/.test(fCount.textContent) && !/\(filtered\)/.test(fCount.textContent),
+  "Risk-Ledger initial count wrong (want 'showing 2 of 2', no filtered; got '" + fCount.textContent + "')");
+fInput.value = "hot";
+fInput.dispatch("input");
+assert(/showing 1 of 2 \(filtered\)/.test(fCount.textContent),
+  "Risk-Ledger filter did not narrow metrics.hotspots to 1 of 2 with the (filtered) affordance (got '" + fCount.textContent + "')");
+fInput.value = "nomatchxyz";
+fInput.dispatch("input");
+assert(/showing 0 of 2 \(filtered\)/.test(fCount.textContent),
+  "Risk-Ledger filter did not narrow to 0 of 2 on a non-matching query (got '" + fCount.textContent + "')");
+fInput.value = "";
+fInput.dispatch("input");
+assert(/showing 2 of 2/.test(fCount.textContent) && !/\(filtered\)/.test(fCount.textContent),
+  "Risk-Ledger did not restore all rows (and drop the filtered affordance) on an empty query (got '" + fCount.textContent + "')");
 // degraded snapshot (no metrics) must not throw
 win.PW_VIEWS.insights(new El("section"), { counts:{} }, { graphText:null, metrics:null, builtSha:"", stale:false, head:"deadbeef" });
 console.log("INSIGHTS-RENDER-OK");
