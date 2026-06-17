@@ -102,3 +102,16 @@ if ALLOW_DIRTY=1 bash "$BV7/scripts/bump-version.sh" minor >"$TMP/bv7.out" 2>"$T
    && grep -q "no shields.io version badge in README.md; skipped" "$TMP/bv7.err"; then
   ok "bump-version.sh bumps and warns (non-fatal) when README.md has no version badge"
 else bad "bump-version.sh mishandled a badge-less README: $(cat "$TMP/bv7.err" 2>/dev/null)"; fi
+
+# --- Test BV8: the live README version badge agrees with the manifest at rest ----------
+# bump-version.sh rewrites the README shields.io version badge (BV5 proves the SCRIPT does so
+# on a fixture), but nothing pins that the COMMITTED README badge currently matches the
+# manifest — a hand-edit or a skipped bump would silently ship a stale front-page version.
+# statics Test 9 pins the manifests/SKILL/CHANGELOG at rest but NOT the README badge; close
+# that one unguarded version surface here against the live tree.
+rmv="$(ver "$ROOT/.claude-plugin/plugin.json" '["version"]')"
+if grep -qF "img.shields.io/badge/version-$rmv-2563EB" "$ROOT/README.md"; then
+  ok "live README version badge agrees with the manifest at rest ($rmv)"
+else
+  bad "README version badge drifted from the manifest ($rmv): $(grep -oE 'badge/version-[0-9][^)]*' "$ROOT/README.md" | head -1)"
+fi
