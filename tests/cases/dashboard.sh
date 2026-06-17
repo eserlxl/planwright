@@ -1280,6 +1280,35 @@ assert(/none accepted yet/.test(textOf(tlEmpty)), "Timeline graph empty state mi
 assert(findByClass(tlEmpty, "pw-tlgraph-line").length === 0,
   "Timeline graph plotted cumulative lines with no accepted entries");
 
+// Targeted (Phase 4.3): the timeline render()'s NON-graph sections — the section-title header
+// and the pw-timeline decision listing built by row() — were unasserted (only timelineGraph
+// above was). The fixture log is completed:[{shipped, develop}], rejected:[{bad idea, value-gate}];
+// render emits "Timeline — 1 accepted, 1 rejected" and a pw-timeline list of two rows: an accepted
+// row (#1, title, mode badge) and a rejected row (#1, title, inline reason). Reuse tl from above.
+assert(/Timeline — 1 accepted, 1 rejected/.test(tlText),
+  "Timeline omitted the section-title header with accepted/rejected counts");
+var tlList = findByClass(tl, "pw-timeline");
+assert(tlList.length === 1, "Timeline did not render the pw-timeline decision listing");
+var tlRows = (tlList[0].children || []);
+assert(tlRows.length === 2, "Timeline listing did not render one row per completed+rejected entry (want 2, got " + tlRows.length + ")");
+var tlAccepted = findByClass(tl, "pw-dot accepted");
+var tlRejected = findByClass(tl, "pw-dot rejected");
+assert(tlAccepted.length === 1 && tlRejected.length === 1,
+  "Timeline listing did not render exactly one accepted + one rejected row dot");
+// header/listing agreement: the header counts must equal the rendered row dots.
+assert((/(\d+) accepted, (\d+) rejected/.exec(tlText) || [])[1] === String(tlAccepted.length) &&
+       (/(\d+) accepted, (\d+) rejected/.exec(tlText) || [])[2] === String(tlRejected.length),
+  "Timeline header accepted/rejected counts disagree with the rendered listing rows");
+var tlAcceptedRowText = textOf(tlRows[0]);
+assert(/#1/.test(tlAcceptedRowText) && /shipped/.test(tlAcceptedRowText),
+  "Timeline accepted row missing its #position or title");
+assert(findByClass(tlRows[0], "pw-badge").length === 1 && /develop/.test(textOf(findByClass(tlRows[0], "pw-badge")[0])),
+  "Timeline accepted row missing its mode badge (want develop)");
+var tlRejReason = findByClass(tl, "pw-reason-inline");
+assert(tlRejReason.length === 1 && /value-gate: no consumer/.test(textOf(tlRejReason[0])),
+  "Timeline rejected row missing its inline reason");
+assert(/bad idea/.test(textOf(tlRows[1])), "Timeline rejected row missing its title");
+
 // Targeted: the Plan view's per-surface graph cross-link chips (crossLinks, plan.js:40) render
 // ONLY when an item's Surface matches a graph node (metrics.byPath). The base fixture's surfaces
 // (a.py/b.py) are absent from the fixture graph (hot.py/cold.py), so the chips never rendered and
