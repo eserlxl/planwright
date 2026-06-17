@@ -222,3 +222,24 @@ if [ "$lfi_rc" = 1 ] && [ "$lfo_rc" = 0 ] && [ "$lfe_rc" = 0 ] \
 else
   bad "lint-final invent earned-empty gate wrong (bare=$lfi_rc with=$lfo_rc expand=$lfe_rc)"
 fi
+
+# --- Test LF11: a PRESENT but wholly-blank / whitespace-only final.md FAILs (exit 1) -
+# A final.md that EXISTS but is empty (or only whitespace) is present:true but records no
+# sha and no rungs. It must fail closed (ok:false, exit 1) so status --exit-code refuses to
+# certify convergence on a corrupt-empty marker — distinct from LF2 (genuinely ABSENT, exit 0)
+# and from LF7 (a trailing blank sha: on an otherwise-full file). The output is tiny, so the
+# printf|grep here cannot SIGPIPE under pipefail.
+BL="$TMP/lf-blank"; mkdir -p "$BL/.planwright"
+: > "$BL/.planwright/final.md"                                  # an empty (zero-byte) present file
+rc=0; out="$(python3 "$LF" --root "$BL" --json 2>&1)" || rc=$?
+WS="$TMP/lf-whitespace"; mkdir -p "$WS/.planwright"
+printf '   \n\t\n  \n' > "$WS/.planwright/final.md"             # whitespace-only present file
+rc2=0; out2="$(python3 "$LF" --root "$WS" --json 2>&1)" || rc2=$?
+if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q '"present": true' \
+   && printf '%s' "$out" | grep -q '"ok": false' \
+   && [ "$rc2" = 1 ] && printf '%s' "$out2" | grep -q '"present": true' \
+   && printf '%s' "$out2" | grep -q '"ok": false'; then
+  ok "lint-final.py fails a present-but-blank/whitespace final.md (present, not ok, exit 1)"
+else
+  bad "lint-final.py mishandled a present-but-blank final.md (blank rc=$rc ws rc=$rc2)"
+fi
