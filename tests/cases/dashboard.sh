@@ -437,6 +437,56 @@ else
   ok "commands.js recUsable/dispatchInvocation unit check skipped (node not installed)"
 fi
 
+# --- Test DASH-CMD-DEGRADE: the front door degrades on a failed/null /recommend.json fetch ----
+# loadFrontDoor maps a non-ok response to null and swallows a rejected fetch (.catch), so a 404 /
+# older server / network error must paint NO panel and never throw. The DASH-VIEWS-FN flow only
+# covers a wrong-SHAPED 200 body; this covers the transport-failure path (ok:false and reject).
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/cmd_degrade_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, makeFixture, frontDoorPanels } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+// /recommend.json fails: first as a non-ok response (must never be json-parsed), then as a
+// rejected promise. The doctor stub stays ok so unrelated views do not error.
+let mode = "notok";
+win.fetch = function (url) {
+  if (url === "/recommend.json") {
+    if (mode === "reject") return Promise.reject(new Error("network down"));
+    return Promise.resolve({ ok: false, json: function () { throw new Error("must not parse a non-ok body"); } });
+  }
+  return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ total: 0, checks: [] }); } });
+};
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "commands");
+const fx = makeFixture();
+var c1 = new El("section");
+win.PW_VIEWS.commands(c1, fx.state, fx.fullCtx);   // triggers a non-ok fetch
+mode = "reject";
+var c2 = new El("section");
+win.PW_VIEWS.commands(c2, fx.state, fx.fullCtx);   // triggers a rejected fetch
+setTimeout(function () {
+  setTimeout(function () {
+    var c3 = new El("section");
+    win.PW_VIEWS.commands(c3, fx.state, fx.fullCtx);
+    assert(frontDoorPanels(c1).length === 0 && frontDoorPanels(c3).length === 0,
+      "a failed/null /recommend.json fetch painted a front-door panel");
+    console.log("CMD-DEGRADE-OK");
+  }, 0);
+}, 0);
+JS
+  if node "$TMP/cmd_degrade_test.js" "$ROOT/scripts/dashboard" >"$TMP/cmd_degrade.out" 2>"$TMP/cmd_degrade.err" \
+     && grep -q CMD-DEGRADE-OK "$TMP/cmd_degrade.out"; then
+    ok "commands.js front door degrades on a failed/null /recommend.json fetch (no panel, no throw)"
+  else
+    bad "commands.js front-door degrade assertion failed: $(cat "$TMP/cmd_degrade.err" 2>/dev/null)"
+  fi
+else
+  ok "commands.js front-door degrade check skipped (node not installed)"
+fi
+
 # --- Test DASH-SSE-PING: an idle /events stream emits the keep-alive `: ping` ----------
 # The heartbeat (HEARTBEAT_INTERVAL) is the only mechanism that reaps a vanished SSE client
 # (the failing write tears the handler thread down) during the long unattended cycle runs
@@ -1268,6 +1318,9 @@ setTimeout(function () {
     assert(/blocked: uncommitted paths/.test(fdText), "front-door panel omitted the dirty-tree blocker");
     assert(/3 import cycles/.test(fdText), "front-door panel omitted the evidence chips");
     assert(/\/planwright:codshard explore/.test(fdText), "front-door invocation did not map codshard+explore to its helper command");
+    // Phase 1.3: the record's notes[] render as front-door notes (the slot/blockers/evidence are
+    // pinned above, the notes list was not). The usable record carries notes:["coach: codvisor …"].
+    assert(/coach: codvisor/.test(fdText), "front-door panel omitted the record's notes list");
 
     // The kicker is beacon-aware: while state.activity carries a live (fresh) beacon
     // the heading reads "run in progress" with the Console beacon's running-command
@@ -1338,6 +1391,10 @@ setTimeout(function () {
         win.PW_VIEWS.commands(cmdGrow, state, fullCtx);
         assert(!/enforced codinventor burst/.test(textOf(frontDoorPanels(cmdGrow)[0])),
           "enforce overlay wrongly shown when the engine already recommends growth (invent_class true)");
+        // Phase 1.3: an invent_class:true record renders the "invent-class (`safe` stops here)"
+        // safe chip (the mutating chip is pinned above, this one was not).
+        assert(/invent-class/.test(textOf(frontDoorPanels(cmdGrow)[0])),
+          "front-door panel omitted the invent-class safe chip on an invent_class:true record");
         console.log("VIEWS-FN-OK");
       }, 0);
     }, 0);
