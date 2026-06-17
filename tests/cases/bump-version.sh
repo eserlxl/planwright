@@ -115,3 +115,18 @@ if grep -qF "img.shields.io/badge/version-$rmv-2563EB" "$ROOT/README.md"; then
 else
   bad "README version badge drifted from the manifest ($rmv): $(grep -oE 'badge/version-[0-9][^)]*' "$ROOT/README.md" | head -1)"
 fi
+
+# --- Test BV9: the newest CHANGELOG heading agrees with the manifest at rest ------------
+# statics Test 9 asserts the current manifest version has SOME ## [X.Y.Z] section, but not
+# that it is the NEWEST — so a CHANGELOG raced ahead of the manifest (a new heading added
+# before the bump) or a current-version section buried below a staler head slips through.
+# Pin the HEAD heading == manifest at rest, catching a manifest bumped without a CHANGELOG
+# entry, or a CHANGELOG bumped without the manifest. The grep skips a leading non-numeric
+# [Unreleased] heading and takes the first numeric version heading (the newest release).
+clv="$(ver "$ROOT/.claude-plugin/plugin.json" '["version"]')"
+clhead="$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+' "$ROOT/CHANGELOG.md" | sed -E 's/^## \[//')"
+if [ "$clhead" = "$clv" ]; then
+  ok "newest CHANGELOG heading agrees with the manifest at rest ($clv)"
+else
+  bad "CHANGELOG head/manifest drift: newest CHANGELOG heading is [$clhead] but the manifest is $clv"
+fi
