@@ -476,3 +476,30 @@ sys.exit(0 if c.get("dashboard client JS is loadable")=="fail" else 1)
 else
   ok "doctor.py client-JS check skipped (node not on PATH — degrades to ok by design)"
 fi
+
+# --- Test DR14: the dashboard port + node availability checks are present, warn-only, exit 0 -
+# check_dashboard_port and check_node are pure DIAGNOSTICS: each must always be ok or warn,
+# NEVER fail, so a busy home port or a missing `node` degrades the preflight without failing the
+# exit code. Smoke their records' presence and warn-only grading against a fresh repo (with the
+# real scripts beside doctor.py, so fail==0). Port ok-vs-warn is host-flaky (the home port may be
+# in use), so assert only its {ok,warn} membership, never the concrete verdict.
+DPN="$TMP/doctor-port-node"; mkdir -p "$DPN"; git -C "$DPN" init -q
+dpn_rc=0
+dpn_out="$(python3 "$DOC" --root "$DPN" --json)" || dpn_rc=$?
+dpn_ok=0
+printf '%s' "$dpn_out" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+checks={r["name"]:r["status"] for r in d["checks"]}
+port=[s for n,s in checks.items() if "is bindable" in n]
+node=[s for n,s in checks.items() if "dashboard client-JS preflight" in n]
+assert port, ("port record missing", list(checks))
+assert node, ("node record missing", list(checks))
+assert all(s in ("ok","warn") for s in port+node), ("port/node must be ok/warn only", port, node)
+assert d["fail"]==0, ("a fresh repo with the real scripts must report 0 fails", d["fail"])
+' && dpn_ok=1
+if [ "$dpn_rc" = "0" ] && [ "$dpn_ok" = "1" ]; then
+  ok "doctor.py port + node checks are present, warn-only, and never fail the exit code"
+else
+  bad "doctor.py port/node check smoke failed (rc=$dpn_rc ok=$dpn_ok): $dpn_out"
+fi
