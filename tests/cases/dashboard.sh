@@ -1454,6 +1454,38 @@ assert(flVNames[0] === "bravo" && flVNames[flVNames.length - 1] === "zulu",
 });
 win.PW_PROJECTS = savedPWP2;
 
+// Targeted (Phase 4.3): the Shards per-card frontier-heat + aggregate pulse content. The
+// block-level shState graph sits at repo root, so its docs/scripts shards show 0 code nodes
+// and the heat branch renders trivially. Build a shard-scoped graph (a never-audited code node
+// under docs/, a clean one under scripts/) so the per-shard frontier chips + heat label and the
+// aggregate-totals pulse chips render non-trivially.
+var shGraph = JSON.stringify({ graph_built_at_sha: "deadbeef", frontier: { never_audited: 1, stale: 0 }, nodes: {
+  "docs/guide.py": { git_churn: 3, pagerank: 0.5, covered_by_test: false, is_test: false, lang: "python", loc: 40, branch_count: 3, is_articulation: false, imports: [], audit_age_commits: null },
+  "scripts/run.py": { git_churn: 1, pagerank: 0.2, covered_by_test: true, is_test: false, lang: "python", loc: 20, branch_count: 1, is_articulation: false, imports: [], audit_age_commits: 0 }
+}, clusters: [], import_cycles: [] });
+var shM = win.PW_DERIVE.metrics(shGraph);
+var shRepo = { tracked_files: 50, shardable_dirs: ["docs", "scripts"], folded_dirs: ["misc"], large: false };
+var shScopedCtx = { graphText: shGraph, metrics: shM, builtSha: "deadbeef", stale: false, head: "deadbeef" };
+var shFull = new El("section");
+win.PW_VIEWS.shards(shFull, Object.assign({}, state, { repo: shRepo }), shScopedCtx);
+var shCards = findByClass(shFull, "pw-shard-card");
+assert(shCards.length === 2, "shard grid did not render one card per shardable dir (got " + shCards.length + ")");
+var docsChips = findByClass(shCards[0], "pw-shard-chip").map(textOf).map(function (s) { return s.trim(); });
+assert(docsChips.indexOf("1 never-audited") >= 0 && docsChips.indexOf("0 stale") >= 0,
+  "leading shard card lost its never-audited/stale frontier chips (got: " + JSON.stringify(docsChips) + ")");
+assert(/1\/1 code nodes on the audit frontier/.test(textOf(shCards[0])),
+  "leading shard card lost its frontier-heat label");
+assert(/frontier clear/.test(textOf(shCards[1])), "clean shard card did not render the frontier-clear heat label");
+var shScopedPulse = findByClass(shFull, "pw-coach-pulse-chip").map(textOf).map(function (s) { return s.trim(); });
+assert(shScopedPulse.indexOf("2 shards") >= 0, "Shards pulse omitted the shard-count chip (got: " + JSON.stringify(shScopedPulse) + ")");
+assert(shScopedPulse.indexOf("50 tracked files") >= 0, "Shards pulse omitted the tracked-files chip");
+assert(shScopedPulse.indexOf("1 never-audited") >= 0 && shScopedPulse.indexOf("0 stale") >= 0,
+  "Shards pulse omitted the aggregate frontier-total chips");
+var shNoDir = new El("section");
+win.PW_VIEWS.shards(shNoDir, Object.assign({}, state, { repo: { tracked_files: 5, shardable_dirs: [], folded_dirs: [], large: false } }), shScopedCtx);
+assert(/No shardable top-level directory/.test(textOf(shNoDir)),
+  "Shards view did not render the no-shardable-directory empty state when shardable_dirs is empty");
+
 // doctor view: fetch-based (not state-driven), so it sits outside the VIEWS render loop —
 // load its file here (registers PW_VIEWS.doctor) and cover it explicitly: render() must show
 // the sync placeholder immediately, and once the stubbed /doctor.json promise flushes,
