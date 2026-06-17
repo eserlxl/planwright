@@ -1411,6 +1411,48 @@ else
   ok "dashboard view render() check skipped (node not installed)"
 fi
 
+# --- Test DASH-JS-COVERAGE: the node-gated view-load path emits V8 coverage --------
+# Phase 1.4 prerequisite for a CI JS coverage floor (the Python --fail-under=90 analog).
+# Run the shared view loader under NODE_V8_COVERAGE and assert a coverage JSON keyed to a
+# real scripts/dashboard/**/*.js path lands in a temp dir. No new framework — Node built-ins
+# (vm/fs) + NODE_V8_COVERAGE only (the loader passes an absolute vm filename so V8 attributes
+# coverage to the real source path, not an anonymous URL). Skips cleanly when node is absent.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/js_cov_load.js" <<'JS'
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { makeDoc, makeWin, install, loadCommon, loadViews, makeFixture } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+win.fetch = function () { return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ total: 0, checks: [] }); } }); };
+install(win, doc);
+loadCommon(BASE);
+loadViews(BASE, ["console", "plan", "commands", "insights", "shards", "timeline", "graph", "fleet"]);
+const { state, fullCtx } = makeFixture();
+["console", "plan", "commands", "insights", "shards", "timeline", "graph", "fleet"].forEach(function (v) {
+  win.PW_VIEWS[v](new (VM.El)("section"), state, fullCtx);
+});
+console.log("JS-COV-LOAD-OK");
+JS
+  COVDIR="$TMP/js_v8_cov"
+  mkdir -p "$COVDIR"
+  if NODE_V8_COVERAGE="$COVDIR" node "$TMP/js_cov_load.js" "$ROOT/scripts/dashboard" >"$TMP/js_cov.out" 2>"$TMP/js_cov.err" \
+     && grep -q JS-COV-LOAD-OK "$TMP/js_cov.out" \
+     && node -e '
+       const fs=require("fs"); const dir=process.argv[1]; let hit=false;
+       for (const f of fs.readdirSync(dir)) {
+         const d=JSON.parse(fs.readFileSync(dir+"/"+f,"utf8"));
+         for (const s of (d.result||[])) { if (/scripts\/dashboard\/.*\.js/.test(s.url||"")) { hit=true; } }
+       }
+       process.exit(hit?0:1);
+     ' "$COVDIR"; then
+    ok "node-gated view-load path emits V8 coverage keyed to scripts/dashboard/*.js under NODE_V8_COVERAGE"
+  else
+    bad "NODE_V8_COVERAGE produced no scripts/dashboard coverage from the view-load path: $(cat "$TMP/js_cov.err" 2>/dev/null)"
+  fi
+else
+  ok "dashboard JS V8-coverage emission check skipped (node not installed)"
+fi
+
 # --- Test DASH-INSIGHTS-RENDER: the Insights view's render OUTPUT (not just registration) ----
 # The views block above asserts only "insights rendered something" (children.length>0). This pins
 # the actionable content: given an uncovered articulation hotspot (hot.py), insights.render() must

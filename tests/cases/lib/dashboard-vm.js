@@ -93,7 +93,12 @@ function install(win, doc) {
 
 // --- loadScript / loadCommon / loadView / loadViews: the view loader ------------------
 function loadScript(base, rel) {
-  vm.runInThisContext(fs.readFileSync(base + "/" + rel, "utf8"));
+  // Pass an absolute filename so NODE_V8_COVERAGE attributes coverage to the real source
+  // path (file:///.../scripts/dashboard/...). Without it, V8 records the script under an
+  // anonymous URL and the dashboard JS gets zero measured coverage. runInThisContext still
+  // runs in the caller realm — only the script's reported URL changes.
+  const abs = require("path").resolve(base, rel);
+  vm.runInThisContext(fs.readFileSync(abs, "utf8"), { filename: abs });
 }
 // The real derive engine + the vendored coupling renderer (PW_GRAPH, which the graph
 // view drives) + the shared UI fragments (window.PW_UI) the Console/Commands views call.
