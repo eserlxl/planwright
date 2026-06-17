@@ -781,58 +781,14 @@ const vm = require("vm");
 const assert = require("assert");
 const BASE = process.argv[2];
 
-function El(tag) {
-  this.tagName = (tag || "div").toUpperCase();
-  this.children = [];
-  this.style = { setProperty() {}, removeProperty() {}, getPropertyValue() { return ""; } };
-  this._attr = {}; this.dataset = {};
-  this.classList = { _s: {}, add(c) { this._s[c] = true; }, remove(c) { delete this._s[c]; },
-    toggle(c, on) { if (on === undefined) { on = !this._s[c]; } if (on) { this._s[c] = true; } else { delete this._s[c]; } return !!on; },
-    contains(c) { return !!this._s[c]; } };
-  this.textContent = ""; this.innerHTML = ""; this.hidden = false;
-  this.className = ""; this.tabIndex = 0; this.value = "";
-}
-El.prototype.appendChild = function (c) { this.children.push(c); return c; };
-El.prototype.removeChild = function (c) { this.children = this.children.filter(function (x) { return x !== c; }); return c; };
-El.prototype.insertBefore = function (c) { this.children.unshift(c); return c; };
-El.prototype.append = function () { for (var i = 0; i < arguments.length; i++) { this.children.push(arguments[i]); } };
-El.prototype.replaceChildren = function () { this.children = []; };
-El.prototype.remove = function () {};
-El.prototype.addEventListener = function () {};
-El.prototype.removeEventListener = function () {};
-El.prototype.setAttribute = function (k, v) { this._attr[k] = String(v); };
-El.prototype.getAttribute = function (k) { return (k in this._attr) ? this._attr[k] : null; };
-El.prototype.hasAttribute = function (k) { return k in this._attr; };
-El.prototype.removeAttribute = function (k) { delete this._attr[k]; };
-El.prototype.querySelector = function () { return null; };
-El.prototype.querySelectorAll = function () { return []; };
-El.prototype.getContext = function () { return null; };
-El.prototype.focus = function () {}; El.prototype.click = function () {};
-El.prototype.contains = function () { return false; };
-
-const doc = {
-  readyState: "complete", hidden: false, visibilityState: "visible", title: "", activeElement: null,
-  getElementById() { return new El(); },
-  querySelector() { return null; }, querySelectorAll() { return []; },
-  createElement(t) { return new El(t); },
-  createElementNS(ns, t) { return new El(t); },
-  createTextNode(t) { var n = new El("#text"); n.textContent = String(t); return n; },
-  addEventListener() {}, removeEventListener() {},
-};
-doc.body = new El("body"); doc.documentElement = new El("html"); doc.head = new El("head");
-
-const win = {
-  PW_VIEWS: {}, PW_UI: { planMode: "all" },
-  PW_BUS: { setNavigator() {}, focusNode() {}, clearFocus() {}, getFocus() { return null; },
-    onFocus() { return function () {}; }, goto() {} },
-  addEventListener() {}, removeEventListener() {},
-  matchMedia() { return { matches: false, addEventListener() {}, addListener() {} }; },
-  requestAnimationFrame() { return 0; },
-  location: { hash: "", href: "http://x/", reload() {} },
-  localStorage: { _d: {}, getItem(k) { return (k in this._d) ? this._d[k] : null; },
-    setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } },
-  console: console,
-};
+// El/document/window stubs, the view loader, and the fixture come from the shared
+// node-gated vm-bootstrap helper (tests/cases/lib/dashboard-vm.js) so every view-
+// assertion block reuses one bootstrap instead of duplicating it. BASE is .../scripts/
+// dashboard, so .../../tests/cases/lib reaches the repo's helper.
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadViews, makeFixture } = VM;
+const doc = makeDoc();
+const win = makeWin(doc);
 // doctor.js fetches /doctor.json and commands.js fetches /recommend.json instead of
 // rendering only from the passed state; stub fetch per-URL so both async paint paths are
 // exercisable here. REC_BODY starts as a WRONG-shaped body (a doctor-ish payload), so the
@@ -850,49 +806,15 @@ win.fetch = function (url) {
     ] });
   } });
 };
-global.window = win; global.document = doc; global.location = win.location; global.fetch = win.fetch;
+install(win, doc);
 
-// Load the real derive engine + the vendored coupling renderer (PW_GRAPH, which the graph
-// view drives on a full snapshot), then each view (each registers window.PW_VIEWS.<name>).
-vm.runInThisContext(fs.readFileSync(BASE + "/vendor/derive.js", "utf8"));
-vm.runInThisContext(fs.readFileSync(BASE + "/vendor/graph.js", "utf8"));
-// Shared UI fragments (window.PW_UI) the Console + Commands views call at render time.
-vm.runInThisContext(fs.readFileSync(BASE + "/ui.js", "utf8"));
+// Load the real derive engine + vendored coupling renderer + shared UI fragments, then
+// every view (each registers window.PW_VIEWS.<name>); then build the full+bare fixture.
+loadCommon(BASE);
 const VIEWS = ["console", "plan", "commands", "insights", "shards", "timeline", "graph"];
-VIEWS.forEach(function (v) {
-  vm.runInThisContext(fs.readFileSync(BASE + "/views/" + v + ".js", "utf8"));
-  assert(typeof win.PW_VIEWS[v] === "function", "view " + v + " did not register render()");
-});
-
-const graphText = JSON.stringify({
-  graph_built_at_sha: "deadbeef",
-  frontier: { never_audited: 3, stale: 5 },
-  nodes: {
-    "hot.py": { git_churn: 10, pagerank: 0.9, covered_by_test: false, is_test: false, lang: "python", loc: 100, branch_count: 5, is_articulation: true, imports: ["cold.py"] },
-    "cold.py": { git_churn: 1, pagerank: 0.1, covered_by_test: true, is_test: false, lang: "python", loc: 10, branch_count: 1, is_articulation: false, imports: [] },
-  },
-  coupling_edges: [{ a: "hot.py", b: "cold.py", weight: 2, cooccur: 2 }],
-  clusters: [{ label: "core", members: ["hot.py", "cold.py"] }],
-  import_cycles: [],
-});
-const metrics = win.PW_DERIVE.metrics(graphText);
+loadViews(BASE, VIEWS);
+const { graphText, metrics, state, fullCtx, bareCtx } = makeFixture();
 assert(metrics, "metrics built from the fixture graph");
-
-const state = {
-  schema_version: 1, root: "/x", head: "deadbeef", converged: false,
-  counts: { pending: 2, completed: 1, rejected: 1 },
-  pending_modes: { develop: 1, repair: 1 },
-  pending: [
-    { title: "do a thing", mode: "develop", rationale: "r", evidence: "e", surfaces: ["a.py"], new_surfaces: [], development: "d", acceptance: "ok", verification: "bash tests/run.sh" },
-    { title: "fix a bug", mode: "repair", rationale: "r", evidence: "e", surfaces: ["b.py"], new_surfaces: [], development: "d", acceptance: "ok", verification: "bash tests/run.sh" },
-  ],
-  completed: [{ title: "shipped", mode: "develop", commit: "abc1234" }],
-  rejected: [{ title: "bad idea", reason: "value-gate: no consumer" }],
-  final_point: { sha: "deadbeef", date: "", deepest_tier: "", valid: true, stale: false, scope: null },
-  graph: { built_sha: "deadbeef", node_count: 2, dirty: 0, stale: false },
-};
-const fullCtx = { graphText: graphText, metrics: metrics, builtSha: "deadbeef", stale: false, head: "deadbeef" };
-const bareCtx = { graphText: null, metrics: null, builtSha: "", stale: false, head: "deadbeef" };
 
 VIEWS.forEach(function (v) {
   var c1 = new El("section");
@@ -1307,31 +1229,17 @@ fi
 # with a clean skip, like derive.sh; no npm/network.
 if command -v node >/dev/null 2>&1; then
   cat > "$TMP/insights_render_test.js" <<'JS'
-const fs = require("fs"); const vm = require("vm"); const assert = require("assert");
+const assert = require("assert");
 const BASE = process.argv[2];
-function El(t){ this.tagName=(t||"div").toUpperCase(); this.children=[]; this._attr={}; this.dataset={};
-  this.style={setProperty(){},removeProperty(){},getPropertyValue(){return "";}};
-  this.classList={_s:{},add(c){this._s[c]=true;},remove(c){delete this._s[c];},toggle(){},contains(c){return !!this._s[c];}};
-  this.textContent=""; this.innerHTML=""; this.className=""; this.tabIndex=0; this.value=""; this.hidden=false; }
-El.prototype.appendChild=function(c){ this.children.push(c); return c; };
-El.prototype.append=function(){ for(var i=0;i<arguments.length;i++) this.children.push(arguments[i]); };
-El.prototype.prepend=function(c){ this.children.unshift(c); return c; };
-El.prototype.insertBefore=function(c){ this.children.push(c); return c; };
-El.prototype.setAttribute=function(k,v){ this._attr[k]=String(v); };
-El.prototype.setAttributeNS=function(ns,k,v){ this._attr[k]=String(v); };
-El.prototype.getAttribute=function(k){ return (k in this._attr)?this._attr[k]:null; };
-El.prototype.addEventListener=function(){}; El.prototype.remove=function(){};
-El.prototype.querySelector=function(){return null;}; El.prototype.querySelectorAll=function(){return [];};
-El.prototype.getContext=function(){return null;};
-const doc={ createElement(t){return new El(t);}, createElementNS(ns,t){return new El(t);},
-  createTextNode(t){var n=new El("#text"); n.textContent=String(t); return n;}, getElementById(){return new El();},
-  body:new El("body"), documentElement:new El("html"), head:new El("head"), addEventListener(){} };
-const win={ PW_VIEWS:{}, PW_UI:{planMode:"all"},
-  PW_BUS:{ onFocus(){return function(){};}, focusNode(){}, clearFocus(){}, getFocus(){return null;}, setNavigator(){}, goto(){} },
-  addEventListener(){}, matchMedia(){return {matches:false,addEventListener(){},addListener(){}};}, requestAnimationFrame(){return 0;} };
-global.window=win; global.document=doc;
-vm.runInThisContext(fs.readFileSync(BASE+"/vendor/derive.js","utf8"));
-vm.runInThisContext(fs.readFileSync(BASE+"/views/insights.js","utf8"));
+// Reuse the shared vm-bootstrap (El/document/window stubs + script loader) instead of a
+// second copy of the DOM shim. BASE is .../scripts/dashboard.
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadScript } = VM;
+const doc = makeDoc();
+const win = makeWin(doc);
+install(win, doc);
+loadScript(BASE, "vendor/derive.js");
+loadScript(BASE, "views/insights.js");
 assert(typeof win.PW_VIEWS.insights==="function","insights view did not register render()");
 const graphText=JSON.stringify({ graph_built_at_sha:"deadbeef", frontier:{never_audited:1,stale:1},
   nodes:{ "hot.py":{git_churn:10,pagerank:0.9,covered_by_test:false,is_test:false,lang:"python",loc:100,branch_count:5,is_articulation:true,imports:["cold.py"]},
