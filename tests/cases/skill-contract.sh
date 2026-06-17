@@ -88,7 +88,8 @@ for tok, tag in (
     ("best-effort", "agy-best-effort"),
     ("sets fan-out", "j-defined"),
     ("ignored under `invent`", "invent-skip"),
-    ("continuing without recon", "fallback-continues"),
+    ("planwright: parallel recon unavailable — continuing without recon.", "fallback-message"),
+    ("and run the audit unchanged", "audit-unchanged"),
 ):
     if tok not in para: need.append(tag)
 sys.exit(1 if need else 0)
