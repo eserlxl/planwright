@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.64.1] - 2026-06-17
+
+### Changed
+- Harden the dashboard JS coverage path: close two file-descriptor leaks in js-coverage-report.py and pin its no-files exit-1 contract; output-assert the Graph view's render branches; refresh the JS coverage map to match the harness.
+
 ## [1.64.0] - 2026-06-17
 
 ### Changed
