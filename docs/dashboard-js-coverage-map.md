@@ -64,8 +64,9 @@ necessary but never sufficient — it proves the file parses, not that it render
 - `render()` — **behavior-asserted** (`DASH-INSIGHTS-RENDER`): the uncovered articulation
   hotspot surfaces in the Risk Ledger, the by-language Coverage panel renders, the uncovered
   flag shows; degraded bare ctx renders no-throw.
-- `paint()` (interactive path-filter) — **smoke** via the VIEWS loop; the filter predicate and
-  `(filtered)` affordance are not yet output-asserted.
+- `paint()` (interactive path-filter) — **behavior-asserted** (`DASH-INSIGHTS-RENDER`): the filter
+  predicate narrows `metrics.hotspots` and the `(filtered)` affordance shows (`showing 1 of 2
+  (filtered)`), with every row restored and the affordance dropped on an empty query.
 
 ### [shards.js](../scripts/dashboard/views/shards.js) — codshard map
 - `render()` — **behavior-asserted**: shard cards from `state.repo` in sweep order, basis chip
@@ -78,12 +79,14 @@ necessary but never sufficient — it proves the file parses, not that it render
   per-mode legend, and the none-accepted empty branch.
 
 ### [graph.js](../scripts/dashboard/views/graph.js) — coupling graph
-- `render()` — **smoke**: a full snapshot drives `PW_GRAPH.renderCoupling` and a bare snapshot
-  drives the graph-less guard via the VIEWS loop, but the rendered output is not asserted.
+- `render()` — **behavior-asserted** (`DASH-VIEWS-FN`): a graph-less ctx renders the `NO_GRAPH`
+  empty state (`pw-empty`), and a populated ctx drives `PW_GRAPH.renderCoupling` (the `pw-web-svg`
+  coupling web, no empty state).
 
 ### [fleet.js](../scripts/dashboard/views/fleet.js) — multi-project grid
-- `render()` — **unasserted**: not in the `DASH-VIEWS-FN` VIEWS list and not loaded separately,
-  so its multi-project grid render is never executed by a test.
+- `render()` — **behavior-asserted** (`DASH-VIEWS-FN`): driven via `window.PW_PROJECTS`, the
+  multi-project grid renders one card per project plus the project-count note; a single project
+  uses the singular note; zero projects falls back to the no-projects empty state.
 
 ### [doctor.js](../scripts/dashboard/views/doctor.js) — environment preflight
 - `render()` — **behavior-asserted** (loaded explicitly outside the VIEWS loop): the sync
@@ -93,8 +96,10 @@ necessary but never sufficient — it proves the file parses, not that it render
 
 ## Known gaps (as of this map)
 
-- [fleet.js](../scripts/dashboard/views/fleet.js) `render()` is wholly unasserted.
-- [graph.js](../scripts/dashboard/views/graph.js) `render()` is smoke-only.
-- [insights.js](../scripts/dashboard/views/insights.js) `paint()` path-filter is smoke-only.
+The gaps this map previously tracked are closed: fleet.js, graph.js, and insights.js paint() are now behavior-asserted (see the per-module map above). What remains is shim-bounded, not a render-coverage hole:
 
-These are the surfaces the later coverage sub-phases target.
+- Click-handler *bodies* (e.g. the Fleet card's `PW_SWITCH_PROJECT` switch, the Shards/Commands
+  copy buttons) are not invoked — the node-gated shim stores listeners but only an explicit
+  `.click()` dispatches them, and most blocks render without clicking.
+- A few degraded (bare-ctx) paths are **smoke** only (console/plan via the VIEWS loop): rendered
+  no-throw, output not asserted branch-by-branch.
