@@ -9,6 +9,7 @@
 
 import importlib.util
 import os
+import subprocess
 import sys
 import unittest
 
@@ -153,6 +154,38 @@ class TestLand(unittest.TestCase):
         done = self._read(self.completed)
         self.assertIn("- [x] first thing", done)        # the freshly landed item
         self.assertIn("- [x] old 0\n", done)            # oldest RETAINED — execute never caps
+        self.assertEqual(done.count("- [x] "), lc.FIFO_CAP + 1)
+
+    def test_reconcile_does_not_cap_completed(self):
+        # The OTHER append path: reconcile (record a directly-committed fix) must also NEVER
+        # truncate mid-run. land's no-cap is pinned by test_land_does_not_cap_completed; both
+        # paths funnel through append_blocks, whose cap is deferred to housekeep/cap_log. A
+        # reconcile during a long codshard/codmaster sweep would otherwise drop the run's
+        # earliest records before the run boundary.
+        blocks = "".join(f"- [x] old {i}\n      Mode: docs\n\n" for i in range(lc.FIFO_CAP))
+        with open(self.completed, "w", encoding="utf-8") as fh:
+            fh.write(blocks)
+        repo = os.path.join(self.root, "repo")
+        os.makedirs(repo)
+
+        def _git(*args):
+            subprocess.run(["git", "-C", repo, *args], check=True, capture_output=True)
+
+        _git("init", "-q")
+        _git("config", "user.email", "t@example.com")
+        _git("config", "user.name", "t")
+        _git("config", "commit.gpgsign", "false")
+        with open(os.path.join(repo, "f.txt"), "w", encoding="utf-8") as fh:
+            fh.write("hi\n")
+        _git("add", "-A")
+        _git("commit", "-qm", "Reconcile no-cap subject")
+        full = subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"],
+                              check=True, capture_output=True, text=True).stdout.strip()
+        short, title, recorded = lc.reconcile(self.completed, repo, full, "improve")
+        self.assertTrue(recorded)
+        done = self._read(self.completed)
+        self.assertIn(f"- [x] {title}", done)            # the freshly reconciled fix
+        self.assertIn("- [x] old 0\n", done)             # oldest RETAINED — reconcile never caps
         self.assertEqual(done.count("- [x] "), lc.FIFO_CAP + 1)
 
     def test_housekeep_caps_completed_log(self):
