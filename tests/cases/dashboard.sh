@@ -861,6 +861,21 @@ var nf = new El("section");
 win.PW_VIEWS.console(nf, state, { graphText: graphless, metrics: mNoFr, builtSha: "deadbeef", stale: false, head: "deadbeef" });
 assert(!/never-audited/.test(textOf(nf)), "Console rendered a frontier vital on a pre-frontier (null) graph");
 
+// Phase 1.2: console must render the vitals strip on a fully degraded null-metrics/null-
+// graphText context (a repo with no built graph yet) without throwing and without a frontier
+// card. The VIEWS loop only proves no-throw on bareCtx; the nf check above uses real metrics
+// with a null frontier — a DIFFERENT path. Pin the null-metrics branch: vitals() returns the
+// "needs a built graph" note and no frontier vital.
+var bareC = new El("section");
+win.PW_VIEWS.console(bareC, state, bareCtx);
+var bareConText = textOf(bareC);
+assert(/Vitals need a built graph/.test(bareConText),
+  "console did not render the no-graph vitals note on a null-metrics context");
+assert(findByClass(bareC, "pw-vital--frontier").length === 0,
+  "console rendered a frontier vital card on a null-metrics context");
+assert(!/never-audited/.test(bareConText),
+  "console rendered the frontier vital on a null-metrics context");
+
 // Targeted: the carried satellite appears ONLY when counts.carried is non-zero; the base
 // fixture (no carried field — an older snapshot) must render the satellites unchanged.
 assert(!/carried/.test(textOf(fc)), "Console rendered a carried satellite without counts.carried");
