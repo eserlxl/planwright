@@ -674,6 +674,76 @@ else
   bad "dashboard.py /graph.json no-graph 404 failed: $(cat "$TMP/dash_ng.err" 2>/dev/null)"
 fi
 
+# --- Dashboard is read-only-by-construction: serving leaves the tree byte-unchanged ----
+# scripts/dashboard.py claims to mirror, never mutate, the served repo. Boot it over a
+# pristine fixture (NOT $DFX, which the main client appends to), hit every read-only endpoint
+# (state/graph/doctor/recommend/projects + the UI shell), then assert no file under the root was
+# created, modified, or removed (a sha256 tree snapshot). A regression where an endpoint writes a
+# cache/lock/beacon (or doctor reaches its --fix git-ignore append) turns the suite red.
+DFX3="$TMP/dash-nowrite"; mkdir -p "$DFX3/.planwright"
+printf -- '- [ ] one\n      Mode: develop\n' > "$DFX3/.planwright/plan.md"
+printf '{"nodes":{"a.py":{"pagerank":0.5,"is_articulation":true,"imports":[]}}}\n' > "$DFX3/.planwright/graph.json"
+cat > "$TMP/dash_nowrite.py" <<'PY'
+import hashlib, os, subprocess, sys, time, urllib.request, urllib.error
+root, dash = sys.argv[1], sys.argv[2]
+def snap(r):
+    out = {}
+    for dp, _, fs in os.walk(r):
+        for f in fs:
+            p = os.path.join(dp, f)
+            try:
+                out[os.path.relpath(p, r)] = hashlib.sha256(open(p, "rb").read()).hexdigest()
+            except OSError:
+                pass
+    return out
+before = snap(root)
+proc = subprocess.Popen([sys.executable, dash, "--root", root, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+try:
+    port = None
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            if proc.poll() is not None:
+                print("server exited early", file=sys.stderr); sys.exit(1)
+            continue
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    if not port:
+        print("no port banner", file=sys.stderr); sys.exit(1)
+    base = "http://127.0.0.1:%d" % port
+    # Exercise every read-only endpoint (and the shell). Errors are ignored here: the
+    # contract under test is no-write, not response shape (covered above).
+    for ep in ("/state.json", "/graph.json", "/doctor.json", "/recommend.json",
+               "/projects.json", "/"):
+        try:
+            urllib.request.urlopen(base + ep, timeout=10).read()
+        except urllib.error.HTTPError:
+            pass
+    time.sleep(0.3)   # let any deferred/background write land before snapshotting
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+after = snap(root)
+new = sorted(set(after) - set(before))
+removed = sorted(set(before) - set(after))
+modified = sorted(k for k in before if k in after and before[k] != after[k])
+assert not new, "dashboard CREATED files while serving: %r" % new
+assert not removed, "dashboard REMOVED files while serving: %r" % removed
+assert not modified, "dashboard MODIFIED files while serving: %r" % modified
+print("NOWRITE-OK")
+PY
+if python3 "$TMP/dash_nowrite.py" "$DFX3" "$DASH" >"$TMP/dash_nw.out" 2>"$TMP/dash_nw.err" \
+   && grep -q NOWRITE-OK "$TMP/dash_nw.out"; then
+  ok "dashboard.py serves read-only: every endpoint leaves the fixture tree byte-unchanged"
+else
+  bad "dashboard.py no-write assertion failed: $(cat "$TMP/dash_nw.err" 2>/dev/null)"
+fi
+
 
 # --- Test DASH-FN: app.js is functionally exercised, not just node --check ----
 # statics-scaffold.sh only parse-checks app.js; this boots the real IIFE against a
