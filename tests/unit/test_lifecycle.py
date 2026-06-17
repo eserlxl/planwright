@@ -182,6 +182,30 @@ class TestLand(unittest.TestCase):
         self.assertEqual(self._run("housekeep"), 0)
         self.assertEqual(self._read(self.completed), before)
 
+    def test_cap_log_exact_boundary(self):
+        # Direct cap_log boundary: the deferred FIFO bound is a no-op at EXACTLY FIFO_CAP
+        # (the `<= FIFO_CAP` guard, not `<`), and drops EXACTLY the single oldest at +1.
+        # The CLI tests use 5 (under) and FIFO_CAP+3 (over) — neither pins this inflection.
+        # (a) exactly FIFO_CAP: no-op, returns 0, file left byte-untouched (no rewrite).
+        at_cap = "".join(
+            f"- [x] old {i}\n      Mode: docs\n\n" for i in range(lc.FIFO_CAP))
+        with open(self.completed, "w", encoding="utf-8") as fh:
+            fh.write(at_cap)
+        before = self._read(self.completed)
+        self.assertEqual(lc.cap_log(self.completed), 0)
+        self.assertEqual(self._read(self.completed), before)  # byte-untouched
+        # (b) exactly FIFO_CAP + 1: drops exactly one (the oldest), keeps the newest cap in order.
+        over = "".join(
+            f"- [x] old {i}\n      Mode: docs\n\n" for i in range(lc.FIFO_CAP + 1))
+        with open(self.completed, "w", encoding="utf-8") as fh:
+            fh.write(over)
+        self.assertEqual(lc.cap_log(self.completed), 1)
+        done = self._read(self.completed)
+        self.assertEqual(done.count("- [x] "), lc.FIFO_CAP)
+        self.assertNotIn("- [x] old 0\n", done)              # the single oldest dropped
+        self.assertIn("- [x] old 1\n", done)                 # 2nd-oldest is the new floor
+        self.assertIn(f"- [x] old {lc.FIFO_CAP}\n", done)    # newest kept
+
     def test_reconcile_sweep_and_dryrun_arg_guards(self):
         # The reconcile-sweep / stray-flag guards (lifecycle.py argument router). Two branches
         # the CLI suite's L21d does NOT cover: reconcile-sweep must keep its --since path
