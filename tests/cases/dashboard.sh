@@ -105,6 +105,42 @@ try:
         traversal_blocked = True
     assert traversal_blocked, "path traversal was not refused"
 
+    # Extended containment: each variant must be refused (404), and the in-root symlink
+    # escape must be refused BY THE CONTAINMENT GUARD (realpath), not merely not-found.
+    def refused(p):
+        try:
+            urllib.request.urlopen(base + p, timeout=5)
+            return False
+        except urllib.error.HTTPError as e:
+            return e.code == 404
+        except Exception:
+            return True
+    # encoded-dot traversal: the resolver must NOT unquote %2e%2e into '..'
+    assert refused("/%2e%2e/%2e%2e/etc/passwd"), "encoded traversal was not refused"
+    # absolute path: an absolute URL path must stay contained under the static root
+    assert refused("/etc/passwd"), "absolute path was not refused"
+    # in-root symlink escape — the realpath containment guard (not the not-found branch).
+    # Exercised directly against _resolve_static with STATIC_ROOT pointed at a temp dir
+    # holding a symlink that escapes the root, so the repo's real scripts/dashboard/ is
+    # never mutated. A normpath-only guard would wrongly resolve link/passwd and serve it.
+    import importlib, tempfile
+    sys.path.insert(0, os.path.dirname(os.path.abspath(dash)))
+    _dash_mod = importlib.import_module("dashboard")
+    _saved_root = _dash_mod.STATIC_ROOT
+    _td = tempfile.mkdtemp()
+    _fake = os.path.join(_td, "static"); os.makedirs(_fake)
+    open(os.path.join(_fake, "index.html"), "w").write("ok")
+    os.symlink("/etc", os.path.join(_fake, "link"))   # in-root symlink escaping the root
+    try:
+        _dash_mod.STATIC_ROOT = _fake
+        assert _dash_mod._resolve_static("/link/passwd") is None, \
+            "in-root symlink escape was not refused by the containment guard"
+        assert _dash_mod._resolve_static("/index.html") is not None, \
+            "legitimate in-root file was wrongly refused"
+    finally:
+        _dash_mod.STATIC_ROOT = _saved_root
+    print("CONTAINMENT-OK")
+
     # DNS-rebinding guard: a request carrying a foreign Host is refused (403) before any
     # endpoint dispatch, so a rebound malicious origin cannot read the planning state.
     req = urllib.request.Request(base + "/state.json", headers={"Host": "attacker.example"})
@@ -292,6 +328,11 @@ if grep -q SSE-CHANGE-OK "$TMP/dash.out"; then
   ok "dashboard.py /events pushes a change event when .planwright/ mutates (live update)"
 else
   bad "dashboard.py SSE change-event check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q CONTAINMENT-OK "$TMP/dash.out"; then
+  ok "dashboard.py refuses encoded + absolute + in-root-symlink static-root escapes (404 / guard)"
+else
+  bad "dashboard.py extended containment check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
 if grep -q SHELL-OK "$TMP/dash.out"; then
   ok "dashboard.py serves the UI shell (GET / 200, references app.js, three view containers)"
