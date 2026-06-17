@@ -466,6 +466,20 @@ rskill="$(grep -m1 '  version:' "$ROOT/skills/planwright/SKILL.md" | sed -E 's/.
 if [ "$rv" = "$rcodex" ] && [ "$rv" = "$rskill" ]; then ok "repo version sources agree at rest ($rv)"; else bad "repo version drift: plugin=$rv codex=$rcodex skill=$rskill"; fi
 if grep -q "## \[$rv\]" "$ROOT/CHANGELOG.md"; then ok "CHANGELOG.md has a section for the current version [$rv]"; else bad "CHANGELOG.md missing a section for the current version [$rv]"; fi
 
+# --- Test 9b: the two repo manifests agree on the shared adapter-surface fields ----
+# bump-version.sh syncs only ["version"] across the manifests; name/license/homepage/repository
+# are hand-maintained in BOTH .claude-plugin/plugin.json and .codex-plugin/plugin.json, so a repo
+# rename, org move, or relicense that touches one manifest and misses the other ships silent
+# metadata drift to two plugin ecosystems. Pin the four shared fields (NOT version, which Test 9
+# already covers) so a drift fails the suite instead of being published.
+mf_drift=""
+for fld in name license homepage repository; do
+  cf="$(ver "$ROOT/.claude-plugin/plugin.json" "['$fld']")"
+  xf="$(ver "$ROOT/.codex-plugin/plugin.json" "['$fld']")"
+  [ "$cf" = "$xf" ] || mf_drift="$mf_drift $fld(claude=$cf codex=$xf)"
+done
+if [ -z "$mf_drift" ]; then ok "the two repo manifests agree on the shared fields (name, license, homepage, repository)"; else bad "manifest field drift:$mf_drift"; fi
+
 
 
 # --- Test 1d: bump-version aborts BEFORE any write on a non-UTF-8 CHANGELOG/SKILL ----
