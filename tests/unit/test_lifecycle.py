@@ -182,6 +182,23 @@ class TestLand(unittest.TestCase):
         self.assertEqual(self._run("housekeep"), 0)
         self.assertEqual(self._read(self.completed), before)
 
+    def test_reconcile_sweep_and_dryrun_arg_guards(self):
+        # The reconcile-sweep / stray-flag guards (lifecycle.py argument router). Two branches
+        # the CLI suite's L21d does NOT cover: reconcile-sweep must keep its --since path
+        # separate from reconcile's --commit path, and a stray --dry-run on a non-sweep command
+        # is a mistype that must hard-fail (the args.dry_run half of the guard, distinct from
+        # the args.since half L21d already pins). Both exit 2 and write nothing.
+        # (a) reconcile-sweep refuses --commit (paths stay separated)
+        self.assertEqual(
+            self._run("reconcile-sweep", "--since", "HEAD", "--mode", "improve",
+                      "--commit", "abc1234"), 2)
+        # (b) a stray --dry-run on a non-sweep command is rejected
+        self.assertEqual(self._run("housekeep", "--dry-run"), 2)
+        # (c) sanity mirror: a stray --since is likewise rejected (also pinned by L21d)
+        self.assertEqual(self._run("housekeep", "--since", "HEAD"), 2)
+        # nothing was written by any refused invocation
+        self.assertFalse(os.path.exists(self.completed))
+
 
 if __name__ == "__main__":
     unittest.main()
