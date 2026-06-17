@@ -42,6 +42,7 @@ import io
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 
@@ -315,6 +316,52 @@ def check_final_point(root):
     return [{"name": name, "status": status, "detail": detail, "degrades": degrades}]
 
 
+def check_dashboard_port(root):
+    """Report whether the dashboard's stable default port (127.0.0.1:DEFAULT_PORT) is
+    bindable. WARN (never FAIL — the dashboard reuses a running instance or falls back to an
+    ephemeral port, so a busy home port never breaks a launch) when it is in use; ok when
+    free. DEFAULT_PORT is read from dashboard.py via a GUARDED lazy import so this never
+    crashes when dashboard.py is absent (the BUNDLED check above already FAILs that) or
+    honors PW_DASH_PORT. Loopback-only, non-mutating: binds with SO_REUSEADDR and closes."""
+    port = 8765
+    try:
+        import dashboard  # deferred: dashboard.py does `import doctor`, so a module-scope
+        port = int(dashboard.DEFAULT_PORT)  # import here would be circular and crash an
+    except Exception:                        # isolated single-file run.
+        port = 8765
+    name = "dashboard default port (127.0.0.1:%d) is bindable" % port
+    degrades = ("`planwright dashboard` with no --port reuses a running instance or falls "
+                "back to an ephemeral port, so a busy home port is benign; pass --port N "
+                "or set PW_DASH_PORT to pin a known-free port")
+    sock = None
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("127.0.0.1", port))
+        status, detail = "ok", "127.0.0.1:%d is free" % port
+    except OSError:
+        status, detail = "warn", "127.0.0.1:%d is in use (likely a running dashboard)" % port
+    finally:
+        if sock is not None:
+            with contextlib.suppress(OSError):
+                sock.close()
+    return [{"name": name, "status": status, "detail": detail, "degrades": degrades}]
+
+
+def check_node(root):
+    """Informational: report whether `node` is on PATH. The dashboard client JS is exercised
+    by a Node-gated harness and `node --check` validates view loadability; without Node those
+    skip. Pure diagnostic — ALWAYS ok or warn, NEVER fail, even under --strict."""
+    node = shutil.which("node")
+    return [{
+        "name": "node (dashboard client-JS preflight)",
+        "status": "ok" if node else "warn",
+        "detail": _tool_version("node") if node else "not found on PATH (optional)",
+        "degrades": "the Node-gated dashboard client-JS checks (`node --check`, the view "
+                    "render harness) are skipped; dashboard runtime is unaffected",
+    }]
+
+
 GLYPH = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL"}
 
 
@@ -375,7 +422,8 @@ def collect(root: str) -> dict:
     only via `--fix`, never from here."""
     records = (check_tools() + check_scripts() + check_target(root)
                + check_gitignore(root) + check_git_identity(root)
-               + check_final_point(root))
+               + check_final_point(root) + check_dashboard_port(root)
+               + check_node(root))
     fails = sum(1 for r in records if r["status"] == "fail")
     warns = sum(1 for r in records if r["status"] == "warn")
     return {"ok": fails == 0, "fail": fails, "warn": warns,
