@@ -1515,6 +1515,20 @@ win.PW_VIEWS.shards(shNoDir, Object.assign({}, state, { repo: { tracked_files: 5
 assert(/No shardable top-level directory/.test(textOf(shNoDir)),
   "Shards view did not render the no-shardable-directory empty state when shardable_dirs is empty");
 
+// graph view: otherwise only smoke-rendered in the VIEWS loop (no output asserted). Assert
+// both branches — a graph-less ctx renders the NO_GRAPH empty state, and a populated ctx
+// drives the PW_GRAPH.renderCoupling web. A regressed empty-state message, or a renamed
+// metrics field that silently emptied the web, would fail here. Fresh containers sidestep
+// the module-level memoize-on-bytes guard.
+var gphEmpty = new El("section");
+win.PW_VIEWS.graph(gphEmpty, state, bareCtx);
+assert(/No graph has been built yet/.test(textOf(gphEmpty)) && findByClass(gphEmpty, "pw-empty").length === 1,
+  "Graph view did not render the NO_GRAPH empty state on a graph-less snapshot");
+var gphFull = new El("section");
+win.PW_VIEWS.graph(gphFull, state, fullCtx);
+assert(findByClass(gphFull, "pw-empty").length === 0 && findByClass(gphFull, "pw-web-svg").length >= 1,
+  "Graph view did not drive the coupling web on a populated snapshot (fell into the empty state)");
+
 // doctor view: fetch-based (not state-driven), so it sits outside the VIEWS render loop —
 // load its file here (registers PW_VIEWS.doctor) and cover it explicitly: render() must show
 // the sync placeholder immediately, and once the stubbed /doctor.json promise flushes,
