@@ -1816,6 +1816,18 @@ else
   ok "JS coverage % reporter check skipped (node not installed)"
 fi
 
+# --- Test DASH-JS-COV-ERR: the reporter exits 1 (not 0/2) when no coverage files exist ---------
+# Pins the documented exit-code contract (1 on a usage/IO error: no coverage-*.json files),
+# distinct from the --fail-under breach (exit 2). A pure stdlib error path — no node needed, so it
+# runs unconditionally; a regression collapsing it into exit 0/2 would mask a broken collector.
+JSCOV_EMPTY="$TMP/js_cov_empty"; mkdir -p "$JSCOV_EMPTY"
+rc_jcerr=0; jcerr="$(python3 "$ROOT/scripts/js-coverage-report.py" "$JSCOV_EMPTY" --root "$ROOT" 2>&1 >/dev/null)" || rc_jcerr=$?
+if [ "$rc_jcerr" = "1" ] && printf '%s' "$jcerr" | grep -qi "no coverage"; then
+  ok "js-coverage-report.py exits 1 with a clear message when the coverage dir has no coverage-*.json files"
+else
+  bad "js-coverage-report.py no-files exit-1 contract regressed (rc=$rc_jcerr msg='$jcerr')"
+fi
+
 # --- Test DASH-INSIGHTS-RENDER: the Insights view's render OUTPUT (not just registration) ----
 # The views block above asserts only "insights rendered something" (children.length>0). This pins
 # the actionable content: given an uncovered articulation hotspot (hot.py), insights.render() must
