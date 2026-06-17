@@ -9,15 +9,21 @@ STATE="$ROOT/scripts/state.py"
 
 # --- Test ST1: real repo --out - emits JSON carrying every top-level key ----------
 rc=0; out="$(python3 "$STATE" --root "$ROOT" --out -)" || rc=$?
+# Match with here-strings, NOT `printf '%s' "$out" | grep -q`: under `set -o pipefail`
+# a `grep -q` that matches an early key exits before printf finishes writing, so printf
+# takes SIGPIPE (141) and pipefail reports the whole pipeline as failed. That is harmless
+# for a small plan (output fits the pipe buffer) but flakes hard once state.json grows past
+# the buffer (e.g. a large pending plan), failing keys near the start while keys at the end
+# still pass. A here-string feeds grep without a pipe, so the early-exit can never SIGPIPE.
 if [ "$rc" = "0" ] \
-   && printf '%s' "$out" | grep -q '"schema_version": 1' \
-   && printf '%s' "$out" | grep -q '"pending":' \
-   && printf '%s' "$out" | grep -q '"completed":' \
-   && printf '%s' "$out" | grep -q '"rejected":' \
-   && printf '%s' "$out" | grep -q '"final_point":' \
-   && printf '%s' "$out" | grep -q '"graph":' \
-   && printf '%s' "$out" | grep -q '"activity":' \
-   && printf '%s' "$out" | grep -q '"counts":'; then
+   && grep -q '"schema_version": 1' <<<"$out" \
+   && grep -q '"pending":' <<<"$out" \
+   && grep -q '"completed":' <<<"$out" \
+   && grep -q '"rejected":' <<<"$out" \
+   && grep -q '"final_point":' <<<"$out" \
+   && grep -q '"graph":' <<<"$out" \
+   && grep -q '"activity":' <<<"$out" \
+   && grep -q '"counts":' <<<"$out"; then
   ok "state.py --out - is exit 0 and carries schema_version + all top-level keys"
 else
   bad "state.py --out - missing a top-level key or non-zero exit (rc=$rc)"
