@@ -56,6 +56,17 @@ else
   ok "no GNU in-place sed in tests/ or scripts/*.sh (BSD-coreutils-clean)"
 fi
 
+# --- Test 0e: scripts/*.py never executes a shell string -------------------
+# Least-privilege: every external tool is invoked with an argv list, never via a shell.
+# A future shell=True / os.system / os.popen would reintroduce a shell-injection surface,
+# so gate the whole scripts/*.py glob against it (this guard is a .sh file, never scanned).
+shellstr_pat='shell[[:space:]]*=[[:space:]]*True|os\.system[[:space:]]*\(|os\.popen[[:space:]]*\('
+if grep -En "$shellstr_pat" "$ROOT"/scripts/*.py >/dev/null 2>&1; then
+  bad "shell-string command execution in scripts/*.py: $(grep -lE "$shellstr_pat" "$ROOT"/scripts/*.py | tr '\n' ' ')"
+else
+  ok "no shell=True / os.system / os.popen in scripts/*.py (structured-argv only)"
+fi
+
 # --- Test 1: bump-version.sh syncs version across all three files ----------
 WORK="$TMP/repo"
 mkdir -p "$WORK"
