@@ -180,6 +180,21 @@ try:
     assert b" 200 " in nohost_status, "absent-Host request not allowed: %r" % nohost_status
     print("NOHOST-OK")
 
+    # No mutating handler: the dashboard is read-only by construction (only do_GET is
+    # defined). A POST/PUT/DELETE must be refused by the stdlib handler (501 Unsupported
+    # method), never served — a future do_POST that mutated the repo would make this 2xx
+    # and fail here.
+    for _meth in ("POST", "PUT", "DELETE"):
+        _req = urllib.request.Request(base + "/state.json", data=b"", method=_meth)
+        _code = None
+        try:
+            _code = urllib.request.urlopen(_req, timeout=5).status
+            _mutating_refused = False
+        except urllib.error.HTTPError as e:
+            _mutating_refused = e.code not in (200, 201, 202, 204)
+        assert _mutating_refused, "%s was served (a mutating handler exists): %r" % (_meth, _code)
+    print("NO-MUTATE-OK")
+
     print("DASH-OK")
 
     # SSE live-update path: after subscribing to /events, mutating a .planwright/ file
@@ -318,6 +333,21 @@ if grep -q NOHOST-OK "$TMP/dash.out"; then
   ok "dashboard.py allows a no-Host (HTTP/1.0) request — the deliberate DNS-rebinding pass-through"
 else
   bad "dashboard.py absent-Host pass-through check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q NO-MUTATE-OK "$TMP/dash.out"; then
+  ok "dashboard.py serves no mutating method (POST/PUT/DELETE refused 501 — read-only by construction)"
+else
+  bad "dashboard.py served a non-GET method (a mutating handler exists): $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+# Loopback-only bind + sole-handler pin: the server binds 127.0.0.1 (never a routable
+# interface) and defines exactly one do_GET handler. grep-able guards so a non-loopback bind
+# or an added mutating do_* handler turns red.
+if grep -qF 'ThreadingHTTPServer(("127.0.0.1", port), Handler)' "$DASH" \
+   && [ "$(grep -cE '^[[:space:]]+def do_[A-Z]' "$DASH")" = "1" ] \
+   && grep -qE '^[[:space:]]+def do_GET\(self\):' "$DASH"; then
+  ok "dashboard.py binds 127.0.0.1 only and exposes a single do_GET handler (loopback + read-only)"
+else
+  bad "dashboard.py bind site changed off 127.0.0.1 or gained a non-GET do_* handler"
 fi
 if grep -q SIGTERM-CLEAN-EXIT "$TMP/dash.out"; then
   ok "dashboard.py shuts down cleanly on SIGTERM (proc.terminate() -> exit 0, atexit can flush)"
