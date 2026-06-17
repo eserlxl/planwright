@@ -771,9 +771,9 @@ fi
 # deref on a graph-less snapshot, an unshimmed DOM call) ships green. Load the real derive
 # engine + the vendored coupling renderer + each view against the El/doc shim and call
 # render() for a full state+graph snapshot AND a degraded graph-less (metrics=null) snapshot.
-# Covers all eight views: the state-driven ones (shards included), timeline + graph (graph's
-# full path drives PW_GRAPH.renderCoupling, its bare path the graph-less guard), and the
-# fetch-based doctor view (stubbed fetch -> async paint). Node-gated.
+# Covers all nine views: the state-driven ones (shards + fleet included), timeline + graph
+# (graph's full path drives PW_GRAPH.renderCoupling, its bare path the graph-less guard), and
+# the fetch-based doctor view (stubbed fetch -> async paint, rendered outside the loop). Node-gated.
 if command -v node >/dev/null 2>&1; then
   cat > "$TMP/views_fn_test.js" <<'JS'
 const fs = require("fs");
@@ -811,7 +811,7 @@ install(win, doc);
 // Load the real derive engine + vendored coupling renderer + shared UI fragments, then
 // every view (each registers window.PW_VIEWS.<name>); then build the full+bare fixture.
 loadCommon(BASE);
-const VIEWS = ["console", "plan", "commands", "insights", "shards", "timeline", "graph"];
+const VIEWS = ["console", "plan", "commands", "insights", "shards", "timeline", "graph", "fleet"];
 loadViews(BASE, VIEWS);
 const { graphText, metrics, state, fullCtx, bareCtx } = makeFixture();
 assert(metrics, "metrics built from the fixture graph");
@@ -1051,6 +1051,13 @@ assert(typeof win.PW_VIEWS.doctor === "function", "view doctor did not register 
 var docC = new El("section");
 win.PW_VIEWS.doctor(docC, state, fullCtx);
 assert(textOf(docC).length > 0, "doctor render() produced no DOM synchronously");
+// doctor on a bare (no metrics/graph) snapshot must also paint the sync placeholder without
+// throwing. It stays OUT of the shared VIEWS loop on purpose: its single in-flight
+// /doctor.json fetch + module-level state must bind to docC so the deferred paint assertion
+// below sees the resolved rows — a throwaway loop container would steal that fetch.
+var docBare = new El("section");
+win.PW_VIEWS.doctor(docBare, state, bareCtx);
+assert(docBare.children.length > 0, "doctor render() produced no DOM on a bare snapshot");
 
 // Targeted: the Commands codmaster front-door panel — behavioral, not just grep-pinned.
 // The panel element's class is exactly "pw-frontdoor"; the always-present slot is
@@ -1212,7 +1219,7 @@ setTimeout(function () {
 JS
   if node "$TMP/views_fn_test.js" "$ROOT/scripts/dashboard" >"$TMP/views_fn.out" 2>"$TMP/views_fn.err" \
      && grep -q VIEWS-FN-OK "$TMP/views_fn.out"; then
-    ok "dashboard render() runs for all eight views (incl. shards/doctor/graph/timeline) on full + graph-less snapshots (no throw, non-empty DOM)"
+    ok "dashboard render() runs for all nine views (incl. fleet/shards/doctor/graph/timeline) on full + graph-less snapshots (no throw, non-empty DOM)"
   else
     bad "a dashboard view render() failed: $(cat "$TMP/views_fn.err" 2>/dev/null)"
   fi
