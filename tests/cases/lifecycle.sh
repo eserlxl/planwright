@@ -109,6 +109,30 @@ else
   bad "lifecycle.py deferred FIFO cap wrong (total=$total_hk json=$cap_json)"
 fi
 
+# --- Test L4b: the FIFO cap applies SYMMETRICALLY to rejected.md ---------------------
+# L4 pins the completed.md cap; cap_log is wired to rejected.md too (housekeep:
+# rejected_capped = cap_log(rejected)), but only the under-cap rejected_capped==0 was
+# asserted (L7). A wrong-file/never-fire regression on that line would pass silently.
+# Seed rejected.md with 100 drained rejections (r001..r100), then leave ONE more rejected
+# item in plan.md (r101). housekeep drains r101 in (-> 101) THEN caps: drop the oldest
+# (r001), keep r002..r101, report rejected_capped=1.
+LRF="$TMP/lc4b/.planwright"; mkdir -p "$LRF"
+{ for i in $(seq -w 1 100); do
+    printf -- '- [ ] r%s\n      Status: Rejected\n      Rejection: value-gate: r%s\n\n' "$i" "$i"
+  done; } > "$LRF/rejected.md"
+printf -- '# planwright Plan — .\n\n- [ ] r101\n      Mode: improve\n      Status: Rejected\n      Rejection: value-gate: r101\n' > "$LRF/plan.md"
+rcap_json="$(python3 "$LC" housekeep --root "$LRF" --json)"
+rtotal_hk="$(grep -c '^- \[ \] r' "$LRF/rejected.md")"
+if [ "$rtotal_hk" = "100" ] \
+   && ! grep -q '^- \[ \] r001$' "$LRF/rejected.md" \
+   && grep -q '^- \[ \] r002$' "$LRF/rejected.md" \
+   && grep -q '^- \[ \] r101$' "$LRF/rejected.md" \
+   && printf '%s' "$rcap_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["rejected_capped"]==1, d' 2>/dev/null; then
+  ok "lifecycle.py housekeep caps rejected.md symmetrically at 100 (drains r101, drops oldest r001, reports rejected_capped=1)"
+else
+  bad "lifecycle.py rejected.md FIFO cap wrong (total=$rtotal_hk json=$rcap_json)"
+fi
+
 # --- Test L5: SKILL.md Stage 0 wires lifecycle.py and deletes (not archives) ----
 # Contract: the procedure must invoke the script and document the delete-when-empty
 # rule, with NO leftover plans/ archive instruction in Stage 0.
