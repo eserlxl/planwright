@@ -2019,3 +2019,35 @@ dslash = json.load(open(sys.argv[2]))
 assert dslash["focus"] == ["src/api.sh", "src/auth.sh"], dslash["focus"]
 PY
 then ok "--scope . yields the whole-repo Focus and .//src/ resolves like src/"; else bad "--scope . or .//src/ still false no-matches"; fi
+
+# --- Test 11gi: a gitignored file is never enumerated, read, or leaked into an artifact ---
+# build-graph.py enumerates exclusively via `git ls-files`, so a present-but-gitignored blob
+# (vendored/generated/secret) must never appear in the produced graph.json nodes nor in the
+# --dot artifact, and its unique sentinel must never surface. A regression to a gitignore-blind
+# walker (os.walk/glob) would leak ignored content; this pins the tracked-only scan invariant.
+GIREPO="$TMP/gitignore_scan_repo"; mkdir -p "$GIREPO/secrets"
+git -C "$GIREPO" init -q
+printf 'def f():\n    return 1\n' > "$GIREPO/tracked.py"
+printf 'secrets/\n*.secret\n' > "$GIREPO/.gitignore"
+printf 'PW_GITIGNORE_SENTINEL_8c1f = 42\n' > "$GIREPO/secrets/hidden.py"
+printf 'PW_GITIGNORE_SENTINEL_8c1f\n' > "$GIREPO/leak.secret"
+git -C "$GIREPO" add -A   # secrets/ and *.secret are gitignored: only tracked.py + .gitignore are tracked
+git -C "$GIREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+gi_json="$TMP/gitignore_scan_graph.json"; gi_dot="$TMP/gitignore_scan_graph.dot"
+python3 "$ROOT/scripts/build-graph.py" --root "$GIREPO" > "$gi_json" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$GIREPO" --dot > "$gi_dot" 2>/dev/null
+if python3 - "$gi_json" "$gi_dot" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+dot = open(sys.argv[2], encoding="utf-8").read()
+sentinel = "PW_GITIGNORE_SENTINEL_8c1f"
+# Tracked file is graphed; gitignored paths are absent from the node set.
+assert "tracked.py" in g["nodes"], "tracked.py should be enumerated"
+assert "secrets/hidden.py" not in g["nodes"], "gitignored secrets/hidden.py leaked into nodes"
+assert "leak.secret" not in g["nodes"], "gitignored leak.secret leaked into nodes"
+# The unique sentinel must appear in NO produced artifact (JSON or DOT).
+assert sentinel not in json.dumps(g), "gitignored sentinel surfaced in the graph JSON"
+assert sentinel not in dot, "gitignored sentinel surfaced in the DOT artifact"
+assert "hidden.py" not in dot and "leak.secret" not in dot, "gitignored path surfaced in the DOT artifact"
+PY
+then ok "build-graph.py never enumerates, reads, or leaks a gitignored file into any artifact"; else bad "build-graph.py scanned or leaked a gitignored file (tracked-only scan regressed)"; fi
