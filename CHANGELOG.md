@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.63.0] - 2026-06-17
+
+### Changed
+- Add `check` subcommand: audit & prune .planwright/plan.md before execute — re-applies the apply-time gates (structural lint, value gate, Verification dry-run) to every pending item, prunes gate-failing ones, never edits source. Vets externally-authored plans (qb export, hand-written) before a manual execute.
+
 ## [1.62.0] - 2026-06-16
 
 ### Changed
