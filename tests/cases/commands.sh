@@ -951,3 +951,30 @@ for rel in ("commands/dashboard.md", "skills/planwright/references/dashboard.md"
     assert "seven views" not in t, "%s regressed to the stale 'seven views' claim" % rel
 PY
 then ok "dashboard view enumerations track index.html's tab order (commands/dashboard.md exact list; reference + usage carry every view and the count)"; else bad "a dashboard view enumeration drifted from index.html's data-view tabs"; fi
+
+# --- Test 20: `check` (audit & prune) is wired via progressive disclosure -----------
+# Contract: the check subcommand must be reachable — a Usage line + an Invocation dispatch
+# pointer in SKILL.md to references/check.md, whose procedure wires the structural linter
+# and the prune step (lifecycle.py reject), pins the non-source-mutating contract, and
+# pins the dry-run-verification semantics (prune only when a Verification CANNOT run, never
+# on a runnable failure — the trap that would otherwise delete every genuine pending item).
+# This is the manual qb/external-plan hand-off the command exists for.
+if python3 - "$ROOT/skills/planwright/SKILL.md" "$ROOT/skills/planwright/references/check.md" "$ROOT/docs/usage.md" <<'PY' 2>/dev/null
+import re, sys
+norm = lambda s: re.sub(r"\s+", " ", s)  # collapse newlines so line-wrap can't break a phrase assertion
+skill = norm(open(sys.argv[1], encoding="utf-8").read())
+ref = norm(open(sys.argv[2], encoding="utf-8").read())
+usage = norm(open(sys.argv[3], encoding="utf-8").read())
+need = []
+if "/planwright check" not in skill: need.append("usage-line")
+if "references/check.md" not in skill: need.append("dispatch-pointer")
+if "<scripts>/lint-plan.py" not in ref: need.append("linter-wire")
+if "lifecycle.py reject" not in ref: need.append("prune-wire")
+if "never edits source" not in ref: need.append("non-mutating-source")
+if "never commits" not in ref: need.append("never-commits")
+if "Cannot run" not in ref: need.append("dryrun-cantrun")
+if "Never prune a runnable-but-failing" not in ref: need.append("keep-runnable-fail")
+if "/planwright check" not in usage: need.append("usage-doc")
+sys.exit(1 if need else 0)
+PY
+then ok "check exposed: SKILL.md usage + dispatch pointer; references/check.md wires lint-plan.py + lifecycle.py reject and pins the non-mutating-source + dry-run-verification (prune-only-on-cant-run) contract; docs/usage.md lists it"; else bad "check command wiring missing/incomplete across SKILL.md / references/check.md / docs/usage.md"; fi

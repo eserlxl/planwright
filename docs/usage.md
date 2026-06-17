@@ -270,6 +270,7 @@ recommendation-only, never dispatching — see Maintenance below.
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
 /planwright status               Read-only: summarize plan / final-point / graph state (--json)
 /planwright advise               Read-only: recommend the next command (the coach as a CLI; never dispatches)
+/planwright check                Audit & prune .planwright/plan.md: re-apply the apply-time gates, drop gate-failing items (runs each Verification; no source edits/commits)
 /planwright reset                Cold start: clear .planwright/ but keep rejected.md (aliases: fresh, clean)
 /planwright version              Show the current and latest available version
 /planwright upgrade              Update planwright itself to the latest version (alias: update)

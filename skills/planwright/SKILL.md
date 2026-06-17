@@ -63,7 +63,7 @@ thereafter jump to the path you are running.
   [Per-cycle loop](#per-cycle-loop-repeat-up-to-n-times-or-indefinitely-when-n--0) ·
   [Stop conditions](#stop-conditions)
 - **Maintenance** (loaded on demand from `references/`) — [Doctor](references/doctor.md) ·
-  [Status](references/status.md) · [Advise](references/advise.md) ·
+  [Status](references/status.md) · [Advise](references/advise.md) · [Check](references/check.md) ·
   [Dashboard](references/dashboard.md) ·
   [Reset](references/reset.md) · [Upgrade](references/upgrade.md) · [Version](references/version.md)
 
@@ -166,6 +166,9 @@ Before doing anything else, inspect the argument the skill was invoked with:
   per **Procedure → Bundled scripts**) and follow that read-only summary procedure instead of the planning Procedure.
 - If the first token is `advise`, read `skills/planwright/references/advise.md` (resolve `<scripts>`
   per **Procedure → Bundled scripts**) and follow that read-only recommendation procedure instead of the planning Procedure.
+- If the first token is `check`, read `skills/planwright/references/check.md` (resolve `<scripts>`
+  per **Procedure → Bundled scripts**) and follow that audit-and-prune procedure instead of the planning Procedure.
+  The next token may be an item index `N` (`check N`); a `path`/`lib` scope composes.
 - If the first token is `dashboard`, read `skills/planwright/references/dashboard.md` (resolve `<scripts>`
   per **Procedure → Bundled scripts**) and follow that read-only server procedure instead of the planning Procedure.
 - If the first token is `reset` (or the aliases `fresh` / `clean`), read `skills/planwright/references/reset.md`
@@ -216,6 +219,8 @@ MAINTENANCE
 /planwright doctor               Preflight: check git/rg/python3 + bundled-script resolution
 /planwright status               Read-only: summarize plan/final-point/graph state (--json)
 /planwright advise               Read-only: recommend the next command (the coach as a CLI; never dispatches)
+/planwright check                Audit & prune .planwright/plan.md: run each Verification, drop gate-failing items (no source edits/commits)
+/planwright check N              Audit only pending item N (path/lib scope composes)
 /planwright dashboard            Read-only: serve a live local web view of the planning state
 /planwright reset                Cold start: clear .planwright/ but keep rejected.md (fresh/clean aliases)
 /planwright version              Show the current and latest available version
