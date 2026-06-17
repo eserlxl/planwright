@@ -1425,7 +1425,7 @@ const BASE = process.argv[2];
 // Reuse the shared vm-bootstrap (El/document/window stubs + script loader) instead of a
 // second copy of the DOM shim. BASE is .../scripts/dashboard.
 const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
-const { El, makeDoc, makeWin, install, loadScript } = VM;
+const { El, makeDoc, makeWin, install, loadScript, findByClass } = VM;
 const doc = makeDoc();
 const win = makeWin(doc);
 install(win, doc);
@@ -1447,6 +1447,25 @@ assert(root.children.length>0, "insights rendered nothing on a full snapshot");
 assert(/hot\.py/.test(out), "Risk Ledger did not surface the uncovered hotspot hot.py");
 assert(/uncovered/.test(out), "insights did not surface the uncovered coverage flag");
 assert(/Coverage by language/.test(out), "insights did not render the by-language Coverage panel");
+// Phase 1.3: the Coverage-by-language rows order languages by UNCOVERED count (total - cov)
+// descending — the assertion above only proves the panel renders. Build a multi-language graph
+// (python uncov 2, shell uncov 1, javascript uncov 0) and assert the pw-cov-lang labels render
+// in uncovered-descending order so a reversed sort predicate fails.
+var multiGraph = JSON.stringify({ graph_built_at_sha: "deadbeef", nodes: {
+  "a.py": { lang: "python", branch_count: 2, covered_by_test: false, is_test: false, loc: 50, imports: [] },
+  "b.py": { lang: "python", branch_count: 2, covered_by_test: false, is_test: false, loc: 50, imports: [] },
+  "c.py": { lang: "python", branch_count: 2, covered_by_test: true, is_test: false, loc: 50, imports: [] },
+  "d.js": { lang: "javascript", branch_count: 2, covered_by_test: true, is_test: false, loc: 50, imports: [] },
+  "e.js": { lang: "javascript", branch_count: 2, covered_by_test: true, is_test: false, loc: 50, imports: [] },
+  "f.sh": { lang: "shell", branch_count: 2, covered_by_test: false, is_test: false, loc: 50, imports: [] }
+}, clusters: [], import_cycles: [] });
+var mMulti = win.PW_DERIVE.metrics(multiGraph);
+var multiRoot = new El("section");
+win.PW_VIEWS.insights(multiRoot, { counts: {} },
+  { graphText: multiGraph, metrics: mMulti, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var langOrder = findByClass(multiRoot, "pw-cov-lang").map(textOf).map(function (s) { return s.trim(); });
+assert(JSON.stringify(langOrder) === JSON.stringify(["python", "shell", "javascript"]),
+  "Coverage-by-language not ordered by uncovered-descending (want python, shell, javascript; got " + langOrder.join(",") + ")");
 // degraded snapshot (no metrics) must not throw
 win.PW_VIEWS.insights(new El("section"), { counts:{} }, { graphText:null, metrics:null, builtSha:"", stale:false, head:"deadbeef" });
 console.log("INSIGHTS-RENDER-OK");
