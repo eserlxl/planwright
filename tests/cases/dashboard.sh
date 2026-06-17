@@ -846,6 +846,14 @@ function textOf(node) {
 var fc = new El("section");
 win.PW_VIEWS.console(fc, state, fullCtx);
 assert(/never-audited/.test(textOf(fc)), "Console omitted the audit-frontier vital on a frontier-bearing snapshot");
+// Phase 1.2: pin the rendered frontier COUNTS (not just the label) so a swapped or mis-counted
+// never_audited/stale field fails CI. The fixture frontier is {never_audited:3, stale:5}; the
+// vital renders the sub-line "3 never-audited · 5 stale" — assert both counts on the card.
+var frVital = findByClass(fc, "pw-vital--frontier");
+assert(frVital.length === 1, "Console did not render the audit-frontier vital card");
+var frText = textOf(frVital[0]);
+assert(/3 never-audited/.test(frText), "frontier vital did not render never_audited=3 (got: " + frText + ")");
+assert(/5 stale/.test(frText), "frontier vital did not render stale=5 (got: " + frText + ")");
 var graphless = JSON.stringify({ graph_built_at_sha: "deadbeef", nodes: { "a.py": { git_churn: 1, pagerank: 0.5, covered_by_test: true, is_test: false, lang: "python", loc: 5, branch_count: 1, imports: [] } } });
 var mNoFr = win.PW_DERIVE.metrics(graphless);
 assert(mNoFr && mNoFr.frontier === null, "fixture sanity: a frontier-less graph yields null frontier");
