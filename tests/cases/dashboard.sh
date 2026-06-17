@@ -787,6 +787,17 @@ const BASE = process.argv[2];
 // dashboard, so .../../tests/cases/lib reaches the repo's helper.
 const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
 const { El, makeDoc, makeWin, install, loadCommon, loadViews, makeFixture } = VM;
+// Capture click handlers so a vital's onActivate (wired via addEventListener in vitalCard)
+// is invocable here — el.click() fires the stored click listeners. Storing alone is inert;
+// only an explicit .click() dispatches, so this never perturbs a plain render.
+El.prototype.addEventListener = function (type, fn) {
+  this._ev = this._ev || {};
+  (this._ev[type] = this._ev[type] || []).push(fn);
+};
+El.prototype.click = function () {
+  var fns = (this._ev && this._ev.click) || [];
+  for (var i = 0; i < fns.length; i++) { fns[i].call(this, { type: "click" }); }
+};
 const doc = makeDoc();
 const win = makeWin(doc);
 // doctor.js fetches /doctor.json and commands.js fetches /recommend.json instead of
@@ -924,6 +935,29 @@ assert(/articulation\s+1\s+cut vertices/.test(fcText), "Console articulation vit
 assert(/tests\s+0\s+test files/.test(fcText), "Console tests vital did not show the fixture's 0 test files");
 assert(/develop 1/.test(fcText), "Cadence legend missed the develop accepted count");
 assert(/rejected 1/.test(fcText), "Cadence legend missed the rejected count");
+
+// Targeted (Phase 1.2): the coverage donut + hotspots vitals render from metrics, and their
+// onActivate handlers navigate via PW_BUS.goto('insights'). The structural vitals above are
+// pinned but the coverage/hotspots cards and their navigation wiring were not. Stub goto to
+// record targets, find both vital buttons by modifier class, click each, assert the target.
+var gotoTargets = [];
+var savedGoto = win.PW_BUS.goto;
+win.PW_BUS.goto = function (t) { gotoTargets.push(t); };
+var vc = new El("section");
+win.PW_VIEWS.console(vc, state, fullCtx);
+var covVital = findByClass(vc, "pw-vital--coverage");
+var hotVital = findByClass(vc, "pw-vital--hotspots");
+assert(covVital.length === 1, "Console coverage vital did not render");
+assert(hotVital.length === 1, "Console hotspots vital did not render");
+var covText = textOf(covVital[0]);
+assert(/1\/2/.test(covText) && /50% covered/.test(covText),
+  "coverage vital did not render covered/total + percent from metrics (want 1/2, 50% covered)");
+assert(/hot/.test(textOf(hotVital[0])), "hotspots vital did not render the hot meter from metrics");
+covVital[0].click();
+hotVital[0].click();
+assert(gotoTargets.filter(function (t) { return t === "insights"; }).length === 2,
+  "coverage/hotspots vital onActivate did not PW_BUS.goto('insights') (got " + gotoTargets.join(",") + ")");
+win.PW_BUS.goto = savedGoto;
 
 // Targeted: the Decision-timeline cumulative graph (timelineGraph) — header + accepted-rate
 // text, a legend entry per mode present in completed[] with its cumulative count, and the
