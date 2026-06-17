@@ -69,8 +69,10 @@ jobs:
       # JS coverage for the dashboard client modules — the analog of the Python gate above.
       # Loads every view under NODE_V8_COVERAGE via the shared collector, then reduces the V8
       # output to one deterministic percentage over scripts/dashboard/ (vendor/ excluded).
+      # Floor (65%) sits a few points below the ~72.9% baseline; rationale + the
+      # lockstep with tests/cases/dashboard.sh DASH-JS-COV-PCT in docs/js-coverage-floor.md.
       - name: JS coverage (dashboard)
         run: |
           export NODE_V8_COVERAGE="$PWD/.jscov"
           node tests/cases/lib/dashboard-coverage-load.js "$PWD/scripts/dashboard"
-          python3 scripts/js-coverage-report.py "$PWD/.jscov" --root .
+          python3 scripts/js-coverage-report.py "$PWD/.jscov" --root . --fail-under 65
