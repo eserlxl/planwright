@@ -457,6 +457,39 @@ else
   bad "Commands view lost the front-door panel wiring (/recommend.json fetch)"
 fi
 
+# --- Test DASH-VIEW-INVENTORY: the dashboard view inventory cannot drift across its 4 lists ----
+# A view is "wired" only when it exists in FOUR places at once: the on-disk views/*.js file, the
+# app.js VIEWS array (the canonical nav/render inventory), an index.html <script src> tag, and the
+# doctor.py BUNDLED install-completeness list. doctor.sh only guards index.html-assets ⊆ BUNDLED; it
+# never reads the on-disk glob or app.js VIEWS, so a half-wired view (file present but absent from
+# VIEWS = dead file; or a VIEWS entry with no file = "view not loaded" at runtime) drifts silently.
+# Derive all four sets from the tree and assert they are equal, and that every app.js VIEWS key
+# matches its view-<key> container id, so any added/removed/renamed view not wired in all four turns red.
+if python3 - "$ROOT" >/dev/null 2>"$TMP/view_inv.err" <<'PY'
+import os, re, sys
+root = sys.argv[1]
+d = os.path.join(root, "scripts", "dashboard")
+on_disk = {f for f in os.listdir(os.path.join(d, "views")) if f.endswith(".js")}
+app = open(os.path.join(d, "app.js"), encoding="utf-8").read()
+pairs = re.findall(r'\{ key: "([a-z]+)", container: "view-([a-z]+)" \}', app)
+app_js = {k + ".js" for k, _ in pairs}
+container_bad = sorted((k, c) for k, c in pairs if k != c)
+idx = open(os.path.join(d, "index.html"), encoding="utf-8").read()
+idx_js = {m + ".js" for m in re.findall(r'src="/views/([a-z]+)\.js"', idx)}
+doc = open(os.path.join(root, "scripts", "doctor.py"), encoding="utf-8").read()
+bundled_js = {m + ".js" for m in re.findall(r'dashboard/views/([a-z]+)\.js', doc)}
+assert on_disk, "no on-disk views/*.js found"
+assert not container_bad, "app.js VIEWS key != container id: %s" % container_bad
+assert on_disk == app_js, "on-disk views != app.js VIEWS: only-disk=%s only-app=%s" % (sorted(on_disk - app_js), sorted(app_js - on_disk))
+assert on_disk == idx_js, "on-disk views != index.html <script src>: only-disk=%s only-idx=%s" % (sorted(on_disk - idx_js), sorted(idx_js - on_disk))
+assert on_disk == bundled_js, "on-disk views != doctor BUNDLED: only-disk=%s only-bundled=%s" % (sorted(on_disk - bundled_js), sorted(bundled_js - on_disk))
+PY
+then
+  ok "dashboard view inventory is consistent across on-disk views/*.js, app.js VIEWS, index.html script tags, and doctor BUNDLED (no half-wired view)"
+else
+  bad "dashboard view inventory drifted: $(cat "$TMP/view_inv.err" 2>/dev/null)"
+fi
+
 # --- Test DASH-CMD-UNIT: commands.js recUsable / dispatchInvocation pure-function units ----
 # Replaces the `function recUsable` source grep above. The front-door render path only covers
 # recUsable's all-present/all-absent extremes and dispatchInvocation's codshard branch, so the
