@@ -18,7 +18,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Topic case files, sourced in the suite's historical order so output stays stable.
 # Each is a fragment (no shebang) that relies on the harness sourced above.
-CASES="statics-scaffold skill-contract skill-guards skill-graph-contract build-graph unit-engine lint-plan lint-final lifecycle doctor status cwd-relative state registry dashboard derive check-links golden-plan integration-scale commands install-aliases make-plugin bump-version"
+CASES="statics-scaffold skill-contract skill-guards skill-graph-contract build-graph unit-engine lint-plan lint-final lifecycle doctor status cwd-relative state registry dashboard derive check-links golden-plan integration-scale commands install-aliases make-plugin bump-version security"
 
 # Optional case-name filter: arguments select just those topic files for a focused
 # iteration loop. Every name is validated against the registered list FIRST — an
