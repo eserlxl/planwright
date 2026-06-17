@@ -1582,6 +1582,28 @@ setTimeout(function () {
   assert(/Environment preflight/.test(textOf(docC)),
     "doctor paint() did not render the preflight after /doctor.json resolved");
 
+  // Phase 4.4: pin the Doctor view's actual render, not just the heading, so a regression in
+  // doctor.js's verdict/badge/row painting fails CI. The stubbed /doctor.json (fetch above) is
+  // {total:5, warn:1, fail:0, checks:[git=ok, rg=warn]} — a warn-but-runnable preflight.
+  var docText = textOf(docC);
+  var docVerdict = findByClass(docC, "pw-doc-verdict");
+  assert(docVerdict.length === 1 && /is-warn/.test(classOf(docVerdict[0])) &&
+         /runnable/.test(textOf(docVerdict[0])) && /warnings/.test(textOf(docVerdict[0])),
+    "Doctor view verdict did not render is-warn 'runnable · warnings' for a warn>0/fail==0 payload");
+  assert(/5 checks/.test(docText) && /1 warn/.test(docText) && /0 fail/.test(docText),
+    "Doctor view sub-line did not render the 5 checks / 1 warn / 0 fail tally (got: " + docText + ")");
+  var docRows = findByClass(docC, "pw-doc-row");
+  assert(docRows.length === 2,
+    "Doctor view did not render one row per check (expected 2, got " + docRows.length + ")");
+  var docNames = findByClass(docC, "pw-doc-name").map(textOf);
+  assert(docNames.indexOf("git") >= 0 && docNames.indexOf("rg") >= 0,
+    "Doctor view rows dropped a check name (got: " + JSON.stringify(docNames) + ")");
+  var docBadges = findByClass(docC, "pw-doc-badge").map(textOf);
+  assert(docBadges.indexOf("OK") >= 0 && docBadges.indexOf("WARN") >= 0,
+    "Doctor view badges did not render OK/WARN (got: " + JSON.stringify(docBadges) + ")");
+  assert(/degrades: slower Stage 1 scan/.test(docText),
+    "Doctor view did not render the per-check degrades line for a non-ok check");
+
   // The initial WRONG-shaped /recommend.json body (REC_BODY above) has resolved by now;
   // the recUsable guard must have rejected it — still no panel on a fresh render.
   var cmdBad = new El("section");
