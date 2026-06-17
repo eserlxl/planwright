@@ -854,3 +854,21 @@ if printf '%s' "$rej_out" | python3 -c 'import json,sys; d=json.load(sys.stdin);
 else
   bad "lifecycle.py reconcile-sweep rejected-skip wrong (out='$rej_out')"
 fi
+
+# --- Test L21f: --dry-run leaves a PRE-EXISTING completed.md byte-identical ------------
+# L21c proves dry-run does not CREATE a completed.md on a fresh root; it never touches an
+# existing one either. Run dry-run against a populated completed.md and assert it is
+# byte-for-byte unchanged — a dry-run that appended/rewrote real content would slip past L21c.
+# Pre-record beta into a fresh root, snapshot the bytes, dry-run, re-check. With beta already
+# recorded, would-record is alpha+gamma (2) and skipped is beta(already-recorded)+Release+chore (3).
+mkdir -p "$TMP/lc21f/.planwright"
+python3 "$LC" reconcile --commit "$SW_BETA" --mode repair --root "$TMP/lc21f/.planwright" --repo "$SWT" >/dev/null 2>&1
+LC21F="$TMP/lc21f/.planwright/completed.md"
+cp "$LC21F" "$TMP/lc21f/completed.before"
+dry21f_out="$(python3 "$LC" reconcile-sweep --since "$SW_BASE" --mode repair --root "$TMP/lc21f/.planwright" --repo "$SWT" --dry-run --json)"
+if printf '%s' "$dry21f_out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["dry_run"] is True and len(d["recorded"])==2 and len(d["skipped"])==3' 2>/dev/null \
+   && cmp -s "$LC21F" "$TMP/lc21f/completed.before"; then
+  ok "lifecycle.py reconcile-sweep --dry-run leaves a pre-existing completed.md byte-identical"
+else
+  bad "lifecycle.py reconcile-sweep --dry-run mutated an existing completed.md (out='$dry21f_out')"
+fi
