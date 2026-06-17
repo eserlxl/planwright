@@ -51,7 +51,8 @@ def compute(cov_dir, root, include):
     acc = {}
     for fpath in files:
         try:
-            data = json.load(open(fpath, encoding="utf-8"))
+            with open(fpath, encoding="utf-8") as fh:
+                data = json.load(fh)
         except (OSError, ValueError):
             continue
         for script in data.get("result", []):
@@ -68,7 +69,8 @@ def compute(cov_dir, root, include):
             if include not in rel or "/vendor/" in rel or not os.path.exists(path):
                 continue
             try:
-                length = len(open(path, "rb").read())
+                with open(path, "rb") as fh:
+                    length = len(fh.read())
             except OSError:
                 continue
             ranges = []
