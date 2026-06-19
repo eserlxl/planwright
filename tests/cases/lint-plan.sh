@@ -792,6 +792,30 @@ done
 ctx_ctrl_rc=0; printf '{"focus": ["scripts/foo.py"], "context": []}\n' > "$TMP/scope_ctx_valid.json"
 python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_CTX" --scope "$TMP/scope_ctx_valid.json" --quiet || ctx_ctrl_rc=$?
 if [ "$ctx_noop_ok" -eq 1 ] && [ "$ctx_ctrl_rc" -ne 0 ]; then ok "lint-plan.py --scope no-ops on a non-list context half (dict/string) but enforces with a valid one"; else bad "lint-plan.py --scope context-half guard wrong (noop=$ctx_noop_ok ctrl=$ctx_ctrl_rc)"; fi
+
+# --- Test 12e-null: context:null activates scope with an EMPTY Context --------------
+# load_focus computes set(context or []), so context:null is scope-active + empty Context
+# (distinct from a list context). An out-of-Focus repair Surface then has no Context to
+# absorb it -> hard violation; the same Surface in a list Context is a non-failing
+# upstream advisory. This pins the null-vs-list distinction.
+SCP_NULL="$TMP/scope_null_plan.md"
+cat > "$SCP_NULL" <<'EOF'
+# planwright Plan — .
+
+- [ ] An out-of-focus repair
+      Mode: repair
+      Rationale: r.
+      Evidence: scripts/lint-plan.py:1 returns the wrong value.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+printf '{"focus": ["scripts/build-graph.py"], "context": null}\n' > "$TMP/scope_nullctx.json"
+printf '{"focus": ["scripts/build-graph.py"], "context": ["scripts/lint-plan.py"]}\n' > "$TMP/scope_listctx.json"
+nullctx_rc=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_NULL" --scope "$TMP/scope_nullctx.json" --quiet || nullctx_rc=$?
+listctx_rc=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_NULL" --scope "$TMP/scope_listctx.json" --quiet || listctx_rc=$?
+if [ "$nullctx_rc" -ne 0 ] && [ "$listctx_rc" -eq 0 ]; then ok "lint-plan.py --scope: context:null is scope-active with an empty Context (out-of-Focus repair fails), distinct from a list Context that absorbs it as an advisory"; else bad "lint-plan.py --scope null-vs-list context wrong (null=$nullctx_rc list=$listctx_rc)"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a completed item"; then ok "lint-plan.py notes a re-proposed completed item (advisory)"; else bad "lint-plan.py missed the completed-item advisory"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a rejected item"; then ok "lint-plan.py notes a re-proposed rejected item (advisory)"; else bad "lint-plan.py missed the rejected-item advisory"; fi
 # Advisory matches alone (no structural violation) must NOT fail the gate.
