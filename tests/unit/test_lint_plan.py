@@ -75,6 +75,23 @@ class TestEvidenceAnchorMultiReport(unittest.TestCase):
             self.assertIn("missing", kinds, f"the missing anchor must be reported, got {issues}")
 
 
+class TestEvidenceAnchorFormParity(unittest.TestCase):
+    """The two supported anchor spellings (path:N and path (line N)) must behave identically,
+    so a regex change cannot let one spelling silently bypass the grounding range check."""
+
+    def test_colon_and_paren_forms_yield_identical_issue(self):
+        with tempfile.TemporaryDirectory() as root:
+            with open(os.path.join(root, "small.py"), "w") as fh:
+                fh.write("a = 1\nb = 2\nc = 3\n")
+            colon = lp.evidence_anchor_issues("see small.py:99999", root)
+            paren = lp.evidence_anchor_issues("see small.py (line 99999)", root)
+            self.assertEqual(colon, paren,
+                             f"the :N and (line N) anchor forms must produce identical issues, "
+                             f"got colon={colon} paren={paren}")
+            self.assertTrue(colon and colon[0][1] == "out-of-range",
+                            f"expected an out-of-range issue, got {colon}")
+
+
 class TestEvidenceAnchorGitignore(unittest.TestCase):
     """planwright must never scan gitignored files — the Evidence range check must not open
     a file git deliberately excludes (a generated dist/ bundle, a vendored file)."""
