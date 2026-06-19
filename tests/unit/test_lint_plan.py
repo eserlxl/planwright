@@ -49,6 +49,32 @@ class TestEvidenceAnchorEscape(unittest.TestCase):
                              f"unexpected escape issue, got {issues}")
 
 
+class TestEvidenceAnchorMultiReport(unittest.TestCase):
+    """evidence_anchor_issues reports every distinct offending anchor while deduping repeats,
+    so an ungrounded plan item is never silently half-validated on a multi-anchor Evidence line."""
+
+    def test_two_distinct_missing_anchors_yield_two_issues(self):
+        with tempfile.TemporaryDirectory() as root:
+            issues = lp.evidence_anchor_issues("cites ghost_a.py:1 and ghost_b.py:2", root)
+            missing = sorted(p for p, kind, _ in issues if kind == "missing")
+            self.assertEqual(missing, ["ghost_a.py", "ghost_b.py"],
+                             f"both distinct missing anchors must be reported, got {issues}")
+
+    def test_repeated_anchor_deduped_to_one_issue(self):
+        with tempfile.TemporaryDirectory() as root:
+            issues = lp.evidence_anchor_issues("ghost.py:1 then ghost.py:1 again", root)
+            missing = [p for p, kind, _ in issues if kind == "missing" and p == "ghost.py"]
+            self.assertEqual(len(missing), 1,
+                             f"a repeated anchor must dedup to a single issue, got {issues}")
+
+    def test_mixed_escape_and_missing_each_reported(self):
+        with tempfile.TemporaryDirectory() as root:
+            issues = lp.evidence_anchor_issues("traces to ../outside.py:1 and ghost.py:2", root)
+            kinds = {kind for _, kind, _ in issues}
+            self.assertIn("escape", kinds, f"the escape anchor must be reported, got {issues}")
+            self.assertIn("missing", kinds, f"the missing anchor must be reported, got {issues}")
+
+
 class TestEvidenceAnchorGitignore(unittest.TestCase):
     """planwright must never scan gitignored files — the Evidence range check must not open
     a file git deliberately excludes (a generated dist/ bundle, a vendored file)."""
