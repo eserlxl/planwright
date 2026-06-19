@@ -310,6 +310,36 @@ pd_rc=0
 pd_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PH_DOTS" 2>&1)" || pd_rc=$?
 if [ "$pd_rc" -ne 0 ] && printf '%s' "$pd_out" | grep -qF "is a placeholder"; then ok "lint-plan.py rejects an all-dots '...' Verification placeholder"; else bad "lint-plan.py accepted an all-dots '...' Verification"; fi
 
+# --- Test 12d-conserv: runnability gate stays conservative-by-design ---------------
+# Two sides of the conservative contract: an inline interpreter snippet raises NO
+# missing-script advisory (verification_missing_script exempts the -c quiet path), and a
+# single-token command is never flagged as prose (is_prose_verification needs >=2 tokens).
+# Both items must lint clean even under --strict (which would promote any advisory).
+CONSV="$TMP/conserv_plan.md"
+cat > "$CONSV" <<'EOF'
+# planwright Plan — .
+
+- [ ] Item with an inline -c snippet verification
+      Mode: develop
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: python3 -c "import sys; sys.exit(0)"
+
+- [ ] Item with a single-token verification
+      Mode: develop
+      Rationale: r.
+      Evidence: scripts/plan_parse.py exists.
+      Surfaces: scripts/plan_parse.py
+      Development: edit parse_items().
+      Acceptance: green.
+      Verification: true
+EOF
+cv_rc=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$CONSV" --strict --quiet || cv_rc=$?
+if [ "$cv_rc" -eq 0 ]; then ok "lint-plan.py stays conservative: a -c snippet raises no missing-script advisory and a single-token command is not prose (clean under --strict)"; else bad "lint-plan.py over-flagged a conservative Verification (rc=$cv_rc)"; fi
+
 # --- Test 12h: prose Verification (no command signal, unknown first token) -------
 # Beyond the fixed PLACEHOLDER_VERIFICATION set, is_prose_verification() flags a
 # multi-word value that carries no command-signal char AND whose first token is not a
