@@ -603,6 +603,33 @@ else
   bad "lint-plan.py --strict rejected-match wrong (default=$sr_def strict=$sr_strict)"
 fi
 
+# --- Test 12d-strict-anchor: --strict promotes a NON-repair ghost/out-of-range anchor -
+# The Mode-keyed Evidence-anchor severity split (lint-plan.py lint_item) makes a ghost or
+# out-of-range anchor a FAILING violation only on a `repair` item (Test 12b pins that leg);
+# on every other Mode it is a non-failing advisory. This pins the NON-repair leg: a
+# `develop` item citing a non-existent path AND an out-of-range line on a real file stays
+# clean by default (exit 0) and fails under --strict (exit 1, advisory promoted).
+SDIRA="$TMP/strictdir_anchor"; mkdir -p "$SDIRA"
+cat > "$SDIRA/plan.md" <<EOF
+# planwright Plan — .
+
+- [ ] Develop citing a ghost and an out-of-range anchor
+      Mode: develop
+      Rationale: r.
+      Evidence: scripts/ghost_does_not_exist.py:99999 and scripts/lint-plan.py:99999 are cited but unresolvable.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+sa_def=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SDIRA/plan.md" --quiet || sa_def=$?
+sa_strict=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SDIRA/plan.md" --strict --quiet || sa_strict=$?
+if [ "$sa_def" = 0 ] && [ "$sa_strict" = 1 ]; then
+  ok "lint-plan.py --strict promotes a non-repair ghost/out-of-range Evidence anchor to a failure (default stays clean)"
+else
+  bad "lint-plan.py --strict non-repair anchor wrong (default=$sa_def strict=$sa_strict)"
+fi
+
 # --- Test 12e: lint-plan.py --scope mechanizes the Stage 10 Surfaces-in-Focus gate
 # Reads the builder's focus/context sets: a Surface in Focus passes; an out-of-Focus
 # existing Surface fails (a non-repair in Context, or anything outside Context); a
