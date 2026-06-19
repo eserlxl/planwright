@@ -1336,8 +1336,9 @@ assert(findByClass(planBareXl, "pw-xlink lang-").length === 0,
   "Plan drew a cross-link chip with no metrics (crossLinks must return null)");
 
 // Targeted: the Console home page renders the shared Recent-contributions card (PW_UI.contribCard)
-// in the right rail ABOVE the dirty pulse — COMPACT: a pw-section-mini heading (matching the
-// Console's other section labels, not pw-panel-title), mode+title items only, and NO sub-line /
+// in the right rail ABOVE the dirty pulse — COMPACT: a two-tab strip ("Recent contributions" |
+// "Rejected") in the mini-heading look (matching the Console's other section labels, never the
+// big pw-panel-title scale), mode+title items only, and NO sub-line /
 // commit stamp / "showing N of M" foot / final-point line (the Commands panel carries all of those;
 // the home card is a glance).
 var conC = new El("section");
@@ -1360,9 +1361,15 @@ assert(idxOfClass(conSideKids, "pw-contrib") >= 0 &&
 var conCardText = textOf(conContrib[0]);
 assert(/Recent contributions/.test(conCardText) && /shipped/.test(conCardText),
   "Console contributions card must show the heading and the completed item's mode+title");
-assert(findByClass(conContrib[0], "pw-section-mini").length === 1 &&
-       findByClass(conContrib[0], "pw-panel-title").length === 0,
-  "Console (compact) contributions heading must use pw-section-mini, not pw-panel-title");
+// The card heading is now a two-tab strip ("Recent contributions" | "Rejected"), so there is no
+// standalone pw-section-mini / pw-panel-title heading element any more. The compact rail must
+// avoid the big pw-panel-title scale and expose both tabs as role="tab" buttons.
+var conTabs = findByClass(conContrib[0], "pw-contrib-tab").filter(function (n) { return classOf(n) === "pw-contrib-tab"; });
+assert(conTabs.length === 2 && findByClass(conContrib[0], "pw-panel-title").length === 0,
+  "Console (compact) contributions card must render the two-tab strip and no pw-panel-title heading");
+assert(conTabs.every(function (b) { return b.getAttribute("role") === "tab"; }),
+  "compact contributions tabs must carry role=\"tab\"");
+assert(/Rejected/.test(conCardText), "compact contributions card must surface the Rejected tab next to Recent contributions");
 assert(!/abc1234/.test(conCardText), "Console (compact) contributions card must omit the commit hash");
 assert(!/rejected this run/.test(conCardText), "Console (compact) contributions card must omit the accepted/rejected sub-line");
 assert(!/Final point:/.test(conCardText), "Console (compact) contributions card must omit the final-point line");
@@ -1562,6 +1569,148 @@ assert(/abc1234/.test(textOf(cmdC)),
   "Commands contributions list dropped the completed item's Commit provenance stamp");
 assert(/rejected this run/.test(textOf(cmdC)),
   "Commands contributions card must keep its accepted/rejected sub-line");
+
+// Targeted: the contributions card's Rejected tab (PW_UI.contribCard). The card carries two
+// role="tab" buttons; "Recent contributions" is active by default (every assertion above reads
+// the accepted body), and clicking "Rejected" swaps the body to the run's cut items, each with
+// its recorded reason from state.rejected ([{title, reason}]). The fixture rejected log is
+// [{title:"bad idea", reason:"value-gate: no consumer"}]. Driven on the DETAILED (Commands) card;
+// the compact card shares the code path. Resets to the accepted tab at the end so the module-
+// level activeTab does not leak into any later contrib render in this process.
+function exactClass(node, cls) {
+  return findByClass(node, cls).filter(function (n) { return classOf(n) === cls; });
+}
+function tabByLabel(tabs, label) {
+  return tabs.filter(function (b) { return textOf(b).indexOf(label) >= 0; })[0];
+}
+var rtC = new El("section");
+win.PW_VIEWS.commands(rtC, state, fullCtx);
+var rtCard = findByClass(rtC, "pw-panel pw-contrib")[0];
+assert(rtCard, "commands view did not render the contributions card");
+var rtTabs = exactClass(rtCard, "pw-contrib-tab");
+assert(rtTabs.length === 2, "contributions card did not render exactly two tabs (accepted + rejected)");
+var acceptedTab = tabByLabel(rtTabs, "Recent contributions");
+var rejectedTab = tabByLabel(rtTabs, "Rejected");
+assert(acceptedTab && rejectedTab, "contributions card is missing the Recent-contributions or Rejected tab");
+assert(acceptedTab.getAttribute("role") === "tab" && rejectedTab.getAttribute("role") === "tab",
+  "contribution tabs must carry role=\"tab\"");
+// The Rejected tab reads "Rejected" with no count badge (the count lives in the body / reactor).
+assert(textOf(rejectedTab).indexOf("Rejected") >= 0 && !/\d/.test(textOf(rejectedTab)),
+  "Rejected tab label must read 'Rejected' with no rejected-count badge");
+// Default: accepted active, body shows the completed item and NOT the rejection reason.
+assert(acceptedTab.getAttribute("aria-selected") === "true" && rejectedTab.getAttribute("aria-selected") === "false",
+  "contributions card did not default to the accepted tab");
+var rtBody = findByClass(rtCard, "pw-contrib-body")[0];
+assert(rtBody, "contributions card has no swappable body region");
+assert(/shipped/.test(textOf(rtBody)) && !/value-gate/.test(textOf(rtBody)),
+  "default (accepted) tab body should show completed items, not rejected reasons");
+// Click "Rejected": the body swaps to the cut item + its reason; active flags follow.
+rejectedTab.click();
+assert(rejectedTab.getAttribute("aria-selected") === "true" && acceptedTab.getAttribute("aria-selected") === "false",
+  "clicking the Rejected tab did not move aria-selected onto it");
+assert(rejectedTab.classList.contains("is-active") && !acceptedTab.classList.contains("is-active"),
+  "clicking the Rejected tab did not move the is-active class onto it");
+var rtRejText = textOf(findByClass(rtCard, "pw-contrib-body")[0]);
+assert(/bad idea/.test(rtRejText) && /value-gate: no consumer/.test(rtRejText),
+  "Rejected tab body did not render the rejected item's title and recorded reason");
+assert(!/shipped/.test(rtRejText), "Rejected tab body still showed the accepted item after the swap");
+assert(exactClass(findByClass(rtCard, "pw-contrib-body")[0], "pw-contrib-item is-rejected").length === 1,
+  "Rejected tab body did not render exactly one rejected item row");
+// Persistence: app.js rebuilds the card on every SSE tick, so a fresh render must keep the user
+// on the Rejected tab (the choice lives in a module var, not in throwaway DOM).
+var rtC2 = new El("section");
+win.PW_VIEWS.commands(rtC2, state, fullCtx);
+var rtCard2 = findByClass(rtC2, "pw-panel pw-contrib")[0];
+assert(tabByLabel(exactClass(rtCard2, "pw-contrib-tab"), "Rejected").getAttribute("aria-selected") === "true",
+  "the Rejected tab selection did not persist across a re-render");
+assert(/value-gate: no consumer/.test(textOf(findByClass(rtCard2, "pw-contrib-body")[0])),
+  "the re-rendered card did not stay on the Rejected tab's body");
+// Empty rejected log: the Rejected tab shows a 'nothing rejected' empty state.
+var noRejState = Object.assign({}, state, { rejected: [], counts: Object.assign({}, state.counts, { rejected: 0 }) });
+var rtC3 = new El("section");
+win.PW_VIEWS.commands(rtC3, noRejState, fullCtx);
+var rtCard3 = findByClass(rtC3, "pw-panel pw-contrib")[0];
+var rejTab3 = tabByLabel(exactClass(rtCard3, "pw-contrib-tab"), "Rejected");
+rejTab3.click();   // no-op if the persisted tab is already 'rejected'; either way the body is rejected
+assert(/Nothing rejected/.test(textOf(findByClass(rtCard3, "pw-contrib-body")[0])),
+  "an empty rejected log did not render the 'nothing rejected' empty state");
+// ARIA tab/panel association: each tab points at the panel via aria-controls, the panel carries
+// that id, and aria-labelledby tracks the active tab (rtCard3 is currently on the Rejected tab).
+var rtPanel = findByClass(rtCard3, "pw-contrib-body")[0];
+var rtTabs3b = exactClass(rtCard3, "pw-contrib-tab");
+assert(!!rtPanel.getAttribute("id") &&
+       rtTabs3b.every(function (b) { return b.getAttribute("aria-controls") === rtPanel.getAttribute("id"); }),
+  "every tab must reference the panel via aria-controls and the panel must carry that id");
+assert(rtPanel.getAttribute("aria-labelledby") === tabByLabel(rtTabs3b, "Rejected").getAttribute("id"),
+  "the tabpanel's aria-labelledby must track the active (Rejected) tab");
+
+// Arrow-key roving (ui.js keydown handler). The harness auto-dispatches click only, so fire
+// keydown by hand against the tablist. ArrowRight moves accepted->rejected and wraps back;
+// ArrowLeft wraps the other way.
+function fireKey(el, k) {
+  ((el && el._ev && el._ev.keydown) || []).forEach(function (fn) { fn.call(el, { key: k, preventDefault: function () {} }); });
+}
+var akC = new El("section");
+win.PW_VIEWS.commands(akC, state, fullCtx);
+var akCard = findByClass(akC, "pw-panel pw-contrib")[0];
+var akTabs = exactClass(akCard, "pw-contrib-tab");
+var akTablist = findByClass(akCard, "pw-contrib-tabs").filter(function (n) { return classOf(n) === "pw-contrib-tabs"; })[0];
+tabByLabel(akTabs, "Recent contributions").click();   // a prior block may have left the module var on rejected
+assert(tabByLabel(akTabs, "Recent contributions").getAttribute("aria-selected") === "true", "arrow-key fixture did not start on accepted");
+fireKey(akTablist, "ArrowRight");
+assert(tabByLabel(akTabs, "Rejected").getAttribute("aria-selected") === "true",
+  "ArrowRight did not move the active tab accepted->rejected");
+fireKey(akTablist, "ArrowRight");
+assert(tabByLabel(akTabs, "Recent contributions").getAttribute("aria-selected") === "true",
+  "ArrowRight did not wrap rejected->accepted");
+fireKey(akTablist, "ArrowLeft");
+assert(tabByLabel(akTabs, "Rejected").getAttribute("aria-selected") === "true",
+  "ArrowLeft did not wrap accepted->rejected");
+
+// Compact (Console rail) tab interaction: the same code path must swap there too and stay minimal
+// (no sub-line / foot) even on the Rejected tab.
+var cpC = new El("section");
+win.PW_VIEWS.console(cpC, state, fullCtx);
+var cpCard = findByClass(cpC, "pw-panel pw-contrib")[0];
+var cpTabs = exactClass(cpCard, "pw-contrib-tab");
+tabByLabel(cpTabs, "Rejected").click();
+assert(/bad idea/.test(textOf(findByClass(cpCard, "pw-contrib-body")[0])), "compact Rejected tab did not render the rejected item");
+assert(findByClass(cpCard, "pw-panel-sub").length === 0 && findByClass(cpCard, "pw-panel-foot").length === 0,
+  "compact Rejected tab must stay minimal (no sub-line / foot)");
+tabByLabel(cpTabs, "Recent contributions").click();   // restore the compact module var
+
+// Rejected-item edge data: a missing title falls back to "(untitled)", an empty reason renders no
+// reason span (and a present reason exposes its full text via the title attr), and a >8 log shows
+// the "showing the 8 most recent of N rejected" foot on the detailed card.
+var manyRej = [];
+for (var mri = 0; mri < 9; mri++) { manyRej.push({ title: "rej " + mri, reason: "reason " + mri }); }
+manyRej.push({ title: "", reason: "" });   // untitled + reasonless, last so it survives slice(-8)
+var edgeState = Object.assign({}, state, { rejected: manyRej, counts: Object.assign({}, state.counts, { rejected: manyRej.length }) });
+var edgeC = new El("section");
+win.PW_VIEWS.commands(edgeC, edgeState, fullCtx);
+var edgeCard = findByClass(edgeC, "pw-panel pw-contrib")[0];
+tabByLabel(exactClass(edgeCard, "pw-contrib-tab"), "Rejected").click();
+var edgeBody = findByClass(edgeCard, "pw-contrib-body")[0];
+assert(/\(untitled\)/.test(textOf(edgeBody)), "a rejected item with no title did not fall back to (untitled)");
+var edgeFoot = findByClass(edgeCard, "pw-panel-foot");
+assert(edgeFoot.length === 1 && /8 most recent of 10 rejected/.test(textOf(edgeFoot[0])),
+  "the detailed Rejected tab did not show the 'showing the 8 most recent of N rejected' foot past 8 items");
+var edgeRows = exactClass(edgeBody, "pw-contrib-item is-rejected");
+var untitledRow = edgeRows.filter(function (li) { return /\(untitled\)/.test(textOf(li)); })[0];
+assert(untitledRow && findByClass(untitledRow, "pw-contrib-reason").length === 0,
+  "a rejected item with an empty reason must render no reason span");
+var reasonRow = edgeRows.filter(function (li) { return /rej 8/.test(textOf(li)); })[0];
+var reasonSpan = reasonRow && findByClass(reasonRow, "pw-contrib-reason")[0];
+assert(reasonSpan && reasonSpan.title === "reason 8",
+  "a rejected reason span must expose the full reason via its title (tooltip) for truncated text");
+
+// Reset the shared activeTab back to the accepted default so later contrib renders are unaffected.
+tabByLabel(exactClass(rtCard3, "pw-contrib-tab"), "Recent contributions").click();
+var rtReset = new El("section");
+win.PW_VIEWS.commands(rtReset, state, fullCtx);
+assert(tabByLabel(exactClass(findByClass(rtReset, "pw-panel pw-contrib")[0], "pw-contrib-tab"), "Recent contributions")
+  .getAttribute("aria-selected") === "true",
+  "failed to reset the contributions card back to the accepted tab");
 
 // Targeted regression (load order): in the real browser ui.js (index.html loads it before the
 // views) creates window.PW_UI WITHOUT planMode, so plan.js must seed the "all" default itself
