@@ -114,6 +114,26 @@ class TestUnsafeSurfaceContainment(unittest.TestCase):
                                  "resolves outside the repo root")
 
 
+class TestVerificationMissingScript(unittest.TestCase):
+    """verification_missing_script() flags a referenced-but-absent interpreter script while
+    staying conservative — it never flags an existing script, an inline -c snippet, or a
+    non-interpreter runner."""
+
+    def test_missing_interpreter_script_is_flagged(self):
+        self.assertEqual(lp.verification_missing_script("python3 scripts/nope.py", _ROOT),
+                         "scripts/nope.py")
+
+    def test_existing_script_is_not_flagged(self):
+        self.assertIsNone(lp.verification_missing_script("python3 scripts/lint-plan.py", _ROOT))
+
+    def test_inline_c_snippet_is_not_flagged(self):
+        self.assertIsNone(
+            lp.verification_missing_script('python3 -c "import sys; sys.exit(0)"', _ROOT))
+
+    def test_non_interpreter_runner_is_not_flagged(self):
+        self.assertIsNone(lp.verification_missing_script("make test", _ROOT))
+
+
 class TestEvidenceAnchorGitignore(unittest.TestCase):
     """planwright must never scan gitignored files — the Evidence range check must not open
     a file git deliberately excludes (a generated dist/ bundle, a vendored file)."""
