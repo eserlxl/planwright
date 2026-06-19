@@ -92,6 +92,19 @@ class TestEvidenceAnchorFormParity(unittest.TestCase):
                             f"expected an out-of-range issue, got {colon}")
 
 
+class TestUnsafeSurfaceContainment(unittest.TestCase):
+    """unsafe_surface() is execute mode's edit-boundary guard; its rejection branches must
+    each be pinned so a containment escape can never be silently accepted."""
+
+    def test_drive_absolute_surface_rejected(self):
+        # A Windows drive-absolute path (forward- or back-slashed) is absolute, not
+        # repo-relative — the np[1] == ":" branch must reject it with the absolute reason.
+        with tempfile.TemporaryDirectory() as root:
+            reason = "absolute path (Surfaces must be repo-relative)"
+            self.assertEqual(lp.unsafe_surface("C:/Users/x", root), reason)
+            self.assertEqual(lp.unsafe_surface("C:\\Users\\x", root), reason)
+
+
 class TestEvidenceAnchorGitignore(unittest.TestCase):
     """planwright must never scan gitignored files — the Evidence range check must not open
     a file git deliberately excludes (a generated dist/ bundle, a vendored file)."""
