@@ -764,6 +764,34 @@ for sg in '[]' '42' '{"focus": 5}'; do
   python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_BAD" --scope "$SCG_BAD" --quiet || scp_corrupt_ok=0
 done
 if [ "$scp_corrupt_ok" -eq 1 ]; then ok "lint-plan.py --scope no-ops on a corrupt scope graph (not a crash)"; else bad "lint-plan.py --scope crashed or enforced on a corrupt scope graph"; fi
+
+# --- Test 12e-ctx: a non-list CONTEXT half also degrades to no-scope (no-op) --------
+# Test 12t pins the focus half (a string focus); the context half is its unpinned twin.
+# load_focus requires isinstance(context, (list, type(None))) — a dict or string context
+# (with a valid list focus) must no-op (no scope active), like the focus half, not
+# partially activate scope. An out-of-Focus item then lints clean.
+SCP_CTX="$TMP/scope_ctx_plan.md"
+cat > "$SCP_CTX" <<'EOF'
+# planwright Plan — .
+
+- [ ] An out-of-focus item
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: scripts/lint-plan.py
+      Development: edit main().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+ctx_noop_ok=1
+for badctx in '{"focus": ["scripts/foo.py"], "context": {}}' '{"focus": ["scripts/foo.py"], "context": "scripts/foo.py"}'; do
+  SCG_CTX="$TMP/scope_badctx.json"; printf '%s\n' "$badctx" > "$SCG_CTX"
+  python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_CTX" --scope "$SCG_CTX" --quiet || ctx_noop_ok=0
+done
+# Control: the SAME out-of-focus item DOES fail under a well-formed (list-context) scope.
+ctx_ctrl_rc=0; printf '{"focus": ["scripts/foo.py"], "context": []}\n' > "$TMP/scope_ctx_valid.json"
+python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$SCP_CTX" --scope "$TMP/scope_ctx_valid.json" --quiet || ctx_ctrl_rc=$?
+if [ "$ctx_noop_ok" -eq 1 ] && [ "$ctx_ctrl_rc" -ne 0 ]; then ok "lint-plan.py --scope no-ops on a non-list context half (dict/string) but enforces with a valid one"; else bad "lint-plan.py --scope context-half guard wrong (noop=$ctx_noop_ok ctrl=$ctx_ctrl_rc)"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a completed item"; then ok "lint-plan.py notes a re-proposed completed item (advisory)"; else bad "lint-plan.py missed the completed-item advisory"; fi
 if printf '%s' "$ld_out" | grep -qF "matches a rejected item"; then ok "lint-plan.py notes a re-proposed rejected item (advisory)"; else bad "lint-plan.py missed the rejected-item advisory"; fi
 # Advisory matches alone (no structural violation) must NOT fail the gate.
