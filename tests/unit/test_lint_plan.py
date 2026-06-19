@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(_HERE))
@@ -103,6 +104,14 @@ class TestUnsafeSurfaceContainment(unittest.TestCase):
             reason = "absolute path (Surfaces must be repo-relative)"
             self.assertEqual(lp.unsafe_surface("C:/Users/x", root), reason)
             self.assertEqual(lp.unsafe_surface("C:\\Users\\x", root), reason)
+
+    def test_commonpath_valueerror_degrades_to_outside_root(self):
+        # When os.path.commonpath raises (uncomparable roots / different drive), the
+        # containment guard must degrade-not-crash: contained=False -> reject as outside.
+        with tempfile.TemporaryDirectory() as root:
+            with mock.patch("os.path.commonpath", side_effect=ValueError):
+                self.assertEqual(lp.unsafe_surface("sub/file.py", root),
+                                 "resolves outside the repo root")
 
 
 class TestEvidenceAnchorGitignore(unittest.TestCase):
