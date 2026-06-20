@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.64.2] - 2026-06-20
+
+### Changed
+- Large test-coverage hardening pass (~65 new behavioral assertions across lifecycle/state, the nine dashboard view render paths, build-graph import_cycles + coupling thresholds, packaging/make-plugin/bump-version rollback, and the skill/lint contracts); plus catch SubprocessError in lint-plan's gitignore cache.
+
 ## [1.64.1] - 2026-06-17
 
 ### Changed
