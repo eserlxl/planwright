@@ -193,5 +193,32 @@ class TestProseVerification(unittest.TestCase):
                             f"{phrase!r} should be flagged as prose")
 
 
+class TestIsGitignored(unittest.TestCase):
+    """is_gitignored degrades to False (undeterminable -> not-ignored) instead of crashing the
+    linter when `git check-ignore` times out: the except clause must catch
+    subprocess.SubprocessError (TimeoutExpired is not an OSError), matching the repo-wide
+    convention. Guards against the clause being narrowed back to `except OSError`."""
+
+    def test_timeout_degrades_to_false(self):
+        lp._IGNORE_CACHE.clear()
+        with mock.patch.object(lp.subprocess, "run",
+                               side_effect=subprocess.TimeoutExpired("git", 5)):
+            self.assertIs(lp.is_gitignored(".", "some/path.py"), False)
+
+    def test_ignored_path_returns_true(self):
+        # returncode 0 (git confirms the path is ignored) still maps to True.
+        lp._IGNORE_CACHE.clear()
+        with mock.patch.object(lp.subprocess, "run",
+                               return_value=mock.Mock(returncode=0)):
+            self.assertIs(lp.is_gitignored(".", "dist/bundle.js"), True)
+
+    def test_not_ignored_path_returns_false(self):
+        # returncode 1 (not ignored) maps to False, unchanged by the widened except.
+        lp._IGNORE_CACHE.clear()
+        with mock.patch.object(lp.subprocess, "run",
+                               return_value=mock.Mock(returncode=1)):
+            self.assertIs(lp.is_gitignored(".", "src/main.py"), False)
+
+
 if __name__ == "__main__":
     unittest.main()
