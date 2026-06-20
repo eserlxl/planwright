@@ -258,6 +258,33 @@ else
   bad "build-graph.py --debug digest is not byte-stable across runs: $(diff "$TMP/dbg_e1" "$TMP/dbg_e2" 2>&1 | head -3)"
 fi
 
+# --- Test 10c2c: build-graph.py --debug + --prior digest composition is deterministic ---
+# The --debug + --prior lap path is the slice neither the digest tests (no --prior) nor the
+# byte-stability test (no --debug) reach. Capture a first-run prior, then run --debug --prior
+# twice on the unchanged tree: stdout must be valid JSON with dirty.is_first_run False (the
+# incremental path actually ran), and the two stderr digests must be byte-identical.
+DPREPO="$TMP/debug_prior"; mkdir -p "$DPREPO"
+git -C "$DPREPO" init -q
+printf '#!/usr/bin/env bash\nsource mid.sh\nleft(){ echo;}\n' > "$DPREPO/left.sh"
+printf '#!/usr/bin/env bash\nsource mid.sh\nright(){ echo;}\n' > "$DPREPO/right.sh"
+printf '#!/usr/bin/env bash\nsource leaf.sh\nmid(){ echo;}\n' > "$DPREPO/mid.sh"
+printf '#!/usr/bin/env bash\nleaf(){ echo;}\n' > "$DPREPO/leaf.sh"
+git -C "$DPREPO" add -A && git -C "$DPREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+python3 "$ROOT/scripts/build-graph.py" --root "$DPREPO" > "$TMP/dp_prior.json" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$DPREPO" --prior "$TMP/dp_prior.json" --debug > "$TMP/dp_o1.json" 2>"$TMP/dp_e1"
+python3 "$ROOT/scripts/build-graph.py" --root "$DPREPO" --prior "$TMP/dp_prior.json" --debug > "$TMP/dp_o2.json" 2>"$TMP/dp_e2"
+dp_json_ok=1
+python3 - "$TMP/dp_o1.json" <<'PY' 2>/dev/null || dp_json_ok=0
+import json, sys
+g = json.load(open(sys.argv[1]))                       # stdout must be clean JSON despite --debug
+assert g["dirty"]["is_first_run"] is False, g["dirty"]  # the incremental --prior path ran
+PY
+if [ "$dp_json_ok" = 1 ] && grep -q "build-graph debug" "$TMP/dp_e1" && cmp -s "$TMP/dp_e1" "$TMP/dp_e2"; then
+  ok "build-graph.py --debug --prior composition is deterministic (clean JSON, incremental dirty, byte-stable digest)"
+else
+  bad "build-graph.py --debug --prior composition is non-deterministic or polluted stdout: $(diff "$TMP/dp_e1" "$TMP/dp_e2" 2>&1 | head -3)"
+fi
+
 # --- Test 10d: SKILL.md wires the seeded invent framing to the builder catalog ---
 # Contract between SKILL.md and build-graph.py for lever 2 (seeded framing): the prose
 # must document the seed option, ride on --seed/explore_framing, record invent_framing,
