@@ -334,3 +334,23 @@ if "qb hand-off to paste" not in t: need.append("safe-prints-qb-handoff")
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md states `safe` mode never runs qb and prints the qb hand-off to paste"; else bad "SKILL.md safe-mode qb-exclusion (or its hand-off disclosure) missing/regressed"; fi
+
+# --- Test 10q: SKILL.md pins the apply-time value-gate four-check definition -----------
+# Execute's per-item value gate (keep/kill before applying) is defined by four named checks:
+# (a) named failure, (b) removal test, (c) real consumer, (d) not self-justifying. This is the
+# quality bar that stops padded items; it is documented in SKILL.md but unpinned (the existing
+# value-gate test hits are reason-string round-trip bookkeeping). Assert all four are named, so
+# silently dropping or renaming a check fails the suite.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1]).read()
+need = []
+for label, pat in [("a:named-failure", r"\(a\)[^\n]*named failure"),
+                   ("b:removal-test", r"\(b\)[^\n]*removal test"),
+                   ("c:real-consumer", r"\(c\)[^\n]*real consumer"),
+                   ("d:not-self-justifying", r"\(d\)[^\n]*not self-justifying")]:
+    if not re.search(pat, t):
+        need.append(label)
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md pins the value-gate four-check definition (named failure / removal test / real consumer / not self-justifying)"; else bad "a value-gate keep/kill check is missing or renamed in SKILL.md"; fi
