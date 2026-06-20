@@ -307,3 +307,24 @@ sys.exit(0 if good else 1)
 PY
 then ok "SKILL.md OUTPUT FORMAT field set agrees with lint-plan REQUIRED_FIELDS/KNOWN_FIELDS"; else bad "SKILL.md item field set drifted from lint-plan REQUIRED_FIELDS/KNOWN_FIELDS"; fi
 
+# --- Test 10g: SKILL.md Mode table agrees with lint-plan VALID_MODES ---
+# The five-Mode set must stay consistent across SKILL.md's Mode-assignment table and the
+# linter's VALID_MODES: a Mode cannot be added or renamed in one without the other.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import importlib.util, os, re, sys
+root = sys.argv[1]
+spec = importlib.util.spec_from_file_location(
+    "lint_plan_modes", os.path.join(root, "scripts", "lint-plan.py"))
+lp = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(lp)
+t = open(os.path.join(root, "skills/planwright/SKILL.md")).read()
+i = t.find("### Mode assignment")
+if i < 0:
+    raise SystemExit(1)
+j = t.find("\n## ", i)
+table = t[i:j if j > i else len(t)]
+modes = set(re.findall(r"(?m)^\|\s*`([a-z]+)`\s*\|", table))
+sys.exit(0 if modes == lp.VALID_MODES else 1)
+PY
+then ok "SKILL.md Mode table agrees with lint-plan VALID_MODES"; else bad "SKILL.md Mode set drifted from lint-plan VALID_MODES"; fi
+
