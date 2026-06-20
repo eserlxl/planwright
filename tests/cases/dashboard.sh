@@ -2410,6 +2410,26 @@ assert documented == on_disk, ("map<->disk drift, symmetric diff: " + repr(sorte
 PY
 then ok "coverage map's view-module set matches scripts/dashboard/views/*.js on disk (fails on drift)"; else bad "coverage map's documented view-module set drifted from scripts/dashboard/views/*.js"; fi
 
+# --- Test DASH-COV-MAP-ANCHORS: the coverage map's credited harness anchors/bootstrap exist
+# The coverage map credits specific harness anchors (DASH-VIEWS-FN, DASH-INSIGHTS-RENDER, the
+# click/degraded blocks, DASH-FN) and the shared bootstrap (tests/cases/lib/dashboard-vm.js).
+# Nothing gates them, so renaming a credited block leaves the map silently false. Pin it: every
+# DASH-* anchor the map names must exist as a `Test <anchor>` block in dashboard.sh, and the
+# credited bootstrap path must exist on disk. Pure stdlib — no node.
+if python3 - "$ROOT/docs/dashboard-js-coverage-map.md" "$ROOT/tests/cases/dashboard.sh" "$ROOT/tests/cases/lib/dashboard-vm.js" <<'PY' 2>/dev/null
+import os, re, sys
+mapdoc = open(sys.argv[1], encoding="utf-8").read()
+harness = open(sys.argv[2], encoding="utf-8").read()
+bootstrap = sys.argv[3]
+anchors = sorted(set(re.findall(r"DASH-[A-Z0-9-]+", mapdoc)))
+assert anchors, "no DASH-* anchors parsed from the coverage map"
+missing = [a for a in anchors if not re.search(r"Test %s[: ]" % re.escape(a), harness)]
+assert not missing, "map credits anchors with no Test block in dashboard.sh: " + repr(missing)
+assert "tests/cases/lib/dashboard-vm.js" in mapdoc, "map no longer credits the shared bootstrap"
+assert os.path.isfile(bootstrap), "credited bootstrap path missing: " + bootstrap
+PY
+then ok "coverage map's credited harness anchors all resolve to Test blocks and the bootstrap path exists (fails on rename)"; else bad "coverage map credits a harness anchor or bootstrap that no longer exists"; fi
+
 # --- Test DASH-JS-COVERAGE: the node-gated view-load path emits V8 coverage --------
 # Phase 1.4 prerequisite for a CI JS coverage floor (the Python --fail-under=90 analog).
 # Run the shared view loader under NODE_V8_COVERAGE and assert a coverage JSON keyed to a
