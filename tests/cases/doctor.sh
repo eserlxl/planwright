@@ -514,3 +514,39 @@ if grep -qF '/planwright doctor' "$ROOT/README.md" \
 else
   bad "README doctor onboarding reference drifted from SKILL.md's canonical /planwright doctor usage"
 fi
+
+# --- Test DR15: doctor's reported port equals dashboard.DEFAULT_PORT (honors PW_DASH_PORT) -
+# check_dashboard_port reads dashboard.DEFAULT_PORT via a guarded lazy import with a hard-coded
+# 8765 fallback; DR14 only asserts the port record is present + warn-only, never that the port it
+# reports equals dashboard's actual default. If the two diverge, doctor silently preflights the
+# WRONG port. Pin agreement at the default AND under PW_DASH_PORT, computing the expected port the
+# SAME guarded way (so it holds whether or not the dashboard import succeeds — both fall back to 8765).
+DRP="$TMP/doctor-port-eq"; mkdir -p "$DRP"; git -C "$DRP" init -q
+dr15_check() {
+  python3 - "$DOC" "$ROOT" "$DRP" <<'PY'
+import json, os, re, subprocess, sys
+doc, root, drp = sys.argv[1:4]
+expected = 8765
+try:
+    sys.path.insert(0, os.path.join(root, "scripts"))
+    import dashboard
+    expected = int(dashboard.DEFAULT_PORT)
+except Exception:
+    expected = 8765
+out = subprocess.run([sys.executable, doc, "--root", drp, "--json"],
+                     capture_output=True, text=True).stdout
+names = [r["name"] for r in json.loads(out)["checks"] if "is bindable" in r["name"]]
+assert names, "no port record"
+m = re.search(r"127\.0\.0\.1:(\d+)", names[0])
+assert m, "no port in record name: " + names[0]
+reported = int(m.group(1))
+assert reported == expected, ("doctor port != dashboard.DEFAULT_PORT", reported, expected)
+PY
+}
+dr15_ok=0
+if dr15_check && PW_DASH_PORT=9123 dr15_check; then dr15_ok=1; fi
+if [ "$dr15_ok" = 1 ]; then
+  ok "doctor's reported dashboard port equals dashboard.DEFAULT_PORT (default and under PW_DASH_PORT)"
+else
+  bad "doctor's reported port diverged from dashboard.DEFAULT_PORT"
+fi
