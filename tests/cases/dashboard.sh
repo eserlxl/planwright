@@ -2191,6 +2191,64 @@ else
   ok "dashboard view render() check skipped (node not installed)"
 fi
 
+# --- Test DASH-FLEET-CLICK: clicking a Fleet card switches to that project's id --------
+# fleet.js wires each card's click to window.PW_SWITCH_PROJECT(p.id) (the app.js bridge that
+# switches the whole dashboard view-state). DASH-VIEWS-FN asserts the grid STRUCTURE but never
+# dispatches a click, so a regression in the handler's argument (p.path instead of p.id, or the
+# wrong card) would ship green. The shared El shim's addEventListener/click are no-ops, so this
+# block upgrades the prototype LOCALLY to record + dispatch click handlers, then asserts the
+# stub received the clicked card's exact id once (and that a missing bridge does not throw).
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/fleet_click.js" <<'JS'
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, makeFixture, findByClass } = VM;
+const assert = require("assert");
+// Upgrade the shim El (addEventListener/click are no-ops by default) to record + dispatch.
+El.prototype.addEventListener = function (type, fn) {
+  this._lis = this._lis || {}; (this._lis[type] = this._lis[type] || []).push(fn);
+};
+El.prototype.click = function () {
+  ((this._lis && this._lis.click) || []).forEach(function (fn) { fn.call(this, { type: "click" }); }, this);
+};
+const doc = makeDoc(); const win = makeWin(doc);
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "fleet");
+const { state, fullCtx } = makeFixture();
+win.PW_PROJECTS = [
+  { id: "p1", name: "alpha", path: "/repos/alpha", status: "active", counts: { pending: 4, done: 7 } },
+  { id: "p2", name: "beta", path: "/repos/beta", status: "converged", counts: { pending: 0, done: 3 } },
+];
+const calls = [];
+win.PW_SWITCH_PROJECT = function (id) { calls.push(id); };
+const c = new El("section");
+win.PW_VIEWS.fleet(c, state, fullCtx);
+const cards = findByClass(c, "pw-fleet-card");
+assert(cards.length === 2, "expected two cards, got " + cards.length);
+// Identify a specific card by its title (p.path) so the assertion is sort-order-independent.
+const alpha = cards.filter(function (x) { return x.title === "/repos/alpha"; })[0];
+assert(alpha, "alpha card not found");
+alpha.click();
+assert.deepStrictEqual(calls, ["p1"],
+  "click must call PW_SWITCH_PROJECT with the card's p.id exactly once, got " + JSON.stringify(calls));
+// A missing bridge must not throw (fleet.js guards `if (window.PW_SWITCH_PROJECT)`).
+delete win.PW_SWITCH_PROJECT;
+const c2 = new El("section");
+win.PW_VIEWS.fleet(c2, state, fullCtx);
+findByClass(c2, "pw-fleet-card")[0].click();
+console.log("FLEET-CLICK-OK");
+JS
+  if node "$TMP/fleet_click.js" "$ROOT/scripts/dashboard" >"$TMP/fleet_click.out" 2>"$TMP/fleet_click.err" \
+     && grep -q FLEET-CLICK-OK "$TMP/fleet_click.out"; then
+    ok "dashboard fleet card click calls PW_SWITCH_PROJECT with the card's p.id (and no-ops without the bridge)"
+  else
+    bad "dashboard fleet card click body wrong: $(cat "$TMP/fleet_click.err" 2>/dev/null)"
+  fi
+else
+  ok "dashboard fleet card click check skipped (node not installed)"
+fi
+
 # --- Test DASH-JS-COVERAGE: the node-gated view-load path emits V8 coverage --------
 # Phase 1.4 prerequisite for a CI JS coverage floor (the Python --fail-under=90 analog).
 # Run the shared view loader under NODE_V8_COVERAGE and assert a coverage JSON keyed to a
