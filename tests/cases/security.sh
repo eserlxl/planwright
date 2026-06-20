@@ -57,3 +57,27 @@ if [ "$sec_lc_before" = "$sec_lc_after" ]; then
 else
   bad "lifecycle.py created or modified a file outside .planwright/ (write-boundary breached)"
 fi
+
+# --- Test SEC3: a planning run never READS (ingests) or stages a gitignored secret-shaped file ----
+# SEC1/SEC2 pin the WRITE boundary; this pins the READ boundary. Planning scans git-tracked files
+# ONLY (Stage 1), so a gitignored secret (.env) must never be ingested into graph.json nor staged.
+# A regression that switched build-graph to os.walk / --no-ignore would leak the secret into the
+# graph memory. Build a fixture with a tracked source file and a gitignored .env carrying a sentinel,
+# run build-graph + status, then assert (a) .env stays untracked and (b) the sentinel never appears
+# in the emitted graph.
+SECR="$TMP/sec_secret"; mkdir -p "$SECR/src"
+printf 'def a():\n    return 1\n' > "$SECR/src/a.py"
+printf '.env\n' > "$SECR/.gitignore"
+printf 'API_KEY=SENTINEL_DO_NOT_INGEST_8f3a\n' > "$SECR/.env"
+git -C "$SECR" init -q
+git -C "$SECR" add -A
+git -C "$SECR" -c user.name=t -c user.email=t@e.com commit -qm init
+python3 "$ROOT/scripts/build-graph.py" --root "$SECR" > "$SECR/graph.out" 2>/dev/null || true
+python3 "$ROOT/scripts/status.py" --recommend --root "$SECR" >/dev/null 2>&1 || true
+env_tracked="$(git -C "$SECR" ls-files .env)"            # gitignored => never staged => empty
+if [ -z "$env_tracked" ] \
+   && ! grep -q 'SENTINEL_DO_NOT_INGEST' "$SECR/graph.out"; then
+  ok "a planning run never ingests or stages a gitignored secret (.env excluded from the graph and the index)"
+else
+  bad "a planning run ingested or staged a gitignored secret (.env leaked into the graph or got tracked)"
+fi
