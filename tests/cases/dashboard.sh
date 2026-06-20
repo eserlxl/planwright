@@ -2453,6 +2453,29 @@ assert len(set(floors.values())) == 1, "JS floor drift: " + repr(floors)
 PY
 then ok "JS coverage floor (--fail-under) is identical across ci.yml, the DASH-JS-COV-PCT gate, and the doc"; else bad "JS coverage floor drifted across ci.yml / gate / doc (or a parse pattern broke)"; fi
 
+# --- Test DASH-PY-FLOOR-LOCKSTEP: the Python coverage floor is identical across CI/cfg/doc -
+# Sibling of the JS floor lockstep: the Python coverage --fail-under floor is a three-way
+# literal (ci.yml's `coverage report --fail-under=90`, .coveragerc's `fail_under = 90`, and
+# the doc's reference) with no cross-check, so a one-surface bump drifts silently. Guarded-parse
+# each (a missing/unparseable pattern fails loudly) and assert all three agree.
+if python3 - "$ROOT/.github/workflows/ci.yml" "$ROOT/.coveragerc" "$ROOT/docs/js-coverage-floor.md" <<'PY' 2>/dev/null
+import re, sys
+ci = open(sys.argv[1], encoding="utf-8").read()
+rc = open(sys.argv[2], encoding="utf-8").read()
+doc = open(sys.argv[3], encoding="utf-8").read()
+def grab(pat, text, label):
+    m = re.search(pat, text)
+    assert m, "Python floor not parseable in " + label
+    return int(m.group(1))
+floors = {
+    "ci.yml":     grab(r"coverage report\s+--fail-under=(\d+)", ci, "ci.yml"),
+    "coveragerc": grab(r"(?m)^\s*fail_under\s*=\s*(\d+)", rc, ".coveragerc"),
+    "doc":        grab(r"coverage report\s+--fail-under=(\d+)", doc, "js-coverage-floor.md"),
+}
+assert len(set(floors.values())) == 1, "Python floor drift: " + repr(floors)
+PY
+then ok "Python coverage floor (--fail-under) is identical across ci.yml, .coveragerc, and the doc"; else bad "Python coverage floor drifted across ci.yml / .coveragerc / doc (or a parse pattern broke)"; fi
+
 # --- Test DASH-JS-COVERAGE: the node-gated view-load path emits V8 coverage --------
 # Phase 1.4 prerequisite for a CI JS coverage floor (the Python --fail-under=90 analog).
 # Run the shared view loader under NODE_V8_COVERAGE and assert a coverage JSON keyed to a
