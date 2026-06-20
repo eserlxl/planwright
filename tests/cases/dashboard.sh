@@ -1241,6 +1241,32 @@ var fcCyc = findByClass(fc, "pw-vital--cycles");
 assert(fcCyc.length === 1 && findByClass(fcCyc[0], "pw-gauge-fill err").length === 0,
   "acyclic base fixture wrongly rendered the cycles err gauge");
 
+// Phase 5.2: the audit-frontier vital's alert branch — the frontier card renders the warn gauge
+// (pw-gauge-fill warn) ONLY when na (never_audited) > 0. The existing frontier test pins the COUNTS
+// but not the alert branch. The base fixture has na=3>0 (warn gauge present); an na==0 frontier
+// renders the card without the warn gauge.
+var fcFrontier = findByClass(fc, "pw-vital--frontier");
+assert(fcFrontier.length === 1, "console did not render the frontier vital on the base fixture");
+assert(findByClass(fcFrontier[0], "pw-gauge-fill warn").length > 0,
+  "frontier vital missing the warn gauge on na>0");
+var na0Graph = JSON.stringify({
+  graph_built_at_sha: "deadbeef",
+  frontier: { never_audited: 0, stale: 4 },
+  nodes: {
+    "hot.py": { git_churn: 10, pagerank: 0.9, covered_by_test: false, is_test: false, lang: "python", loc: 100, branch_count: 5, is_articulation: true, imports: ["cold.py"] },
+    "cold.py": { git_churn: 1, pagerank: 0.1, covered_by_test: true, is_test: false, lang: "python", loc: 10, branch_count: 1, is_articulation: false, imports: [] },
+  },
+  import_cycles: [],
+});
+var mNa0 = win.PW_DERIVE.metrics(na0Graph);
+assert(mNa0.frontier && mNa0.frontier.never_audited === 0, "fixture sanity: na==0 frontier");
+var na0C = new El("section");
+win.PW_VIEWS.console(na0C, state, { graphText: na0Graph, metrics: mNa0, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var na0Frontier = findByClass(na0C, "pw-vital--frontier");
+assert(na0Frontier.length === 1, "console did not render the frontier vital on an na==0 graph");
+assert(findByClass(na0Frontier[0], "pw-gauge-fill warn").length === 0,
+  "frontier vital wrongly rendered the warn gauge on na==0");
+
 // Targeted (Phase 1.2): the Reactor satellite strip reflects the accepted/pending/rejected
 // counts so a renamed engine field renders a wrong count instead of failing silently. The
 // verdict + carried-satellite assertions above never pin the accepted/pending NUMBERS; sat()
