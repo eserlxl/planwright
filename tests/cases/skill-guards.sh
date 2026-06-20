@@ -354,3 +354,20 @@ for label, pat in [("a:named-failure", r"\(a\)[^\n]*named failure"),
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md pins the value-gate four-check definition (named failure / removal test / real consumer / not self-justifying)"; else bad "a value-gate keep/kill check is missing or renamed in SKILL.md"; fi
+
+# --- Test 10r: SKILL.md pins the value-gate false-green clause (the discriminator) -------
+# The linchpin of value-gate check (a): "a test that merely asserts a string/section still
+# exists in a doc or instruction file is NOT a named failure" — the rule that rejects false-green
+# doc-string pins. Test 10q pins the four check LABELS; this pins the discriminating clause within
+# (a), whose silent deletion (keeping the label) would re-admit the padded-doc-test class the gate
+# exists to reject. Assert each half of the clause (bold markers stripped for the "not" check).
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1]).read()
+need = []
+if "merely asserts a string" not in t: need.append("clause:merely-asserts-a-string")
+if "not a named failure" not in t.replace("**", ""): need.append("clause:not-a-named-failure")
+if "instruction file" not in t: need.append("clause:doc-or-instruction-file")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md pins the value-gate false-green clause (a doc/instruction string-existence test is not a named failure)"; else bad "SKILL.md value-gate false-green discriminator clause missing/regressed"; fi
