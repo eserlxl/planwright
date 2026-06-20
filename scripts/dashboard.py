@@ -114,9 +114,11 @@ _sse_slots = threading.BoundedSemaphore(MAX_SSE_CLIENTS)
 
 # The stable default port for the shared (multi-project) server, so a launched dashboard has a
 # bookmarkable URL and a second launch can detect and attach to the first. Overridable via
-# PW_DASH_PORT (mainly so a test can pin a known-free port). An explicit --port (including 0 for
-# an ephemeral port) overrides it entirely.
-DEFAULT_PORT = int(_env_float("PW_DASH_PORT", 8765))
+# PW_DASH_PORT (mainly so a test can pin a known-free port). A port is a whole number, so it
+# goes through the strict integer path (like the other count-style env vars): a fractional
+# ("8765.9") or non-numeric value is rejected back to the default, never silently floored to a
+# nearby int. An explicit --port (including 0 for an ephemeral port) overrides it entirely.
+DEFAULT_PORT = _env_int("PW_DASH_PORT", 8765)
 
 
 def _planwright_dir(root):

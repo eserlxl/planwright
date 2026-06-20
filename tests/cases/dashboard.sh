@@ -891,6 +891,34 @@ else
   bad "dashboard.py SSE-cap validation failed: $(cat "$TMP/capval.err" 2>/dev/null)"
 fi
 
+# --- Test DASH-PORT-VALIDATION: a fractional PW_DASH_PORT is rejected, not floored ----------
+# A port is a whole number, so PW_DASH_PORT goes through _env_int (the strict integer path),
+# not _env_float + int() which silently floored a fractional value to a nearby port. The
+# distinguishing case is "9001.5": the old float+floor path yielded 9001 (a bad value honored),
+# the strict path rejects it back to the default 8765. A valid integer is still honored.
+cat > "$TMP/dash_portval.py" <<'PY'
+import os, sys, importlib
+sys.path.insert(0, os.path.dirname(os.path.abspath(sys.argv[1])))
+cases = {"9001.5": 8765, "8765.9": 8765, "0.5": 8765, "0": 8765, "-5": 8765,
+         "abc": 8765, "9001": 9001, "1": 1}
+for raw, want in cases.items():
+    os.environ["PW_DASH_PORT"] = raw
+    sys.modules.pop("dashboard", None)
+    got = importlib.import_module("dashboard").DEFAULT_PORT
+    assert got == want, "PW_DASH_PORT=%s -> %r, want %d" % (raw, got, want)
+os.environ.pop("PW_DASH_PORT", None)
+sys.modules.pop("dashboard", None)
+got = importlib.import_module("dashboard").DEFAULT_PORT
+assert got == 8765, "unset default should be 8765, got %r" % got
+print("PORT-VAL-OK")
+PY
+python3 "$TMP/dash_portval.py" "$DASH" >"$TMP/portval.out" 2>"$TMP/portval.err" || true
+if grep -q PORT-VAL-OK "$TMP/portval.out"; then
+  ok "dashboard.py DEFAULT_PORT rejects a fractional/sub-1/non-numeric PW_DASH_PORT (no silent floor) and honors a valid integer"
+else
+  bad "dashboard.py PW_DASH_PORT validation failed: $(cat "$TMP/portval.err" 2>/dev/null)"
+fi
+
 # --- /graph.json on a graphless root returns 404 {"error":"no graph built"} -----------
 # The passthrough success is covered above; the no-graph guard (dashboard.py:189) was not.
 # A second short-lived server on a root with a plan but NO graph.json exercises it.
