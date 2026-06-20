@@ -71,6 +71,16 @@ KNOWN_FIELDS = set(REQUIRED_FIELDS) | {"New Surfaces", "Status", "Rejection", "C
 # Graph-memory artifacts Stage 10 bars from Evidence (routing only, never proof).
 GRAPH_MEMORY = (".planwright/graph.json", ".planwright/digest.md",
                 "graph.json", "digest.md")
+# Protected paths a plan item may NEVER name as a Surface/New Surface — the SKILL.md
+# "Editable surfaces" denylist. Editing these is harmful or corrupts a tool's own state
+# regardless of mode/operator awareness. The .planwright/ tree keeps its own dedicated,
+# tool-named message at the call site (it complements the GRAPH_MEMORY-in-Evidence rule);
+# these constants cover the rest of the documented denylist. Stage 10 / SKILL.md
+# "Editable surfaces". The denylist-prose<->enforced-set agreement is itself a test
+# (tests/cases/skill-guards.sh), so any change here must move SKILL.md in lockstep.
+PROTECTED_DIR_PREFIXES = (".git/", ".qb/")        # VCS / sibling-tool state trees
+PROTECTED_EXACT = ("LICENSE",)                    # exact protected basename
+PROTECTED_SECRET_SUFFIXES = (".pem", ".key")      # credential/key files
 # Bare Verification values that are never a runnable command. Matched as the WHOLE
 # normalized value (lowercased, de-ticked, trailing period dropped) so a real command
 # that merely contains one of these words ("manual smoke test then bash tests/run.sh")
@@ -174,6 +184,27 @@ def unsafe_surface(p, root):
     return None
 
 
+def protected_surface(np):
+    """Return a short reason if the forward-slashed repo-relative path `np` is on the
+    SKILL.md 'Editable surfaces' protected denylist — a `.git/` or `.qb/` state tree, the
+    `LICENSE` file, or a secret/credential file (`.env`, `.env.*`, `*.pem`, `*.key`) —
+    else None. The `.planwright/` tree is handled by its own dedicated, tool-named branch
+    at the call site, so it is intentionally not repeated here. Matching is structural
+    (prefix / basename), never a content read."""
+    for pre in PROTECTED_DIR_PREFIXES:
+        if np == pre.rstrip("/") or np.startswith(pre):
+            return f"{pre} state tree"
+    base = np.rsplit("/", 1)[-1]
+    if np in PROTECTED_EXACT or base in PROTECTED_EXACT:
+        return f"protected file '{base}'"
+    if base == ".env" or base.startswith(".env."):
+        return "secret/credential file"
+    for suf in PROTECTED_SECRET_SUFFIXES:
+        if base.endswith(suf):
+            return "secret/credential file"
+    return None
+
+
 def lint_item(item, root):
     """Return a list of violation strings for one pending item."""
     v = []
@@ -274,6 +305,10 @@ def lint_item(item, root):
         np = p.replace("\\", "/")
         if np == ".planwright" or np.startswith(".planwright/"):
             v.append(f"'{p}' is tool-owned planwright state (.planwright/), not an editable Surface")
+            continue
+        reason = protected_surface(np)
+        if reason:
+            v.append(f"'{p}' is a protected path ({reason}), not an editable Surface")
     return v
 
 
