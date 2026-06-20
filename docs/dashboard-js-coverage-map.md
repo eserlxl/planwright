@@ -41,11 +41,14 @@ necessary but never sufficient — it proves the file parses, not that it render
     audit-frontier vital is asserted present on a frontier-bearing snapshot and absent on a
     pre-frontier (null) graph.
   - Compact Recent-contributions card (`pw-section-mini`, no commit hash / sub-line / foot) asserted.
-  - Degraded (bare ctx, null metrics/graph): rendered no-throw via the shared VIEWS loop (**smoke**).
+  - Degraded fallbacks: the empty-dirty-pulse ("nothing changed since last build") and the
+    completed-empty recent-contributions branches are **behavior-asserted**
+    (`DASH-CONSOLE-DEGRADED`); the remaining bare-ctx render is no-throw **smoke** via the VIEWS loop.
 
 ### [plan.js](../scripts/dashboard/views/plan.js) — Plan view
 - `render()` — **behavior-asserted**: default render seeds `PW_UI.planMode='all'` (load-order
-  regression) and lists pending cards; degraded bare ctx via the VIEWS loop (**smoke**).
+  regression) and lists pending cards; the empty pending/completed/rejected and mode-filtered
+  fallbacks are **behavior-asserted** (`DASH-PLAN-DEGRADED`).
 - `crossLinks()` — **behavior-asserted**: one chip + `in graph` key for an in-graph surface,
   none for an out-of-graph surface, none (no throw) without metrics.
 
@@ -72,6 +75,8 @@ necessary but never sufficient — it proves the file parses, not that it render
 - `render()` — **behavior-asserted**: shard cards from `state.repo` in sweep order, basis chip
   (staleness with a graph, lexicographic without), folded-dirs note, closing whole-repo round,
   large-repo chip, the three copyable invocations, and the no-enumeration empty state.
+- copy button — **behavior-asserted** (`DASH-SHARDS-COPY`): a shard card's copy click writes its
+  single-shard `codshard` invocation via `navigator.clipboard.writeText` (no-op without a clipboard).
 
 ### [timeline.js](../scripts/dashboard/views/timeline.js) — Decision timeline / burn-up
 - `render()` — **behavior-asserted**: the decision-timeline header.
@@ -87,6 +92,8 @@ necessary but never sufficient — it proves the file parses, not that it render
 - `render()` — **behavior-asserted** (`DASH-VIEWS-FN`): driven via `window.PW_PROJECTS`, the
   multi-project grid renders one card per project plus the project-count note; a single project
   uses the singular note; zero projects falls back to the no-projects empty state.
+- card click handler — **behavior-asserted** (`DASH-FLEET-CLICK`): a card click calls
+  `window.PW_SWITCH_PROJECT(p.id)` for that card, and no-ops when the bridge is absent.
 
 ### [doctor.js](../scripts/dashboard/views/doctor.js) — environment preflight
 - `render()` — **behavior-asserted** (loaded explicitly outside the VIEWS loop): the sync
@@ -96,10 +103,11 @@ necessary but never sufficient — it proves the file parses, not that it render
 
 ## Known gaps (as of this map)
 
-The gaps this map previously tracked are closed: fleet.js, graph.js, and insights.js paint() are now behavior-asserted (see the per-module map above). What remains is shim-bounded, not a render-coverage hole:
+The gaps this map previously tracked are closed: fleet.js, graph.js, and insights.js paint() are now behavior-asserted (see the per-module map above). The click-handler bodies are now covered too:
 
-- Click-handler *bodies* (e.g. the Fleet card's `PW_SWITCH_PROJECT` switch, the Shards/Commands
-  copy buttons) are not invoked — the node-gated shim stores listeners but only an explicit
-  `.click()` dispatches them, and most blocks render without clicking.
-- A few degraded (bare-ctx) paths are **smoke** only (console/plan via the VIEWS loop): rendered
-  no-throw, output not asserted branch-by-branch.
+- Click-handler *bodies* are now **behavior-asserted** by dedicated blocks that locally upgrade
+  the shim to dispatch listeners: the Fleet card switch (`DASH-FLEET-CLICK`), the Shards copy
+  button (`DASH-SHARDS-COPY`), and the Commands copy button (`DASH-CMD-COPY`).
+- A few degraded (bare-ctx) branches remain **smoke** only — rendered no-throw via the VIEWS
+  loop, output not asserted branch-by-branch — but the highest-value console/plan degraded
+  fallbacks are now pinned (`DASH-CONSOLE-DEGRADED`, `DASH-PLAN-DEGRADED`).

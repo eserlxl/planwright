@@ -2394,6 +2394,22 @@ else
   ok "dashboard plan degraded-fallback check skipped (node not installed)"
 fi
 
+# --- Test DASH-COV-MAP-MODULES: the coverage map's module set matches views/ on disk ----
+# docs/dashboard-js-coverage-map.md inventories every view module, but no test references it,
+# so it can silently drift from reality (a new view added, or one removed/renamed). Pin the
+# set: the modules the map documents (its `### [X.js](../scripts/dashboard/views/X.js)` headers)
+# must equal the set of scripts/dashboard/views/*.js files on disk. Pure stdlib — no node.
+if python3 - "$ROOT/docs/dashboard-js-coverage-map.md" "$ROOT/scripts/dashboard/views" <<'PY' 2>/dev/null
+import os, re, sys
+mapdoc = open(sys.argv[1], encoding="utf-8").read()
+viewsdir = sys.argv[2]
+documented = set(re.findall(r"^### \[([A-Za-z0-9_-]+\.js)\]\(\.\./scripts/dashboard/views/\1\)", mapdoc, re.M))
+on_disk = {f for f in os.listdir(viewsdir) if f.endswith(".js")}
+assert documented, "no view modules parsed from the coverage map"
+assert documented == on_disk, ("map<->disk drift, symmetric diff: " + repr(sorted(documented ^ on_disk)))
+PY
+then ok "coverage map's view-module set matches scripts/dashboard/views/*.js on disk (fails on drift)"; else bad "coverage map's documented view-module set drifted from scripts/dashboard/views/*.js"; fi
+
 # --- Test DASH-JS-COVERAGE: the node-gated view-load path emits V8 coverage --------
 # Phase 1.4 prerequisite for a CI JS coverage floor (the Python --fail-under=90 analog).
 # Run the shared view loader under NODE_V8_COVERAGE and assert a coverage JSON keyed to a
