@@ -87,7 +87,7 @@ def save(entries):
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(body)
         os.replace(tmp, path)
-    except OSError:
+    except BaseException:
         try:
             os.unlink(tmp)
         except OSError:
