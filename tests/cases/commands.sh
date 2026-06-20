@@ -999,3 +999,20 @@ for adapter in ("codmaster", "codshard", "codcycle", "dashboard"):
 sys.exit(1 if need else 0)
 PY
 then ok "every script-resolving adapter (codmaster/codshard/codcycle/dashboard) documents the env-var preference, the ../scripts/ sibling fallback, and the never-a-bare-scripts negative"; else bad "a script-resolving adapter dropped a bundled-scripts resolution clause (cwd-blindspot risk)"; fi
+
+# --- Test 13g: the README host-parity table names exactly the real cod* shortcut family -----------
+# README advertises the five cod* shortcuts; the authoritative set is the commands/cod*.md files (also
+# what install-aliases installs). Drive the expected set from those filenames, not a literal, so adding
+# or removing a shortcut command without updating the README fails the case.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import glob, os, re, sys
+root = sys.argv[1]
+canon = sorted(os.path.basename(p)[:-3] for p in glob.glob(os.path.join(root, "commands", "cod*.md")))
+readme = open(os.path.join(root, "README.md"), encoding="utf-8").read()
+missing = [n for n in canon if ("/" + n) not in readme]
+table_shortcuts = set(re.findall(r"`/(cod[a-z]+)`", readme))
+extra = sorted(s for s in table_shortcuts if s not in canon)
+assert not missing and not extra, (missing, extra)
+assert len(canon) == 5, canon
+PY
+then ok "README advertises exactly the real cod* shortcut family (driven from commands/cod*.md, not a literal)"; else bad "README cod* shortcut list drifted from the real commands/cod*.md set"; fi
