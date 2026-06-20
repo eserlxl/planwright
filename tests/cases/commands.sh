@@ -1141,3 +1141,39 @@ assert hosts_seen >= 4, "expected >=4 host rows in the parity table, saw " + str
 assert not problems, problems
 PY
 then ok "each README host-parity row lists exactly the canonical cod* family (per-host columns pinned, all spellings)"; else bad "a README host-parity cod* column drifted from commands/cod*.md (missing/extra shortcut)"; fi
+
+# --- Test 13i: each README host-parity row maps to a present delivering adapter -----------
+# Each host row in the parity table implies a delivering adapter (Claude->.claude-plugin,
+# Codex->.codex-plugin, Cursor->AGENTS.example.md, Gemini->GEMINI.example.md). No test ties a
+# row to its adapter, so the README could advertise a host with no backing adapter, or an adapter
+# could be removed while its row lingers. Pin both directions: the parsed host rows must equal the
+# row->adapter map's keys, and every mapped adapter file must exist. (Adapter->skill parity is
+# the separate ADAPTER-PARITY test; this is the row<->adapter correspondence.)
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import os, re, sys
+root = sys.argv[1]
+ROW_TO_ADAPTER = {
+    "Claude Code": ".claude-plugin/plugin.json",
+    "Codex": ".codex-plugin/plugin.json",
+    "Cursor": "AGENTS.example.md",
+    "Antigravity / Gemini": "GEMINI.example.md",
+}
+readme = open(os.path.join(root, "README.md"), encoding="utf-8").read()
+rows = set()
+for line in readme.splitlines():
+    if not line.startswith("|"):
+        continue
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    if len(cells) != 3 or "planwright" not in cells[1]:
+        continue
+    if re.search(r"cod[a-z]+", cells[2]):
+        rows.add(cells[0])
+problems = []
+if rows != set(ROW_TO_ADAPTER):
+    problems.append("row<->map drift rows=" + repr(sorted(rows)) + " map=" + repr(sorted(ROW_TO_ADAPTER)))
+for host, adapter in ROW_TO_ADAPTER.items():
+    if not os.path.isfile(os.path.join(root, adapter)):
+        problems.append(host + " delivering adapter missing: " + adapter)
+sys.exit(1 if problems else 0)
+PY
+then ok "each README host-parity row maps to a present delivering adapter (row<->adapter correspondence pinned)"; else bad "a README host row lacks a backing adapter, or an adapter was removed while its row lingers"; fi
