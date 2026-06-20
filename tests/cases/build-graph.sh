@@ -2095,3 +2095,32 @@ assert res == [["g0a.py", "g0b.py"], ["g1a.py", "g1b.py"]], res    # the lowest-
 assert len(bg.import_cycles(nodes, edges, 20)) == 5, "fixture should have 5 cycles uncapped"
 PY
 then ok "build-graph.py import_cycles caps the result at limit and keeps the lowest-sorted groups"; else bad "build-graph.py import_cycles limit cap wrong"; fi
+
+# --- Test 11o: --prior seeds a deleted file's coupling partner into dirty; uncoupled file stays clean
+# When a file is deleted, its change-coupling partners (co-changed >= coupling_min_cooccurrence with
+# NO import between them) must be seeded into dirty.nodes via the coupling arm — whole_graph stays
+# False and reason "incremental". The NEGATIVE arm: a third file that neither imports nor co-changes
+# with the deleted file must be ABSENT from dirty.nodes.
+BGDEL="$TMP/bg-coupledel"; mkdir -p "$BGDEL"
+(
+  cd "$BGDEL" || exit
+  git init -q; git config user.email t@e.com; git config user.name t; git config commit.gpgsign false
+  printf 'g0\n' > gamma.md; git add -A; git commit -qm "gamma alone"
+  for i in 1 2 3 4; do
+    printf 'a%s\n' "$i" >> alpha.md; printf 'b%s\n' "$i" >> beta.md   # alpha+beta co-change (no imports)
+    git add -A; git commit -qm "co-change $i"
+  done
+) >/dev/null 2>&1
+python3 "$ROOT/scripts/build-graph.py" --root "$BGDEL" > "$TMP/bgdel_prior.json" 2>/dev/null
+( cd "$BGDEL" && git rm -q alpha.md && git commit -qm "delete alpha" ) >/dev/null 2>&1
+python3 "$ROOT/scripts/build-graph.py" --root "$BGDEL" --prior "$TMP/bgdel_prior.json" > "$TMP/bgdel_new.json" 2>/dev/null
+if python3 - "$TMP/bgdel_new.json" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+d = g["dirty"]
+assert d["whole_graph"] is False, d
+assert d["reason"] == "incremental", d
+assert "beta.md" in d["nodes"], ("coupled survivor missing from dirty", d["nodes"])
+assert "gamma.md" not in d["nodes"], ("uncoupled file leaked into dirty", d["nodes"])
+PY
+then ok "build-graph.py --prior seeds a deleted file's coupling partner into dirty and excludes the uncoupled file"; else bad "build-graph.py coupling-deletion dirty seeding wrong"; fi
