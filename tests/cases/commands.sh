@@ -1078,3 +1078,34 @@ if pw_claude_validate "$ROOT/.claude-plugin/plugin.json" 2>/dev/null; then
 else
   bad ".claude-plugin/plugin.json failed the minimal-manifest contract"
 fi
+
+# --- Test ADAPTER-PARITY: all four host adapters resolve to the one canonical skill -------
+# planwright's "one skill, many thin adapters" invariant: the two plugin manifests
+# (.claude-plugin / .codex-plugin) and the two markdown pointers (AGENTS.example.md /
+# GEMINI.example.md) must each deliver the SAME canonical skill (skills/planwright) under the
+# same `planwright` invocation. No test asserts four-adapter parity, so one could silently point
+# at a different skill/grammar. Pin it: a diverging adapter (renamed manifest, wrong skill path,
+# dropped trigger) fails. Reads the real adapters; the canonical skill must exist.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import json, os, sys
+root = sys.argv[1]
+problems = []
+for rel in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json"):
+    m = json.load(open(os.path.join(root, rel), encoding="utf-8"))   # raises -> invalid JSON
+    if m.get("name") != "planwright":
+        problems.append(rel + " name != planwright")
+cx = json.load(open(os.path.join(root, ".codex-plugin/plugin.json"), encoding="utf-8"))
+skills = (cx.get("skills") or "").lstrip("./")
+if not os.path.isfile(os.path.join(root, skills, "planwright", "SKILL.md")):
+    problems.append(".codex-plugin skills path does not resolve to skills/planwright")
+for rel in ("AGENTS.example.md", "GEMINI.example.md"):
+    t = open(os.path.join(root, rel), encoding="utf-8").read()
+    if "skills/planwright/SKILL.md" not in t:
+        problems.append(rel + " does not reference the canonical skills/planwright/SKILL.md")
+    if "planwright" not in t:
+        problems.append(rel + " does not deliver the planwright invocation")
+if not os.path.isfile(os.path.join(root, "skills/planwright/SKILL.md")):
+    problems.append("canonical skill skills/planwright/SKILL.md missing")
+sys.exit(1 if problems else 0)
+PY
+then ok "all four host adapters resolve to the one canonical skills/planwright under the planwright invocation (parity)"; else bad "a host adapter diverged from the canonical skills/planwright skill or planwright invocation"; fi
