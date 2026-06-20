@@ -239,6 +239,27 @@ else
   bad "bump-version left README/SKILL drift after a mid-run failure (skill '$pre_skill'->'$post_skill'; badge changed: $([ "$pre_badge" = "$post_badge" ] && echo no || echo YES))"
 fi
 
+# --- Test 1b2: --dry-run's README badge preview matches what the real run writes ------------------
+# Test 1b pins dry/real agreement on the SKILL version; the README shields.io badge is the other
+# surface the preview must predict. Build a minimal fixture, read the --dry-run badge-preview target
+# version, run the real bump, and assert the badge the real run writes carries that SAME version.
+B86="$TMP/dryreal-badge"; mkdir -p "$B86/.claude-plugin" "$B86/.codex-plugin" "$B86/skills/demo" "$B86/scripts"
+printf '{\n  "name": "demo",\n  "version": "3.4.5"\n}\n' > "$B86/.claude-plugin/plugin.json"
+printf '{\n  "name": "demo",\n  "version": "3.4.5"\n}\n' > "$B86/.codex-plugin/plugin.json"
+printf -- '# Changelog\n\n## [3.4.5] - 2026-01-01\n\n### Changed\n- seed\n' > "$B86/CHANGELOG.md"
+printf -- '---\nname: demo\nmetadata:\n  version: "3.4.5"\n---\n\n# demo\n' > "$B86/skills/demo/SKILL.md"
+printf -- '# demo\n\n[![version](https://img.shields.io/badge/version-0.0.0-2563EB)](CHANGELOG.md)\n' > "$B86/README.md"
+cp "$ROOT/scripts/bump-version.sh" "$B86/scripts/bump-version.sh"
+dry86="$(ALLOW_DIRTY=1 bash "$B86/scripts/bump-version.sh" minor --dry-run 2>&1)"
+dry_badge_ver="$(printf '%s' "$dry86" | grep -oE 'version badge -> [0-9]+\.[0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+ALLOW_DIRTY=1 bash "$B86/scripts/bump-version.sh" minor >/dev/null 2>&1
+real_badge_ver="$(grep -oE 'version-[0-9]+\.[0-9]+\.[0-9]+-2563EB' "$B86/README.md" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+if [ "$dry_badge_ver" = "3.5.0" ] && [ "$dry_badge_ver" = "$real_badge_ver" ]; then
+  ok "bump-version --dry-run README badge preview matches the version the real run writes to the badge"
+else
+  bad "bump-version dry/real README badge disagreement (dry='$dry_badge_ver' real='$real_badge_ver')"
+fi
+
 # --- Test 2: make-plugin.sh scaffolds a valid plugin ----------------------
 GEN="$TMP/gen"
 NO_GIT=1 PLUGIN_DESC="Smoke test plugin." "$ROOT/scripts/make-plugin.sh" demo "$GEN" >/dev/null
