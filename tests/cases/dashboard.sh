@@ -2302,6 +2302,49 @@ else
   ok "dashboard shards copy-button check skipped (node not installed)"
 fi
 
+# --- Test DASH-CONSOLE-DEGRADED: console degraded fallbacks render specific output ------
+# DASH-VIEWS-FN renders console on bareCtx but only pins the vitals no-graph note (the
+# pulserail "graph not built yet" + sessionTrend empty are pinned separately, so they are not
+# restated here). Two console degraded fallbacks were still smoke-only: the Dirty Pulse rail's
+# empty branch (metrics present, nothing changed) and the recent-contributions card's
+# completed-empty fallback. Pin each to its specific text so a broken fallback fails instead
+# of rendering wrong. ("Nothing rejected" is already asserted elsewhere — not restated.)
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/console_degraded.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, makeFixture, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "console");
+const fx = makeFixture();
+// (1) Dirty Pulse empty branch: fullCtx metrics carry an empty dirtyChanged, so the rail must
+// render "nothing changed since last build" (not a file list) on an unchanged tree.
+var c1 = new El("section");
+win.PW_VIEWS.console(c1, fx.state, fx.fullCtx);
+assert(/nothing changed since last build/.test(textOf(c1)),
+  "console pulserail did not render the empty-dirty fallback on an unchanged tree");
+// (2) Recent-contributions completed-empty fallback: a state with no completed items must
+// render the "Nothing completed yet" empty branch of the contributions card.
+var emptyState = Object.assign({}, fx.state, { completed: [] });
+var c2 = new El("section");
+win.PW_VIEWS.console(c2, emptyState, fx.fullCtx);
+assert(/Nothing completed yet/.test(textOf(c2)),
+  "console recent-contributions did not render the completed-empty fallback");
+console.log("CONSOLE-DEGRADED-OK");
+JS
+  if node "$TMP/console_degraded.js" "$ROOT/scripts/dashboard" >"$TMP/console_degraded.out" 2>"$TMP/console_degraded.err" \
+     && grep -q CONSOLE-DEGRADED-OK "$TMP/console_degraded.out"; then
+    ok "dashboard console renders its empty-dirty-pulse and completed-empty contributions fallbacks with specific text"
+  else
+    bad "dashboard console degraded-fallback assertion failed: $(cat "$TMP/console_degraded.err" 2>/dev/null)"
+  fi
+else
+  ok "dashboard console degraded-fallback check skipped (node not installed)"
+fi
+
 # --- Test DASH-JS-COVERAGE: the node-gated view-load path emits V8 coverage --------
 # Phase 1.4 prerequisite for a CI JS coverage floor (the Python --fail-under=90 analog).
 # Run the shared view loader under NODE_V8_COVERAGE and assert a coverage JSON keyed to a
