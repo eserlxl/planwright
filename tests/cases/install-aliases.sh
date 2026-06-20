@@ -145,7 +145,7 @@ fi
 IAX="$TMP/ia-exact"; mkdir -p "$IAX"
 if bash "$IA" --dir "$IAX" >/dev/null 2>&1; then
   ia_count="$(find "$IAX" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
-  ia_set="$(cd "$IAX" && ls -1 ./*.md 2>/dev/null | sed 's#.*/##; s/\.md$//' | sort | tr '\n' ' ')"
+  ia_set="$(find "$IAX" -maxdepth 1 -name '*.md' | sed 's#.*/##; s/\.md$//' | sort | tr '\n' ' ')"
   ia_want="$(printf '%s\n' codcycle codinventor codmaster codshard codvisor | sort | tr '\n' ' ')"
   if [ "$ia_count" = "5" ] && [ "$ia_set" = "$ia_want" ]; then
     ok "install-aliases --dir writes EXACTLY the five canonical delegators (no more, no fewer)"
