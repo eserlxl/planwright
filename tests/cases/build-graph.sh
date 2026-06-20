@@ -2328,3 +2328,37 @@ masked = bg.blank_strings_and_comments("python", py_mix)
 assert len(masked) == len(py_mix) and masked.count("\n") == py_mix.count("\n")
 PY
 then ok "build-graph.py branch/swallow counts mask string-literal and comment spans (keywords in prose not counted)"; else bad "build-graph.py string/comment masking for complexity counts is wrong"; fi
+
+# --- Test 11t: PW_MAX_FILE_BYTES overrides the per-file symbol/import parse ceiling ----------
+# Files larger than MAX_FILE_BYTES are hashed/line-counted but skipped for symbol+import
+# parsing. The ceiling is env-overridable: a tiny PW_MAX_FILE_BYTES makes even a small source
+# exceed it (parse skipped -> branch_count 0, no defines), while the default 5 MB parses it.
+MFB="$TMP/bg-maxbytes"; mkdir -p "$MFB"
+(
+  cd "$MFB" || exit
+  git init -q; git config user.email t@e.com; git config user.name t
+  printf 'def f(a):\n    if a:\n        return 1\n    return 0\n' > m.py
+  git add -A; git -c commit.gpgsign=false commit -qm init
+) >/dev/null 2>&1
+PW_MAX_FILE_BYTES=10 python3 "$ROOT/scripts/build-graph.py" --root "$MFB" > "$TMP/mfb_low.json" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$MFB" > "$TMP/mfb_def.json" 2>/dev/null
+if python3 - "$TMP/mfb_low.json" "$TMP/mfb_def.json" "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, json, os, sys
+low = json.load(open(sys.argv[1])); deflt = json.load(open(sys.argv[2]))
+# Low ceiling: the file is over it, so parsing is skipped -> node present, no branches/defines.
+n = low["nodes"]["m.py"]
+assert n["branch_count"] == 0 and n["defines"] == [], ("low ceiling should skip parsing", n)
+# Default ceiling: the same small file is parsed -> the real branch counts and f is defined.
+m = deflt["nodes"]["m.py"]
+assert m["branch_count"] >= 1 and "f" in m["defines"], ("default ceiling should parse", m)
+# Resolver contract: a valid override is honored; invalid/non-positive falls back to 5 MB.
+spec = importlib.util.spec_from_file_location("bg", sys.argv[3])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+DEF = 5 * 1024 * 1024
+for raw, want in (("4096", 4096), ("1", 1), ("0", DEF), ("-5", DEF), ("x", DEF), ("3.5", DEF)):
+    os.environ["PW_MAX_FILE_BYTES"] = raw
+    assert bg._resolve_max_file_bytes() == want, (raw, bg._resolve_max_file_bytes(), want)
+os.environ.pop("PW_MAX_FILE_BYTES", None)
+assert bg._resolve_max_file_bytes() == DEF
+PY
+then ok "build-graph.py PW_MAX_FILE_BYTES overrides the parse ceiling (tiny skips parsing, default parses; invalid falls back to 5 MB)"; else bad "build-graph.py PW_MAX_FILE_BYTES override/fallback wrong"; fi

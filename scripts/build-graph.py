@@ -70,7 +70,23 @@ GIT_TIMEOUT_SECONDS = _resolve_git_timeout()
 # streaming (never held in memory whole) and their symbol/import parsing is
 # skipped, so a large tracked binary, DB snapshot, or generated blob cannot make
 # the build OOM/CPU-blow up on a big repo. The node still appears in the graph.
-MAX_FILE_BYTES = 5 * 1024 * 1024
+# Overridable via PW_MAX_FILE_BYTES — raise it so a large generated source a monorepo
+# legitimately imports still routes (symbols/imports parsed), or lower it to cap parsing
+# harder; a missing, non-integer, or non-positive value falls back to the 5 MB default
+# (mirrors PW_COUPLING_MAX_FILES / PW_GIT_TIMEOUT_SECONDS above).
+def _resolve_max_file_bytes():
+    raw = os.environ.get("PW_MAX_FILE_BYTES")
+    if raw is not None:
+        try:
+            v = int(raw)
+            if v > 0:
+                return v
+        except ValueError:
+            pass
+    return 5 * 1024 * 1024
+
+
+MAX_FILE_BYTES = _resolve_max_file_bytes()
 
 # Rotating generative framings (docs/invent-exploration-design.md, lever 2) — a
 # fixed catalog of vantage *keys* the invent generative lens can reason under. The
