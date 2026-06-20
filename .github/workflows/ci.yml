@@ -32,7 +32,7 @@ jobs:
 
       - name: Lint Python engine scripts
         run: |
-          python3 -m pip install --quiet pyflakes mypy
+          python3 -m pip install --quiet pyflakes 'mypy==2.1.0'
           pyflakes scripts/*.py
           mypy --config-file mypy.ini scripts/
 

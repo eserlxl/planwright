@@ -73,7 +73,7 @@ def list_markdown(root):
     return files
 
 
-_IGNORE_CACHE = {}
+_IGNORE_CACHE: dict[tuple[str, str], bool] = {}
 
 
 def is_gitignored(root, relpath):

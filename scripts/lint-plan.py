@@ -581,7 +581,7 @@ _EVIDENCE_ANCHOR_RE = re.compile(
     r"(?::(\d+)(?:-\d+)?|\s*\(line\s+(\d+)\))")  # the start line is captured (groups 2/3) for range checks
 
 
-_IGNORE_CACHE = {}
+_IGNORE_CACHE: dict[tuple[str, str], bool] = {}
 
 
 def is_gitignored(root, relpath):
