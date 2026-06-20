@@ -416,6 +416,37 @@ class TestRecommendOverlay(unittest.TestCase):
         self.assertEqual(rec["follow_up"]["command"], "codvisor")
         self.assertIsNone(rec["reset_nudge"])  # the rec IS the reset — no nudge on top
 
+    def _recommend_scoped(self, root, scope="path:lib", focus=("a.py",),
+                          gsig=GSIG_CLEAN, repo=REPO_SMALL, dirty=(), doctor=(),
+                          converged=True):
+        # The scoped sibling of _recommend: drives st.recommend(root, scope=...) with the
+        # scope-resolution sensors patched so a scoped row runs deterministically. _graph_signals
+        # is called with (root, focus) under a scope, so the stub takes the extra arg; _converged
+        # and _resolve_focus are stubbed so the test controls convergence and the Focus set.
+        from unittest import mock
+        with mock.patch.object(st, "_graph_signals", lambda r, f=None: gsig), \
+             mock.patch.object(st, "_repo_block", lambda r: repo), \
+             mock.patch.object(st, "_dirty_paths", lambda r: list(dirty)), \
+             mock.patch.object(st, "_doctor_blockers", lambda r, m: list(doctor)), \
+             mock.patch.object(st, "_head_sha", lambda r: self.HEAD), \
+             mock.patch.object(st, "_final_valid", lambda r: True), \
+             mock.patch.object(st, "_resolve_focus", lambda sc, r: list(focus)), \
+             mock.patch.object(st, "_converged", lambda state, sc=None: converged):
+            return st.recommend(root, scope=scope)
+
+    def test_scoped_invent_dry_resurveys_never_resets(self):
+        # Under a scope, a converged invent-dry point with the frontier drained must NOT reset
+        # (a whole-repo wipe that would erase sibling components' audit memory) and must NOT
+        # route to whole-repo codshard — it re-surveys the component with a scoped codvisor.
+        rec = self._recommend_scoped(
+            self._root(final=self._final("invent"), graph=self._graph(never_audited=0)))
+        self.assertEqual(rec["command"], "codvisor")            # scoped harden ...
+        self.assertEqual(rec["args"], "cycle 10 depth 10 explore")
+        self.assertNotIn(rec["command"], ("reset", "codshard"))  # ... never reset / whole-repo codshard
+        self.assertFalse(rec["invent_class"])
+        self.assertIn("whole-repo wipe", rec["why"])             # the reset-is-a-wipe reason
+        self.assertIsNone(rec["reset_nudge"])                    # a scope never nudges reset
+
     def test_large_repo_routes_harden_to_codshard(self):
         rec = self._recommend(self._root(), repo=self.REPO_LARGE)
         self.assertEqual(rec["command"], "codshard")
