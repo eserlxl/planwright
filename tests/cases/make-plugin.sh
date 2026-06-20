@@ -68,3 +68,46 @@ if NO_GIT=1 bash "$MP" "Bad_Name" "$TMP/mp-bad" >/dev/null 2>&1; then
 else
   ok "make-plugin.sh rejects a non-kebab-case plugin name (exit != 0)"
 fi
+
+# --- Test MP4: the generated ci.yml manifest-validation step rejects a corrupt manifest ----------
+# make-plugin ships a ci.yml whose "Validate manifests" step json.loads every manifest. Run that EXACT
+# shipped command: a clean scaffold passes, and a corrupt .claude-plugin/plugin.json makes it exit non-zero.
+MP4="$TMP/mp4"; mkdir -p "$MP4"
+NO_GIT=1 PLUGIN_DESC="probe" bash "$MP" demo "$MP4/demo" >/dev/null 2>&1
+mp4_cmd="$(grep -A1 'Validate manifests' "$MP4/demo/.github/workflows/ci.yml" | grep 'run:' | sed 's/^[[:space:]]*run:[[:space:]]*//')"
+mp4_clean=1; ( cd "$MP4/demo" && eval "$mp4_cmd" ) >/dev/null 2>&1 && mp4_clean=0
+printf 'not json{' > "$MP4/demo/.claude-plugin/plugin.json"
+mp4_corrupt=0; ( cd "$MP4/demo" && eval "$mp4_cmd" ) >/dev/null 2>&1 || mp4_corrupt=$?
+if [ -n "$mp4_cmd" ] && [ "$mp4_clean" = 0 ] && [ "$mp4_corrupt" != 0 ]; then
+  ok "the generated ci.yml manifest-validation step passes a clean scaffold and rejects a corrupt manifest"
+else
+  bad "generated ci.yml manifest-validation wrong (clean=$mp4_clean corrupt=$mp4_corrupt cmd='$mp4_cmd')"
+fi
+
+# --- Test MP5: a real lockstep bump inside the generated plugin advances all version surfaces ------
+# make-plugin copies bump-version.sh into the generated tree; running it must advance the generated
+# .claude-plugin/plugin.json, .codex-plugin/plugin.json, and SKILL.md frontmatter to the SAME new version.
+MP5="$TMP/mp5"; mkdir -p "$MP5"
+NO_GIT=1 PLUGIN_DESC="probe" bash "$MP" demo "$MP5/demo" >/dev/null 2>&1
+mp5_before="$(ver "$MP5/demo/.claude-plugin/plugin.json" '["version"]')"
+( cd "$MP5/demo" && ALLOW_DIRTY=1 bash scripts/bump-version.sh minor ) >/dev/null 2>&1
+mp5_pj="$(ver "$MP5/demo/.claude-plugin/plugin.json" '["version"]')"
+mp5_cj="$(ver "$MP5/demo/.codex-plugin/plugin.json" '["version"]')"
+mp5_sk="$(grep -m1 '  version:' "$MP5/demo/skills/demo/SKILL.md" | sed -E 's/.*"([^"]+)".*/\1/')"
+if [ "$mp5_pj" != "$mp5_before" ] && [ "$mp5_pj" = "$mp5_cj" ] && [ "$mp5_pj" = "$mp5_sk" ]; then
+  ok "the copied bump-version.sh advances all three version surfaces in the generated plugin in lockstep"
+else
+  bad "generated-plugin lockstep bump drift (before=$mp5_before plugin=$mp5_pj codex=$mp5_cj skill=$mp5_sk)"
+fi
+
+# --- Test MP6: the generated integration pointers name skills/<name>/SKILL.md ---------------------
+# make-plugin generates AGENTS.md/GEMINI.md that must point at the SCAFFOLDED skill path (not a hardcoded
+# name). Scaffold under a distinct name and assert both pointers reference skills/<name>/SKILL.md.
+MP6="$TMP/mp6"; mkdir -p "$MP6"
+NO_GIT=1 PLUGIN_DESC="probe" bash "$MP" widget "$MP6/widget" >/dev/null 2>&1
+if grep -qF 'skills/widget/SKILL.md' "$MP6/widget/AGENTS.md" \
+   && grep -qF 'skills/widget/SKILL.md' "$MP6/widget/GEMINI.md"; then
+  ok "the generated AGENTS.md and GEMINI.md both reference skills/<name>/SKILL.md for the scaffolded name"
+else
+  bad "a generated integration pointer (AGENTS.md/GEMINI.md) does not reference skills/widget/SKILL.md"
+fi
