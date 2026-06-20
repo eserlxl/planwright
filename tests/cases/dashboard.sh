@@ -2151,7 +2151,7 @@ const { El, makeDoc, makeWin, install, loadScript, findByClass } = VM;
 // el.dispatch(type) fires the stored listeners (storing alone is inert; only an explicit
 // dispatch runs them, so a plain render is never perturbed).
 El.prototype.addEventListener = function (type, fn) { this._ev = this._ev || {}; (this._ev[type] = this._ev[type] || []).push(fn); };
-El.prototype.dispatch = function (type) { var fns = (this._ev && this._ev[type]) || []; for (var i = 0; i < fns.length; i++) { fns[i].call(this, { type: type }); } };
+El.prototype.dispatch = function (type, props) { var ev = Object.assign({ type: type, preventDefault: function () {}, stopPropagation: function () {} }, props || {}); var fns = (this._ev && this._ev[type]) || []; for (var i = 0; i < fns.length; i++) { fns[i].call(this, ev); } };
 const doc = makeDoc();
 const win = makeWin(doc);
 install(win, doc);
@@ -2220,6 +2220,25 @@ assert(/showing 2 of 2/.test(fCount.textContent) && !/\(filtered\)/.test(fCount.
   "Risk-Ledger did not restore all rows (and drop the filtered affordance) on an empty query (got '" + fCount.textContent + "')");
 // degraded snapshot (no metrics) must not throw
 win.PW_VIEWS.insights(new El("section"), { counts:{} }, { graphText:null, metrics:null, builtSha:"", stale:false, head:"deadbeef" });
+// Phase 5.3: the Risk-Ledger j/k/Arrow keyboard handler moves row focus; a non-navigation key
+// early-returns with no change. Wire the minimal DOM the handler reads (querySelectorAll-by-class
+// + focus()->document.activeElement), render a fresh ledger, focus row 0, then drive keydown. (Patches
+// applied here, AFTER the render assertions above, so only this keyboard render sees them.)
+El.prototype.querySelectorAll = function (sel) { return findByClass(this, sel.replace(/^\./, "")); };
+El.prototype.focus = function () { global.document.activeElement = this; };
+var kbRoot = new El("section");
+win.PW_VIEWS.insights(kbRoot, { counts: {} }, ctx);
+var kbList = findByClass(kbRoot, "pw-ledger-list")[0];
+var kbRows = findByClass(kbRoot, "pw-ledger-row");
+assert(kbList && kbRows.length === 2, "keyboard-nav fixture: a ledger list + 2 rows expected");
+kbRows[0].focus();
+assert(doc.activeElement === kbRows[0], "focus() did not set activeElement to row 0");
+kbList.dispatch("keydown", { key: "j" });
+assert(doc.activeElement === kbRows[1], "j did not move row focus down to row 1");
+kbList.dispatch("keydown", { key: "ArrowUp" });
+assert(doc.activeElement === kbRows[0], "ArrowUp did not move row focus back up to row 0");
+kbList.dispatch("keydown", { key: "x" });   // non-navigation key: early return, no focus change
+assert(doc.activeElement === kbRows[0], "a non-navigation key wrongly changed row focus");
 console.log("INSIGHTS-RENDER-OK");
 JS
   if node "$TMP/insights_render_test.js" "$ROOT/scripts/dashboard" >"$TMP/insights_render.out" 2>"$TMP/insights_render.err" \
