@@ -130,3 +130,26 @@ if [ "$mp7_meta" != "$mp7_before" ] && [ "$mp7_meta" = "$mp7_pj" ] && [ "$mp7_pl
 else
   bad "generated marketplace.json drifted after a bump (before=$mp7_before plugin=$mp7_pj meta=$mp7_meta plugins0=$mp7_plug)"
 fi
+
+# --- Test MP8: the generated ci.yml validate step rejects EACH manifest, not just one --------------
+# MP4 corrupts only .claude-plugin/plugin.json; the generated validate command globs BOTH manifest
+# dirs ((.claude-plugin, .codex-plugin)/*.json), so a future narrowing to one dir would silently stop
+# validating the others. Corrupt each generated manifest independently (restoring between) and confirm
+# the EXACT shipped command rejects each — a coverage-breadth guard over the full manifest set.
+MP8="$TMP/mp8"; mkdir -p "$MP8"
+NO_GIT=1 PLUGIN_DESC="probe" bash "$MP" demo "$MP8/demo" >/dev/null 2>&1
+mp8_cmd="$(grep -A1 'Validate manifests' "$MP8/demo/.github/workflows/ci.yml" | grep 'run:' | sed 's/^[[:space:]]*run:[[:space:]]*//')"
+mp8_clean=1; ( cd "$MP8/demo" && eval "$mp8_cmd" ) >/dev/null 2>&1 && mp8_clean=0
+mp8_miss=""
+for rel in .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json; do
+  cp "$MP8/demo/$rel" "$TMP/mp8_bak.json"
+  printf 'not json{' > "$MP8/demo/$rel"
+  rc=0; ( cd "$MP8/demo" && eval "$mp8_cmd" ) >/dev/null 2>&1 || rc=$?
+  cp "$TMP/mp8_bak.json" "$MP8/demo/$rel"
+  [ "$rc" != 0 ] || mp8_miss="$mp8_miss [$rel-not-rejected]"
+done
+if [ -n "$mp8_cmd" ] && [ "$mp8_clean" = 0 ] && [ -z "$mp8_miss" ]; then
+  ok "the generated ci.yml validate step rejects a corruption in EACH manifest (full manifest-set coverage)"
+else
+  bad "generated ci.yml validate step missed a corrupt manifest:$mp8_miss (clean=$mp8_clean cmd='$mp8_cmd')"
+fi
