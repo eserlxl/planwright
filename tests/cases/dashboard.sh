@@ -2249,6 +2249,59 @@ else
   ok "dashboard fleet card click check skipped (node not installed)"
 fi
 
+# --- Test DASH-SHARDS-COPY: a Shards card copy button writes its single-shard invocation -
+# shards.js invoke() renders a pw-cmd-copy button whose click writes the single-shard
+# codshard invocation via navigator.clipboard.writeText. DASH-CMD-COPY covers the SAME
+# affordance in commands.js, never the shards-rendered button — so a regression in the shards
+# copy text (or the no-clipboard guard) ships green. Render the populated shard map, click the
+# docs shard's copy button, assert the exact invocation was written; the no-clipboard branch
+# is a silent no-op.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/shards_copy_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, makeFixture, findByClass, textOf } = VM;
+El.prototype.addEventListener = function (type, fn) { this._ev = this._ev || {}; (this._ev[type] = this._ev[type] || []).push(fn); };
+El.prototype.click = function () { var fns = (this._ev && this._ev.click) || []; for (var i = 0; i < fns.length; i++) { fns[i].call(this, { type: "click" }); } };
+const doc = makeDoc(); const win = makeWin(doc);
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "shards");
+const fx = makeFixture();
+const shState = Object.assign({}, fx.state, {
+  repo: { tracked_files: 240, shardable_dirs: ["docs", "scripts"], folded_dirs: ["misc"], large: true },
+});
+// (1) clipboard stub: clicking the docs shard's copy writes its exact single-shard invocation.
+var copied = [];
+Object.defineProperty(globalThis, "navigator",
+  { value: { clipboard: { writeText: function (s) { copied.push(s); return Promise.resolve(); } } }, configurable: true, writable: true });
+var sC = new El("section");
+win.PW_VIEWS.shards(sC, shState, fx.fullCtx);
+var docsWrap = findByClass(sC, "pw-cmd-invoke").filter(function (w) {
+  return textOf(findByClass(w, "pw-cmd-code")[0]).trim() === "/planwright:codshard shards docs";
+})[0];
+assert(docsWrap, "shards view did not render the docs single-shard invocation");
+findByClass(docsWrap, "pw-cmd-copy")[0].click();
+assert(copied.length === 1 && copied[0] === "/planwright:codshard shards docs",
+  "shards copy did not writeText the single-shard invocation (wrote " + JSON.stringify(copied) + ")");
+// (2) no-clipboard fallback: a click must not throw when navigator.clipboard is absent.
+Object.defineProperty(globalThis, "navigator", { value: {}, configurable: true, writable: true });
+var sD = new El("section");
+win.PW_VIEWS.shards(sD, shState, fx.fullCtx);
+findByClass(sD, "pw-cmd-copy")[0].click();   // must not throw
+console.log("SHARDS-COPY-OK");
+JS
+  if node "$TMP/shards_copy_test.js" "$ROOT/scripts/dashboard" >"$TMP/shards_copy.out" 2>"$TMP/shards_copy.err" \
+     && grep -q SHARDS-COPY-OK "$TMP/shards_copy.out"; then
+    ok "dashboard shards card copy button writes its single-shard codshard invocation (and no-ops without a clipboard API)"
+  else
+    bad "dashboard shards copy-button assertion failed: $(cat "$TMP/shards_copy.err" 2>/dev/null)"
+  fi
+else
+  ok "dashboard shards copy-button check skipped (node not installed)"
+fi
+
 # --- Test DASH-JS-COVERAGE: the node-gated view-load path emits V8 coverage --------
 # Phase 1.4 prerequisite for a CI JS coverage floor (the Python --fail-under=90 analog).
 # Run the shared view loader under NODE_V8_COVERAGE and assert a coverage JSON keyed to a
