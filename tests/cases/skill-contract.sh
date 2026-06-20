@@ -328,3 +328,34 @@ sys.exit(0 if modes == lp.VALID_MODES else 1)
 PY
 then ok "SKILL.md Mode table agrees with lint-plan VALID_MODES"; else bad "SKILL.md Mode set drifted from lint-plan VALID_MODES"; fi
 
+
+# --- Test 10p: build-graph.py --debug digest counts are faithful to the JSON (and non-zero) ---
+# The --debug routing digest (stderr) prints summary counts that MUST equal the JSON (stdout): one
+# import cycle, one coupling edge, one articulation point, plus the frontier counts. A non-zero guard
+# proves the fixture actually exercises each signal so the fidelity comparison is not a vacuous 0 == 0.
+BGDBG="$TMP/bg-debug"; mkdir -p "$BGDBG"
+(
+  cd "$BGDBG" || exit
+  git init -q; git config user.email t@e.com; git config user.name t; git config commit.gpgsign false
+  printf 'import q\n' > p.py; printf 'import r\n' > q.py; printf 'import s\n' > r.py; printf 'import r\n' > s.py
+  git add -A; git commit -qm imports         # chain p->q->r plus an r<->s cycle (q,r articulation)
+  for i in 1 2 3; do printf '%s\n' "$i" >> m.md; printf '%s\n' "$i" >> n.md; git add -A; git commit -qm "co $i"; done
+) >/dev/null 2>&1
+python3 "$ROOT/scripts/build-graph.py" --root "$BGDBG" --debug > "$TMP/bgdbg.json" 2>"$TMP/bgdbg.err"
+if python3 - "$TMP/bgdbg.json" "$TMP/bgdbg.err" <<'PY' 2>/dev/null
+import json, re, sys
+g = json.load(open(sys.argv[1])); err = open(sys.argv[2]).read()
+j_cyc = len(g["import_cycles"]); j_coup = len(g["coupling_edges"])
+j_art = sum(1 for n in g["nodes"].values() if n["is_articulation"])
+j_na = g["frontier"]["never_audited"]; j_stale = g["frontier"]["stale"]
+# non-zero guard: the fixture must produce a cycle, a coupling edge, and an articulation point
+assert j_cyc >= 1 and j_coup >= 1 and j_art >= 1, ("vacuous fixture", j_cyc, j_coup, j_art)
+def num(pat):
+    m = re.search(pat, err); assert m, ("digest line missing", pat); return int(m.group(1))
+assert num(r"import_cycles=(\d+)") == j_cyc, "digest import_cycles drifted from JSON"
+assert num(r"coupling_edges=(\d+)") == j_coup, "digest coupling_edges drifted from JSON"
+assert num(r"articulation_points=(\d+)") == j_art, "digest articulation_points drifted from JSON"
+assert num(r"never_audited=(\d+)") == j_na, "digest frontier never_audited drifted from JSON"
+assert num(r"stale=(\d+)") == j_stale, "digest frontier stale drifted from JSON"
+PY
+then ok "build-graph.py --debug digest counts are faithful to the JSON (cycles/coupling/articulation/frontier) on a non-vacuous fixture"; else bad "build-graph.py --debug digest counts drifted from the JSON or the fixture was vacuous"; fi
