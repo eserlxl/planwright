@@ -686,6 +686,55 @@ else
   ok "commands.js pulse-chip check skipped (node not installed)"
 fi
 
+# --- Test DASH-CMD-COPY: the copy button writes the invocation to the clipboard (and degrades) ----
+# invoke() renders a copy button whose click calls navigator.clipboard.writeText(cmd) with the exact
+# rendered invocation text; with no clipboard API the click must be a silent no-op (no throw). Patches
+# El.addEventListener/click locally (the same dispatch-hook technique the other view blocks use).
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/cmd_copy_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, makeFixture, findByClass, textOf } = VM;
+El.prototype.addEventListener = function (type, fn) { this._ev = this._ev || {}; (this._ev[type] = this._ev[type] || []).push(fn); };
+El.prototype.click = function () { var fns = (this._ev && this._ev.click) || []; for (var i = 0; i < fns.length; i++) { fns[i].call(this, { type: "click" }); } };
+const doc = makeDoc(); const win = makeWin(doc);
+win.fetch = function () { return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ total: 0, checks: [] }); } }); };
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "commands");
+const fx = makeFixture();
+// (1) with a clipboard stub: clicking copy writes the exact rendered invocation text
+var copied = [];
+// Node 20 exposes a read-only global `navigator`, so a plain assignment no-ops — define it.
+Object.defineProperty(globalThis, "navigator", { value: { clipboard: { writeText: function (s) { copied.push(s); return Promise.resolve(); } } }, configurable: true, writable: true });
+var cC = new El("section");
+win.PW_VIEWS.commands(cC, fx.state, fx.fullCtx);
+var invokeWrap = findByClass(cC, "pw-cmd-invoke")[0];
+assert(invokeWrap, "commands did not render a copyable invocation");
+var codeText = textOf(findByClass(invokeWrap, "pw-cmd-code")[0]).trim();
+var copyBtn = findByClass(invokeWrap, "pw-cmd-copy")[0];
+assert(copyBtn, "invoke did not render a copy button");
+copyBtn.click();
+assert(copied.length === 1 && copied[0] === codeText,
+  "copy click did not writeText the rendered invocation (wrote " + JSON.stringify(copied) + ", code=" + JSON.stringify(codeText) + ")");
+// (2) no-clipboard fallback: a click must not throw when navigator.clipboard is absent
+Object.defineProperty(globalThis, "navigator", { value: {}, configurable: true, writable: true });
+var cD = new El("section");
+win.PW_VIEWS.commands(cD, fx.state, fx.fullCtx);
+findByClass(cD, "pw-cmd-copy")[0].click();   // must not throw
+console.log("CMD-COPY-OK");
+JS
+  if node "$TMP/cmd_copy_test.js" "$ROOT/scripts/dashboard" >"$TMP/cmd_copy.out" 2>"$TMP/cmd_copy.err" \
+     && grep -q CMD-COPY-OK "$TMP/cmd_copy.out"; then
+    ok "commands.js copy button writes the rendered invocation via navigator.clipboard.writeText and no-ops without a clipboard API"
+  else
+    bad "commands.js copy-button assertion failed: $(cat "$TMP/cmd_copy.err" 2>/dev/null)"
+  fi
+else
+  ok "commands.js copy-button check skipped (node not installed)"
+fi
+
 # --- Test DASH-SSE-PING: an idle /events stream emits the keep-alive `: ping` ----------
 # The heartbeat (HEARTBEAT_INTERVAL) is the only mechanism that reaps a vanished SSE client
 # (the failing write tears the handler thread down) during the long unattended cycle runs
