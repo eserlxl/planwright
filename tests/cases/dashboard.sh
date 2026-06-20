@@ -591,6 +591,59 @@ else
   ok "commands.js front-door degrade check skipped (node not installed)"
 fi
 
+# --- Test DASH-CMD-FRONTDOOR: the front-door panel renders the args-differ and follow-up rows ----
+# A successful /recommend.json paints the front door. The args-differ row (pw-frontdoor-args) shows
+# ONLY when d.args !== d.command; the follow-up row ("then: <cmd>") shows ONLY when d.follow_up.command
+# is set. A record lacking those fields renders neither. (Fetch is async, so flush two macrotasks.)
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/cmd_frontdoor_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, makeFixture, frontDoorPanels, findByClass, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+var rec = { command: "codvisor", args: "cycle 10 depth 10 explore", base: { key: "codvisor" }, mutating: true, blockers: [], evidence: [], notes: [], follow_up: { command: "codshard", args: "explore" } };
+win.fetch = function (url) {
+  if (url === "/recommend.json") return Promise.resolve({ ok: true, json: function () { return Promise.resolve(rec); } });
+  return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ total: 0, checks: [] }); } });
+};
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "commands");
+const fx = makeFixture();
+function flush(cb) { setTimeout(function () { setTimeout(cb, 0); }, 0); }
+// paintFrontDoor re-paints from the cached recData (sync) then the fetched record (async); the shim
+// never clears children, so panels accumulate — the CURRENT record is always the LAST painted panel.
+function lastFD(c) { var ps = frontDoorPanels(c); return ps[ps.length - 1]; }
+var cA = new El("section");
+win.PW_VIEWS.commands(cA, fx.state, fx.fullCtx);   // record WITH differing args + follow_up
+flush(function () {
+  var pA = lastFD(cA);
+  assert(pA, "front door did not paint on a valid /recommend.json");
+  assert(findByClass(pA, "pw-frontdoor-args").length === 1, "args-differ row missing when args !== command");
+  assert(/then: codshard explore/.test(textOf(pA)), "follow-up row missing when follow_up.command present");
+  rec = { command: "execute", args: "execute", base: { key: "execute" }, mutating: true, blockers: [], evidence: [], notes: [] };
+  var cB = new El("section");
+  win.PW_VIEWS.commands(cB, fx.state, fx.fullCtx);   // args === command, no follow_up
+  flush(function () {
+    var pB = lastFD(cB);
+    assert(pB, "front door did not paint on the second record");
+    assert(findByClass(pB, "pw-frontdoor-args").length === 0, "args-differ row rendered when args === command");
+    assert(!/then: /.test(textOf(pB)), "follow-up row rendered when follow_up absent");
+    console.log("CMD-FRONTDOOR-OK");
+  });
+});
+JS
+  if node "$TMP/cmd_frontdoor_test.js" "$ROOT/scripts/dashboard" >"$TMP/cmd_frontdoor.out" 2>"$TMP/cmd_frontdoor.err" \
+     && grep -q CMD-FRONTDOOR-OK "$TMP/cmd_frontdoor.out"; then
+    ok "commands.js front-door renders the args-differ row (args!==command) and follow-up row (follow_up.command), each absent otherwise"
+  else
+    bad "commands.js front-door args-differ/follow-up assertion failed: $(cat "$TMP/cmd_frontdoor.err" 2>/dev/null)"
+  fi
+else
+  ok "commands.js front-door args-differ/follow-up check skipped (node not installed)"
+fi
+
 # --- Test DASH-SSE-PING: an idle /events stream emits the keep-alive `: ping` ----------
 # The heartbeat (HEARTBEAT_INTERVAL) is the only mechanism that reaps a vanished SSE client
 # (the failing write tears the handler thread down) during the long unattended cycle runs
