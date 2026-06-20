@@ -1267,6 +1267,24 @@ assert(na0Frontier.length === 1, "console did not render the frontier vital on a
 assert(findByClass(na0Frontier[0], "pw-gauge-fill warn").length === 0,
   "frontier vital wrongly rendered the warn gauge on na==0");
 
+// Phase 5.2: cadence() omits zero-count mode legs (line `if (!counts[m]) return`). The base fixture's
+// completed items are all develop, so the mode legend has a develop leg but NONE for the zero-count
+// modes (repair/improve/docs/reorganize). A two-mode fixture shows exactly those two legs. (Read the
+// pw-legend-item elements directly — findByClass substring-matches, so "pw-legend" also hits the items.)
+var legText = findByClass(fc, "pw-legend-item").map(function (l) { return textOf(l); }).join(" | ");
+assert(/develop/.test(legText), "cadence legend omitted the present develop mode");
+["repair", "improve", "docs", "reorganize"].forEach(function (m) {
+  assert(legText.indexOf(m) < 0, "cadence legend rendered a zero-count mode leg: " + m);
+});
+var twoModeC = new El("section");
+win.PW_VIEWS.console(twoModeC, Object.assign({}, state, {
+  completed: [{ title: "a", mode: "repair", commit: "x" }, { title: "b", mode: "docs", commit: "y" }],
+}), fullCtx);
+var twoLegText = findByClass(twoModeC, "pw-legend-item").map(function (l) { return textOf(l); }).join(" | ");
+assert(/repair/.test(twoLegText) && /docs/.test(twoLegText), "two-mode cadence legend missing a present mode");
+assert(twoLegText.indexOf("develop") < 0 && twoLegText.indexOf("improve") < 0,
+  "two-mode cadence legend rendered a zero-count mode");
+
 // Targeted (Phase 1.2): the Reactor satellite strip reflects the accepted/pending/rejected
 // counts so a renamed engine field renders a wrong count instead of failing silently. The
 // verdict + carried-satellite assertions above never pin the accepted/pending NUMBERS; sat()
