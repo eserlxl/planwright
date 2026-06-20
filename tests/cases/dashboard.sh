@@ -2293,6 +2293,29 @@ win.PW_VIEWS.insights(coldRoot, { counts: {} }, { graphText: coldGraph, metrics:
 var coldFlagText = findByClass(coldRoot, "pw-prio-flag").map(textOf).join(" ");
 assert(/uncovered/.test(coldFlagText), "cold frontier omitted the uncovered flag for an uncovered non-test node");
 assert(/test/.test(coldFlagText), "cold frontier omitted the test flag for a test node");
+
+// Phase 5.3: constellation() plots one dot per node (pw-scatter-dot), and the nodeCount>50 guard
+// caps the scatter to the 50 highest-risk dots plus a truncation foot. The base fixture (2 nodes)
+// plots 2 dots with no foot; a 60-node graph plots 50 dots + the "showing the 50 ... of 60" foot.
+var bigNodes = {};
+for (var bi = 0; bi < 60; bi++) {
+  bigNodes["f" + bi + ".py"] = { git_churn: bi + 1, pagerank: (bi + 1) / 100, covered_by_test: bi % 2 === 0, is_test: false, lang: "python", loc: 10 + bi, branch_count: 1, is_articulation: false, imports: [] };
+}
+var bigGraph = JSON.stringify({ graph_built_at_sha: "deadbeef", nodes: bigNodes, import_cycles: [] });
+var mBig = win.PW_DERIVE.metrics(bigGraph);
+assert(mBig.nodeCount === 60, "fixture sanity: 60-node graph");
+var bigRoot = new El("section");
+win.PW_VIEWS.insights(bigRoot, { counts: {} }, { graphText: bigGraph, metrics: mBig, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+assert(findByClass(bigRoot, "pw-scatter-dot").length === 50,
+  "constellation did not cap the scatter to the 50 highest-risk dots on a >50-node graph");
+assert(/showing the 50 highest-risk of 60 files/.test(textOf(bigRoot)),
+  "constellation did not render the >50-node truncation foot");
+var smallRoot = new El("section");
+win.PW_VIEWS.insights(smallRoot, { counts: {} }, ctx);
+assert(findByClass(smallRoot, "pw-scatter-dot").length === 2,
+  "constellation did not plot one dot per node on the 2-node fixture");
+assert(!/showing the 50 highest-risk/.test(textOf(smallRoot)),
+  "constellation wrongly rendered the truncation foot on a 2-node graph");
 console.log("INSIGHTS-RENDER-OK");
 JS
   if node "$TMP/insights_render_test.js" "$ROOT/scripts/dashboard" >"$TMP/insights_render.out" 2>"$TMP/insights_render.err" \
