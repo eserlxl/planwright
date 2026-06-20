@@ -282,3 +282,28 @@ else
   bad "bundled scripts failed when invoked from a cwd other than the repo root"
 fi
 
+# --- Test 10f: SKILL.md OUTPUT FORMAT field set agrees with lint-plan REQUIRED/KNOWN_FIELDS ---
+# The eight-field item contract must stay consistent across SKILL.md (the OUTPUT FORMAT block)
+# and the linter constants (REQUIRED_FIELDS / KNOWN_FIELDS): neither artifact may rename, drop,
+# or add a field unilaterally. Import the linter constants directly (importlib, since the script
+# name is hyphenated) and compare against the labels parsed from the OUTPUT FORMAT fenced block.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import importlib.util, os, re, sys
+root = sys.argv[1]
+spec = importlib.util.spec_from_file_location(
+    "lint_plan_fields", os.path.join(root, "scripts", "lint-plan.py"))
+lp = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(lp)
+t = open(os.path.join(root, "skills/planwright/SKILL.md")).read()
+m = re.search(r"## OUTPUT FORMAT.*?```\n(- \[ \].*?)\n```", t, re.S)
+if not m:
+    raise SystemExit(1)
+labels = re.findall(r"(?m)^\s+([A-Z][A-Za-z ]*?):\s*<", m.group(1))
+required = [l for l in labels if l != "New Surfaces"]
+good = (set(required) == set(lp.REQUIRED_FIELDS)
+        and "New Surfaces" in lp.KNOWN_FIELDS
+        and set(labels) <= lp.KNOWN_FIELDS)
+sys.exit(0 if good else 1)
+PY
+then ok "SKILL.md OUTPUT FORMAT field set agrees with lint-plan REQUIRED_FIELDS/KNOWN_FIELDS"; else bad "SKILL.md item field set drifted from lint-plan REQUIRED_FIELDS/KNOWN_FIELDS"; fi
+
