@@ -482,6 +482,119 @@ else
   bad "lint-plan.py accepted a symlink-escaping Surface (rc=$sl_rc)"
 fi
 
+# --- Test 12g: the widened protected-path Surface denylist (one case per class) ------
+# Beyond .planwright/ (Test 12b), a plan item may not name a .git/ or .qb/ state tree,
+# the LICENSE file, or a secret/credential file (.env / .env.* / *.pem / *.key) as a
+# Surface or New Surface (SKILL.md "Editable surfaces"). Each class must be rejected
+# with its protected-path reason; every needle below fails against the pre-widening
+# linter, which only knew .planwright/. Root is a bare tmp dir, so the protected check
+# fires regardless of any "does not exist" noise.
+PROT="$TMP/protdir"; mkdir -p "$PROT/.planwright"
+PROT_PLAN="$PROT/.planwright/plan.md"
+cat > "$PROT_PLAN" <<'EOF'
+# planwright Plan — .
+
+- [ ] Edit a .git state file
+      Mode: improve
+      Rationale: r.
+      Evidence: gap.
+      Surfaces: .git/config
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] Edit a .qb plan file
+      Mode: improve
+      Rationale: r.
+      Evidence: gap.
+      Surfaces: .qb/main-planning.md
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] Edit the LICENSE
+      Mode: improve
+      Rationale: r.
+      Evidence: gap.
+      Surfaces: LICENSE
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] Edit a dotenv secret
+      Mode: improve
+      Rationale: r.
+      Evidence: gap.
+      Surfaces: .env
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] Edit a dotenv variant
+      Mode: improve
+      Rationale: r.
+      Evidence: gap.
+      Surfaces: config/.env.production
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] Create a pem credential
+      Mode: develop
+      Rationale: r.
+      Evidence: signal foo().
+      Surfaces: scripts/lint-plan.py
+      New Surfaces: certs/server.pem
+      Development: write it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] Create a signing key
+      Mode: develop
+      Rationale: r.
+      Evidence: signal foo().
+      Surfaces: scripts/lint-plan.py
+      New Surfaces: id_rsa.key
+      Development: write it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+prot_rc=0
+prot_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$PROT" --plan "$PROT_PLAN" 2>&1)" || prot_rc=$?
+prot_miss=""
+for needle in ".git/ state tree" ".qb/ state tree" "protected file 'LICENSE'" "secret/credential file"; do
+  printf '%s' "$prot_out" | grep -qF "$needle" || prot_miss="$prot_miss [$needle]"
+done
+# .env, .env.*, *.pem and *.key all yield "secret/credential file"; assert >=3 distinct hits.
+sc_hits="$(printf '%s' "$prot_out" | grep -cF "is a protected path (secret/credential file)")"
+[ "$sc_hits" -ge 3 ] || prot_miss="$prot_miss [secret-class hits >=3, got $sc_hits]"
+if [ "$prot_rc" -ne 0 ] && [ -z "$prot_miss" ]; then
+  ok "lint-plan.py rejects every widened protected-path Surface class (.git//.qb//LICENSE/secret)"
+else
+  bad "lint-plan.py missed a protected-path class:$prot_miss (rc=$prot_rc)"
+fi
+# Additive-gate control: .github/ and .gitignore are NOT caught by the .git/ prefix.
+PROT_OK="$PROT/.planwright/ok.md"
+cat > "$PROT_OK" <<'EOF'
+# planwright Plan — .
+
+- [ ] A .github workflow edit is allowed
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py exists.
+      Surfaces: .github/workflows/ci.yml, .gitignore
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+po_rc=0
+po_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$PROT_OK" 2>&1)" || po_rc=$?
+if [ "$po_rc" -eq 0 ] && ! printf '%s' "$po_out" | grep -qF "is a protected path"; then
+  ok "lint-plan.py spares .github/ and .gitignore from the .git/ protected prefix (gate is additive)"
+else
+  bad "lint-plan.py over-flagged .github/ or .gitignore as protected (rc=$po_rc): $po_out"
+fi
+
 # Convergence guards: a repeated pending title and a Surfaces/New-Surfaces overlap
 # are always violations (hard fail). The lifecycle dir holds the advisory sources.
 LDIR="$TMP/lintdir"

@@ -81,3 +81,42 @@ if [ -z "$env_tracked" ] \
 else
   bad "a planning run ingested or staged a gitignored secret (.env leaked into the graph or got tracked)"
 fi
+
+# --- Test SEC4: the Stage 10 gate refuses a protected-path Surface ------------------
+# SEC1-SEC3 pin the planning write/read boundary; this pins the *plan* boundary: an item
+# may never name a VCS/tool-state tree (.git/, .qb/), the LICENSE, or a secret/credential
+# file (.env/.env.*/*.pem/*.key) as an editable Surface (SKILL.md "Editable surfaces").
+# So a generated/imported plan cannot smuggle an edit to a secret past execute. The
+# fails-on-violation per-class coverage lives in lint-plan.sh Test 12g; this is the
+# boundary-suite assertion that the class is gated at all (one secret + one state tree).
+SECB="$TMP/sec_protboundary"; mkdir -p "$SECB/.planwright"
+cat > "$SECB/.planwright/plan.md" <<'PLAN'
+# planwright Plan — .
+
+- [ ] Smuggle an edit to a dotenv secret
+      Mode: improve
+      Rationale: r.
+      Evidence: gap.
+      Surfaces: deploy/.env.production
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+
+- [ ] Smuggle an edit to git state
+      Mode: improve
+      Rationale: r.
+      Evidence: gap.
+      Surfaces: .git/hooks/pre-commit
+      Development: edit it.
+      Acceptance: green.
+      Verification: bash tests/run.sh
+PLAN
+secb_rc=0
+secb_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$SECB" --plan "$SECB/.planwright/plan.md" 2>&1)" || secb_rc=$?
+if [ "$secb_rc" -ne 0 ] \
+   && printf '%s' "$secb_out" | grep -qF "is a protected path (secret/credential file)" \
+   && printf '%s' "$secb_out" | grep -qF "is a protected path (.git/ state tree)"; then
+  ok "the Stage 10 gate refuses a secret-file and a .git/ Surface (a plan cannot smuggle a protected-path edit)"
+else
+  bad "the Stage 10 gate accepted a protected-path Surface (boundary breached, rc=$secb_rc)"
+fi
