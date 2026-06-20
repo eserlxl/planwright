@@ -462,6 +462,23 @@ class TestRecommendOverlay(unittest.TestCase):
         self.assertEqual(reset["command"], "reset")
         self.assertIsNone(reset["reset_nudge"])                          # None when rec IS reset
 
+    def test_scope_notes_are_conditional(self):
+        # The optional scope divergence notes appear ONLY under their exact conditions, never
+        # as an every-step restatement (codmaster's banner already discloses the scope).
+        # (a) large repo under scope -> the codshard-skipped divergence note appears
+        large = self._recommend_scoped(self._root(final=self._final("expand")),
+                                       repo=self.REPO_LARGE)
+        self.assertTrue(any("not auto-routed under a scope" in n for n in large["notes"]))
+        # (b) an unresolvable lib (empty Focus) -> the best-effort lib note, NOT a hard blocker
+        libnote = self._recommend_scoped(self._root(final=self._final("expand")),
+                                         scope="lib:ghost", focus=[])
+        self.assertTrue(any("best-effort lib lookup" in n for n in libnote["notes"]))
+        self.assertFalse(any(b["kind"] == "scope-no-match" for b in libnote["blockers"]))
+        # (c) a normal small-repo scope with a resolved Focus -> NO scope restatement note
+        normal = self._recommend_scoped(self._root(final=self._final("expand")))
+        self.assertFalse(any("not auto-routed under a scope" in n for n in normal["notes"]))
+        self.assertFalse(any("best-effort lib lookup" in n for n in normal["notes"]))
+
     def test_large_repo_routes_harden_to_codshard(self):
         rec = self._recommend(self._root(), repo=self.REPO_LARGE)
         self.assertEqual(rec["command"], "codshard")
