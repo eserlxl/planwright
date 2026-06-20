@@ -503,3 +503,14 @@ if [ "$dpn_rc" = "0" ] && [ "$dpn_ok" = "1" ]; then
 else
   bad "doctor.py port/node check smoke failed (rc=$dpn_rc ok=$dpn_ok): $dpn_out"
 fi
+
+# --- Test DR7: the README onboarding doctor mention agrees with SKILL.md's canonical usage ---------
+# README points new users at `doctor` as the preflight; SKILL.md exposes the canonical `/planwright
+# doctor` usage (DR6 pins SKILL -> references -> doctor.py). Pin the README -> SKILL agreement so the
+# onboarding instruction can never advertise a doctor invocation the skill does not expose.
+if grep -qF '/planwright doctor' "$ROOT/README.md" \
+   && grep -qF '/planwright doctor' "$ROOT/skills/planwright/SKILL.md"; then
+  ok "README's onboarding doctor mention matches SKILL.md's canonical /planwright doctor usage"
+else
+  bad "README doctor onboarding reference drifted from SKILL.md's canonical /planwright doctor usage"
+fi
