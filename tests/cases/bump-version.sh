@@ -130,3 +130,16 @@ if [ "$clhead" = "$clv" ]; then
 else
   bad "CHANGELOG head/manifest drift: newest CHANGELOG heading is [$clhead] but the manifest is $clv"
 fi
+
+# --- Test BV10: a relative bump from a pre-release-suffixed current rewrites the README badge --------
+# BV3 pins the pre-release CORE math and BV5 pins the README badge rewrite, but not together: a relative
+# bump from a pre-release-suffixed current version must rewrite the shields.io badge to the new CORE
+# version (suffix stripped) — and the stripped pre-release id must never leak into the badge.
+BV10="$TMP/bv-prerelease-readme"; _bv_fixture "$BV10" "2.6.0-rc.1+build.5"
+if ALLOW_DIRTY=1 bash "$BV10/scripts/bump-version.sh" minor >"$TMP/bv10.out" 2>"$TMP/bv10.err" \
+   && [ "$(ver "$BV10/.claude-plugin/plugin.json" '["version"]')" = "2.7.0" ] \
+   && grep -q "img.shields.io/badge/version-2.7.0-2563EB" "$BV10/README.md" \
+   && ! grep -q "version-0.0.0-" "$BV10/README.md" \
+   && ! grep -q "rc.1" "$BV10/README.md"; then
+  ok "bump-version.sh rewrites the README badge to the new core version on a relative bump from a pre-release current"
+else bad "bump-version.sh README badge rewrite from a pre-release current failed (got $(ver "$BV10/.claude-plugin/plugin.json" '["version"]' 2>/dev/null)): $(cat "$TMP/bv10.err" 2>/dev/null)"; fi
