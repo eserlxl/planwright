@@ -447,6 +447,21 @@ class TestRecommendOverlay(unittest.TestCase):
         self.assertIn("whole-repo wipe", rec["why"])             # the reset-is-a-wipe reason
         self.assertIsNone(rec["reset_nudge"])                    # a scope never nudges reset
 
+    def test_reset_nudge_is_whole_repo_only(self):
+        # The reset nudge rides ONLY an unscoped converged non-reset recommendation: present on
+        # an unscoped converged grow, but None both under a scope (a scoped drive never nudges a
+        # whole-repo reset) and when the recommendation already IS the reset.
+        unscoped = self._recommend(self._root(final=self._final("expand")))
+        self.assertEqual(unscoped["command"], "codinventor")
+        self.assertIsNotNone(unscoped["reset_nudge"])                    # present, unscoped grow
+        scoped = self._recommend_scoped(self._root(final=self._final("expand")))
+        self.assertIsNotNone(scoped["scope"])
+        self.assertIsNone(scoped["reset_nudge"])                         # None under a scope
+        reset = self._recommend(self._root(final=self._final("invent"),
+                                           graph=self._graph(never_audited=0)))
+        self.assertEqual(reset["command"], "reset")
+        self.assertIsNone(reset["reset_nudge"])                          # None when rec IS reset
+
     def test_large_repo_routes_harden_to_codshard(self):
         rec = self._recommend(self._root(), repo=self.REPO_LARGE)
         self.assertEqual(rec["command"], "codshard")
