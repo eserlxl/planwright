@@ -320,6 +320,46 @@ if [ -n "$echead" ]; then
 else
   ok "status.py --exit-code check skipped (git unavailable)"
 fi
+# --- Test STS8c: --exit-code and the converged boolean agree on every unscoped state ----
+# STS8 pins the rc VALUES and STS9 pins the converged BOOLEANS, but on SEPARATE fixtures, so a
+# regression that desynced the two readers for the current/pending/stale states could slip past
+# both (STS9 never checks the converged bool of a stale point). This drives BOTH the rc and the
+# --json converged bool from the SAME fixture per state and asserts rc==0 <=> converged==true —
+# the stop/continue agreement an orchestrator (rc) and a dashboard (converged) both rely on.
+# (Invalid and scoped states already get this joint check in STS9b and STS11.)
+MXC="$TMP/status-agree"; mkdir -p "$MXC/.planwright"
+if ( cd "$MXC" && git init -q && git config user.email t@t && git config user.name t \
+    && git commit -q --allow-empty -m init ) 2>/dev/null; then
+  mxhead="$(git -C "$MXC" rev-parse HEAD)"
+  agree_ok=1
+  _check_agree() {  # $1 = expected converged (true|false); pins rc and the bool agree with it
+    local cj rc conv
+    cj="$(python3 "$STAT" --root "$MXC" --json)"
+    rc=0; python3 "$STAT" --root "$MXC" --exit-code --quiet || rc=$?
+    if grep -qE '"converged": true' <<<"$cj"; then conv=true; else conv=false; fi
+    [ "$conv" = "$1" ] || agree_ok=0
+    if { [ "$1" = true ] && [ "$rc" != 0 ]; } || { [ "$1" = false ] && [ "$rc" != 1 ]; }; then
+      agree_ok=0
+    fi
+  }
+  # current VALID point, 0 pending -> converged true, rc 0
+  _wf_final "$mxhead" > "$MXC/.planwright/final.md"; rm -f "$MXC/.planwright/plan.md"
+  _check_agree true
+  # pending work -> converged false, rc 1
+  printf -- '- [ ] pending\n' > "$MXC/.planwright/plan.md"
+  _check_agree false
+  rm -f "$MXC/.planwright/plan.md"
+  # stale point (sha != HEAD), 0 pending -> converged false, rc 1
+  printf 'sha: 0000000000000000000000000000000000000000\ndeepest_tier: expand\n' > "$MXC/.planwright/final.md"
+  _check_agree false
+  if [ "$agree_ok" = 1 ]; then
+    ok "status.py --exit-code and the --json converged boolean agree on current/pending/stale"
+  else
+    bad "status.py --exit-code and the converged boolean diverged on a state"
+  fi
+else
+  ok "status.py exit-code/converged agreement check skipped (git unavailable)"
+fi
 # --- Test STS9: --json exposes a canonical `converged` boolean ---------------------
 # The convergence verdict is surfaced as state["converged"] so a JSON consumer reads
 # one boolean instead of re-deriving it; it must agree with the --exit-code result.
