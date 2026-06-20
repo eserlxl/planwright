@@ -1197,6 +1197,24 @@ assert(!/final point is stale — HEAD moved since/.test(textOf(freshC)),
 assert(findByClass(freshC, "is-stale").length === 0,
   "fresh final point wrongly rendered the is-stale decorator");
 
+// Phase 5.1: the reactor ring arcs — the done progress arc (pw-reactor-arc-progress, rendered only
+// when doneLen>0, i.e. completed>0) and the rejected notch (pw-reactor-notch, killLen>0, i.e.
+// rejected>0). The base fixture has completed:[1]+rejected:[1] so both render; a fixture with
+// neither completed nor rejected renders neither arc.
+assert(findByClass(fc, "pw-reactor-arc-progress").length > 0,
+  "reactor did not render the done progress arc with completed items");
+assert(findByClass(fc, "pw-reactor-notch").length > 0,
+  "reactor did not render the rejected notch with rejected items");
+var noArcs = new El("section");
+win.PW_VIEWS.console(noArcs, Object.assign({}, state, {
+  completed: [], rejected: [],
+  counts: Object.assign({}, state.counts, { completed: 0, rejected: 0 }),
+}), fullCtx);
+assert(findByClass(noArcs, "pw-reactor-arc-progress").length === 0,
+  "reactor rendered a done arc with zero completed items");
+assert(findByClass(noArcs, "pw-reactor-notch").length === 0,
+  "reactor rendered a rejected notch with zero rejected items");
+
 // Targeted (Phase 1.2): the Reactor satellite strip reflects the accepted/pending/rejected
 // counts so a renamed engine field renders a wrong count instead of failing silently. The
 // verdict + carried-satellite assertions above never pin the accepted/pending NUMBERS; sat()
