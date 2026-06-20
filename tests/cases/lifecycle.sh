@@ -896,3 +896,42 @@ if printf '%s' "$dry21f_out" | python3 -c 'import json,sys; d=json.load(sys.stdi
 else
   bad "lifecycle.py reconcile-sweep --dry-run mutated an existing completed.md (out='$dry21f_out')"
 fi
+
+# --- Test L1b: the completed/rejected drain is a two-file transaction ------------------
+# L1 proves each item reaches the RIGHT file; this pins the transaction invariant L1 omits:
+# every drained block lands in EXACTLY ONE target — none lost, none left pending, and none
+# duplicated ACROSS both files. A double-drain or cross-contamination regression in the
+# _state_lock critical section (a checked block grabbed by both drains) would slip past L1's
+# presence-only greps, so assert exact-once counts AND mutual absence in the other target.
+LTX="$TMP/lc1b/.planwright"; mkdir -p "$LTX"
+cat > "$LTX/plan.md" <<'EOF'
+# planwright Plan — .
+
+- [x] Completed one
+      Mode: improve
+      Verification: true
+
+- [ ] Pending survivor
+      Mode: docs
+      Surfaces: README.md
+      Verification: true
+
+- [ ] Rejected one
+      Mode: repair
+      Status: Rejected
+      Rejection: verification planwright_y failed: kaboom
+EOF
+python3 "$LC" housekeep --root "$LTX" >/dev/null
+comp_n="$(grep -c '^- \[x\] Completed one' "$LTX/completed.md" 2>/dev/null || true)"
+rej_n="$(grep -c '^- \[ \] Rejected one' "$LTX/rejected.md" 2>/dev/null || true)"
+xcontam=0
+grep -q 'Completed one' "$LTX/rejected.md" 2>/dev/null && xcontam=1   # completed leaked into rejected
+grep -q 'Rejected one' "$LTX/completed.md" 2>/dev/null && xcontam=1   # rejected leaked into completed
+plan_pend="$(grep -c '^- \[ \]' "$LTX/plan.md" 2>/dev/null || true)"
+if [ "$comp_n" = "1" ] && [ "$rej_n" = "1" ] && [ "$xcontam" = "0" ] \
+   && [ "$plan_pend" = "1" ] && grep -q '^- \[ \] Pending survivor' "$LTX/plan.md" \
+   && ! grep -q 'Completed one' "$LTX/plan.md" && ! grep -q 'Rejected one' "$LTX/plan.md"; then
+  ok "lifecycle.py housekeep drains the two-file transaction with no loss, duplication, or cross-contamination"
+else
+  bad "lifecycle.py two-file drain transaction wrong (comp=$comp_n rej=$rej_n xcontam=$xcontam pend=$plan_pend)"
+fi
