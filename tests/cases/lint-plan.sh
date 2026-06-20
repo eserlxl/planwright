@@ -335,7 +335,7 @@ cat > "$CONSV" <<'EOF'
       Surfaces: scripts/plan_parse.py
       Development: edit parse_items().
       Acceptance: green.
-      Verification: true
+      Verification: make
 EOF
 cv_rc=0; python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$CONSV" --strict --quiet || cv_rc=$?
 if [ "$cv_rc" -eq 0 ]; then ok "lint-plan.py stays conservative: a -c snippet raises no missing-script advisory and a single-token command is not prose (clean under --strict)"; else bad "lint-plan.py over-flagged a conservative Verification (rc=$cv_rc)"; fi

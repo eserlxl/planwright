@@ -330,7 +330,7 @@ cat > "$FOREIGN/mini_plan.md" <<'PLAN'
       Surfaces: README.md
       Development: no-op probe of the README.md surface.
       Acceptance: lint passes; nothing changes.
-      Verification: true
+      Verification: grep -q . README.md
 PLAN
 if ( cd "$FOREIGN" \
      && python3 "$ROOT/scripts/build-graph.py" --root "$ROOT" >/dev/null 2>&1 \
