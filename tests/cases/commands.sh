@@ -1053,3 +1053,28 @@ if pw_codex_validate "$ROOT/.codex-plugin/plugin.json" "$ROOT" 2>/dev/null; then
 else
   bad ".codex-plugin/plugin.json failed structural validation"
 fi
+
+# --- Test CLAUDE-MANIFEST: the shipped .claude-plugin/plugin.json minimal-manifest contract
+# Beyond version agreement (skill-contract 10c), the Claude manifest's minimal-manifest shape is
+# unpinned: it must be valid JSON with name == the plugin identity (planwright) and a present,
+# semver-shaped version. A hand-edit could drop/rename a required field while still version-matching.
+# Validate the real manifest, then fail a name-less copy to prove the check is non-vacuous.
+pw_claude_validate() {  # $1 = manifest path
+  python3 - "$1" <<'PY'
+import json, re, sys
+m = json.load(open(sys.argv[1], encoding="utf-8"))   # raises -> invalid JSON
+assert m.get("name") == "planwright", "name must be the plugin identity 'planwright'"
+v = m.get("version")
+assert isinstance(v, str) and re.fullmatch(r"\d+\.\d+\.\d+", v), "version missing or not semver: " + repr(v)
+PY
+}
+if pw_claude_validate "$ROOT/.claude-plugin/plugin.json" 2>/dev/null; then
+  CLBAD="$TMP/claude_bad.json"; printf '{"version": "1.2.3"}' > "$CLBAD"   # missing name
+  if pw_claude_validate "$CLBAD" 2>/dev/null; then
+    bad ".claude-plugin manifest validator passed a name-less manifest (vacuous check)"
+  else
+    ok ".claude-plugin/plugin.json is valid JSON with name == planwright and a semver version (name-less copy rejected)"
+  fi
+else
+  bad ".claude-plugin/plugin.json failed the minimal-manifest contract"
+fi
