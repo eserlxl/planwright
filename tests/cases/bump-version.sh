@@ -157,3 +157,22 @@ assert m, "no '/plugin install <name>@' line in README"
 assert m.group(1) == name, (m.group(1), name)
 PY
 then ok "README's /plugin install identifier names the manifest plugin name (.claude-plugin/plugin.json)"; else bad "README install identifier drifted from .claude-plugin/plugin.json name"; fi
+
+# --- Test BV12: a bump prepends the new CHANGELOG section newest-first -------------------
+# bump-version.sh inserts the new entry ABOVE the first existing version section. BV1 asserts the
+# entry is PRESENT and BV9 asserts the head heading == manifest at rest, but neither proves a
+# POPULATED changelog stays newest-first. Seed a multi-section changelog, bump, and assert the new
+# heading lands ABOVE the prior sections — a newest-last append (or an insert below an older one) fails.
+BV12="$TMP/bv-order"; _bv_fixture "$BV12" "1.2.0"
+printf -- '# Changelog\n\n## [1.2.0] - 2026-01-01\n\n### Changed\n- second\n\n## [1.1.0] - 2025-12-01\n\n### Changed\n- first\n' > "$BV12/CHANGELOG.md"
+if ALLOW_DIRTY=1 bash "$BV12/scripts/bump-version.sh" minor -m "Newest change" >"$TMP/bv12.out" 2>"$TMP/bv12.err" \
+   && python3 - "$BV12" <<'PY'
+import sys
+cl = open(sys.argv[1] + "/CHANGELOG.md").read()
+i_new, i_120, i_110 = cl.find("## [1.3.0]"), cl.find("## [1.2.0]"), cl.find("## [1.1.0]")
+assert i_new != -1, "new section missing"
+assert i_120 != -1 and i_110 != -1, "prior sections lost"
+assert i_new < i_120 < i_110, ("changelog not newest-first", i_new, i_120, i_110)
+PY
+then ok "bump-version.sh prepends the new CHANGELOG section newest-first (above prior sections)"
+else bad "bump-version.sh did not insert the new CHANGELOG section newest-first: $(cat "$TMP/bv12.err" 2>/dev/null)"; fi
