@@ -2146,3 +2146,28 @@ below = any({e["a"], e["b"]} == {"bt1.md", "bt2.md"} for e in g["coupling_edges"
 assert not below, "a below-threshold pair wrongly emitted a coupling edge"
 PY
 then ok "build-graph.py emits a coupling edge at exactly coupling_min_cooccurrence and not one below"; else bad "build-graph.py coupling threshold off-by-one"; fi
+
+# --- Test 11q: ranking_signal flips coupling->centrality when the import graph becomes non-degenerate
+# A no-import repo (degenerate import graph) ranks by change-coupling (ranking_signal == "coupling");
+# once enough resolvable import edges make the graph non-degenerate (build-graph's predicate
+# n_import_edges >= max(3, files//4) with a non-trivial PageRank spread), PageRank takes over (centrality).
+BGRS="$TMP/bg-ranksig"; mkdir -p "$BGRS"
+(
+  cd "$BGRS" || exit
+  git init -q; git config user.email t@e.com; git config user.name t; git config commit.gpgsign false
+  for i in 1 2 3; do
+    for f in a b c d; do printf '%s%s\n' "$f" "$i" >> "$f.py"; done
+    git add -A; git commit -qm "co $i"
+  done
+) >/dev/null 2>&1
+python3 "$ROOT/scripts/build-graph.py" --root "$BGRS" > "$TMP/bgrs1.json" 2>/dev/null
+( cd "$BGRS" && printf 'import b\n' > a.py && printf 'import c\n' > b.py && printf 'import d\n' > c.py \
+    && git add -A && git commit -qm "import chain" ) >/dev/null 2>&1
+python3 "$ROOT/scripts/build-graph.py" --root "$BGRS" > "$TMP/bgrs2.json" 2>/dev/null
+if python3 - "$TMP/bgrs1.json" "$TMP/bgrs2.json" <<'PY' 2>/dev/null
+import json, sys
+g1 = json.load(open(sys.argv[1])); g2 = json.load(open(sys.argv[2]))
+assert g1["ranking_signal"] == "coupling", ("no-import repo should rank by coupling", g1["ranking_signal"])
+assert g2["ranking_signal"] == "centrality", ("an import chain should flip to centrality", g2["ranking_signal"])
+PY
+then ok "build-graph.py ranking_signal flips coupling->centrality when a resolvable import edge makes the graph non-degenerate"; else bad "build-graph.py ranking_signal degeneracy switch wrong"; fi
