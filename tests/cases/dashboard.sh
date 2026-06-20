@@ -2548,14 +2548,14 @@ if command -v node >/dev/null 2>&1; then
     rep2="$(python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT")"
     rc_hi=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 100 >/dev/null 2>&1 || rc_hi=$?
     rc_lo=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 1 >/dev/null 2>&1 || rc_lo=$?
-    # Phase 1.4 floor: the committed 65% floor (CI --fail-under 65, docs/js-coverage-floor.md) must
+    # Phase 1.4 floor: the committed 71% floor (CI --fail-under 71, docs/js-coverage-floor.md) must
     # pass on the current tree, so a coverage drop below it fails the suite locally too, not only CI.
-    rc_floor=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 65 >/dev/null 2>&1 || rc_floor=$?
+    rc_floor=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 71 >/dev/null 2>&1 || rc_floor=$?
     if printf '%s' "$rep1" | grep -qE 'JS coverage \(scripts/dashboard\): [0-9]+\.[0-9]+%' \
        && [ "$rep1" = "$rep2" ] && [ "$rc_hi" = "2" ] && [ "$rc_lo" = "0" ] && [ "$rc_floor" = "0" ]; then
-      ok "js-coverage-report.py reduces V8 coverage to one deterministic % over the 65% floor (--fail-under gates correctly)"
+      ok "js-coverage-report.py reduces V8 coverage to one deterministic % over the 71% floor (--fail-under gates correctly)"
     else
-      bad "js-coverage-report.py % non-deterministic, below the 65% floor, or --fail-under mis-gated (hi=$rc_hi lo=$rc_lo floor=$rc_floor): '$rep1' vs '$rep2'"
+      bad "js-coverage-report.py % non-deterministic, below the 71% floor, or --fail-under mis-gated (hi=$rc_hi lo=$rc_lo floor=$rc_floor): '$rep1' vs '$rep2'"
     fi
   else
     bad "JS coverage collector failed: $(cat "$TMP/js_cov_pct.err" 2>/dev/null)"
