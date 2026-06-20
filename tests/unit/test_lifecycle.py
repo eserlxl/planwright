@@ -416,6 +416,53 @@ class TestReconcileSweep(unittest.TestCase):
         self.assertEqual(glob.glob(os.path.join(self.root, ".lifecycle-*.tmp")), [])
 
 
+class TestAlreadyRecordedPrefix(unittest.TestCase):
+    """_already_recorded matches a completed.md `Commit:` block to a full sha by PREFIX so
+    abbreviation-length drift (a differing core.abbrev / repo growth) cannot duplicate a
+    record. The contract must hold at both edges: a recorded short abbreviation matches its
+    full sha (positive) and the full sha matches itself; a full sha the recorded value is NOT
+    a prefix of is NOT already-recorded (negative); and a blank Commit value never vacuously
+    matches every sha. L19g pins only the positive same-commit leg."""
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.completed = os.path.join(self._tmp.name, "completed.md")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write(self, recorded_commit):
+        with open(self.completed, "w", encoding="utf-8") as fh:
+            fh.write("# planwright Plan — .\n\n"
+                     "- [x] A recorded fix\n"
+                     "      Mode: improve\n"
+                     f"      Commit: {recorded_commit}\n")
+
+    _FULL = "abcdef0123456789abcdef0123456789abcdef01"
+
+    def test_recorded_short_matches_full_sha(self):
+        self._write(self._FULL[:7])                 # a 7-char abbreviation of the same commit
+        self.assertTrue(lc._already_recorded(self.completed, self._FULL))
+
+    def test_recorded_full_matches_itself(self):
+        self._write(self._FULL)                     # the full sha recorded verbatim
+        self.assertTrue(lc._already_recorded(self.completed, self._FULL))
+
+    def test_non_prefix_full_sha_not_recorded(self):
+        # The recorded abbreviation is NOT a prefix of this different commit's full sha.
+        self._write("abcdef0")
+        other = "abc999fffffffffffffffffffffffffffffffff0"
+        self.assertFalse(self._FULL.startswith("abc999"))   # guard: the fixture is a real miss
+        self.assertFalse(lc._already_recorded(self.completed, other))
+
+    def test_blank_commit_value_never_matches(self):
+        # A blank `Commit:` value must not vacuously match every sha (startswith("") is True);
+        # the `if recorded and ...` guard is what prevents that.
+        self._write("")
+        self.assertFalse(lc._already_recorded(self.completed, self._FULL))
+
+
 class TestAtomicWrite(unittest.TestCase):
     """lifecycle.write — atomic temp+os.replace; a crash mid-rename must not truncate."""
 
