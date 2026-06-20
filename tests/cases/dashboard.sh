@@ -2430,6 +2430,29 @@ assert os.path.isfile(bootstrap), "credited bootstrap path missing: " + bootstra
 PY
 then ok "coverage map's credited harness anchors all resolve to Test blocks and the bootstrap path exists (fails on rename)"; else bad "coverage map credits a harness anchor or bootstrap that no longer exists"; fi
 
+# --- Test DASH-JS-FLOOR-LOCKSTEP: the JS coverage floor is identical across CI/gate/doc -
+# The JS --fail-under floor lives in three surfaces (ci.yml's "JS coverage" step, this file's
+# DASH-JS-COV-PCT gate, and docs/js-coverage-floor.md) and the CI comment claims "lockstep" —
+# but nothing enforces it, so a one-surface raise drifts silently. Guarded-parse each (a
+# missing/unparseable pattern fails loudly, per the Test 10c precedent) and assert all agree.
+if python3 - "$ROOT/.github/workflows/ci.yml" "$ROOT/tests/cases/dashboard.sh" "$ROOT/docs/js-coverage-floor.md" <<'PY' 2>/dev/null
+import re, sys
+ci = open(sys.argv[1], encoding="utf-8").read()
+gate = open(sys.argv[2], encoding="utf-8").read()
+doc = open(sys.argv[3], encoding="utf-8").read()
+def grab(pat, text, label):
+    m = re.search(pat, text)
+    assert m, "JS floor not parseable in " + label
+    return int(m.group(1))
+floors = {
+    "ci.yml": grab(r"js-coverage-report\.py[^\n]*--fail-under\s+(\d+)", ci, "ci.yml"),
+    "gate":   grab(r"rc_floor=0;[^\n]*--fail-under\s+(\d+)", gate, "DASH-JS-COV-PCT gate"),
+    "doc":    grab(r"Committed floor:\*\*\s*\*\*(\d+)%", doc, "js-coverage-floor.md"),
+}
+assert len(set(floors.values())) == 1, "JS floor drift: " + repr(floors)
+PY
+then ok "JS coverage floor (--fail-under) is identical across ci.yml, the DASH-JS-COV-PCT gate, and the doc"; else bad "JS coverage floor drifted across ci.yml / gate / doc (or a parse pattern broke)"; fi
+
 # --- Test DASH-JS-COVERAGE: the node-gated view-load path emits V8 coverage --------
 # Phase 1.4 prerequisite for a CI JS coverage floor (the Python --fail-under=90 analog).
 # Run the shared view loader under NODE_V8_COVERAGE and assert a coverage JSON keyed to a
