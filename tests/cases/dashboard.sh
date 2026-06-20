@@ -1321,6 +1321,19 @@ var dirtySub = findByClass(dirtyC, "pw-pulserail-sub");
 assert(dirtySub.length === 1 && /3 nodes dirty/.test(textOf(dirtySub[0])),
   "pulserail did not render the dirty-node count (3) from state.graph.dirty_node_count");
 
+// Phase 5.3: Risk Ledger row flags — a row renders the "uncovered" flag when !n.covered and the
+// "articulation" flag when n.articulation, and OMITS each otherwise. The fixture has hot.py
+// (uncovered + articulation) and cold.py (covered, non-articulation), so each flag appears EXACTLY
+// once (on hot.py); cold.py's row omits both. (Search the full flag class to exclude the
+// "pw-ledger-flags" container and the "pw-ledger-row is-uncovered" row class.)
+var insC = new El("section");
+win.PW_VIEWS.insights(insC, state, fullCtx);
+assert(findByClass(insC, "pw-ledger-row").length >= 2, "risk ledger did not render the fixture's hotspot rows");
+assert(findByClass(insC, "pw-ledger-flag is-uncovered").length === 1,
+  "risk ledger uncovered flag should appear exactly once (hot.py), not on the covered cold.py row");
+assert(findByClass(insC, "pw-ledger-flag is-articulation").length === 1,
+  "risk ledger articulation flag should appear exactly once (hot.py), not on the non-articulation cold.py row");
+
 // Targeted (Phase 1.2): the Reactor satellite strip reflects the accepted/pending/rejected
 // counts so a renamed engine field renders a wrong count instead of failing silently. The
 // verdict + carried-satellite assertions above never pin the accepted/pending NUMBERS; sat()
