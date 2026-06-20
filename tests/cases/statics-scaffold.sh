@@ -213,6 +213,32 @@ else
 fi
 if ! grep -q "should be rolled back" "$WORK/CHANGELOG.md"; then ok "bump-version did not commit the changelog note on a failed run"; else bad "bump-version left a changelog note after a failed run"; fi
 
+# --- Test 1c2: the rollback also restores the README version badge and SKILL frontmatter ----------
+# Test 1c pins the JSON-manifest rollback; the README shields.io version badge and the (quoted) SKILL
+# frontmatter version are the other two surfaces bump-version rewrites, so the transactional restore
+# must cover them too. Re-quote the SKILL version (Test 1b unquoted it) so the real bump touches it,
+# capture both surfaces, inject the same unwritable-root failure, and assert both are restored.
+sv2_pre="$(ver "$WORK/.claude-plugin/plugin.json" "['version']")"
+python3 - "$WORK/skills/planwright/SKILL.md" "$sv2_pre" <<'PY'
+import re, sys
+path, v = sys.argv[1], sys.argv[2]
+t = open(path, encoding="utf-8").read()
+t = re.sub(r'(?m)^(  version:)[ \t]*\S.*$', r'\1 "%s"' % v, t, count=1)   # re-quote so it is bumped
+open(path, "w", encoding="utf-8").write(t)
+PY
+pre_skill="$(grep -m1 '  version:' "$WORK/skills/planwright/SKILL.md")"
+pre_badge="$(grep -m1 'img.shields.io/badge/version-' "$WORK/README.md")"
+chmod 0555 "$WORK"
+"$WORK/scripts/bump-version.sh" patch -m "rollback probe" >/dev/null 2>&1 || true
+chmod 0755 "$WORK"
+post_skill="$(grep -m1 '  version:' "$WORK/skills/planwright/SKILL.md")"
+post_badge="$(grep -m1 'img.shields.io/badge/version-' "$WORK/README.md")"
+if [ -n "$pre_badge" ] && [ "$post_skill" = "$pre_skill" ] && [ "$post_badge" = "$pre_badge" ]; then
+  ok "bump-version restores the README version badge and the SKILL frontmatter version after a mid-run failure"
+else
+  bad "bump-version left README/SKILL drift after a mid-run failure (skill '$pre_skill'->'$post_skill'; badge changed: $([ "$pre_badge" = "$post_badge" ] && echo no || echo YES))"
+fi
+
 # --- Test 2: make-plugin.sh scaffolds a valid plugin ----------------------
 GEN="$TMP/gen"
 NO_GIT=1 PLUGIN_DESC="Smoke test plugin." "$ROOT/scripts/make-plugin.sh" demo "$GEN" >/dev/null
