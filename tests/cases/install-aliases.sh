@@ -138,3 +138,20 @@ if [ "$ia6_rc" -eq 2 ] && grep -q 'needs a path' "$TMP/ia6.err"; then
 else
   bad "install-aliases mis-handled --dir with no value (rc=$ia6_rc err='$(cat "$TMP/ia6.err" 2>/dev/null)')"
 fi
+
+# --- Test IA1b: the installer writes EXACTLY the five canonical delegators (no more, no fewer) ----
+# IA1 checks the five named files EXIST (the no-fewer arm); a regression that added a SIXTH delegator
+# would slip past it. Pin the exact set: the installed .md count is 5 and equals the canonical cod* family.
+IAX="$TMP/ia-exact"; mkdir -p "$IAX"
+if bash "$IA" --dir "$IAX" >/dev/null 2>&1; then
+  ia_count="$(find "$IAX" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
+  ia_set="$(cd "$IAX" && ls -1 ./*.md 2>/dev/null | sed 's#.*/##; s/\.md$//' | sort | tr '\n' ' ')"
+  ia_want="$(printf '%s\n' codcycle codinventor codmaster codshard codvisor | sort | tr '\n' ' ')"
+  if [ "$ia_count" = "5" ] && [ "$ia_set" = "$ia_want" ]; then
+    ok "install-aliases --dir writes EXACTLY the five canonical delegators (no more, no fewer)"
+  else
+    bad "install-aliases wrote the wrong delegator set (count=$ia_count set='$ia_set')"
+  fi
+else
+  bad "install-aliases --dir exited nonzero on the exact-set check"
+fi
