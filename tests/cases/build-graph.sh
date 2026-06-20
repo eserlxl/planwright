@@ -133,6 +133,44 @@ assert edges == sorted(edges), edges
 PY
 then ok "build-graph.py coupling_edges emit in deterministic sorted (a,b) order"; else bad "build-graph.py coupling_edges order is not deterministic"; fi
 
+# --- Test 11-prior-stable: an unchanged-tree --prior rebuild is byte-stable -------------
+# build-graph.py --prior carries over last_audited_sha and recomputes pagerank/dirty. The
+# existing byte-stability checks compare first-run encodings (plain vs -z); a --prior rebuild
+# on an UNCHANGED tree must yield the SAME graph as the first build, differing only in the
+# timestamp (built_at) and the dirty block (first-run vs incremental). The fixture is
+# non-vacuous: an import chain + an articulation point + a coupling edge + >=2 clusters, all
+# of which drive the carry-over paths; non-vacuity is guarded before the comparison.
+PRREPO="$TMP/prior_stable"; mkdir -p "$PRREPO"
+git -C "$PRREPO" init -q
+printf '#!/usr/bin/env bash\nsource mid.sh\nleft(){ echo;}\n' > "$PRREPO/left.sh"
+printf '#!/usr/bin/env bash\nsource mid.sh\nright(){ echo;}\n' > "$PRREPO/right.sh"
+printf '#!/usr/bin/env bash\nsource leaf.sh\nmid(){ echo;}\n' > "$PRREPO/mid.sh"
+printf '#!/usr/bin/env bash\nleaf(){ echo;}\n' > "$PRREPO/leaf.sh"
+printf '#!/usr/bin/env bash\nsource a2.sh\na1(){ echo;}\n' > "$PRREPO/a1.sh"
+printf '#!/usr/bin/env bash\na2(){ echo;}\n' > "$PRREPO/a2.sh"
+git -C "$PRREPO" add -A && git -C "$PRREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+for i in 1 2 3; do
+  printf 'c%s\n' "$i" >> "$PRREPO/left.sh"; printf 'c%s\n' "$i" >> "$PRREPO/right.sh"
+  git -C "$PRREPO" add -A && git -C "$PRREPO" -c user.name=t -c user.email=t@e.com commit -qm "c$i"
+done
+python3 "$ROOT/scripts/build-graph.py" --root "$PRREPO" > "$TMP/prior_g1.json" 2>/dev/null
+python3 "$ROOT/scripts/build-graph.py" --root "$PRREPO" --prior "$TMP/prior_g1.json" > "$TMP/prior_g2.json" 2>/dev/null
+if python3 - "$TMP/prior_g1.json" "$TMP/prior_g2.json" <<'PY' 2>/dev/null
+import json, sys
+a = json.load(open(sys.argv[1])); b = json.load(open(sys.argv[2]))
+# non-vacuity guard: the fixture must actually exercise every carry-over path before comparing.
+assert len(a["clusters"]) >= 2, a["clusters"]
+assert any(n["is_articulation"] for n in a["nodes"].values()), "fixture has no articulation point"
+assert len(a["coupling_edges"]) >= 1, a["coupling_edges"]
+assert any(n["imports"] for n in a["nodes"].values()), "fixture has no import edges"
+# the only legitimate differences are the timestamp and the first-run-vs-incremental dirty block.
+assert a["dirty"]["is_first_run"] is True and b["dirty"]["is_first_run"] is False, (a["dirty"], b["dirty"])
+for g in (a, b):
+    g.pop("built_at", None); g.pop("dirty", None)
+assert a == b, "unchanged --prior rebuild diverged from the first build beyond built_at/dirty"
+PY
+then ok "build-graph.py --prior rebuild on an unchanged tree is byte-stable (differs only in built_at/dirty)"; else bad "build-graph.py --prior unchanged-tree rebuild is not byte-stable"; fi
+
 # --- Test 11a: PW_COUPLING_MAX_FILES overrides the coupling bulk-skip threshold
 # The git timeout is runtime-overridable (PW_GIT_TIMEOUT_SECONDS); its sibling
 # bulk-skip threshold COUPLING_MAX_FILES_PER_COMMIT must be too, so a large-commit
