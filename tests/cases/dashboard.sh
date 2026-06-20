@@ -1179,6 +1179,24 @@ win.PW_VIEWS.console(idleC, Object.assign({}, state, {
 }), fullCtx);
 assert(/IDLE/.test(textOf(idleC)), "Reactor did not read IDLE on a drained plan with no final point");
 
+// Phase 5.1: deeper than the /STALE/ verdict above — a drained-but-stale point must ALSO render
+// the explanatory staleness sub-line copy AND the is-stale reactor decorator (a regression that
+// kept the STALE word but dropped the explanation or the visual cue would still pass /STALE/).
+// Both must be ABSENT on a fresh (valid, non-stale) point.
+assert(/final point is stale — HEAD moved since/.test(textOf(staleC)),
+  "stale reactor omitted the explanatory staleness sub-line copy");
+assert(findByClass(staleC, "is-stale").length > 0,
+  "stale reactor omitted the is-stale decorator class");
+var freshC = new El("section");
+win.PW_VIEWS.console(freshC, Object.assign({}, state, {
+  pending: [], counts: Object.assign({}, state.counts, { pending: 0 }),
+  final_point: { sha: fullCtx.head, date: "2026-01-01", deepest_tier: "expand", valid: true, stale: false, scope: null },
+}), fullCtx);
+assert(!/final point is stale — HEAD moved since/.test(textOf(freshC)),
+  "fresh final point wrongly rendered the staleness sub-line");
+assert(findByClass(freshC, "is-stale").length === 0,
+  "fresh final point wrongly rendered the is-stale decorator");
+
 // Targeted (Phase 1.2): the Reactor satellite strip reflects the accepted/pending/rejected
 // counts so a renamed engine field renders a wrong count instead of failing silently. The
 // verdict + carried-satellite assertions above never pin the accepted/pending NUMBERS; sat()
