@@ -2239,6 +2239,31 @@ kbList.dispatch("keydown", { key: "ArrowUp" });
 assert(doc.activeElement === kbRows[0], "ArrowUp did not move row focus back up to row 0");
 kbList.dispatch("keydown", { key: "x" });   // non-navigation key: early return, no focus change
 assert(doc.activeElement === kbRows[0], "a non-navigation key wrongly changed row focus");
+
+// Phase 5.3: priorities() renders the empty-state when no ranked surfaces (the base fixture graph
+// carries no ranked_code/ranked), and the hot/uncovered/articulation/in-cycle flags on a ranked
+// fixture (hot.py is ranked, uncovered, an articulation point, and in an import cycle -> all four).
+var noRankRoot = new El("section");
+win.PW_VIEWS.insights(noRankRoot, { counts: {} }, ctx);
+assert(/No ranked surfaces recorded yet/.test(textOf(noRankRoot)),
+  "priorities did not render the empty-state on an unranked fixture");
+var rankGraph = JSON.stringify({
+  graph_built_at_sha: "deadbeef",
+  ranked_code: ["hot.py"],
+  nodes: {
+    "hot.py": { git_churn: 10, pagerank: 0.9, covered_by_test: false, is_test: false, lang: "python", loc: 100, branch_count: 5, is_articulation: true, imports: ["cold.py"] },
+    "cold.py": { git_churn: 1, pagerank: 0.1, covered_by_test: true, is_test: false, lang: "python", loc: 10, branch_count: 1, is_articulation: false, imports: ["hot.py"] },
+  },
+  import_cycles: [["hot.py", "cold.py"]],
+});
+var mRank = win.PW_DERIVE.metrics(rankGraph);
+var rankRoot = new El("section");
+win.PW_VIEWS.insights(rankRoot, { counts: {} }, { graphText: rankGraph, metrics: mRank, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var prioFlagText = findByClass(rankRoot, "pw-prio-flag").map(textOf).join(" ");
+assert(/hot/.test(prioFlagText), "priorities omitted the hot flag for a hot ranked node");
+assert(/uncovered/.test(prioFlagText), "priorities omitted the uncovered flag");
+assert(/articulation/.test(prioFlagText), "priorities omitted the articulation flag");
+assert(/in cycle/.test(prioFlagText), "priorities omitted the in-cycle flag for a cyclic node");
 console.log("INSIGHTS-RENDER-OK");
 JS
   if node "$TMP/insights_render_test.js" "$ROOT/scripts/dashboard" >"$TMP/insights_render.out" 2>"$TMP/insights_render.err" \
