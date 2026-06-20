@@ -23,6 +23,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_JSON="$ROOT/.claude-plugin/plugin.json"
 CODEX_PLUGIN_JSON="$ROOT/.codex-plugin/plugin.json"
+# A generated plugin (make-plugin.sh) also ships a .claude-plugin/marketplace.json whose
+# metadata.version + plugins[].version must track plugin.json; this repo ships none, so the
+# bump step below is a conditional no-op here and a real lockstep bump inside a scaffolded plugin.
+MARKETPLACE_JSON="$ROOT/.claude-plugin/marketplace.json"
 CHANGELOG="$ROOT/CHANGELOG.md"
 README_FILE="$ROOT/README.md"
 
@@ -124,6 +128,7 @@ DATE="$(date -u +%Y-%m-%d)"
 if [ -z "$DRY_RUN" ]; then
   _bump_targets=("$PLUGIN_JSON" "$CHANGELOG")
   [ -f "$CODEX_PLUGIN_JSON" ] && _bump_targets+=("$CODEX_PLUGIN_JSON")
+  [ -f "$MARKETPLACE_JSON" ] && _bump_targets+=("$MARKETPLACE_JSON")
   [ -f "$README_FILE" ] && _bump_targets+=("$README_FILE")
   for _skill in "$ROOT"/skills/*/SKILL.md; do
     [ -f "$_skill" ] && _bump_targets+=("$_skill")
@@ -182,6 +187,42 @@ except FileNotFoundError:
 if codex_plugin is not None:
     codex_plugin["version"] = new
     atomic_write(codex_plugin_path, json.dumps(codex_plugin, indent=2) + "\n")
+PY
+fi
+
+# --- Update the generated marketplace.json (if present) --------------------
+# A scaffolded plugin (make-plugin.sh) ships .claude-plugin/marketplace.json with
+# metadata.version and a plugins[] array whose entries carry their own version; both must
+# track plugin.json so the marketplace listing never advertises a stale version. This repo
+# ships no marketplace.json, so the step is a no-op here; inside a generated plugin it keeps
+# marketplace.json in the lockstep set with the manifests/SKILL/CHANGELOG.
+if [ -z "$DRY_RUN" ] && [ -f "$MARKETPLACE_JSON" ]; then
+python3 - "$MARKETPLACE_JSON" "$NEW" <<'PY'
+import json, os, sys, tempfile
+path, new = sys.argv[1:3]
+
+def atomic_write(path, data):
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".bump-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+with open(path) as f:
+    m = json.load(f)
+if isinstance(m.get("metadata"), dict):
+    m["metadata"]["version"] = new
+for entry in (m.get("plugins") or []):
+    if isinstance(entry, dict):
+        entry["version"] = new
+atomic_write(path, json.dumps(m, indent=2) + "\n")
 PY
 fi
 

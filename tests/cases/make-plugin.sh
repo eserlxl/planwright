@@ -111,3 +111,22 @@ if grep -qF 'skills/widget/SKILL.md' "$MP6/widget/AGENTS.md" \
 else
   bad "a generated integration pointer (AGENTS.md/GEMINI.md) does not reference skills/widget/SKILL.md"
 fi
+
+# --- Test MP7: the generated marketplace.json tracks plugin.json after a bump ----------------------
+# make-plugin generates .claude-plugin/marketplace.json (metadata.version + plugins[].version), but
+# the bundled bump-version.sh used to bump only the manifests/SKILL — leaving marketplace.json stale
+# (MP5 never checked it; statics Test 2 only checks its two fields against each other at scaffold).
+# Scaffold, bump, and assert marketplace.json's metadata.version AND plugins[0].version both equal
+# the new plugin.json version (and actually advanced from the scaffold).
+MP7="$TMP/mp7"; mkdir -p "$MP7"
+NO_GIT=1 PLUGIN_DESC="probe" bash "$MP" demo "$MP7/demo" >/dev/null 2>&1
+mp7_before="$(ver "$MP7/demo/.claude-plugin/marketplace.json" '["metadata"]["version"]')"
+( cd "$MP7/demo" && ALLOW_DIRTY=1 bash scripts/bump-version.sh minor ) >/dev/null 2>&1
+mp7_pj="$(ver "$MP7/demo/.claude-plugin/plugin.json" '["version"]')"
+mp7_meta="$(ver "$MP7/demo/.claude-plugin/marketplace.json" '["metadata"]["version"]')"
+mp7_plug="$(ver "$MP7/demo/.claude-plugin/marketplace.json" '["plugins"][0]["version"]')"
+if [ "$mp7_meta" != "$mp7_before" ] && [ "$mp7_meta" = "$mp7_pj" ] && [ "$mp7_plug" = "$mp7_pj" ]; then
+  ok "the copied bump-version.sh keeps marketplace.json (metadata + plugins[0]) in lockstep with plugin.json"
+else
+  bad "generated marketplace.json drifted after a bump (before=$mp7_before plugin=$mp7_pj meta=$mp7_meta plugins0=$mp7_plug)"
+fi
