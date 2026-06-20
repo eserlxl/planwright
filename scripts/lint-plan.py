@@ -80,7 +80,8 @@ GRAPH_MEMORY = (".planwright/graph.json", ".planwright/digest.md",
 # (tests/cases/skill-guards.sh), so any change here must move SKILL.md in lockstep.
 PROTECTED_DIR_PREFIXES = (".git/", ".qb/")        # VCS / sibling-tool state trees
 PROTECTED_EXACT = ("LICENSE",)                    # exact protected basename
-PROTECTED_SECRET_SUFFIXES = (".pem", ".key")      # credential/key files
+PROTECTED_SECRET_BASENAMES = (".env",)            # exact + ".<name>.*" secret basenames
+PROTECTED_SECRET_SUFFIXES = (".pem", ".key")      # credential/key file suffixes
 # Bare Verification values that are never a runnable command. Matched as the WHOLE
 # normalized value (lowercased, de-ticked, trailing period dropped) so a real command
 # that merely contains one of these words ("manual smoke test then bash tests/run.sh")
@@ -197,8 +198,9 @@ def protected_surface(np):
     base = np.rsplit("/", 1)[-1]
     if np in PROTECTED_EXACT or base in PROTECTED_EXACT:
         return f"protected file '{base}'"
-    if base == ".env" or base.startswith(".env."):
-        return "secret/credential file"
+    for nm in PROTECTED_SECRET_BASENAMES:
+        if base == nm or base.startswith(nm + "."):
+            return "secret/credential file"
     for suf in PROTECTED_SECRET_SUFFIXES:
         if base.endswith(suf):
             return "secret/credential file"

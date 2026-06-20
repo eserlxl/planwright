@@ -54,7 +54,7 @@ if "next** cycle" not in skill and "next cycle" not in skill: need.append("gap:n
 # structural ceiling never relaxed via the mission
 if "structural hard ceiling" not in skill: need.append("ceiling-hold")
 # protected paths denylist present
-for p in [".planwright/", ".git/", "LICENSE"]:
+for p in [".planwright/", ".git/", ".qb/", "LICENSE"]:
     if p not in skill: need.append("denylist:" + p)
 # launch-time awareness in both the cycle announce and the codinventor banner
 if "on notice" not in skill: need.append("announce:on-notice")
@@ -62,6 +62,44 @@ if "MISSION.md" not in banner: need.append("banner:MISSION.md")
 sys.exit(1 if need else 0)
 PY
 if [ "$mission_ok" = 1 ]; then ok "SKILL.md documents dwell-gated MISSION amendment (pressure=3, next-cycle gap, ceiling-hold, denylist, announced)"; else bad "MISSION-amendment rule, dwell gate, denylist, or awareness notice missing/incomplete"; fi
+
+# --- Test 10f2: SKILL.md "Editable surfaces" denylist agrees with the linter's enforced set --
+# The SKILL.md denylist prose and lint-plan.py's protected-path enforcement can drift; a
+# one-sided edit (a token added to the linter but not the spec, or removed from the spec
+# while still enforced) would silently desync the documented and enforced denylists. Pin
+# three-way agreement: the linter's enforced token set equals the canonical set, every
+# token appears in the SKILL.md "Editable surfaces" bullet, and every token is actually
+# flagged by the linter (documented AND enforced, not merely either).
+if python3 - "$ROOT/skills/planwright/SKILL.md" "$ROOT/scripts/lint-plan.py" <<'PY' 2>/dev/null
+import importlib.util, re, sys
+skill = open(sys.argv[1]).read()
+spec = importlib.util.spec_from_file_location("lp", sys.argv[2])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+problems = []
+# (1) enforced set (derived from the linter's constants + the two special-cased trees:
+#     .planwright/ has its own dedicated message; .env is a basename rule) == canonical.
+enforced = (set(m.PROTECTED_DIR_PREFIXES) | {".planwright/"} | set(m.PROTECTED_EXACT)
+            | set(m.PROTECTED_SECRET_BASENAMES)
+            | {"*" + s for s in m.PROTECTED_SECRET_SUFFIXES})
+EXPECTED = {".git/", ".qb/", ".planwright/", "LICENSE", ".env", "*.pem", "*.key"}
+if enforced != EXPECTED:
+    problems.append("enforced!=expected sym-diff=" + str(sorted(enforced ^ EXPECTED)))
+# (2) every canonical token appears in the isolated "Editable surfaces" bullet.
+mo = re.search(r"\*\*Editable surfaces\.\*\*.*?(?=\n- |\n#)", skill, re.S)
+bullet = mo.group(0) if mo else ""
+for tok in EXPECTED:
+    if tok not in bullet:
+        problems.append("SKILL.md Editable-surfaces bullet missing: " + tok)
+# (3) every canonical token is actually FLAGGED by the linter (documented AND enforced).
+samples = {".git/": ".git/config", ".qb/": ".qb/x.md", ".planwright/": ".planwright/plan.md",
+           "LICENSE": "LICENSE", ".env": "cfg/.env", "*.pem": "k/x.pem", "*.key": "k/x.key"}
+for tok, p in samples.items():
+    flagged = p.startswith(".planwright/") or bool(m.protected_surface(p))
+    if not flagged:
+        problems.append("token enforced-but-not-flagged: " + tok)
+sys.exit(1 if problems else 0)
+PY
+then ok "SKILL.md Editable-surfaces denylist agrees with lint-plan.py's enforced set (documented AND enforced, in lockstep)"; else bad "SKILL.md denylist prose and the linter's enforced set have drifted"; fi
 
 # --- Test 10g: Stage 1 escalation-reach rule (a deeper re-invocation is not frozen) -
 # The "already at final point" short-circuit must NOT freeze a more ambitious re-run:

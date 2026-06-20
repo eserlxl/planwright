@@ -933,7 +933,7 @@ Stage 10 enforces that what lands stays in Focus (with the upstream-repair excep
    (no same-run self-justification). **Never weaken the structural hard ceiling via the mission** — only a
    preference may relax. Always-on under explicit `invent`, announced up front so whoever runs it is **on
    notice**; `explore`/default never edit the mission, and the protected-path denylist (`.git/`,
-   `.planwright/`, `LICENSE`, secrets) is never editable regardless.
+   `.qb/`, `.planwright/`, `LICENSE`, secrets) is never editable regardless.
 
    **Seeded framing + auto-rotation.** Without a seed the invent survey is comprehensive and deterministic;
    with a `seed`, Stage 1.5 emits `explore_framing` and the survey **focuses** through that one vantage
@@ -1219,8 +1219,9 @@ preamble, headings, code, or commentary in the plan file.
   the value bar / mission conservatism, and it applies to **no other mode** (see Stage 5's invent lens).
 - **Editable surfaces.** An item's `Surfaces`/`New Surfaces` may name source, tests, docs, configs, and —
   under `invent`'s dwell-gated mission amendment (Stage 5) — `MISSION.md`. They may **never** name a
-  protected path: `.git/`, `.planwright/` internals (planwright's own memory — items edit it via Stage 11,
-  never as a surface), `LICENSE`, or any secret/credential file (`.env`, `*.pem`, key/credential stores).
+  protected path: `.git/`, `.qb/`, `.planwright/` internals (planwright's own memory — items edit it via
+  Stage 11, never as a surface), `LICENSE`, or any secret/credential file (`.env`, `*.pem`, `*.key`,
+  key/credential stores).
   Editing those is harmful or corrupts planwright itself, regardless of mode or operator awareness.
 - Output **only** the plan file. No code, no edit bundles.
 
