@@ -257,5 +257,104 @@ class TestLand(unittest.TestCase):
         self.assertFalse(os.path.exists(self.completed))
 
 
+class TestReconcileSweep(unittest.TestCase):
+    """reconcile_sweep — the recovery safety net that re-records dropped fix commits.
+
+    The CLI arg-guard test (test_reconcile_sweep_and_dryrun_arg_guards) pins the router;
+    these exercise the recovery BEHAVIOR end to end on a real commit range."""
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = self._tmp.name
+        self.completed = os.path.join(self.root, "completed.md")
+        self.rejected = os.path.join(self.root, "rejected.md")
+        self.repo = os.path.join(self.root, "repo")
+        os.makedirs(self.repo)
+        self._git("init", "-q")
+        self._git("config", "user.email", "t@example.com")
+        self._git("config", "user.name", "t")
+        self._git("config", "commit.gpgsign", "false")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _git(self, *args):
+        subprocess.run(["git", "-C", self.repo, *args], check=True, capture_output=True)
+
+    def _commit(self, subject, fname):
+        with open(os.path.join(self.repo, fname), "w", encoding="utf-8") as fh:
+            fh.write(subject + "\n")
+        self._git("add", "-A")
+        self._git("commit", "-qm", subject)
+        return subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"],
+                              check=True, capture_output=True, text=True).stdout.strip()
+
+    def _read(self, path):
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_reconcile_sweep_recovers_only_missing_commits_exactly_once(self):
+        # A partially-reconciled ledger: the middle commit is pre-recorded; the sweep must
+        # recover the rest, classify the pre-recorded one already-recorded, and record each
+        # exactly once (no duplicate for the one already present).
+        base = self._commit("Base groundwork", "base.txt")
+        self._commit("Implement alpha path", "a.txt")
+        c2 = self._commit("Implement beta path", "b.txt")
+        self._commit("Implement gamma path", "c.txt")
+        lc.reconcile(self.completed, self.repo, c2, "improve")
+        recorded, skipped = lc.reconcile_sweep(
+            self.completed, self.rejected, self.repo, base, "improve")
+        already = [s for s in skipped if s[2] == "already-recorded"]
+        self.assertEqual(len(already), 1)
+        self.assertTrue(c2.startswith(already[0][0]))          # short is a prefix of the full sha
+        fresh = [r for r in recorded if r[2] == "recorded"]
+        self.assertEqual(len(fresh), 2)                        # alpha + gamma freshly recovered
+        done = self._read(self.completed)
+        for subj in ("Implement alpha path", "Implement beta path", "Implement gamma path"):
+            self.assertEqual(done.count("- [x] " + subj), 1)   # each present EXACTLY once
+        self.assertNotIn("Base groundwork", done)              # <since>..HEAD excludes the base
+
+
+class TestAtomicWrite(unittest.TestCase):
+    """lifecycle.write — atomic temp+os.replace; a crash mid-rename must not truncate."""
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = self._tmp.name
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _read(self, path):
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_write_crash_leaves_target_byte_intact_and_no_straggler(self):
+        import glob
+        target = os.path.join(self.root, "completed.md")
+        prior = "# planwright Plan — .\n\n- [x] keep me\n      Mode: docs\n"
+        with open(target, "w", encoding="utf-8") as fh:
+            fh.write(prior)
+        saved = os.replace
+
+        def boom(src, dst):
+            raise OSError("simulated crash during rename")
+
+        new_block = {"checked": True, "rejected": False,
+                     "lines": ["- [x] new", "      Mode: docs"]}
+        os.replace = boom
+        try:
+            with self.assertRaises(OSError):
+                lc.write(target, "# planwright Plan — .", [new_block])
+        finally:
+            os.replace = saved
+        # original is byte-identical (no truncate-in-place) ...
+        self.assertEqual(self._read(target), prior)
+        # ... and the temp was cleaned up (no .lifecycle-*.tmp straggler).
+        self.assertEqual(glob.glob(os.path.join(self.root, ".lifecycle-*.tmp")), [])
+
+
 if __name__ == "__main__":
     unittest.main()
