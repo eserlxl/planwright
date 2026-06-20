@@ -1215,6 +1215,32 @@ assert(findByClass(noArcs, "pw-reactor-arc-progress").length === 0,
 assert(findByClass(noArcs, "pw-reactor-notch").length === 0,
   "reactor rendered a rejected notch with zero rejected items");
 
+// Phase 5.2: the import-cycle vital — the cycles card renders the err gauge (pw-gauge-fill err) and
+// the "import cycles" copy ONLY when metrics.cycles.length>0 (derive.js: cycles = graph.import_cycles).
+// The base fixture is acyclic (import_cycles:[]) so its cycles vital reads "no import cycles" with no
+// err gauge; a graph carrying a cycle renders the alerting gauge.
+var cyclicGraph = JSON.stringify({
+  graph_built_at_sha: "deadbeef",
+  nodes: {
+    "a.py": { imports: ["b.py"], pagerank: 0.5, branch_count: 1, loc: 5, lang: "python", covered_by_test: true, is_test: false, git_churn: 1 },
+    "b.py": { imports: ["a.py"], pagerank: 0.5, branch_count: 1, loc: 5, lang: "python", covered_by_test: true, is_test: false, git_churn: 1 },
+  },
+  import_cycles: [["a.py", "b.py"]],
+});
+var mCyc = win.PW_DERIVE.metrics(cyclicGraph);
+assert(mCyc.cycles.length === 1, "fixture sanity: a cyclic graph yields 1 import cycle");
+var cycC = new El("section");
+win.PW_VIEWS.console(cycC, state, { graphText: cyclicGraph, metrics: mCyc, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var cycVital = findByClass(cycC, "pw-vital--cycles");
+assert(cycVital.length === 1, "console did not render the import-cycles vital on a cyclic graph");
+assert(findByClass(cycVital[0], "pw-gauge-fill err").length > 0,
+  "import-cycles vital missing the err gauge on cyc>0");
+assert(/import cycles/.test(textOf(cycVital[0])) && !/no import cycles/.test(textOf(cycVital[0])),
+  "import-cycles vital did not render the cycle-count copy on cyc>0");
+var fcCyc = findByClass(fc, "pw-vital--cycles");
+assert(fcCyc.length === 1 && findByClass(fcCyc[0], "pw-gauge-fill err").length === 0,
+  "acyclic base fixture wrongly rendered the cycles err gauge");
+
 // Targeted (Phase 1.2): the Reactor satellite strip reflects the accepted/pending/rejected
 // counts so a renamed engine field renders a wrong count instead of failing silently. The
 // verdict + carried-satellite assertions above never pin the accepted/pending NUMBERS; sat()
