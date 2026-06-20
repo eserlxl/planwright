@@ -129,6 +129,21 @@ else
   bad "lint-final.py missed a reverse-direction unpaired field (scope rc=$rc seed rc=$rc2)"
 fi
 
+# --- Test LF8b: the invent_seed -> invent_framing FORWARD pairing direction also fails ----
+# LF8 pins the reverse (invent_framing: with no invent_seed:); the forward leg — invent_seed:
+# with no invent_framing: — is the other half of the invent pair's co-occurrence contract: a
+# seed records WHICH framing a survey ran under, so a seed with no framing is a half-recorded
+# invent point. It must fail with a "must co-occur" violation that names the missing field.
+FSF="$TMP/lf-fwdpair-seed"; mkdir -p "$FSF/.planwright"
+{ _wellformed; printf 'invent_seed: 3\n'; } > "$FSF/.planwright/final.md"   # no invent_framing:
+rc=0; out="$(python3 "$LF" --root "$FSF" 2>&1)" || rc=$?
+if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q 'invent_framing' \
+   && printf '%s' "$out" | grep -q 'must co-occur'; then
+  ok "lint-final.py fails invent_seed: with no invent_framing: (forward pairing, names the missing field)"
+else
+  bad "lint-final.py accepted an unpaired invent_seed (rc=$rc): $out"
+fi
+
 # --- Test LF9: a non-UTF-8 final.md fails closed, not a crash and not silently absent ----
 # collect() reads UTF-8; a corrupt (non-UTF-8) final.md raises UnicodeDecodeError (a
 # ValueError subclass). It must NOT traceback, and — per the fail-open hardening — must NOT
