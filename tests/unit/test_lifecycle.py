@@ -348,6 +348,47 @@ class TestReconcileSweep(unittest.TestCase):
                           ("Implement beta path", "already-recorded"),
                           ("Implement gamma path", "rejected")])
 
+    def test_reconcile_sweep_replays_idempotently_after_midloop_failure(self):
+        # A sweep that crashes mid-loop (the Nth per-commit reconcile raises after earlier
+        # ones already appended) must be replayable: the pre-failure records survive, an
+        # un-patched re-run records exactly the not-yet-recorded commits, the already-appended
+        # ones are skipped as already-recorded, and each subject appears EXACTLY once. This
+        # pins the recovery corner TestReconcileSweep's full-success paths never reach.
+        base = self._commit("Base groundwork", "base.txt")
+        self._commit("Implement alpha path", "a.txt")   # call 1 -> recorded before the crash
+        self._commit("Implement beta path", "b.txt")    # call 2 -> the crash point
+        self._commit("Implement gamma path", "c.txt")   # call 3 -> never reached in pass 1
+        real_reconcile = lc.reconcile
+        calls = {"n": 0}
+
+        def flaky(*a, **k):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise RuntimeError("simulated mid-sweep crash")
+            return real_reconcile(*a, **k)
+
+        lc.reconcile = flaky
+        try:
+            with self.assertRaises(RuntimeError):
+                lc.reconcile_sweep(self.completed, self.rejected, self.repo, base, "improve")
+        finally:
+            lc.reconcile = real_reconcile
+        # Pre-crash state: only alpha recorded; the crash-point and later not yet.
+        after_crash = self._read(self.completed)
+        self.assertEqual(after_crash.count("- [x] Implement alpha path"), 1)
+        self.assertNotIn("Implement beta path", after_crash)
+        self.assertNotIn("Implement gamma path", after_crash)
+        # Replay over the SAME range finishes the job without losing or duplicating anything.
+        recorded, skipped = lc.reconcile_sweep(
+            self.completed, self.rejected, self.repo, base, "improve")
+        fresh = sorted(r[1] for r in recorded if r[2] == "recorded")
+        already = [s[1] for s in skipped if s[2] == "already-recorded"]
+        self.assertEqual(fresh, ["Implement beta path", "Implement gamma path"])
+        self.assertEqual(already, ["Implement alpha path"])
+        done = self._read(self.completed)
+        for subj in ("Implement alpha path", "Implement beta path", "Implement gamma path"):
+            self.assertEqual(done.count("- [x] " + subj), 1)
+
 
 class TestAtomicWrite(unittest.TestCase):
     """lifecycle.write — atomic temp+os.replace; a crash mid-rename must not truncate."""
