@@ -315,6 +315,39 @@ class TestReconcileSweep(unittest.TestCase):
             self.assertEqual(done.count("- [x] " + subj), 1)   # each present EXACTLY once
         self.assertNotIn("Base groundwork", done)              # <since>..HEAD excludes the base
 
+    def test_reconcile_sweep_classification_shape_and_reasons(self):
+        # A mixed range pins the exact (short, title, reason) tuple SHAPE and the full reason
+        # vocabulary the drift detector + run-end report consume: recorded carries "recorded";
+        # skipped carries "non-fix" / "already-recorded" / "rejected".
+        base = self._commit("Base groundwork", "base.txt")
+        self._commit("Implement alpha path", "a.txt")             # fresh fix    -> recorded
+        self._commit("chore: tidy whitespace", "b.txt")           # non-fix      -> non-fix
+        c_already = self._commit("Implement beta path", "c.txt")  # pre-recorded -> already-recorded
+        c_rej = self._commit("Implement gamma path", "d.txt")     # in rejected  -> rejected
+        lc.reconcile(self.completed, self.repo, c_already, "improve")
+        short = subprocess.run(["git", "-C", self.repo, "rev-parse", "--short", c_rej],
+                               check=True, capture_output=True, text=True).stdout.strip()
+        with open(self.rejected, "w", encoding="utf-8") as fh:
+            fh.write("# planwright Plan — .\n\n"
+                     "- [ ] Previously rejected\n"
+                     "      Status: Rejected\n"
+                     f"      Commit: {short}\n"
+                     "      Rejection: value-gate: not wanted\n")
+        recorded, skipped = lc.reconcile_sweep(
+            self.completed, self.rejected, self.repo, base, "improve")
+        # every tuple is exactly (short, title, reason): 3 string elements
+        for tup in recorded + skipped:
+            self.assertEqual(len(tup), 3)
+            self.assertTrue(all(isinstance(x, str) for x in tup))
+        # recorded carries only the fresh fix with reason "recorded"
+        self.assertEqual([(r[1], r[2]) for r in recorded],
+                         [("Implement alpha path", "recorded")])
+        # skipped carries the full reason vocabulary, in chronological (oldest-first) order
+        self.assertEqual([(s[1], s[2]) for s in skipped],
+                         [("chore: tidy whitespace", "non-fix"),
+                          ("Implement beta path", "already-recorded"),
+                          ("Implement gamma path", "rejected")])
+
 
 class TestAtomicWrite(unittest.TestCase):
     """lifecycle.write — atomic temp+os.replace; a crash mid-rename must not truncate."""
