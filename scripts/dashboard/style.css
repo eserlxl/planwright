@@ -926,24 +926,27 @@ body.pw-glance .pw-overview { display: flex; }
 .pw-tab:focus-visible { outline-offset: -2px; }
 
 /* ====================================================================================
-   LARGE / HI-RES DISPLAYS — scale the whole UI up so a 2560px-wide screen reads at a
-   comfortable size without manual browser zoom. Everything flows from the --pw-* tokens,
-   so bumping the type / spacing / width tokens (plus the few capped SVG widths) scales
-   the design proportionally. min-width is in CSS px, so this tracks the effective
+   WIDE / HI-RES DISPLAYS
+
+   1680–2099px — a maximized 1080p / 1920-wide desktop at 100% zoom lands here. WIDEN the
+   layout to fill the screen: only the content column and the reading type step up a notch.
+   Spacing, sidebar, and the hero SVGs stay at the comfortable BASE scale — the old tier
+   inflated those too, which is what made a standard Full-HD monitor read oversized and
+   forced a manual zoom-out. Result: fills the width, comfortable text, no empty gutters.
+
+   2100px+ — genuinely large / hi-res screens: scale the whole design up (type, spacing,
+   width) so the UI reads at a comfortable size without manual browser zoom. Everything
+   flows from the --pw-* tokens. min-width is in CSS px, so this tracks the effective
    resolution (HiDPI panels report a smaller CSS viewport and are left as-is).
    ==================================================================================== */
 @media (min-width: 1680px) {
   :root {
-    --pw-content-max: 1560px;
-    --pw-sidebar-w: 272px;
+    --pw-content-max: 1720px;
     --pw-fs-xs: 12px; --pw-fs-sm: 14px; --pw-fs-md: 16px;
     --pw-fs-lg: 20px; --pw-fs-xl: 26px; --pw-fs-2xl: 34px;
-    --pw-s5: 28px; --pw-s6: 40px;
   }
-  .pw-reactor-svg { max-width: 340px; }
-  .pw-web-svg { max-width: 920px; }
-  .pw-vital-svg { width: 76px; }
-  .pw-vital-svg--wide { width: 96px; }
+  .pw-console-grid { grid-template-columns: minmax(0, 1fr) 360px; }
+  .pw-reactor-svg { max-width: 320px; }
 }
 @media (min-width: 2100px) {
   :root {
