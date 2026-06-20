@@ -644,6 +644,48 @@ else
   ok "commands.js front-door args-differ/follow-up check skipped (node not installed)"
 fi
 
+# --- Test DASH-CMD-PULSE: the live pulse chips warn-class non-zero graph signals; omit coverage at null
+# render() builds the pulse chips from COACH.signals: under hasGraph the cycles/hotspots chips carry the
+# warn class ONLY when non-zero, and the "% covered" chip is omitted when coveragePct is null (no graph).
+# Synchronous — the pulse is built before the async front-door fetch, so no flush is needed.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/cmd_pulse_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, makeFixture, findByClass, classOf, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+win.fetch = function () { return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ total: 0, checks: [] }); } }); };
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "commands");
+const fx = makeFixture();
+var cycGraph = JSON.stringify({ graph_built_at_sha: "deadbeef", import_cycles: [["a.py", "b.py"]],
+  nodes: {
+    "a.py": { imports: ["b.py"], branch_count: 1, pagerank: 0.9, covered_by_test: false, is_test: false, lang: "python", loc: 50, git_churn: 9, is_articulation: true },
+    "b.py": { imports: ["a.py"], branch_count: 1, pagerank: 0.8, covered_by_test: false, is_test: false, lang: "python", loc: 40, git_churn: 8, is_articulation: false },
+  } });
+var mCyc = win.PW_DERIVE.metrics(cycGraph);
+var pcA = new El("section");
+win.PW_VIEWS.commands(pcA, fx.state, { graphText: cycGraph, metrics: mCyc, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var warnText = findByClass(pcA, "pw-coach-pulse-chip").filter(function (c) { return classOf(c).indexOf("warn") >= 0; }).map(textOf).join(" | ");
+assert(/cycles/.test(warnText), "cycles pulse chip not warn-classed on cycles>0 (got: " + warnText + ")");
+assert(/hotspots/.test(warnText), "untested-hotspots pulse chip not warn-classed on hotUncovered>0 (got: " + warnText + ")");
+var pcB = new El("section");
+win.PW_VIEWS.commands(pcB, fx.state, fx.bareCtx);   // no metrics -> hasGraph false -> no graph chips
+assert(!/% covered/.test(textOf(pcB)), "coverage pulse chip rendered when coveragePct == null (no graph)");
+console.log("CMD-PULSE-OK");
+JS
+  if node "$TMP/cmd_pulse_test.js" "$ROOT/scripts/dashboard" >"$TMP/cmd_pulse.out" 2>"$TMP/cmd_pulse.err" \
+     && grep -q CMD-PULSE-OK "$TMP/cmd_pulse.out"; then
+    ok "commands.js pulse chips warn-class non-zero graph signals (cycles/hotspots) and omit the coverage chip when coveragePct is null"
+  else
+    bad "commands.js pulse-chip assertion failed: $(cat "$TMP/cmd_pulse.err" 2>/dev/null)"
+  fi
+else
+  ok "commands.js pulse-chip check skipped (node not installed)"
+fi
+
 # --- Test DASH-SSE-PING: an idle /events stream emits the keep-alive `: ping` ----------
 # The heartbeat (HEARTBEAT_INTERVAL) is the only mechanism that reaps a vanished SSE client
 # (the failing write tears the handler thread down) during the long unattended cycle runs
