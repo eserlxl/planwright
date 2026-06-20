@@ -87,3 +87,26 @@ else
   bad "state.py activity start --root . did not write the beacon to the target's .planwright/"
 fi
 ( cd "$CWB" && python3 "$STATE" activity stop cycle --root . ) >/dev/null 2>&1
+
+# --- Test CR5: reconcile-sweep via --root .planwright (cwd==target) agrees with an absolute --root ---
+# The completion-accounting safety net resolves --root relative to the target repo. A relative run from
+# cwd==target and an absolute run from a sibling cwd must record the SAME fix into the SAME target ledger.
+SWT="$TMP/cwd-sweep"; mkdir -p "$SWT/.planwright"
+(
+  cd "$SWT" || exit
+  git init -q; git config user.email t@e.com; git config user.name t; git config commit.gpgsign false
+  printf '0\n' > f.txt; git add -A; git commit -qm init
+  printf '1\n' >> f.txt; git add -A; git commit -qm "Fix the thing"
+) >/dev/null 2>&1
+sw_base="$(git -C "$SWT" rev-parse HEAD~1)"
+( cd "$SWT" && python3 "$LC" reconcile-sweep --since "$sw_base" --mode repair --root .planwright ) >/dev/null 2>&1
+rel_done="$(grep -c '^- \[x\]' "$SWT/.planwright/completed.md" 2>/dev/null || echo 0)"
+rm -f "$SWT/.planwright/completed.md"
+( cd "$CWDS" && python3 "$LC" reconcile-sweep --since "$sw_base" --mode repair --root "$SWT/.planwright" --repo "$SWT" ) >/dev/null 2>&1
+abs_done="$(grep -c '^- \[x\]' "$SWT/.planwright/completed.md" 2>/dev/null || echo 0)"
+if [ "$rel_done" = "1" ] && [ "$abs_done" = "1" ] \
+   && grep -q '^- \[x\] Fix the thing' "$SWT/.planwright/completed.md"; then
+  ok "lifecycle.py reconcile-sweep records the same fix via --root .planwright (cwd==target) and an absolute --root"
+else
+  bad "lifecycle.py reconcile-sweep relative/absolute disagreed (rel=$rel_done abs=$abs_done)"
+fi
