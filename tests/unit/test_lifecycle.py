@@ -503,5 +503,68 @@ class TestAtomicWrite(unittest.TestCase):
         self.assertEqual(glob.glob(os.path.join(self.root, ".lifecycle-*.tmp")), [])
 
 
+class TestCommitFlagGuard(unittest.TestCase):
+    """reconcile's user-supplied `--commit` value flows into `git rev-parse/show` as a
+    revision spec. A value beginning with `--` must be treated as a non-existent ref, never
+    interpreted as a git option (e.g. `--upload-pack=...`). The `--end-of-options` separator
+    before the user-derived spec is what guarantees that — pinned both behaviorally (a dash
+    value raises LookupError) and structurally (the separator precedes the spec in argv)."""
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = self._tmp.name
+        self._git("init", "-q")
+        self._git("config", "user.email", "t@example.com")
+        self._git("config", "user.name", "t")
+        self._git("config", "commit.gpgsign", "false")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _git(self, *args):
+        subprocess.run(["git", "-C", self.repo, *args], check=True, capture_output=True)
+
+    def _commit(self, subject, fname):
+        with open(os.path.join(self.repo, fname), "w", encoding="utf-8") as fh:
+            fh.write(subject + "\n")
+        self._git("add", "-A")
+        self._git("commit", "-qm", subject)
+        return subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"],
+                              check=True, capture_output=True, text=True).stdout.strip()
+
+    def test_commit_flag_guard_resolves_real_and_rejects_dash(self):
+        full = self._commit("Real commit subject", "f.txt")
+        # A genuine ref still resolves to (short, full, subject) through the separator.
+        short, resolved_full, subject = lc._git_commit_meta(self.repo, full)
+        self.assertTrue(full.startswith(short))
+        self.assertEqual(resolved_full, full)
+        self.assertEqual(subject, "Real commit subject")
+        # A value beginning with `--` is a non-existent ref, never a git option.
+        for evil in ("--upload-pack=touch /tmp/pwned", "--output=/tmp/x", "--git-dir=/etc"):
+            with self.assertRaises(LookupError):
+                lc._git_commit_meta(self.repo, evil)
+
+    def test_commit_flag_guard_passes_end_of_options_separator(self):
+        from unittest import mock
+        full = self._commit("subj", "f.txt")
+        spec = full + "^{commit}"
+        calls = []
+        real_run = lc.subprocess.run
+
+        def spy(args, *a, **k):
+            calls.append(list(args))
+            return real_run(args, *a, **k)
+
+        with mock.patch.object(lc.subprocess, "run", spy):
+            lc._git_commit_meta(self.repo, full)
+        git_calls = [c for c in calls if c[:3] == ["git", "-C", self.repo]]
+        self.assertEqual(len(git_calls), 3)   # rev-parse --verify, rev-parse --short, show
+        for c in git_calls:
+            self.assertIn("--end-of-options", c)
+            self.assertEqual(c[-1], spec)                                # spec is the last arg
+            self.assertEqual(c[c.index("--end-of-options") + 1], spec)   # separator right before it
+
+
 if __name__ == "__main__":
     unittest.main()

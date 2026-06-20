@@ -337,12 +337,20 @@ def _git_commit_meta(repo, ref):
     and release the lock rather than hang every other planwright process on this
     .planwright/ forever. lifecycle.py was the last engine script without git timeouts."""
     spec = ref + "^{commit}"
+    # --end-of-options before the user-derived spec: a `--commit` value beginning with `--`
+    # can otherwise be read by git as an option (e.g. `--upload-pack=...`) rather than a
+    # revision. `--verify`/`^{commit}` already largely neutralize it, but the explicit
+    # separator makes the guard unmissable. `--end-of-options` (not `--`) so git still
+    # interprets spec as a revision, not a pathspec.
     try:
-        full = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", spec],
+        full = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet",
+                               "--end-of-options", spec],
                               check=True, capture_output=True, text=True, timeout=5).stdout.strip()
-        short = subprocess.run(["git", "-C", repo, "rev-parse", "--short", spec],
+        short = subprocess.run(["git", "-C", repo, "rev-parse", "--short",
+                                "--end-of-options", spec],
                                check=True, capture_output=True, text=True, timeout=5).stdout.strip()
-        subject = subprocess.run(["git", "-C", repo, "show", "-s", "--format=%s", spec],
+        subject = subprocess.run(["git", "-C", repo, "show", "-s", "--format=%s",
+                                  "--end-of-options", spec],
                                  check=True, capture_output=True, text=True, timeout=5).stdout.strip()
     except subprocess.TimeoutExpired as e:
         raise LookupError(f"git timed out resolving '{ref}' in {repo}") from e
