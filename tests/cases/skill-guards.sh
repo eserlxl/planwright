@@ -319,3 +319,18 @@ if "independent re-run" not in t: need.append("semantics:recommend-independent-r
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md (agent-neutral) documents the qb QB_PLAN_AUTO_WARN trust-downgrade contract (off-Claude hosts guarded)"; else bad "SKILL.md qb WARN-downgrade contract missing/incomplete (off-Claude hosts unguarded)"; fi
+
+# --- Test 10p: SKILL.md states `safe` mode excludes the qb rung (distinct from 10o) -------
+# `safe` must NEVER run qb (it withholds the growth burst AND the qb intent-replan), instead
+# printing the qb hand-off for the operator to paste. This safety invariant is documented in
+# SKILL.md but unpinned. Assert both halves — the exclusion and the hand-off disclosure — so a
+# drift that lets `safe` reach qb (or drops the hand-off) fails. Distinct from the 10o WARN pin.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1]).read()
+need = []
+if "never runs qb" not in t: need.append("safe-excludes-qb")
+if "qb hand-off to paste" not in t: need.append("safe-prints-qb-handoff")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md states `safe` mode never runs qb and prints the qb hand-off to paste"; else bad "SKILL.md safe-mode qb-exclusion (or its hand-off disclosure) missing/regressed"; fi
