@@ -479,6 +479,18 @@ class TestRecommendOverlay(unittest.TestCase):
         self.assertFalse(any("not auto-routed under a scope" in n for n in normal["notes"]))
         self.assertFalse(any("best-effort lib lookup" in n for n in normal["notes"]))
 
+    def test_stale_final_point_hardens_not_grows(self):
+        # A final.md whose sha != HEAD is STALE: it must NOT certify convergence (no grow, no
+        # stop). recommend() routes to a harden to earn convergence first — distinct from the
+        # no-final-point case (test_clean_but_unconverged_earns_convergence), which has no marker
+        # at all. _head_sha is mocked to HEAD, so the 40-zero sha below cannot match.
+        stale = "sha: %s\ndate: 2026-06-12\ndeepest_tier: expand\n" % ("0" * 40)
+        rec = self._recommend(self._root(final=stale))
+        self.assertIn(rec["command"], ("codvisor", "codshard"))   # routes to a harden ...
+        self.assertNotEqual(rec["command"], "codinventor")        # ... never grows on a stale point
+        self.assertNotEqual(rec["command"], "reset")
+        self.assertFalse(rec["invent_class"])
+
     def test_large_repo_routes_harden_to_codshard(self):
         rec = self._recommend(self._root(), repo=self.REPO_LARGE)
         self.assertEqual(rec["command"], "codshard")
