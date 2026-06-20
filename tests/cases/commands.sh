@@ -978,3 +978,24 @@ if "/planwright check" not in usage: need.append("usage-doc")
 sys.exit(1 if need else 0)
 PY
 then ok "check exposed: SKILL.md usage + dispatch pointer; references/check.md wires lint-plan.py + lifecycle.py reject and pins the non-mutating-source + dry-run-verification (prune-only-on-cant-run) contract; docs/usage.md lists it"; else bad "check command wiring missing/incomplete across SKILL.md / references/check.md / docs/usage.md"; fi
+
+# --- Test 13f: every script-resolving adapter documents the full bundled-scripts resolution rule ---
+# The cwd-blindspot bug class (planwright dogfood): if a command doc drops part of the bundled-scripts
+# resolution rule, the command cannot find its scripts for an installed user (cwd is the target repo).
+# Each resolving adapter (codmaster/codshard/codcycle/dashboard) must carry all three clauses in ONE
+# shared check over the four — the env-var preference, the sibling ../scripts/ fallback, and the
+# never-a-bare-scripts negative — so dropping any clause from any adapter fails the case.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import sys
+root = sys.argv[1]
+bt = chr(0x60)  # backtick — avoids shell/quoting issues in the heredoc
+need = []
+for adapter in ("codmaster", "codshard", "codcycle", "dashboard"):
+    # normalize whitespace so a legitimate line-wrap of the resolution clause does not break a check
+    t = " ".join(open(root + "/commands/" + adapter + ".md", encoding="utf-8").read().split())
+    if "${CLAUDE_PLUGIN_ROOT}/scripts" not in t: need.append(adapter + ":env-var")
+    if "../scripts/" not in t: need.append(adapter + ":sibling")
+    if ("bare " + bt + "scripts/") not in t: need.append(adapter + ":bare-negative")
+sys.exit(1 if need else 0)
+PY
+then ok "every script-resolving adapter (codmaster/codshard/codcycle/dashboard) documents the env-var preference, the ../scripts/ sibling fallback, and the never-a-bare-scripts negative"; else bad "a script-resolving adapter dropped a bundled-scripts resolution clause (cwd-blindspot risk)"; fi
