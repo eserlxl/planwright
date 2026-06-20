@@ -8,6 +8,7 @@
 #
 # Run: python3 -m unittest discover -s tests/unit -p "test_*.py"
 
+import importlib.util
 import os
 import sys
 import unittest
@@ -17,6 +18,45 @@ _ROOT = os.path.dirname(os.path.dirname(_HERE))
 sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 
 import plan_parse  # noqa: E402
+
+
+def _load_lint_plan():
+    """Import scripts/lint-plan.py by path (the filename is not a valid module name)."""
+    path = os.path.join(_ROOT, "scripts", "lint-plan.py")
+    spec = importlib.util.spec_from_file_location("lint_plan_engine", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class TestFieldReCrossAgreement(unittest.TestCase):
+    """plan_parse._FIELD_RE and lint-plan's FIELD_RE are hand-mirrored (lint-plan's adds a
+    leading indent capture group for the fixer). They must recognize the same lines as fields
+    and extract the same (label, value), or field_spans() and parse_items() silently disagree."""
+
+    def test_field_res_agree_on_recognition_and_extraction(self):
+        lp = _load_lint_plan()
+        samples = [
+            "      Mode: improve",
+            "      Mode : improve",
+            "      New Surfaces: a.py, b.py",
+            "      Verification:    bash tests/run.sh  ",
+            "      Note: an unknown but field-shaped label",
+            "      lowercase: not a field",
+            "      no colon here",
+            "- [ ] a head line",
+        ]
+        for s in samples:
+            pm = plan_parse._FIELD_RE.match(s)
+            lm = lp.FIELD_RE.match(s)
+            self.assertEqual(bool(pm), bool(lm),
+                             f"field recognition disagreement on {s!r}: "
+                             f"parse={bool(pm)} lint={bool(lm)}")
+            if pm and lm:
+                # plan_parse groups: (1)=label (2)=value;
+                # lint-plan groups: (1)=indent (2)=label (3)=value.
+                self.assertEqual((pm.group(1), pm.group(2)), (lm.group(2), lm.group(3)),
+                                 f"field extraction disagreement on {s!r}")
 
 
 class TestParseItems(unittest.TestCase):
