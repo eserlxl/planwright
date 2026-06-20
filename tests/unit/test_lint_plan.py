@@ -254,5 +254,41 @@ class TestIsGitignored(unittest.TestCase):
             self.assertIs(lp.is_gitignored(".", "src/main.py"), False)
 
 
+class TestVacuousVerification(unittest.TestCase):
+    """A Verification that runs but proves nothing (`true`, `:`, `false`, a bare echo,
+    `exit 0`) must be rejected: it passes the placeholder set and the prose scan, so
+    without this gate a green-but-meaningless command rides past execute."""
+
+    def test_vacuous_verification_rejected(self):
+        for cmd in ("true", "false", ":", "echo done", 'echo "ok"', "exit 0", "exit 1"):
+            self.assertTrue(lp.is_vacuous_verification(cmd),
+                            f"{cmd!r} should be flagged as a no-op verification")
+
+    def test_vacuous_verification_real_command_allowed(self):
+        for cmd in ("bash tests/run.sh dashboard", "python3 -m pytest tests -q",
+                    "ctest --test-dir build -r foo", "test -f build/out"):
+            self.assertFalse(lp.is_vacuous_verification(cmd),
+                             f"{cmd!r} is a real command, not a no-op")
+
+    def test_vacuous_verification_chained_command_allowed(self):
+        # A no-op that chains to or substitutes a real command must not be flagged.
+        for cmd in ("echo start && pytest tests", "true || bash tests/run.sh",
+                    "echo $(python3 -c 'print(1)')"):
+            self.assertFalse(lp.is_vacuous_verification(cmd),
+                             f"{cmd!r} chains to a real command and must pass")
+
+    def test_vacuous_verification_flagged_by_full_lint(self):
+        # End-to-end: an item whose Verification is `true` fails lint_item.
+        item = {
+            "title": "x", "fields": {
+                "Mode": "improve", "Rationale": "r", "Evidence": "e",
+                "Surfaces": "scripts/lint-plan.py", "Development": "d",
+                "Acceptance": "a", "Verification": "true",
+            }}
+        violations = lp.lint_item(item, ".")
+        self.assertTrue(any("no-op" in s for s in violations),
+                        f"expected a no-op violation, got {violations!r}")
+
+
 if __name__ == "__main__":
     unittest.main()

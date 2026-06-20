@@ -144,6 +144,26 @@ def is_prose_verification(norm):
     return tokens[0] not in _KNOWN_EXEC
 
 
+# Runnable-but-vacuous Verification commands: they execute cleanly yet prove nothing
+# about the change. `true`/`false`/`:` are no-op builtins, a bare `echo ...` only prints,
+# and `exit <code>` just sets a status. These pass both the PLACEHOLDER set (they are not
+# listed words) and the prose scan (a single token, or a first token that is not English
+# prose), so a "Verification: true" would slip a green-but-meaningless gate past execute.
+_VACUOUS_FIRST = {"true", "false", ":", "echo", "exit"}
+
+
+def is_vacuous_verification(norm):
+    """True when a normalized Verification command runs but verifies nothing: a no-op
+    builtin (`true`, `false`, `:`), a bare `echo ...`, or `exit <code>`. A value that
+    chains to or substitutes another command (&&, ||, ;, |, $(...), backticks, redirect)
+    is never flagged — a real command may run there ("echo start && pytest ...")."""
+    if not norm:
+        return False
+    if any(sig in norm for sig in ("&&", "||", ";", "|", "$(", "`", ">", "<")):
+        return False
+    return norm.split()[0] in _VACUOUS_FIRST
+
+
 def split_paths(value):
     out = []
     for p in value.split(","):
@@ -266,6 +286,8 @@ def lint_item(item, root):
         # never a runnable command, so it is a placeholder too.
         if norm in PLACEHOLDER_VERIFICATION or norm == "":
             v.append(f"Verification '{verif}' is a placeholder, not a runnable command")
+        elif is_vacuous_verification(norm):
+            v.append(f"Verification '{verif}' is a no-op command that proves nothing")
         else:
             # The prose scan must not run on the rstrip(".") value: a STANDALONE
             # trailing "." token is the command's argument ("ruff check ."), and
