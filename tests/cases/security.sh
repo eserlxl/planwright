@@ -41,3 +41,19 @@ if [ "$sec_before" = "$sec_after" ]; then
 else
   bad "a planning entry point created or modified a file outside .planwright/ (before/after tree differ)"
 fi
+
+# --- Test SEC2: lifecycle.py (the MUTATING bookkeeping script) confines writes to .planwright/ ----
+# SEC1 covers the READ-ONLY entry points; lifecycle.py is the one script that actually WRITES
+# (housekeep drains, land flips+stamps, reconcile records), so its write-boundary matters most: every
+# write must land inside .planwright/ and never touch source. Reuse the SEC fixture + snapshot, run a
+# housekeep then a land, and assert the outside-.planwright tree is byte-identical (lock files,
+# plan/completed/rejected drains all stay in-boundary).
+sec_lc_before="$(sec_snap)"
+python3 "$ROOT/scripts/lifecycle.py" housekeep --root "$SEC/.planwright" >/dev/null 2>&1 || true
+python3 "$ROOT/scripts/lifecycle.py" land 1 --commit deadbee --root "$SEC/.planwright" >/dev/null 2>&1 || true
+sec_lc_after="$(sec_snap)"
+if [ "$sec_lc_before" = "$sec_lc_after" ]; then
+  ok "lifecycle.py (housekeep/land) writes nothing outside .planwright/ (the mutating script stays in-boundary)"
+else
+  bad "lifecycle.py created or modified a file outside .planwright/ (write-boundary breached)"
+fi
