@@ -120,3 +120,30 @@ if [ "$secb_rc" -ne 0 ] \
 else
   bad "the Stage 10 gate accepted a protected-path Surface (boundary breached, rc=$secb_rc)"
 fi
+
+# --- Test SEC5: a recon/routing lead can never be laundered into Evidence -----------
+# The Stage 1.6 external-agent recon backend ships code to a third-party provider; its
+# leads (and the digest's carried candidates) are routing-only and must be re-proven from
+# a code re-read, never trusted as proof. The mechanically-detectable boundary: Evidence
+# rooted in the tool-owned .planwright/ routing tree is rejected, so an external lead
+# cannot be promoted to grounding without an independent re-read.
+SECE="$TMP/sec_evidence"; mkdir -p "$SECE/.planwright"
+cat > "$SECE/.planwright/plan.md" <<'PLAN'
+# planwright Plan — .
+
+- [ ] Trust an external recon lead as Evidence
+      Mode: improve
+      Rationale: r.
+      Evidence: .planwright/rejected.md carried this lead from the external recon agent.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+PLAN
+sece_rc=0
+sece_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$SECE" --plan "$SECE/.planwright/plan.md" 2>&1)" || sece_rc=$?
+if [ "$sece_rc" -ne 0 ] && printf '%s' "$sece_out" | grep -qF "routing only, never proof"; then
+  ok "the Stage 10 gate refuses Evidence rooted in the .planwright/ routing tree (a recon lead cannot be laundered into proof)"
+else
+  bad "the Stage 10 gate accepted routing-only Evidence (recon lead trusted as proof, rc=$sece_rc)"
+fi

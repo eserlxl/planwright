@@ -224,10 +224,24 @@ def lint_item(item, root):
         v.append(f"invalid Mode '{mode}' (use {'|'.join(sorted(VALID_MODES))})")
 
     ev = f.get("Evidence", "")
+    # Stage 10: Evidence must come from a code re-read THIS run. Three routing-only sources
+    # are never proof and are mechanically detectable as a class: the graph memory files
+    # (GRAPH_MEMORY), and — more broadly — any citation rooted in the tool-owned .planwright/
+    # tree, which holds the digest's carried dossier candidates and Stage 1.6 recon leads.
+    # An item that grounds its Evidence in that routing tree (rather than the code) fails the
+    # gate. This does NOT attempt the undetectable all-mode anchor requirement — it only bars
+    # citing the routing artifact itself.
+    ev_route = None
     for g in GRAPH_MEMORY:
         if g in ev:
-            v.append(f"Evidence cites graph memory '{g}' (routing only, never proof)")
+            ev_route = f"graph memory '{g}'"
             break
+    if ev_route is None:
+        mloc = re.search(r"\.planwright/[\w./-]+", ev)
+        if mloc:
+            ev_route = f"tool-owned routing/state '{mloc.group(0)}'"
+    if ev_route is not None:
+        v.append(f"Evidence cites {ev_route} (routing only, never proof)")
     # Stage 10: a `repair` item's Evidence must cite the wrong call site as
     # file:line — a bare "X is absent" is insufficient for a confirmed defect.
     # Require a real path-anchored citation (_EVIDENCE_ANCHOR_RE: `file.ext:N` or

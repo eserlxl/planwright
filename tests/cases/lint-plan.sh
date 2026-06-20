@@ -595,6 +595,51 @@ else
   bad "lint-plan.py over-flagged .github/ or .gitignore as protected (rc=$po_rc): $po_out"
 fi
 
+# --- Test 12h: routing-only Evidence beyond the two graph-memory files ---------------
+# Stage 10 bars graph memory from Evidence (Test 12); the SAME bar applies to the digest's
+# carried dossier candidates and Stage 1.6 recon leads, which live in the tool-owned
+# .planwright/ tree. An item grounding Evidence in ANY .planwright/ routing path (not just
+# graph.json/digest.md) is rejected as routing-only; legitimate source Evidence still passes.
+RECON="$TMP/recon_evidence.md"
+cat > "$RECON" <<'EOF'
+# planwright Plan — .
+
+- [ ] Item grounding Evidence in a recon/digest lead
+      Mode: improve
+      Rationale: r.
+      Evidence: .planwright/final.md records the dry rungs and the recon lead.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+rc_rc=0
+rc_out="$(python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$RECON" 2>&1)" || rc_rc=$?
+if [ "$rc_rc" -ne 0 ] && printf '%s' "$rc_out" | grep -qF "tool-owned routing/state '.planwright/final.md'"; then
+  ok "lint-plan.py rejects Evidence rooted in a .planwright/ routing path (recon/digest lead, not just graph memory)"
+else
+  bad "lint-plan.py accepted Evidence grounded in a .planwright/ routing path (rc=$rc_rc): $rc_out"
+fi
+# Control: legitimate source Evidence still passes (the bar is the routing artifact, not file:line).
+RECON_OK="$TMP/recon_ok.md"
+cat > "$RECON_OK" <<'EOF'
+# planwright Plan — .
+
+- [ ] Item grounding Evidence in a real code re-read
+      Mode: improve
+      Rationale: r.
+      Evidence: scripts/lint-plan.py:1 imports argparse.
+      Surfaces: scripts/lint-plan.py
+      Development: edit lint_item().
+      Acceptance: green.
+      Verification: bash tests/run.sh
+EOF
+if python3 "$ROOT/scripts/lint-plan.py" --root "$ROOT" --plan "$RECON_OK" --quiet; then
+  ok "lint-plan.py still accepts legitimate source Evidence (the routing bar does not over-reach)"
+else
+  bad "lint-plan.py false-flagged legitimate source Evidence"
+fi
+
 # Convergence guards: a repeated pending title and a Surfaces/New-Surfaces overlap
 # are always violations (hard fail). The lifecycle dir holds the advisory sources.
 LDIR="$TMP/lintdir"
