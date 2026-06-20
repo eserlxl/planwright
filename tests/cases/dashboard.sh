@@ -2264,6 +2264,35 @@ assert(/hot/.test(prioFlagText), "priorities omitted the hot flag for a hot rank
 assert(/uncovered/.test(prioFlagText), "priorities omitted the uncovered flag");
 assert(/articulation/.test(prioFlagText), "priorities omitted the articulation flag");
 assert(/in cycle/.test(prioFlagText), "priorities omitted the in-cycle flag for a cyclic node");
+
+// Phase 5.3: coldFrontier() renders the Invent-framing note when metrics.exploreFraming, the
+// framing/frontier-aware empty variant when no cold list, and the uncovered/test flags on cold rows.
+var framingEmptyGraph = JSON.stringify({
+  graph_built_at_sha: "deadbeef", explore_framing: "power-user", explore_seed: 3,
+  frontier: { never_audited: 2, stale: 1 },
+  nodes: { "a.py": { branch_count: 1, pagerank: 0.5, lang: "python", loc: 5, covered_by_test: true, is_test: false, git_churn: 1, imports: [] } },
+  import_cycles: [],
+});
+var mFrEmpty = win.PW_DERIVE.metrics(framingEmptyGraph);
+var frEmptyRoot = new El("section");
+win.PW_VIEWS.insights(frEmptyRoot, { counts: {} }, { graphText: framingEmptyGraph, metrics: mFrEmpty, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var frEmptyText = textOf(frEmptyRoot);
+assert(/Invent framing: power-user/.test(frEmptyText), "cold frontier did not surface the explore-framing note");
+assert(/No cold-frontier list recorded yet/.test(frEmptyText), "cold frontier did not render the empty variant");
+var coldGraph = JSON.stringify({
+  graph_built_at_sha: "deadbeef", ranked_cold: ["src.py", "t_spec.py"],
+  nodes: {
+    "src.py": { branch_count: 2, pagerank: 0.4, lang: "python", loc: 20, covered_by_test: false, is_test: false, git_churn: 2, imports: [] },
+    "t_spec.py": { branch_count: 1, pagerank: 0.1, lang: "python", loc: 8, covered_by_test: false, is_test: true, git_churn: 1, imports: [] },
+  },
+  import_cycles: [],
+});
+var mCold = win.PW_DERIVE.metrics(coldGraph);
+var coldRoot = new El("section");
+win.PW_VIEWS.insights(coldRoot, { counts: {} }, { graphText: coldGraph, metrics: mCold, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var coldFlagText = findByClass(coldRoot, "pw-prio-flag").map(textOf).join(" ");
+assert(/uncovered/.test(coldFlagText), "cold frontier omitted the uncovered flag for an uncovered non-test node");
+assert(/test/.test(coldFlagText), "cold frontier omitted the test flag for a test node");
 console.log("INSIGHTS-RENDER-OK");
 JS
   if node "$TMP/insights_render_test.js" "$ROOT/scripts/dashboard" >"$TMP/insights_render.out" 2>"$TMP/insights_render.err" \
