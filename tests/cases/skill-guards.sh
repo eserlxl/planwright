@@ -240,3 +240,24 @@ if "by default codmaster may dispatch it" in t:
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md codmaster summary documents enforced growth (safe-off burst regardless of invent_class; invent-dry routing relayed only under safe)"; else bad "codmaster enforced-growth summary missing/regressed in SKILL.md (pre-791a00f may-dispatch/invent-dry-reset wording may have drifted back)"; fi
+
+# --- Test 10n: SKILL.md Stage 1.6 names the secret (.env) exclusion and the private-IP egress bar ---
+# The optional external-agent recon backend ships the targeted tree to a third-party provider, so the
+# egress boundary is SECURITY-load-bearing: the recon scan excludes gitignored secrets (`.env`) and the
+# external backend must never target a tree holding private IP. These two tokens are NOT covered by
+# Test 10d/10e — dropping either silently widens what could be egressed — so pin them inside Stage 1.6.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+a = t.find("### Stage 1.6 — Parallel recon")
+b = t.find("### Stage 2 — Audit")
+need = []
+if a < 0 or b < 0 or b <= a:
+    need.append("stage-1.6-bounds"); para = ""
+else:
+    para = t[a:b]
+if ".env" not in para: need.append("env-secret-exclusion")
+if "never target a tree holding private IP" not in para: need.append("private-ip-egress-bar")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md Stage 1.6 names the .env secret exclusion and the private-IP egress bar (external-backend boundary)"; else bad "SKILL.md Stage 1.6 lost the .env/private-IP egress-exclusion security boundary"; fi
