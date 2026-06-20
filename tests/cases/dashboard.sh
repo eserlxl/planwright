@@ -1285,6 +1285,29 @@ assert(/repair/.test(twoLegText) && /docs/.test(twoLegText), "two-mode cadence l
 assert(twoLegText.indexOf("develop") < 0 && twoLegText.indexOf("improve") < 0,
   "two-mode cadence legend rendered a zero-count mode");
 
+// Phase 5.2: sessionTrend() renders the empty "Collecting session history" branch when ctx.trend has
+// fewer than 2 points, and 3 polylines (done/pend/kill) + the snapshot-count footer on a populated
+// trend.
+var emptyTrendC = new El("section");
+win.PW_VIEWS.console(emptyTrendC, state, Object.assign({}, fullCtx, { trend: [] }));
+assert(/Collecting session history/.test(textOf(emptyTrendC)),
+  "sessionTrend did not render the empty branch on a <2-point trend");
+assert(findByClass(emptyTrendC, "pw-trend-line").length === 0,
+  "sessionTrend rendered trend lines on an empty trend");
+var trend = [
+  { t: 1000, done: 0, pend: 5, kill: 0 },
+  { t: 61000, done: 2, pend: 3, kill: 1 },
+  { t: 121000, done: 4, pend: 1, kill: 1 },
+];
+var fullTrendC = new El("section");
+win.PW_VIEWS.console(fullTrendC, state, Object.assign({}, fullCtx, { trend: trend }));
+assert(!/Collecting session history/.test(textOf(fullTrendC)),
+  "sessionTrend wrongly rendered the empty branch on a populated trend");
+assert(findByClass(fullTrendC, "pw-trend-line").length === 3,
+  "sessionTrend did not render the 3 trend polylines (done/pend/kill) on a populated trend");
+assert(/3 snapshots over/.test(textOf(fullTrendC)),
+  "sessionTrend did not render the snapshot-count footer on a populated trend");
+
 // Targeted (Phase 1.2): the Reactor satellite strip reflects the accepted/pending/rejected
 // counts so a renamed engine field renders a wrong count instead of failing silently. The
 // verdict + carried-satellite assertions above never pin the accepted/pending NUMBERS; sat()
