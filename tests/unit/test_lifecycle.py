@@ -389,6 +389,32 @@ class TestReconcileSweep(unittest.TestCase):
         for subj in ("Implement alpha path", "Implement beta path", "Implement gamma path"):
             self.assertEqual(done.count("- [x] " + subj), 1)
 
+    def test_reconcile_append_path_is_crash_safe(self):
+        # reconcile() appends to completed.md through the atomic temp+os.replace write. A crash
+        # during the rename must not truncate completed.md in place nor leak a temp straggler.
+        # Distinct from TestAtomicWrite, which drives lc.write() directly and never reaches the
+        # reconcile -> append_blocks path (this also exercises the git-meta resolution first).
+        import glob
+        c = self._commit("Implement a recovered fix", "fix.txt")
+        prior = "# planwright Plan — .\n\n- [x] keep me\n      Mode: docs\n"
+        with open(self.completed, "w", encoding="utf-8") as fh:
+            fh.write(prior)
+        saved = os.replace
+
+        def boom(src, dst):
+            raise OSError("simulated crash during rename")
+
+        os.replace = boom
+        try:
+            with self.assertRaises(OSError):
+                lc.reconcile(self.completed, self.repo, c, "improve")
+        finally:
+            os.replace = saved
+        # completed.md is byte-identical (no truncate-in-place) ...
+        self.assertEqual(self._read(self.completed), prior)
+        # ... and the temp was cleaned up (no .lifecycle-*.tmp straggler).
+        self.assertEqual(glob.glob(os.path.join(self.root, ".lifecycle-*.tmp")), [])
+
 
 class TestAtomicWrite(unittest.TestCase):
     """lifecycle.write — atomic temp+os.replace; a crash mid-rename must not truncate."""
