@@ -333,7 +333,7 @@ if "never runs qb" not in t: need.append("safe-excludes-qb")
 if "qb hand-off to paste" not in t: need.append("safe-prints-qb-handoff")
 sys.exit(1 if need else 0)
 PY
-then ok "SKILL.md states `safe` mode never runs qb and prints the qb hand-off to paste"; else bad "SKILL.md safe-mode qb-exclusion (or its hand-off disclosure) missing/regressed"; fi
+then ok "SKILL.md states safe mode never runs qb and prints the qb hand-off to paste"; else bad "SKILL.md safe-mode qb-exclusion (or its hand-off disclosure) missing/regressed"; fi
 
 # --- Test 10q: SKILL.md pins the apply-time value-gate four-check definition -----------
 # Execute's per-item value gate (keep/kill before applying) is defined by four named checks:
