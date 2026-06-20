@@ -299,3 +299,23 @@ if "never target a tree holding private IP" not in para: need.append("private-ip
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md Stage 1.6 names the .env secret exclusion and the private-IP egress bar (external-backend boundary)"; else bad "SKILL.md Stage 1.6 lost the .env/private-IP egress-exclusion security boundary"; fi
+
+# --- Test 10o: SKILL.md (agent-neutral) documents the qb QB_PLAN_AUTO_WARN trust-downgrade -
+# The WARN downgrade — codmaster distrusts a NON-INDEPENDENT qb audit: re-validate+verify every
+# merged item regardless of qb's verdict, treat the WARN-tagged convergence as UNVERIFIED, and
+# recommend an INDEPENDENT RE-RUN rather than asserting a clean done — is pinned only against the
+# Claude-host commands/codmaster.md (commands.sh). Every NON-Claude host reads SKILL.md, where the
+# contract was unguarded — a silent deletion there loses the safety behavior off-Claude. Pin the
+# full contract (not just the bare token) so a weakening fails.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = open(sys.argv[1]).read()
+need = []
+if "QB_PLAN_AUTO_WARN" not in t: need.append("token:QB_PLAN_AUTO_WARN")
+if "non-independent" not in t: need.append("semantics:non-independent")
+if "downgrades trust" not in t and "downgrade trust" not in t: need.append("semantics:downgrade")
+if "unverified" not in t: need.append("semantics:unverified-convergence")
+if "independent re-run" not in t: need.append("semantics:recommend-independent-rerun")
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md (agent-neutral) documents the qb QB_PLAN_AUTO_WARN trust-downgrade contract (off-Claude hosts guarded)"; else bad "SKILL.md qb WARN-downgrade contract missing/incomplete (off-Claude hosts unguarded)"; fi
