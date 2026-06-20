@@ -485,3 +485,35 @@ if XDG_CONFIG_HOME="$ARXBAD" python3 "$STATE" activity start plan --root "$ARBAD
 else
   bad "a failing registry write broke the activity beacon"
 fi
+
+# --- Test ST-RECOVER1: three readers of completed.md agree after a drop->recover cycle ---
+# After a codmaster/codshard lap drops completed.md records and reconcile-sweep recovers them,
+# the three readers — the raw `- [x]` count, status.py's _count_checkbox, and
+# state.collect()["completed"] — must all agree on the completed total. A reader that diverges
+# (a different marker set, or a recovery shape one reader cannot parse) would silently desync
+# the dashboard from the ledger.
+SWR="$TMP/state-recover"; mkdir -p "$SWR/.planwright"
+(
+  cd "$SWR" || exit
+  git init -q; git config user.email t@example.com; git config user.name t
+  git config commit.gpgsign false
+  printf '0\n' > f.txt;  git add -A; git commit -qm "init"
+  printf 'a\n' >> f.txt; git add -A; git commit -qm "Fix alpha defect"
+  printf 'b\n' >> f.txt; git add -A; git commit -qm "Fix beta defect"
+) >/dev/null 2>&1
+SWR_BASE="$(git -C "$SWR" rev-parse HEAD~2)"
+# completed.md starts ABSENT (the drift): the two fixes landed in git but were never recorded.
+python3 "$ROOT/scripts/lifecycle.py" reconcile-sweep --since "$SWR_BASE" --mode repair --root "$SWR/.planwright" >/dev/null
+if python3 - "$ROOT" "$SWR" <<'PY'
+import os, sys
+root, target = sys.argv[1], sys.argv[2]
+sys.path.insert(0, os.path.join(root, "scripts"))
+import status, state
+comp = os.path.join(target, ".planwright", "completed.md")
+raw = sum(1 for ln in open(comp, encoding="utf-8") if ln.startswith("- [x]"))
+st_count = status._count_checkbox(comp, "- [x]")
+state_count = len(state.collect(target)["completed"])
+assert raw == 2, raw
+assert raw == st_count == state_count, (raw, st_count, state_count)
+PY
+then ok "state.py: raw/status/state completed counts agree after a reconcile-sweep recovery"; else bad "state.py: a completed-count reader diverged from the file after recovery"; fi
