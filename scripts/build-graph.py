@@ -197,8 +197,10 @@ def loc_of(blob):
 
 # Per-language branch-token patterns for a best-effort complexity proxy. Stage 2b
 # tiebreaks function selection "by complexity (line count or branching)"; loc gives
-# the line count, branch_count gives the branching. Comment/string hits are tolerated
-# (consistent with the rest of this best-effort extractor).
+# the line count, branch_count gives the branching. String-literal and comment spans are
+# masked first (blank_strings_and_comments), so a keyword that appears only inside a string
+# or comment is not counted — the counters stay a parser-free proxy but no longer mis-attribute
+# control flow to prose.
 BRANCH_KW = {
     "bash": r"\b(?:if|elif|for|while|case|until)\b|&&|\|\|",
     "python": r"\b(?:if|elif|for|while|except)\b|\band\b|\bor\b",
@@ -211,9 +213,10 @@ BRANCH_KW = {
 
 def branch_count_of(lang, text):
     """Best-effort count of branch points — the 'branching' half of Stage 2b's
-    complexity tiebreak. 0 for data/markup languages with no control flow."""
+    complexity tiebreak. 0 for data/markup languages with no control flow. String/comment
+    spans are masked first so a keyword inside a literal or comment does not inflate it."""
     pat = BRANCH_KW.get(lang)
-    return len(re.findall(pat, text)) if pat else 0
+    return len(re.findall(pat, blank_strings_and_comments(lang, text))) if pat else 0
 
 
 # Per-language error-SWALLOWING patterns — sites where a failure is silenced (empty
@@ -222,8 +225,9 @@ def branch_count_of(lang, text):
 # branchiness is only a proxy for that hunt, a two-line `except: pass` is its exact
 # target. Precision-leaning per arm (a legitimate `except X: return default` is NOT
 # matched — too often correct); rust and c are deliberately absent (`.unwrap()` panics
-# loudly, C has no idiom matchable at this precision). Comment/string hits are
-# tolerated, same contract as BRANCH_KW: candidates to read, never findings.
+# loudly, C has no idiom matchable at this precision). String/comment spans are masked
+# first (same contract as BRANCH_KW), so a swallow idiom quoted in a literal or comment is
+# not counted: candidates to read, never findings.
 SWALLOW_KW = {
     "bash": r"\|\|\s*true\b|2>\s*/dev/null",
     "python": r"(?m)\bexcept\b[^\n:]*:\s*(?:pass|continue)\b",
@@ -234,9 +238,10 @@ SWALLOW_KW = {
 
 def swallow_count_of(lang, text):
     """Best-effort count of error-swallowing sites — the silent-failure analogue of
-    branch_count_of. 0 for languages with no matchable swallow idiom."""
+    branch_count_of. 0 for languages with no matchable swallow idiom. String/comment spans
+    are masked first so a swallow idiom inside a literal or comment does not inflate it."""
     pat = SWALLOW_KW.get(lang)
-    return len(re.findall(pat, text)) if pat else 0
+    return len(re.findall(pat, blank_strings_and_comments(lang, text))) if pat else 0
 
 
 # Non-whitespace, non-word filler for blanked comment/string regions. NUL is chosen so
@@ -280,6 +285,51 @@ def blank_comments(lang, text):
     elif lang == "bash":
         text = _blank_spans(text, r"(?m)#.*$")
     return text
+
+
+# Combined string-literal + comment alternations, per language family, ordered so a single
+# left-to-right re.sub never mis-lexes: a comment marker inside a string (`"http://x"`,
+# `'# not a comment'`) and a quote inside a comment (`// "x"`, `# "y"`) are each consumed by
+# whichever span opens first. Strings precede the line-comment arm for exactly that reason;
+# Python's triple-quote arms (closed, then unterminated-to-EOF) precede the single-line ones,
+# mirroring blank_comments. Used by the branch/swallow counters to mask spans before counting.
+_CSTYLE_STR_COMMENT = (
+    r"/\*[\s\S]*?\*/"            # block comment first (blanks quotes inside it)
+    r'|"(?:\\.|[^"\\\n])*"'      # double-quoted string
+    r"|'(?:\\.|[^'\\\n])*'"      # single-quoted char/string
+    r"|//[^\n]*"                 # line comment last (a // inside a string is already consumed)
+)
+_STR_COMMENT_PAT = {
+    "c": _CSTYLE_STR_COMMENT,
+    "rust": _CSTYLE_STR_COMMENT,
+    "go": (r"/\*[\s\S]*?\*/"
+           r"|`[^`]*`"                  # Go raw string (backtick, spans newlines)
+           r'|"(?:\\.|[^"\\\n])*"'
+           r"|'(?:\\.|[^'\\\n])*'"
+           r"|//[^\n]*"),
+    "js": (r"/\*[\s\S]*?\*/"
+           r"|`(?:\\.|[^`\\])*`"        # template literal (spans newlines)
+           r'|"(?:\\.|[^"\\\n])*"'
+           r"|'(?:\\.|[^'\\\n])*'"
+           r"|//[^\n]*"),
+    "python": (r'"""[\s\S]*?"""' r"|'''[\s\S]*?'''"           # closed triple-quoted, either delimiter
+               r'|"""[\s\S]*' r"|'''[\s\S]*"                  # unterminated triple -> EOF
+               r'|"(?:\\.|[^"\\\n])*"' r"|'(?:\\.|[^'\\\n])*'"  # single-line strings
+               r"|#[^\n]*"),                                  # comment, after the string arms
+    "bash": (r"'[^']*'"                  # single-quoted (no escapes/interpolation)
+             r'|"(?:\\.|[^"\\])*"'       # double-quoted
+             r"|#[^\n]*"),               # comment, after the string arms
+}
+
+
+def blank_strings_and_comments(lang, text):
+    """Length-/newline-preserving blanking of BOTH comment and string-literal spans in one
+    left-to-right pass, so a control keyword (`if`, `for`, …) or swallow idiom that appears
+    only inside a string literal or comment is not counted toward per-function complexity.
+    Best-effort and precision-leaning like the keyword patterns it feeds; used for COUNTING
+    only (every surviving offset/line is unchanged, so def-span slicing stays valid)."""
+    pat = _STR_COMMENT_PAT.get(lang)
+    return _blank_spans(text, pat) if pat else text
 
 
 def iter_defines(lang, text):
@@ -385,12 +435,13 @@ def _count_at_from_defs(pat, defs, text):
 
 def _branch_at_from_defs(lang, defs, text):
     pat = BRANCH_KW.get(lang)
-    return _count_at_from_defs(pat, defs, text) if pat else {}
+    # Mask string/comment spans first (length-preserving, so the def offsets still align).
+    return _count_at_from_defs(pat, defs, blank_strings_and_comments(lang, text)) if pat else {}
 
 
 def _swallow_at_from_defs(lang, defs, text):
     pat = SWALLOW_KW.get(lang)
-    return _count_at_from_defs(pat, defs, text) if pat else {}
+    return _count_at_from_defs(pat, defs, blank_strings_and_comments(lang, text)) if pat else {}
 
 
 def defines_of(lang, text):

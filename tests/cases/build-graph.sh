@@ -2297,3 +2297,34 @@ assert g["coupling_edges"] == [], "an unborn repo has no commit history to coupl
 assert g["dirty"]["is_first_run"] is True, "no prior graph => first run"
 PY
 then ok "build-graph.py degrades on an unborn (zero-commit) repo (empty head, no coupling, clean stderr)"; else bad "build-graph.py crashed or misbuilt on an unborn repo (rc=$bgub_rc, stderr: $(cat "$bgub_err"))"; fi
+
+# --- Test 11s: branch/swallow counts mask string-literal and comment spans -------------------
+# Per-function complexity is a regex proxy over a symbol's textual span; a control keyword
+# (if/for/while) or swallow idiom that sits only inside a string literal or a comment must NOT
+# inflate the count. blank_strings_and_comments masks both (length-preserving) before counting.
+if python3 - "$ROOT/scripts/build-graph.py" <<'PY' 2>/dev/null
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bg", sys.argv[1])
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+# Python: keywords only in a string and a comment => 0; real control flow still counts.
+py_str = 'def f():\n    s = "if x for y while z"\n    # if a for b\n    return s\n'
+assert bg.branch_count_of("python", py_str) == 0, ("string/comment keywords counted", bg.branch_count_of("python", py_str))
+py_real = 'def g(a):\n    if a:\n        for i in a:\n            pass\n'
+assert bg.branch_count_of("python", py_real) == 2, bg.branch_count_of("python", py_real)
+# branch_at attributes only the real keyword to the def, not the quoted/commented one.
+py_mix = 'def h(a):\n    if a:  # for real\n        return "while loop"\n'
+assert bg.branch_at_of("python", py_mix) == {"h": 1}, bg.branch_at_of("python", py_mix)
+# C: a // and && inside a string literal are masked; only the real if counts.
+c_url = 'int g(int a){\n  char *u = "http://x && y";\n  if (a) return 1;\n  return 0;\n}\n'
+assert bg.branch_count_of("c", c_url) == 1, bg.branch_count_of("c", c_url)
+# bash: keywords inside a quoted echo and a comment are masked.
+sh = 'f(){\n  echo "if then for"\n  # if for\n  return 0\n}\n'
+assert bg.branch_count_of("bash", sh) == 0, bg.branch_count_of("bash", sh)
+# swallow: an `except: pass` quoted in a string is not a swallow site.
+py_sw = 'def k():\n    note = "use except: pass to ignore"\n    return note\n'
+assert bg.swallow_count_of("python", py_sw) == 0, bg.swallow_count_of("python", py_sw)
+# masking is length- and newline-preserving (def-span offsets stay valid).
+masked = bg.blank_strings_and_comments("python", py_mix)
+assert len(masked) == len(py_mix) and masked.count("\n") == py_mix.count("\n")
+PY
+then ok "build-graph.py branch/swallow counts mask string-literal and comment spans (keywords in prose not counted)"; else bad "build-graph.py string/comment masking for complexity counts is wrong"; fi
