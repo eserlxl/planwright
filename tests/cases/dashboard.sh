@@ -2345,6 +2345,55 @@ else
   ok "dashboard console degraded-fallback check skipped (node not installed)"
 fi
 
+# --- Test DASH-PLAN-DEGRADED: the Plan view's empty/degraded plan-card fallbacks --------
+# plan.js renders three empty-list fallbacks (No pending items. / Nothing completed yet. /
+# Nothing rejected.) plus a mode-filtered empty ("No pending items in mode 'X'.") — all
+# smoke-only today. The crossLinks no-metrics branch is already pinned elsewhere, so it is
+# explicitly out of scope here. Render on bareCtx (null metrics) and assert each fallback's
+# exact text branch-by-branch.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/plan_degraded.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, makeFixture, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "plan");
+const fx = makeFixture();
+// (1) Fully drained state on bareCtx: all three empty-list fallbacks render their exact text.
+win.PW_UI.planMode = "all";
+var empty = Object.assign({}, fx.state, { pending: [], completed: [], rejected: [], pending_modes: {} });
+var c1 = new El("section");
+win.PW_VIEWS.plan(c1, empty, fx.bareCtx);
+var t1 = textOf(c1);
+assert(/No pending items\./.test(t1), "plan view did not render the empty-pending fallback");
+assert(/Nothing completed yet\./.test(t1), "plan view did not render the empty-completed fallback");
+assert(/Nothing rejected\./.test(t1), "plan view did not render the empty-rejected fallback");
+// (2) Mode-filtered empty: a develop-only plan filtered to 'repair' yields the mode-scoped note.
+win.PW_UI.planMode = "repair";
+var devOnly = Object.assign({}, fx.state, {
+  pending: [{ title: "a develop item", mode: "develop", rationale: "r", evidence: "e",
+    surfaces: ["a.py"], new_surfaces: [], development: "d", acceptance: "ok", verification: "bash tests/run.sh" }],
+  completed: [], rejected: [], pending_modes: { develop: 1 },
+});
+var c2 = new El("section");
+win.PW_VIEWS.plan(c2, devOnly, fx.bareCtx);
+assert(/No pending items in mode 'repair'\./.test(textOf(c2)),
+  "plan view did not render the mode-filtered empty note");
+console.log("PLAN-DEGRADED-OK");
+JS
+  if node "$TMP/plan_degraded.js" "$ROOT/scripts/dashboard" >"$TMP/plan_degraded.out" 2>"$TMP/plan_degraded.err" \
+     && grep -q PLAN-DEGRADED-OK "$TMP/plan_degraded.out"; then
+    ok "dashboard plan view renders its empty pending/completed/rejected and mode-filtered fallbacks with specific text"
+  else
+    bad "dashboard plan degraded-fallback assertion failed: $(cat "$TMP/plan_degraded.err" 2>/dev/null)"
+  fi
+else
+  ok "dashboard plan degraded-fallback check skipped (node not installed)"
+fi
+
 # --- Test DASH-JS-COVERAGE: the node-gated view-load path emits V8 coverage --------
 # Phase 1.4 prerequisite for a CI JS coverage floor (the Python --fail-under=90 analog).
 # Run the shared view loader under NODE_V8_COVERAGE and assert a coverage JSON keyed to a
