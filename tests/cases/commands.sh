@@ -1109,3 +1109,35 @@ if not os.path.isfile(os.path.join(root, "skills/planwright/SKILL.md")):
 sys.exit(1 if problems else 0)
 PY
 then ok "all four host adapters resolve to the one canonical skills/planwright under the planwright invocation (parity)"; else bad "a host adapter diverged from the canonical skills/planwright skill or planwright invocation"; fi
+
+# --- Test 13h: each README host-parity row's cod* column matches the canonical family -----
+# Test 13g pins the README's SLASH-prefixed cod* set (its regex only matches `/cod...`); the
+# host-parity table's non-Claude rows spell shortcuts BARE / `@`-prefixed (Codex/Cursor/Gemini),
+# so each per-host Shortcut-spelling column is unpinned. Parse every host row (3-cell, trigger
+# names planwright, shortcut cell carries a cod*) and assert it lists EXACTLY the canonical
+# family from commands/cod*.md — a host column missing or adding a cod* shortcut fails.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import glob, os, re, sys
+root = sys.argv[1]
+canon = set(os.path.basename(p)[:-3] for p in glob.glob(os.path.join(root, "commands", "cod*.md")))
+assert len(canon) == 5, "expected 5 canonical cod* commands, got " + repr(sorted(canon))
+readme = open(os.path.join(root, "README.md"), encoding="utf-8").read()
+assert "Shortcut spelling" in readme, "host-parity table (Shortcut spelling column) missing"
+hosts_seen, problems = 0, []
+for line in readme.splitlines():
+    if not line.startswith("|"):
+        continue
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    if len(cells) != 3 or "planwright" not in cells[1]:
+        continue
+    cods = set(re.findall(r"cod[a-z]+", cells[2]))
+    if not cods:
+        continue
+    hosts_seen += 1
+    if cods != canon:
+        problems.append((cells[0], "missing=" + repr(sorted(canon - cods)),
+                         "extra=" + repr(sorted(cods - canon))))
+assert hosts_seen >= 4, "expected >=4 host rows in the parity table, saw " + str(hosts_seen)
+assert not problems, problems
+PY
+then ok "each README host-parity row lists exactly the canonical cod* family (per-host columns pinned, all spellings)"; else bad "a README host-parity cod* column drifted from commands/cod*.md (missing/extra shortcut)"; fi
