@@ -114,6 +114,40 @@ class TestUnsafeSurfaceContainment(unittest.TestCase):
                                  "resolves outside the repo root")
 
 
+class TestProtectedSurface(unittest.TestCase):
+    """protected_surface() is the SKILL.md 'Editable surfaces' denylist branch (Stage 10).
+    Each protected class must yield a reason and each near-miss must return None, so neither
+    a future narrowing nor an over-broad prefix can slip past silently. The .planwright/
+    tree is intentionally handled by its own dedicated branch at the call site, not here."""
+
+    def test_protected_classes_flagged(self):
+        for p, needle in (
+            (".git/config", ".git/ state tree"),
+            (".git", ".git/ state tree"),               # the bare dir, not just children
+            (".qb/main-planning.md", ".qb/ state tree"),
+            ("LICENSE", "protected file 'LICENSE'"),
+            ("sub/LICENSE", "protected file 'LICENSE'"),
+            (".env", "secret/credential file"),
+            (".env.production", "secret/credential file"),
+            ("deploy/.env.local", "secret/credential file"),
+            ("certs/server.pem", "secret/credential file"),
+            ("id_rsa.key", "secret/credential file"),
+        ):
+            reason = lp.protected_surface(p)
+            self.assertIsNotNone(reason, f"{p!r} must be flagged protected")
+            self.assertIn(needle, reason, f"{p!r} -> {reason!r} should mention {needle!r}")
+
+    def test_near_misses_not_flagged(self):
+        # The additive gate must not over-reach: .github/ and .gitignore share the .git
+        # prefix but are not the .git/ tree; LICENSE.txt / a license doc are not the exact
+        # LICENSE; env.py / keystore.py are not secret-shaped basenames.
+        for p in (".github/workflows/ci.yml", ".gitignore", "LICENSE.txt",
+                  "docs/license.md", "env.py", "keystore.py", ".qbconfig",
+                  "scripts/lint-plan.py"):
+            self.assertIsNone(lp.protected_surface(p),
+                              f"{p!r} must NOT be flagged protected")
+
+
 class TestVerificationMissingScript(unittest.TestCase):
     """verification_missing_script() flags a referenced-but-absent interpreter script while
     staying conservative — it never flags an existing script, an inline -c snippet, or a
