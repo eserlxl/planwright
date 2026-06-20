@@ -517,3 +517,32 @@ assert raw == 2, raw
 assert raw == st_count == state_count, (raw, st_count, state_count)
 PY
 then ok "state.py: raw/status/state completed counts agree after a reconcile-sweep recovery"; else bad "state.py: a completed-count reader diverged from the file after recovery"; fi
+
+# --- Test ST-RECOVER2: a recovered item surfaces in state.collect() with title + Commit ---
+# Recovery must produce a well-shaped completed RECORD, not just a count: the recovered fix
+# appears in state.collect()["completed"] with its derived title (the commit subject), its
+# Mode, and a non-empty Commit: provenance stamp — so the dashboard shows recovered fixes
+# with their commit link, not just a bumped total.
+SWB="$TMP/state-recover-body"; mkdir -p "$SWB/.planwright"
+(
+  cd "$SWB" || exit
+  git init -q; git config user.email t@example.com; git config user.name t
+  git config commit.gpgsign false
+  printf '0\n' > f.txt;  git add -A; git commit -qm "init"
+  printf 'r\n' >> f.txt; git add -A; git commit -qm "Fix recovered defect"
+) >/dev/null 2>&1
+SWB_BASE="$(git -C "$SWB" rev-parse HEAD~1)"
+SWB_SHORT="$(git -C "$SWB" rev-parse --short HEAD)"
+python3 "$ROOT/scripts/lifecycle.py" reconcile-sweep --since "$SWB_BASE" --mode repair --root "$SWB/.planwright" >/dev/null
+if python3 - "$ROOT" "$SWB" "$SWB_SHORT" <<'PY'
+import os, sys
+root, target, short = sys.argv[1], sys.argv[2], sys.argv[3]
+sys.path.insert(0, os.path.join(root, "scripts"))
+import state
+items = [c for c in state.collect(target)["completed"] if c["title"] == "Fix recovered defect"]
+assert len(items) == 1, state.collect(target)["completed"]
+it = items[0]
+assert it["mode"] == "repair", it
+assert it["commit"] == short, (it, short)        # non-empty Commit: provenance round-trips
+PY
+then ok "state.py: a reconcile-sweep-recovered item surfaces in state.collect with title + Commit"; else bad "state.py: recovery produced a completed record state.collect could not shape"; fi
