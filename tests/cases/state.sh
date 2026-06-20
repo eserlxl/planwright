@@ -546,3 +546,23 @@ assert it["mode"] == "repair", it
 assert it["commit"] == short, (it, short)        # non-empty Commit: provenance round-trips
 PY
 then ok "state.py: a reconcile-sweep-recovered item surfaces in state.collect with title + Commit"; else bad "state.py: recovery produced a completed record state.collect could not shape"; fi
+
+# --- Test ST-RECOVER3: counts.completed equals len(completed[]) within ONE snapshot -----
+# ST-RECOVER1 pins three EXTERNAL readers of completed.md; this pins INTRA-snapshot
+# consistency: within a single state.collect() record the counted headline
+# (counts.completed) must equal the listed detail (len(completed[])). A recovery shape one
+# code path can count but the other cannot list — or vice versa — would desync the
+# dashboard's headline number from its detail list without ST-RECOVER1 catching it (it
+# reads the file thrice, never the one record's two views against each other). Reuses the
+# SWR fixture (already drop -> reconcile-sweep recovered with 2 fixes).
+if python3 - "$ROOT" "$SWR" <<'PY'
+import os, sys
+root, target = sys.argv[1], sys.argv[2]
+sys.path.insert(0, os.path.join(root, "scripts"))
+import state
+rec = state.collect(target)
+counted = rec["counts"]["completed"]
+listed = len(rec["completed"])
+assert counted == listed == 2, (counted, listed)
+PY
+then ok "state.py: counts.completed equals len(completed[]) within one snapshot after recovery"; else bad "state.py: intra-snapshot completed count/list desync after recovery"; fi
