@@ -2316,6 +2316,35 @@ assert(findByClass(smallRoot, "pw-scatter-dot").length === 2,
   "constellation did not plot one dot per node on the 2-node fixture");
 assert(!/showing the 50 highest-risk/.test(textOf(smallRoot)),
   "constellation wrongly rendered the truncation foot on a 2-node graph");
+
+// Phase 5.3: coverage() renders the uncovered gap (pw-cov-gap hatch) on a partially-covered language
+// and omits it on a fully-covered one; cycles()/cycleArc() render one cycle card per import cycle (and
+// the acyclic empty-state otherwise).
+var covRoot = new El("section");
+win.PW_VIEWS.insights(covRoot, { counts: {} }, ctx);  // base fixture: python is 1/2 covered, acyclic
+assert(findByClass(covRoot, "pw-cov-lang").length >= 1, "coverage panel did not render a by-language row");
+assert(findByClass(covRoot, "pw-cov-gap").length >= 1,
+  "coverage panel did not render the uncovered gap for a partially-covered language");
+assert(/No import cycles/.test(textOf(covRoot)), "cycles() did not render the acyclic empty-state");
+var coveredGraph = JSON.stringify({ graph_built_at_sha: "deadbeef", nodes: {
+  "a.py": { lang: "python", branch_count: 1, covered_by_test: true, is_test: false, loc: 5, pagerank: 0.5, git_churn: 1, imports: [] },
+}, import_cycles: [] });
+var mCovered = win.PW_DERIVE.metrics(coveredGraph);
+var coveredRoot = new El("section");
+win.PW_VIEWS.insights(coveredRoot, { counts: {} }, { graphText: coveredGraph, metrics: mCovered, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+assert(findByClass(coveredRoot, "pw-cov-gap").length === 0,
+  "coverage panel wrongly rendered an uncovered gap on a fully-covered graph");
+var twoCycleGraph = JSON.stringify({ graph_built_at_sha: "deadbeef", nodes: {
+  "a.py": { lang: "python", branch_count: 1, covered_by_test: true, is_test: false, loc: 5, pagerank: 0.5, git_churn: 1, imports: ["b.py"] },
+  "b.py": { lang: "python", branch_count: 1, covered_by_test: true, is_test: false, loc: 5, pagerank: 0.5, git_churn: 1, imports: ["a.py"] },
+  "c.py": { lang: "python", branch_count: 1, covered_by_test: true, is_test: false, loc: 5, pagerank: 0.5, git_churn: 1, imports: ["d.py"] },
+  "d.py": { lang: "python", branch_count: 1, covered_by_test: true, is_test: false, loc: 5, pagerank: 0.5, git_churn: 1, imports: ["c.py"] },
+}, import_cycles: [["a.py", "b.py"], ["c.py", "d.py"]] });
+var mTwoCycle = win.PW_DERIVE.metrics(twoCycleGraph);
+var cycleRoot = new El("section");
+win.PW_VIEWS.insights(cycleRoot, { counts: {} }, { graphText: twoCycleGraph, metrics: mTwoCycle, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+assert(findByClass(cycleRoot, "pw-cycle-card").length === 2,
+  "cycles() did not render one cycle card per import cycle (want 2)");
 console.log("INSIGHTS-RENDER-OK");
 JS
   if node "$TMP/insights_render_test.js" "$ROOT/scripts/dashboard" >"$TMP/insights_render.out" 2>"$TMP/insights_render.err" \
