@@ -70,5 +70,41 @@ class GitCommitMetaTimeout(unittest.TestCase):
         self.assertIn("timed out", str(ctx.exception))
 
 
+class RevListTimeout(unittest.TestCase):
+    """_rev_list resolves the sweep range (<since>..HEAD) and, like _git_commit_meta, must
+    not wait unbounded: a wedged git maps to LookupError so the sweep fails cleanly and
+    releases the lock. This pins the second, distinct git call site, so a future edit cannot
+    drop _rev_list's timeout while _git_commit_meta's stays covered."""
+
+    def test_timeout_becomes_a_clean_lookuperror(self):
+        def fake_run(cmd, **kw):
+            raise subprocess.TimeoutExpired(cmd, kw.get("timeout", 5))
+
+        orig = lc.subprocess.run
+        lc.subprocess.run = fake_run
+        try:
+            with self.assertRaises(LookupError) as ctx:
+                lc._rev_list("/repo", "abc123")
+        finally:
+            lc.subprocess.run = orig
+        self.assertIn("timed out", str(ctx.exception))
+
+    def test_rev_list_call_carries_a_positive_timeout(self):
+        timeouts = []
+
+        def fake_run(cmd, **kw):
+            timeouts.append(kw.get("timeout"))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        orig = lc.subprocess.run
+        lc.subprocess.run = fake_run
+        try:
+            lc._rev_list("/repo", "abc123")
+        finally:
+            lc.subprocess.run = orig
+        self.assertTrue(timeouts and all(t is not None and t > 0 for t in timeouts),
+                        "rev-list call had no positive timeout: %r" % timeouts)
+
+
 if __name__ == "__main__":
     unittest.main()
