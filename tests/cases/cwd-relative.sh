@@ -110,3 +110,25 @@ if [ "$rel_done" = "1" ] && [ "$abs_done" = "1" ] \
 else
   bad "lifecycle.py reconcile-sweep relative/absolute disagreed (rel=$rel_done abs=$abs_done)"
 fi
+
+# --- Test CR6: a foreign-cwd relative-root run never falls back to the planwright dev tree -----------
+# Negative arm of CR4/CR5: a relative root (`--root .planwright`) from a foreign cwd must resolve to the
+# TARGET, never the planwright install tree. A wrong default would record the target's fixes into the
+# planwright repo's own ledger. Use a UNIQUE sentinel fix and assert it lands in the TARGET ledger and
+# NEVER in the dev tree's completed.md.
+PWPW="$ROOT/.planwright"
+NEGT="$TMP/cwd-neg"; mkdir -p "$NEGT/.planwright"
+(
+  cd "$NEGT" || exit
+  git init -q; git config user.email t@e.com; git config user.name t; git config commit.gpgsign false
+  printf '0\n' > f.txt; git add -A; git commit -qm init
+  printf '1\n' >> f.txt; git add -A; git commit -qm "Foreign cwd sentinel fix"
+  python3 "$ROOT/scripts/lifecycle.py" reconcile-sweep --since HEAD~1 --mode improve --root .planwright >/dev/null 2>&1
+) >/dev/null 2>&1
+neg_recorded=0; grep -q 'Foreign cwd sentinel fix' "$NEGT/.planwright/completed.md" 2>/dev/null && neg_recorded=1
+neg_leak=0;     grep -q 'Foreign cwd sentinel fix' "$PWPW/completed.md" 2>/dev/null && neg_leak=1
+if [ "$neg_recorded" = 1 ] && [ "$neg_leak" = 0 ]; then
+  ok "a foreign-cwd relative-root reconcile-sweep records into the TARGET ledger, never the planwright dev tree"
+else
+  bad "a foreign-cwd relative-root run leaked into the planwright dev tree (recorded=$neg_recorded leak=$neg_leak)"
+fi
