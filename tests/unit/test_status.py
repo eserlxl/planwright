@@ -916,5 +916,47 @@ class TestCompletedCount(unittest.TestCase):
             self.assertEqual(st._count_checkbox(os.path.join(d, "nope.md"), "- [x]"), 0)
 
 
+class TestGitTimeoutWarn(unittest.TestCase):
+    """A git *timeout* (TimeoutExpired) in a probe must warn on stderr before degrading,
+    so a slow/large repo is not silently misread as empty. Distinct from git being absent
+    (OSError), which still degrades silently. The no-crash empty return is preserved either
+    way — TimeoutExpired is a SubprocessError, so the broad except would otherwise swallow it."""
+
+    def _assert_warns_and_degrades(self, fn_name, expected_empty):
+        import io
+        import subprocess
+        from contextlib import redirect_stderr
+        from unittest import mock
+        fn = getattr(st, fn_name)
+        buf = io.StringIO()
+        with mock.patch.object(st.subprocess, "run",
+                               side_effect=subprocess.TimeoutExpired("git", 5)), \
+                redirect_stderr(buf):
+            result = fn(".")
+        self.assertEqual(result, expected_empty)
+        self.assertIn("timed out", buf.getvalue())
+
+    def test_head_sha_timeout_warns(self):
+        self._assert_warns_and_degrades("_head_sha", "")
+
+    def test_branch_timeout_warns(self):
+        self._assert_warns_and_degrades("_branch", "")
+
+    def test_tracked_files_timeout_warns(self):
+        self._assert_warns_and_degrades("_tracked_files", [])
+
+    def test_git_absent_degrades_silently(self):
+        # An OSError (git not installed / not a work tree) must NOT warn — emptiness is the
+        # truth there, so only a timeout, never a plain absence, prints to stderr.
+        import io
+        from contextlib import redirect_stderr
+        from unittest import mock
+        buf = io.StringIO()
+        with mock.patch.object(st.subprocess, "run", side_effect=OSError("no git")), \
+                redirect_stderr(buf):
+            self.assertEqual(st._head_sha("."), "")
+        self.assertEqual(buf.getvalue(), "")
+
+
 if __name__ == "__main__":
     unittest.main()

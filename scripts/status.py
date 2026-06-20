@@ -241,6 +241,14 @@ def _carried_count(path):
     return count
 
 
+def _warn(msg):
+    """One-line stderr warning for a degraded git probe. On stderr so it never corrupts
+    the --json / --recommend stdout. Used to distinguish "degrade and warn" (a git
+    *timeout* — the repo is real but slow, so an empty result is a misread worth flagging)
+    from "degrade silently" (git absent / not a work tree — emptiness is the truth)."""
+    print(f"planwright status: {msg}", file=sys.stderr)
+
+
 def _head_sha(root):
     """The target's current HEAD sha, or '' when git is unavailable / not a work tree."""
     try:
@@ -249,6 +257,9 @@ def _head_sha(root):
             capture_output=True, text=True, timeout=5,
         )
         return out.stdout.strip() if out.returncode == 0 else ""
+    except subprocess.TimeoutExpired:
+        _warn("git rev-parse HEAD timed out; reporting HEAD as unknown")
+        return ""
     except (OSError, subprocess.SubprocessError):
         return ""
 
@@ -264,6 +275,9 @@ def _branch(root):
             capture_output=True, text=True, timeout=5,
         )
         return out.stdout.strip() if out.returncode == 0 else ""
+    except subprocess.TimeoutExpired:
+        _warn("git symbolic-ref timed out; reporting branch as unknown")
+        return ""
     except (OSError, subprocess.SubprocessError):
         return ""
 
@@ -430,6 +444,9 @@ def _tracked_files(root):
         out = subprocess.run(["git", "-C", root, "ls-files"],
                              capture_output=True, text=True, check=True,
                              timeout=5).stdout
+    except subprocess.TimeoutExpired:
+        _warn("git ls-files timed out; treating the repo as having no tracked files")
+        return []
     except (OSError, subprocess.SubprocessError):  # TimeoutExpired is not CalledProcessError
         return []
     return [line for line in out.splitlines() if line]
