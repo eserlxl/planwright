@@ -1171,7 +1171,16 @@ def compute_dirty(files, nodes, prior, prior_graph, head, undirected, coupling_e
 
 
 def build(root, prior_path, scope=None, seed=None):
-    head = sh(["git", "rev-parse", "HEAD"], root).strip()
+    try:
+        # --verify --quiet: same sha output on a normal repo, but on an unborn repo (zero
+        # commits) it exits 1 *silently* (no "fatal: ambiguous argument 'HEAD'" on stderr)
+        # instead of the bare form's noisy exit 128.
+        head = sh(["git", "rev-parse", "--verify", "--quiet", "HEAD"], root).strip()
+    except subprocess.SubprocessError:
+        # Unborn repo (zero commits): build with empty git history (no prior sha, no
+        # coupling) instead of crashing on a freshly-initialized repo — doctor.py only
+        # warns about this mode, so the builder must degrade, not fail.
+        head = ""
     # NUL-delimited with quotepath off: a non-ASCII path must arrive verbatim, not
     # C-quoted ("na\303\257ve.md"), or every later stat/open on it aborts the build.
     files = [f for f in sh(["git", "-c", "core.quotepath=off", "ls-files", "-z"], root).split("\0") if f]
@@ -1230,8 +1239,14 @@ def build(root, prior_path, scope=None, seed=None):
     # delimiter, not by "line is exactly 40 hex chars" — a tracked file whose path
     # is itself 40 hex chars (asset hashes, compiled artifacts) would otherwise be
     # misread as a commit boundary, corrupting churn and change-coupling counts.
-    log = sh(["git", "-c", "core.quotepath=off", "log", "--name-only", "--format=commit:%H",
-              "-n", str(COUPLING_WINDOW_COMMITS)], root)
+    # Skip on an unborn repo (head == "": `git log` would also exit 128 with no commits).
+    # Empty history => empty churn/coupling, the same posture commits_since takes when
+    # divergence is uncomputable, so the rest of the build proceeds on the staged files.
+    if head:
+        log = sh(["git", "-c", "core.quotepath=off", "log", "--name-only", "--format=commit:%H",
+                  "-n", str(COUPLING_WINDOW_COMMITS)], root)
+    else:
+        log = ""
     churn, commits, cur = {}, [], None
     for ln in log.split("\n"):
         ln = ln.strip()

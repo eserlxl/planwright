@@ -2273,3 +2273,27 @@ assert g1["ranking_signal"] == "coupling", ("no-import repo should rank by coupl
 assert g2["ranking_signal"] == "centrality", ("an import chain should flip to centrality", g2["ranking_signal"])
 PY
 then ok "build-graph.py ranking_signal flips coupling->centrality when a resolvable import edge makes the graph non-degenerate"; else bad "build-graph.py ranking_signal degeneracy switch wrong"; fi
+
+# --- Test 11r: build-graph degrades on an unborn (zero-commit) repo instead of crashing ------
+# `git rev-parse HEAD` exits 128 on a freshly-init'd repo with no commits; build() must catch
+# that and build with empty git history (graph_built_at_sha == "", no coupling) rather than
+# raising CalledProcessError out of sh(). --verify --quiet also keeps stderr clean (no leaked
+# "fatal: ambiguous argument 'HEAD'"), so the produced graph is the only output.
+BGUB="$TMP/bg-unborn"; mkdir -p "$BGUB"
+(
+  cd "$BGUB" || exit
+  git init -q; git config user.email t@e.com; git config user.name t
+  printf 'print("hi")\n' > a.py
+  git add a.py   # staged, but never committed => unborn HEAD
+) >/dev/null 2>&1
+bgub_err="$TMP/bgub.err"
+python3 "$ROOT/scripts/build-graph.py" --root "$BGUB" > "$TMP/bgub.json" 2>"$bgub_err"; bgub_rc=$?
+if [ "$bgub_rc" = "0" ] && [ ! -s "$bgub_err" ] && python3 - "$TMP/bgub.json" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+assert g["graph_built_at_sha"] == "", ("unborn repo head should be empty", g["graph_built_at_sha"])
+assert "a.py" in g["nodes"], "the staged file must still be a graph node"
+assert g["coupling_edges"] == [], "an unborn repo has no commit history to couple"
+assert g["dirty"]["is_first_run"] is True, "no prior graph => first run"
+PY
+then ok "build-graph.py degrades on an unborn (zero-commit) repo (empty head, no coupling, clean stderr)"; else bad "build-graph.py crashed or misbuilt on an unborn repo (rc=$bgub_rc, stderr: $(cat "$bgub_err"))"; fi
