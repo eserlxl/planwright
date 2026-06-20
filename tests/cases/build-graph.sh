@@ -2124,3 +2124,25 @@ assert "beta.md" in d["nodes"], ("coupled survivor missing from dirty", d["nodes
 assert "gamma.md" not in d["nodes"], ("uncoupled file leaked into dirty", d["nodes"])
 PY
 then ok "build-graph.py --prior seeds a deleted file's coupling partner into dirty and excludes the uncoupled file"; else bad "build-graph.py coupling-deletion dirty seeding wrong"; fi
+
+# --- Test 11p: a coupling edge emits at exactly coupling_min_cooccurrence, not one below ----------
+# The threshold is inclusive (cooccur >= COUPLING_MIN_COOCCURRENCE), so a pair co-changing EXACTLY the
+# threshold count gets an edge while a pair one below does not — pinning the boundary against off-by-one.
+BGTH="$TMP/bg-coupthresh"; mkdir -p "$BGTH"
+(
+  cd "$BGTH" || exit
+  git init -q; git config user.email t@e.com; git config user.name t; git config commit.gpgsign false
+  for i in 1 2 3; do printf '%s\n' "$i" >> at1.md; printf '%s\n' "$i" >> at2.md; git add -A; git commit -qm "at $i"; done
+  for i in 1 2;   do printf '%s\n' "$i" >> bt1.md; printf '%s\n' "$i" >> bt2.md; git add -A; git commit -qm "bt $i"; done
+) >/dev/null 2>&1
+python3 "$ROOT/scripts/build-graph.py" --root "$BGTH" > "$TMP/bgth.json" 2>/dev/null
+if python3 - "$TMP/bgth.json" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+thr = g["params"]["coupling_min_cooccurrence"]
+at = [e for e in g["coupling_edges"] if {e["a"], e["b"]} == {"at1.md", "at2.md"}]
+assert at and at[0]["cooccur"] == thr, ("at-threshold edge missing or cooccur != threshold", at, thr)
+below = any({e["a"], e["b"]} == {"bt1.md", "bt2.md"} for e in g["coupling_edges"])
+assert not below, "a below-threshold pair wrongly emitted a coupling edge"
+PY
+then ok "build-graph.py emits a coupling edge at exactly coupling_min_cooccurrence and not one below"; else bad "build-graph.py coupling threshold off-by-one"; fi
