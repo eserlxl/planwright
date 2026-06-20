@@ -92,6 +92,22 @@ LOCK_NAME = ".lifecycle.lock"
 VALID_MODES = ("develop", "improve", "repair", "docs", "reorganize")
 
 
+_noop_lock_warned = False
+
+
+def _warn_noop_lock():
+    """Warn — exactly once per process — that the inter-process state lock has degraded to a
+    no-op because fcntl is unavailable (non-POSIX/Windows, which is not in the CI matrix), so
+    concurrent lifecycle writes on the same .planwright/ are not serialized. The lock stays a
+    no-op (never raises); this only surfaces the lost serialization instead of failing silently."""
+    global _noop_lock_warned
+    if not _noop_lock_warned:
+        _noop_lock_warned = True
+        print("planwright lifecycle: fcntl unavailable (non-POSIX); the state lock is a no-op — "
+              "concurrent .planwright/ writes are not serialized against each other",
+              file=sys.stderr)
+
+
 @contextlib.contextmanager
 def _state_lock(root):
     """Serialize a whole multi-step state transaction against other planwright processes on
@@ -108,6 +124,7 @@ def _state_lock(root):
     crash. flock is associated with the open file description, so callers must NOT nest two
     _state_lock blocks on the same root in one process (the second would deadlock)."""
     if fcntl is None:
+        _warn_noop_lock()
         yield
         return
     try:

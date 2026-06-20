@@ -132,5 +132,58 @@ class TestStateLockDegrades(unittest.TestCase):
             self.assertEqual(ran, [True])
 
 
+class TestNoopLockWarn(unittest.TestCase):
+    """When fcntl is unavailable the state lock degrades to a no-op; that loss of inter-process
+    serialization must be surfaced ONCE on stderr (never silently) while the lock still never
+    raises. Unlike a missing git probe, here the warning is the whole point: a Windows session
+    (not in the CI matrix) would otherwise lose transactional safety with no signal."""
+
+    def _enter_lock_capturing_stderr(self, root):
+        import io
+        from contextlib import redirect_stderr
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            with lc._state_lock(root):
+                pass
+        return buf.getvalue()
+
+    def test_noop_warn_emitted_when_fcntl_absent(self):
+        saved = lc.fcntl
+        lc.fcntl = None
+        lc._noop_lock_warned = False
+        try:
+            with tempfile.TemporaryDirectory() as root:
+                out = self._enter_lock_capturing_stderr(root)
+            self.assertIn("no-op", out)
+            self.assertIn("fcntl", out)
+        finally:
+            lc.fcntl = saved
+            lc._noop_lock_warned = False
+
+    def test_noop_warn_emitted_only_once(self):
+        saved = lc.fcntl
+        lc.fcntl = None
+        lc._noop_lock_warned = False
+        try:
+            with tempfile.TemporaryDirectory() as root:
+                first = self._enter_lock_capturing_stderr(root)
+                second = self._enter_lock_capturing_stderr(root)
+            self.assertIn("no-op", first)
+            self.assertEqual(second, "")  # already warned; silent on every subsequent acquire
+        finally:
+            lc.fcntl = saved
+            lc._noop_lock_warned = False
+
+    def test_noop_warn_silent_when_fcntl_present(self):
+        # With a real fcntl the lock is live, so the no-op warning must NOT fire at all.
+        if lc.fcntl is None:
+            self.skipTest("fcntl unavailable on this platform")
+        lc._noop_lock_warned = False
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(root, exist_ok=True)
+            out = self._enter_lock_capturing_stderr(root)
+        self.assertEqual(out, "")
+
+
 if __name__ == "__main__":
     unittest.main()
