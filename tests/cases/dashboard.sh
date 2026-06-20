@@ -252,6 +252,16 @@ try:
     assert len(fbody) > 0, "woff2 served empty"
     print("VENDOR-OK")
 
+    # /style.css must serve as text/css (not the octet-stream fallback): an unstyled UI would
+    # otherwise ship green, since the .js and woff2 content types are asserted but the stylesheet's
+    # was not. get_content_type() drops the charset param, so compare the bare media type.
+    with urllib.request.urlopen(base + "/style.css", timeout=5) as r:
+        sct = r.headers.get_content_type()
+        sbody = r.read()
+    assert sct == "text/css", "style.css content-type: " + sct
+    assert len(sbody) > 0, "style.css served empty"
+    print("STYLE-CSS-OK")
+
     # /graph.json passthrough (the data path the graph view consumes)
     with urllib.request.urlopen(base + "/graph.json", timeout=5) as r:
         assert r.headers.get_content_type() == "application/json", r.headers.get_content_type()
@@ -373,6 +383,11 @@ if grep -q VENDOR-OK "$TMP/dash.out"; then
   ok "dashboard.py serves every nested /vendor/*.js the shell references (200, javascript, non-empty)"
 else
   bad "dashboard.py nested /vendor asset serving check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q STYLE-CSS-OK "$TMP/dash.out"; then
+  ok "dashboard.py serves /style.css as text/css (not the octet-stream fallback)"
+else
+  bad "dashboard.py did not serve /style.css as text/css: $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
 if grep -q VIEW-plan-OK "$TMP/dash.out"; then
   ok "dashboard serves the Plan view (views/plan.js registers PW_VIEWS.plan, referenced by shell)"
