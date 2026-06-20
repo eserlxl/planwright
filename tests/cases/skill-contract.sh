@@ -227,6 +227,37 @@ else
   bad "build-graph.py --debug polluted stdout or omitted the routing digest"
 fi
 
+# --- Test 10c2b: build-graph.py --debug digest is byte-stable across identical runs ----
+# The routing --debug digest is timestamp-free, so two runs on the same tree must produce a
+# byte-identical stderr digest. Tests 10c2/10p run the digest once (stream separation / count
+# faithfulness), never twice for equality — so injected non-determinism (set iteration order,
+# an unsorted listing) would pass. Build a non-vacuous fixture (import chain + coupling edge +
+# >=2 clusters), run --debug twice, and compare the stderr digests byte-for-byte.
+DBGREPO="$TMP/debug_stable"; mkdir -p "$DBGREPO"
+git -C "$DBGREPO" init -q
+printf '#!/usr/bin/env bash\nsource mid.sh\nleft(){ echo;}\n' > "$DBGREPO/left.sh"
+printf '#!/usr/bin/env bash\nsource mid.sh\nright(){ echo;}\n' > "$DBGREPO/right.sh"
+printf '#!/usr/bin/env bash\nsource leaf.sh\nmid(){ echo;}\n' > "$DBGREPO/mid.sh"
+printf '#!/usr/bin/env bash\nleaf(){ echo;}\n' > "$DBGREPO/leaf.sh"
+printf '#!/usr/bin/env bash\nsource a2.sh\na1(){ echo;}\n' > "$DBGREPO/a1.sh"
+printf '#!/usr/bin/env bash\na2(){ echo;}\n' > "$DBGREPO/a2.sh"
+git -C "$DBGREPO" add -A && git -C "$DBGREPO" -c user.name=t -c user.email=t@e.com commit -qm init
+for i in 1 2 3; do
+  printf 'c%s\n' "$i" >> "$DBGREPO/left.sh"; printf 'c%s\n' "$i" >> "$DBGREPO/right.sh"
+  git -C "$DBGREPO" add -A && git -C "$DBGREPO" -c user.name=t -c user.email=t@e.com commit -qm "c$i"
+done
+python3 "$ROOT/scripts/build-graph.py" --root "$DBGREPO" --debug >/dev/null 2>"$TMP/dbg_e1"
+python3 "$ROOT/scripts/build-graph.py" --root "$DBGREPO" --debug >/dev/null 2>"$TMP/dbg_e2"
+# non-vacuity: the digest must carry real routing content (a ranked_code listing + coupling)
+if grep -q "build-graph debug" "$TMP/dbg_e1" \
+   && grep -q "ranked_code" "$TMP/dbg_e1" \
+   && grep -q "coupling_edges=1" "$TMP/dbg_e1" \
+   && cmp -s "$TMP/dbg_e1" "$TMP/dbg_e2"; then
+  ok "build-graph.py --debug digest is byte-identical across identical runs (deterministic, timestamp-free)"
+else
+  bad "build-graph.py --debug digest is not byte-stable across runs: $(diff "$TMP/dbg_e1" "$TMP/dbg_e2" 2>&1 | head -3)"
+fi
+
 # --- Test 10d: SKILL.md wires the seeded invent framing to the builder catalog ---
 # Contract between SKILL.md and build-graph.py for lever 2 (seeded framing): the prose
 # must document the seed option, ride on --seed/explore_framing, record invent_framing,
