@@ -147,3 +147,24 @@ if [ "$sece_rc" -ne 0 ] && printf '%s' "$sece_out" | grep -qF "routing only, nev
 else
   bad "the Stage 10 gate accepted routing-only Evidence (recon lead trusted as proof, rc=$sece_rc)"
 fi
+
+# --- Test SEC-NET: the security boundary suite is self-protecting --------------------
+# Silent non-execution is the worst failure mode for a gate (cf. run.sh's completeness
+# guard, which fails when a tests/cases/*.sh is unregistered). A safety-boundary assertion
+# deleted or renamed inside THIS file currently fails nothing — the suite just runs fewer
+# checks with no signal. This presence net pins the named boundary set: every required SECn
+# marker must still exist in this file, so removing or renaming one fails loudly. (It cannot
+# protect itself or guard the whole file's deletion — run.sh's completeness guard does that.)
+SEC_SRC="$ROOT/tests/cases/security.sh"
+sec_net_miss=""
+for marker in "Test SEC1:" "Test SEC2:" "Test SEC3:" "Test SEC4:" "Test SEC5:"; do
+  grep -qF "$marker" "$SEC_SRC" || sec_net_miss="$sec_net_miss [$marker]"
+done
+# Also assert each boundary actually REPORTS a result (an ok/bad line per SECn region), so a
+# marker left as a dangling comment with its assertion gutted is caught too.
+sec_net_reports="$(grep -cE '^\s*(ok|bad) ' "$SEC_SRC")"
+if [ -z "$sec_net_miss" ] && [ "$sec_net_reports" -ge 6 ]; then
+  ok "the security boundary suite is self-protecting (SEC1-SEC5 markers present, >=6 reporting checks)"
+else
+  bad "a security boundary assertion was removed/renamed or stopped reporting:$sec_net_miss (reports=$sec_net_reports)"
+fi
