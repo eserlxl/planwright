@@ -69,6 +69,35 @@ assert g["frontier"] == {"never_audited": len(code), "stale": 0}, g["frontier"]
 PY
 then ok "build-graph.py output conforms to graph-memory schema"; else bad "build-graph.py output missing or non-conforming"; fi
 
+# --- Test 11-clusters-order: clusters emit in a deterministic (-size, first-member) order
+# build-graph.py sorts clusters by descending size then first member, with each cluster's
+# members lexicographic (connected_components returns sorted comps). Test 11 asserts cluster
+# SHAPE and the id SET, never the ordered sequence — so a regression to discovery order would
+# pass. Fixture: a size-3 component discovered AFTER two size-2 ones (which tie on size), so
+# the sort key demonstrably reorders them (discovery order would put the size-3 one last).
+CLORD="$TMP/clusters_order"; mkdir -p "$CLORD"
+git -C "$CLORD" init -q
+printf '#!/usr/bin/env bash\nsource a2.sh\na1() { echo; }\n' > "$CLORD/a1.sh"
+printf '#!/usr/bin/env bash\na2() { echo; }\n' > "$CLORD/a2.sh"
+printf '#!/usr/bin/env bash\nsource b2.sh\nb1() { echo; }\n' > "$CLORD/b1.sh"
+printf '#!/usr/bin/env bash\nb2() { echo; }\n' > "$CLORD/b2.sh"
+printf '#!/usr/bin/env bash\nsource m2.sh\nm1() { echo; }\n' > "$CLORD/m1.sh"
+printf '#!/usr/bin/env bash\nsource m3.sh\nm2() { echo; }\n' > "$CLORD/m2.sh"
+printf '#!/usr/bin/env bash\nm3() { echo; }\n' > "$CLORD/m3.sh"
+git -C "$CLORD" add -A && git -C "$CLORD" -c user.name=t -c user.email=t@e.com commit -qm init
+python3 "$ROOT/scripts/build-graph.py" --root "$CLORD" > "$TMP/clusters_order.json" 2>/dev/null
+if python3 - "$TMP/clusters_order.json" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+cl = g["clusters"]
+ids = [c["id"] for c in cl]
+members = [c["members"] for c in cl]
+assert ids == [0, 1, 2], ids
+# size-3 first, then the two size-2 components broken by first member (a < b); members sorted.
+assert members == [["m1.sh", "m2.sh", "m3.sh"], ["a1.sh", "a2.sh"], ["b1.sh", "b2.sh"]], members
+PY
+then ok "build-graph.py clusters emit in deterministic (-size, first-member) order with sorted members"; else bad "build-graph.py cluster order/member order is not deterministic"; fi
+
 # --- Test 11a: PW_COUPLING_MAX_FILES overrides the coupling bulk-skip threshold
 # The git timeout is runtime-overridable (PW_GIT_TIMEOUT_SECONDS); its sibling
 # bulk-skip threshold COUPLING_MAX_FILES_PER_COMMIT must be too, so a large-commit
