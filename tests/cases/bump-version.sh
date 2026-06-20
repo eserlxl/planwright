@@ -143,3 +143,17 @@ if ALLOW_DIRTY=1 bash "$BV10/scripts/bump-version.sh" minor >"$TMP/bv10.out" 2>"
    && ! grep -q "rc.1" "$BV10/README.md"; then
   ok "bump-version.sh rewrites the README badge to the new core version on a relative bump from a pre-release current"
 else bad "bump-version.sh README badge rewrite from a pre-release current failed (got $(ver "$BV10/.claude-plugin/plugin.json" '["version"]' 2>/dev/null)): $(cat "$TMP/bv10.err" 2>/dev/null)"; fi
+
+# --- Test BV11: the README install identifier's plugin component equals the manifest name ----------
+# README documents `/plugin install <name>@<marketplace>`; the <name> must equal .claude-plugin/plugin.json's
+# name, or the documented install command is wrong. Driven from the manifest, not a literal.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import json, re, sys
+root = sys.argv[1]
+name = json.load(open(root + "/.claude-plugin/plugin.json"))["name"]
+readme = open(root + "/README.md", encoding="utf-8").read()
+m = re.search(r"/plugin install ([A-Za-z0-9_-]+)@", readme)
+assert m, "no '/plugin install <name>@' line in README"
+assert m.group(1) == name, (m.group(1), name)
+PY
+then ok "README's /plugin install identifier names the manifest plugin name (.claude-plugin/plugin.json)"; else bad "README install identifier drifted from .claude-plugin/plugin.json name"; fi
