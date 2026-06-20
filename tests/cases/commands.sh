@@ -704,6 +704,12 @@ assert "Confirm qb is installed" in body, "qb availability (presence) check miss
 assert "skip qb" in body, "qb-absent skip path missing"
 assert "rejected intent items stay suppressed across laps" in body, "qb dedup-vs-rejected (cross-lap suppression) missing"
 assert "not qb's vendored copy" in body, "qb merge re-validation by planwright's own validator missing"
+# Pin the RUNNABLE validator mechanism, not just the vendored-copy prose: the step must name
+# `lint-plan.py --strict` (the concrete command + the flag that promotes the
+# re-proposed-completed/rejected advisories to failures, which IS the merge dedup). The flag's
+# runnability is cross-guarded by lint-plan.sh's --strict tests, so this + that form a doc<->code
+# drift guard: drop --strict from lint-plan.py and lint-plan.sh fails; stop naming it here and this does.
+assert "lint-plan.py --strict" in body, "qb-merge must name the runnable validator mechanism (lint-plan.py --strict), not only the vendored-copy prose"
 assert "zero net-new items after dedup" in body, "qb zero-net-new dry criterion missing"
 assert "qb dry" in body, "qb-dry fall-through label missing"
 assert "the gate enforces the `safe` rule for free" in body, "qb safe-gate (codinventor-already-ran) free-enforcement missing"

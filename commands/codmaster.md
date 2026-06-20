@@ -394,8 +394,10 @@ step 5 would loop back into this terminal and dispatch `/qb-plan auto` again). T
    take its pending items, **dedup** against existing pending + `completed.md` + `rejected.md`
    (rejected persists across `reset`, so rejected intent items stay suppressed across laps — the
    linchpin that keeps an infinite drive honest), tag the merged items with qb provenance, and
-   **re-validate** the merged `.planwright/plan.md` with planwright's own current validator, not
-   qb's vendored copy. **The WARN downgrade distrusts qb's *dryness*, not its `audit=` verdict.**
+   **re-validate** the merged `.planwright/plan.md` with planwright's own current validator
+   (`lint-plan.py --strict`, whose `--strict` promotes the re-proposed-completed/rejected
+   advisories to failures — exactly the dedup the merge needs), not qb's vendored copy.
+   **The WARN downgrade distrusts qb's *dryness*, not its `audit=` verdict.**
    codmaster never gates the merge on qb's audit status at all: every merged item is independently
    re-validated above and verified per-item in step 4 **whatever qb reported** — `audit=PASS`,
    `PASS_WITH_WARNINGS`, or even `BLOCKED` (`QB_PLAN_AUTO_OK` only attests that the export validated,
