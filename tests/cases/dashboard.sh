@@ -1308,6 +1308,19 @@ assert(findByClass(fullTrendC, "pw-trend-line").length === 3,
 assert(/3 snapshots over/.test(textOf(fullTrendC)),
   "sessionTrend did not render the snapshot-count footer on a populated trend");
 
+// Phase 5.2: the Dirty Pulse rail — renders "graph not built yet" on a null-metrics (no-graph) ctx,
+// and a "N nodes dirty" sub-line (from state.graph.dirty_node_count) otherwise.
+var barePulse = new El("section");
+win.PW_VIEWS.console(barePulse, state, bareCtx);
+assert(/graph not built yet/.test(textOf(barePulse)),
+  "pulserail did not render the no-graph empty branch on a null-metrics ctx");
+var dirtyState = Object.assign({}, state, { graph: { dirty_node_count: 3 } });
+var dirtyC = new El("section");
+win.PW_VIEWS.console(dirtyC, dirtyState, fullCtx);
+var dirtySub = findByClass(dirtyC, "pw-pulserail-sub");
+assert(dirtySub.length === 1 && /3 nodes dirty/.test(textOf(dirtySub[0])),
+  "pulserail did not render the dirty-node count (3) from state.graph.dirty_node_count");
+
 // Targeted (Phase 1.2): the Reactor satellite strip reflects the accepted/pending/rejected
 // counts so a renamed engine field renders a wrong count instead of failing silently. The
 // verdict + carried-satellite assertions above never pin the accepted/pending NUMBERS; sat()
