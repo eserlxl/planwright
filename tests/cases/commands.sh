@@ -1022,3 +1022,34 @@ assert not missing and not extra, (missing, extra)
 assert len(canon) == 5, canon
 PY
 then ok "README advertises exactly the real cod* shortcut family (driven from commands/cod*.md, not a literal)"; else bad "README cod* shortcut list drifted from the real commands/cod*.md set"; fi
+
+# --- Test CODEX-MANIFEST: the shipped .codex-plugin/plugin.json is structurally valid ----
+# skill-contract Test 10c checks only that the `version` agrees; nothing pins that the Codex
+# manifest is valid JSON, that its `skills` path resolves to the shipped skill, or that its
+# `interface` block parses. A hand-edit could ship a broken manifest that still version-matches.
+# Validate the real manifest, then prove the check is non-vacuous by failing a corrupted copy.
+pw_codex_validate() {  # $1 = manifest path, $2 = repo root for skill-path resolution
+  python3 - "$1" "$2" <<'PY'
+import json, os, sys
+m = json.load(open(sys.argv[1], encoding="utf-8"))   # raises -> invalid JSON
+root = sys.argv[2]
+assert m.get("name") == "planwright", "name must be planwright"
+skills = m.get("skills")
+assert isinstance(skills, str) and skills, "skills path missing"
+skill_md = os.path.join(root, skills.lstrip("./"), "planwright", "SKILL.md")
+assert os.path.isfile(skill_md), "skills path does not resolve to skills/planwright/SKILL.md: " + skill_md
+iface = m.get("interface")
+assert isinstance(iface, dict) and iface.get("displayName") and isinstance(iface.get("capabilities"), list), \
+    "interface block missing/malformed"
+PY
+}
+if pw_codex_validate "$ROOT/.codex-plugin/plugin.json" "$ROOT" 2>/dev/null; then
+  CXBAD="$TMP/codex_bad.json"; printf '{ this is not json' > "$CXBAD"
+  if pw_codex_validate "$CXBAD" "$ROOT" 2>/dev/null; then
+    bad ".codex-plugin manifest validator passed corrupt JSON (vacuous check)"
+  else
+    ok ".codex-plugin/plugin.json is valid JSON, resolves its skills path to skills/planwright, and parses its interface block (corrupt copy rejected)"
+  fi
+else
+  bad ".codex-plugin/plugin.json failed structural validation"
+fi
