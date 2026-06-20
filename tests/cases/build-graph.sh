@@ -2051,3 +2051,27 @@ assert sentinel not in dot, "gitignored sentinel surfaced in the DOT artifact"
 assert "hidden.py" not in dot and "leak.secret" not in dot, "gitignored path surfaced in the DOT artifact"
 PY
 then ok "build-graph.py never enumerates, reads, or leaks a gitignored file into any artifact"; else bad "build-graph.py scanned or leaked a gitignored file (tracked-only scan regressed)"; fi
+
+# --- Test 11m: build-graph.py emits import_cycles in deterministic sorted order -------------
+# import_cycles sorts each SCC group (sorted(comp)) and the group list (sccs.sort()), so two disjoint
+# directed import cycles plus an acyclic importer must yield an EXACT, deterministically-ordered list:
+# each group sorted, the groups in sorted order. A non-determinism regression (set iteration order)
+# would scramble it.
+BGCY="$TMP/bg-cycles"; mkdir -p "$BGCY"
+(
+  cd "$BGCY" || exit
+  git init -q; git config user.email t@e.com; git config user.name t; git config commit.gpgsign false
+  printf 'import b\n' > a.py
+  printf 'import a\n' > b.py
+  printf 'import d\n' > c.py
+  printf 'import c\n' > d.py
+  printf 'import a\n' > e.py   # acyclic importer into cycle 1 — e itself is in no cycle
+  git add -A; git commit -qm init
+) >/dev/null 2>&1
+python3 "$ROOT/scripts/build-graph.py" --root "$BGCY" > "$TMP/bgcy.json" 2>/dev/null
+if python3 - "$TMP/bgcy.json" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+assert g["import_cycles"] == [["a.py", "b.py"], ["c.py", "d.py"]], g["import_cycles"]
+PY
+then ok "build-graph.py emits import_cycles in deterministic sorted order (each group sorted, groups sorted)"; else bad "build-graph.py import_cycles ordering non-deterministic or wrong"; fi
