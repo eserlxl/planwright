@@ -816,5 +816,30 @@ class TestBranch(unittest.TestCase):
             self.assertEqual(st._branch(d), "")
 
 
+class TestCompletedCount(unittest.TestCase):
+    """status.py's completed count is marker-specific (- [x] / - [X], case-insensitive),
+    NOT a loose `- [` prefix scan: a non-canonical edge block must not inflate it."""
+
+    def test_completed_count_ignores_non_x_and_indented_markers(self):
+        with tempfile.TemporaryDirectory() as d:
+            comp = os.path.join(d, "completed.md")
+            with open(comp, "w", encoding="utf-8") as fh:
+                fh.write(
+                    "- [x] real one\n      Mode: docs\n"
+                    "- [X] real two uppercase\n      Mode: improve\n"   # uppercase still counts
+                    "- [ ] not completed pending block\n      Mode: docs\n"
+                    "- [-] malformed marker block\n      Mode: docs\n"
+                    "      - [x] indented sub-line not a top-level item\n")
+            # A loose `- [` prefix scan would count 4 column-0 blocks; the marker-specific
+            # reader counts ONLY the two real - [x] / - [X] completed items.
+            self.assertEqual(st._count_checkbox(comp, "- [x]"), 2)
+            # symmetry: the pending marker counts only the single - [ ] block (indented one excluded)
+            self.assertEqual(st._count_checkbox(comp, "- [ ]"), 1)
+
+    def test_completed_count_missing_file_is_zero(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(st._count_checkbox(os.path.join(d, "nope.md"), "- [x]"), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
