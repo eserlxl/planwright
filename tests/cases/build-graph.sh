@@ -98,6 +98,41 @@ assert members == [["m1.sh", "m2.sh", "m3.sh"], ["a1.sh", "a2.sh"], ["b1.sh", "b
 PY
 then ok "build-graph.py clusters emit in deterministic (-size, first-member) order with sorted members"; else bad "build-graph.py cluster order/member order is not deterministic"; fi
 
+# --- Test 11-coupling-order: coupling_edges emit in deterministic sorted (a,b) order ----
+# build-graph.py emits sorted(pair_co.items()), so coupling_edges are in lexicographic (a,b)
+# order. Existing tests only membership-check individual edges, never the ordered sequence —
+# so a regression to bare .items() (dict insertion order) would pass. Fixture: three coupling
+# pairs each first APPEARING in reverse order (zz, mm, aa) but each above the cooccur>=3
+# threshold, so the emitted order (aa, mm, zz) proves the sort, not insertion order.
+COUP="$TMP/coupling_order"; mkdir -p "$COUP"
+git -C "$COUP" init -q
+while read -r f1 f2 tag; do
+  printf '%s\n' "$tag" >> "$COUP/$f1"; printf '%s\n' "$tag" >> "$COUP/$f2"
+  git -C "$COUP" add -A; git -C "$COUP" -c user.name=t -c user.email=t@e.com commit -qm "$tag"
+done <<'SPECS'
+zz1.sh zz2.sh z1
+zz1.sh zz2.sh z2
+zz1.sh zz2.sh z3
+mm1.sh mm2.sh m1
+mm1.sh mm2.sh m2
+mm1.sh mm2.sh m3
+aa1.sh aa2.sh a1
+aa1.sh aa2.sh a2
+aa1.sh aa2.sh a3
+SPECS
+python3 "$ROOT/scripts/build-graph.py" --root "$COUP" > "$TMP/coupling_order.json" 2>/dev/null
+if python3 - "$TMP/coupling_order.json" <<'PY' 2>/dev/null
+import json, sys
+g = json.load(open(sys.argv[1]))
+edges = [(e["a"], e["b"]) for e in g["coupling_edges"]]
+expected = [("aa1.sh", "aa2.sh"), ("mm1.sh", "mm2.sh"), ("zz1.sh", "zz2.sh")]
+# three distinct above-threshold pairs, emitted in sorted (a,b) order despite reverse
+# first-appearance — so a regression to bare .items() (insertion order) would fail here.
+assert edges == expected, edges
+assert edges == sorted(edges), edges
+PY
+then ok "build-graph.py coupling_edges emit in deterministic sorted (a,b) order"; else bad "build-graph.py coupling_edges order is not deterministic"; fi
+
 # --- Test 11a: PW_COUPLING_MAX_FILES overrides the coupling bulk-skip threshold
 # The git timeout is runtime-overridable (PW_GIT_TIMEOUT_SECONDS); its sibling
 # bulk-skip threshold COUPLING_MAX_FILES_PER_COMMIT must be too, so a large-commit
