@@ -545,7 +545,7 @@ def is_gitignored(root, relpath):
             proc = subprocess.run(["git", "-C", root, "check-ignore", "-q", "--", relpath],
                                   capture_output=True, text=True, timeout=5)
             _IGNORE_CACHE[key] = proc.returncode == 0
-        except OSError:
+        except (OSError, subprocess.SubprocessError):  # TimeoutExpired is not OSError
             _IGNORE_CACHE[key] = False
     return _IGNORE_CACHE[key]
 
