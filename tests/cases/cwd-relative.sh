@@ -73,3 +73,17 @@ if [ "$pend" = "1" ] && [ "$done_in_plan" = "0" ] \
 else
   bad "lifecycle.py housekeep mis-drained from a foreign cwd (pending=$pend, done_in_plan=$done_in_plan)"
 fi
+
+# --- Test CR4: state.py activity --root . writes the beacon under the target's .planwright (foreign cwd)
+# The run-activity beacon (read by the dashboard reactor) must land in the TARGET repo's .planwright/,
+# resolved from cwd via `--root .`, not the planwright install tree — the same dogfood blind spot CR1
+# pins for status. Positive arm: from cwd==target the beacon is written under the target's .planwright/.
+CWB="$TMP/cwd-beacon"; mkdir -p "$CWB/.planwright"
+STATE="$ROOT/scripts/state.py"
+( cd "$CWB" && python3 "$STATE" activity start cycle --root . ) >/dev/null 2>&1
+if [ -f "$CWB/.planwright/activity.json" ] && grep -q '"command"' "$CWB/.planwright/activity.json"; then
+  ok "state.py activity start --root . writes the beacon under the target repo's .planwright/ from a foreign cwd"
+else
+  bad "state.py activity start --root . did not write the beacon to the target's .planwright/"
+fi
+( cd "$CWB" && python3 "$STATE" activity stop cycle --root . ) >/dev/null 2>&1
