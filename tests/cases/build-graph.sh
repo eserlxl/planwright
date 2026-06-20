@@ -2075,3 +2075,23 @@ g = json.load(open(sys.argv[1]))
 assert g["import_cycles"] == [["a.py", "b.py"], ["c.py", "d.py"]], g["import_cycles"]
 PY
 then ok "build-graph.py emits import_cycles in deterministic sorted order (each group sorted, groups sorted)"; else bad "build-graph.py import_cycles ordering non-deterministic or wrong"; fi
+
+# --- Test 11n: build-graph.py import_cycles caps the result at `limit` (lowest-sorted groups) ----
+# import_cycles returns sccs[:limit], so a graph with more independent cycles than the cap must return
+# EXACTLY `limit` groups — the lowest-sorted ones. In-process call passes a low limit directly.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import importlib.util, os, sys
+root = sys.argv[1]
+spec = importlib.util.spec_from_file_location("bg_cap", os.path.join(root, "scripts", "build-graph.py"))
+bg = importlib.util.module_from_spec(spec); spec.loader.exec_module(bg)
+nodes, edges = [], {}
+for i in range(5):
+    a, b = "g%da.py" % i, "g%db.py" % i
+    nodes += [a, b]
+    edges[a] = [b]; edges[b] = [a]   # a disjoint 2-cycle a<->b per i
+res = bg.import_cycles(nodes, edges, 2)
+assert len(res) == 2, res                                          # capped at limit
+assert res == [["g0a.py", "g0b.py"], ["g1a.py", "g1b.py"]], res    # the lowest-sorted groups
+assert len(bg.import_cycles(nodes, edges, 20)) == 5, "fixture should have 5 cycles uncapped"
+PY
+then ok "build-graph.py import_cycles caps the result at limit and keeps the lowest-sorted groups"; else bad "build-graph.py import_cycles limit cap wrong"; fi
