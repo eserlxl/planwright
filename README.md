@@ -398,8 +398,8 @@ the equivalent trigger from the command adapter table and keep the arguments the
 
 The full reference — request-seeded plans (`/planwright "add OAuth login"`), the
 `explore`/`invent`/`seed` escalation flags, numeric dial forms (`/codvisor 5 8`),
-`codshard shards`/`parallel`, infinite cycles, `reset`, `version` — lives in
-[Usage](docs/usage.md).
+`codshard shards`/`parallel`, the `hybrid-ai` dossier-delegation flag, infinite cycles, `reset`,
+`version` — lives in [Usage](docs/usage.md).
 
 ## Development & Releasing
 

@@ -1,11 +1,12 @@
 # planwright hybrid-ai — opt-in dossier-survey delegation (design)
 
-Status: **PROPOSED.** Design only. Wires an opt-in `hybrid-ai` flag that delegates the
-**dossier survey (Stages 3–7)** to the *same* optional external-agent CLI backend that
-`parallel external` already uses for Stage 1.6 recon — as **never-Evidence** leads, additive only,
-**off by default**. This doc locks the contract the `SKILL.md`/command/docs/test surfaces implement;
-flip the Status line to **IMPLEMENTED** only once those surfaces are wired and pinned. Clones the
-host-neutral recon backend (Stage 1.6); **Stage 1.6 is not renamed** and its recon path is unchanged.
+Status: **IMPLEMENTED.** An opt-in `hybrid-ai` flag delegates the **dossier survey (Stages 3–7)** to
+the *same* optional external-agent CLI backend that `parallel external` already uses for Stage 1.6
+recon — as **never-Evidence** leads, additive only, **off by default**. Wired into `SKILL.md` (flag
+table, usage, and the Stages 3–7 clauses), forwarded by the `/codvisor` / `/codcycle` / `/codshard`
+commands, advertised in the host example files and user docs, and pinned by `tests/cases/hybrid-ai.sh`,
+`tests/cases/skill-contract.sh`, and `tests/cases/security.sh` (SEC6). Clones the host-neutral recon
+backend (Stage 1.6); **Stage 1.6 is not renamed** and its recon path is unchanged.
 
 ## The gap
 

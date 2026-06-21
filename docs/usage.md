@@ -33,6 +33,7 @@ plan items in `.planwright/plan.md`.
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
 /planwright dry-run              Do all stages but print the plan instead of writing the file
 /planwright parallel [agent|external] [J]  Read-only recon prefetch before the audit (Stage 1.6); native by default, external = optional CLI backend
+/planwright hybrid-ai            Opt-in: delegate the Stages 3-7 dossier survey to the optional external-agent CLI backend (never-Evidence, off==skipped)
 /planwright path <X>             Scope the run to a subtree/glob (composes with execute/cycle)
 /planwright lib <X>              Scope to a logical component (cluster / build target / package / dir)
 /planwright help                 Show the help and stop
@@ -198,6 +199,16 @@ host without one simply runs without recon. An explicit `parallel external` opts
 optional** external-agent CLI backend (agy/codex/claude via the external-agents plugin) that runs
 anywhere but ships code to a third-party provider — planwright never requires it, and it is never
 auto-engaged.
+
+An opt-in `hybrid-ai` flag is the dossier-survey analogue of `parallel external`: a base `planwright`
+option (the `/codvisor` / `/codcycle` / `/codshard` sweeps forward it) that **delegates the Stages 3–7
+dossier survey** to the same entirely-optional external-agent CLI backend, to cut the host agent's
+token spend. It is **opt-in and off by default** — consistent with planwright's no-separate-model-calls
+promise, which describes the default path it leaves untouched (**off==skipped**: the off-path is
+byte-identical). Delegated findings are **never Evidence** (re-proven from a code re-read or dropped),
+egress is **public-repo / git-tracked-only / Focus-enclosing**, and it **degrades to skip** (runs the
+dossier on the host agent) when no CLI is available — planwright never requires one. Full design:
+[hybrid-ai design](hybrid-ai-design.md).
 
 ```bash
 /codshard                  Auto-enumerated shards, cycle 3 depth 10 per shard + one closing whole-repo round
