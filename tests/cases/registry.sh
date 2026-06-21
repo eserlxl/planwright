@@ -113,4 +113,21 @@ else
   bad "registry.load returned entries from an unsupported-version projects.json"
 fi
 
+# --- Test RG8: a corrupt projects.json degrades to the empty registry (no 500) ----------
+# load()'s `except (OSError, ValueError): return {}` is the degrade the docstring promises —
+# the dashboard must never 500 because the registry is corrupt or half-written. This
+# fails-on-drift test exercises that branch directly: a syntactically-broken file reads empty
+# with a clean exit and no traceback. Narrowing the except clause (e.g. to OSError only,
+# dropping the JSON ValueError) makes this go red.
+printf '{ this is not valid json,,,\n' > "$RGX/planwright/projects.json"
+reg_corrupt_rc=0
+reg_corrupt_out="$(python3 "$REG" list 2>"$TMP/reg_corrupt_err")" || reg_corrupt_rc=$?
+if [ "$reg_corrupt_rc" = 0 ] \
+   && printf '%s' "$reg_corrupt_out" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["projects"]==[] else 1)' \
+   && ! grep -q "Traceback" "$TMP/reg_corrupt_err"; then
+  ok "registry.load degrades a corrupt projects.json to the empty registry (clean exit, no traceback)"
+else
+  bad "registry.load did not cleanly degrade a corrupt projects.json (rc=$reg_corrupt_rc out=[$reg_corrupt_out])"
+fi
+
 unset XDG_CONFIG_HOME
