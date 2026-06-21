@@ -102,26 +102,43 @@ _LOG_ANCHOR_RES = (
 
 
 def parse_failing_log(log_text, check_name):
-    """A failing CI job log -> a check lead with the first plausible repo-relative
+    """A failing CI job log -> a check lead with the most plausible repo-relative
     file:line anchor (or None). The anchor is a re-grounding SEED only — the agent must
-    re-open it against the live tree before it becomes Evidence."""
-    path = line = None
-    excerpt = ""
+    re-open it against the live tree before it becomes Evidence.
+
+    A Python traceback lists "most recent call last", so its *innermost* (bottom-most)
+    ``File "...", line N`` frame is the real failure site while the frames above it are
+    test runners and library code; we therefore keep the LAST repo-relative traceback
+    frame, not the first. A log with no traceback frames (a compiler/linter run of
+    ``path:line`` errors) keeps the FIRST repo-relative anchor — there the first error is
+    the primary one and the rest are cascades."""
+    generic_re, file_re = _LOG_ANCHOR_RES[0], _LOG_ANCHOR_RES[1]
+
+    def repo_relative(m):
+        cand = m.group("path")
+        if cand.startswith(("/", "http")) or ".." in cand:
+            return None  # absolute/system/traversal paths are not repo-relative seeds
+        return (cand, int(m.group("line")))
+
+    last_frame = None     # last repo-relative `File "...", line N` (innermost traceback frame)
+    first_generic = None  # first repo-relative `path:line` (primary compiler/linter error)
     for raw in (log_text or "").splitlines():
         ln = raw.strip()
         if not ln:
             continue
-        for rx in _LOG_ANCHOR_RES:
-            m = rx.search(ln)
-            if not m:
+        mf = file_re.search(ln)
+        if mf:
+            rr = repo_relative(mf)
+            if rr:
+                last_frame = (rr[0], rr[1], ln[:200])
                 continue
-            cand = m.group("path")
-            if cand.startswith(("/", "http")) or ".." in cand:
-                continue  # absolute/system/traversal paths are not repo-relative seeds
-            path, line, excerpt = cand, int(m.group("line")), ln[:200]
-            break
-        if path:
-            break
+        if first_generic is None:
+            mg = generic_re.search(ln)
+            if mg:
+                rr = repo_relative(mg)
+                if rr:
+                    first_generic = (rr[0], rr[1], ln[:200])
+    path, line, excerpt = last_frame or first_generic or (None, None, "")
     return {"kind": "check", "name": check_name, "path": path, "line": line, "excerpt": excerpt}
 
 
