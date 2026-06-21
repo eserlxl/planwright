@@ -1502,6 +1502,24 @@ var fcCyc = findByClass(fc, "pw-vital--cycles");
 assert(fcCyc.length === 1 && findByClass(fcCyc[0], "pw-gauge-fill err").length === 0,
   "acyclic base fixture wrongly rendered the cycles err gauge");
 
+// Phase 2.3: the coupling-tension vital (v4) was entirely unasserted (the cycles vital above
+// already pins its err-gauge/acyclic branches). Drive one strong (w>=0.8) of two coupling links ->
+// couplingStrongShare 0.5 -> a "50%" vital reading "1 of 2 links w≥0.8"; a broken strong-share
+// computation fails.
+var coupGraph = JSON.stringify({ graph_built_at_sha: "deadbeef",
+  nodes: { "x.py": { pagerank: 0.5, git_churn: 1, branch_count: 1, lang: "python", loc: 10, covered_by_test: false, is_test: false, imports: [] },
+           "y.py": { pagerank: 0.4, git_churn: 1, branch_count: 1, lang: "python", loc: 10, covered_by_test: false, is_test: false, imports: [] } },
+  coupling_edges: [ { a: "x.py", b: "y.py", weight: 0.9, cooccur: 3 }, { a: "x.py", b: "y.py", weight: 0.5, cooccur: 2 } ],
+  import_cycles: [] });
+var mCoup = win.PW_DERIVE.metrics(coupGraph);
+var coupC = new El("section");
+win.PW_VIEWS.console(coupC, state, { graphText: coupGraph, metrics: mCoup, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var coupVital = findByClass(coupC, "pw-vital--coupling");
+assert(coupVital.length === 1, "console did not render the coupling-tension vital");
+var coupTxt = textOf(coupVital[0]);
+assert(/50%/.test(coupTxt) && /1 of 2 links/.test(coupTxt),
+  "coupling vital did not render the strong-share % and 'N of M links' (got: " + coupTxt + ")");
+
 // Phase 5.2: the audit-frontier vital's alert branch — the frontier card renders the warn gauge
 // (pw-gauge-fill warn) ONLY when na (never_audited) > 0. The existing frontier test pins the COUNTS
 // but not the alert branch. The base fixture has na=3>0 (warn gauge present); an na==0 frontier

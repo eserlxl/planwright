@@ -41,7 +41,8 @@ necessary but never sufficient — it proves the file parses, not that it render
   - Satellites incl. the `counts.carried` satellite (present only when non-zero) asserted.
   - Health Vitals: files / articulation / tests counts and the cadence legend asserted; the
     audit-frontier vital is asserted present on a frontier-bearing snapshot and absent on a
-    pre-frontier (null) graph.
+    pre-frontier (null) graph; the cycles vital's err-gauge/acyclic branches and the
+    coupling-tension vital's strong-share % (`N of M links w≥0.8`) are asserted.
   - Compact Recent-contributions card (`pw-section-mini`, no commit hash / sub-line / foot) asserted.
   - Degraded fallbacks: the empty-dirty-pulse ("nothing changed since last build") and the
     completed-empty recent-contributions branches are **behavior-asserted**
