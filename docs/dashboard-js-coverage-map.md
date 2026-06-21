@@ -70,6 +70,9 @@ necessary but never sufficient — it proves the file parses, not that it render
 - `paint()` (interactive path-filter) — **behavior-asserted** (`DASH-INSIGHTS-RENDER`): the filter
   predicate narrows `metrics.hotspots` and the `(filtered)` affordance shows (`showing 1 of 2
   (filtered)`), with every row restored and the affordance dropped on an empty query.
+- `priorities()` (Next up panel) — **behavior-asserted** (`DASH-INSIGHTS-RENDER`): the
+  "No ranked surfaces recorded yet." empty-state, the hot/uncovered/articulation/in-cycle priority
+  flags, and the top-N surfaces rendered in `rankedCode` (centrality) order.
 
 ### [shards.js](../scripts/dashboard/views/shards.js) — codshard map
 - `render()` — **behavior-asserted**: shard cards from `state.repo` in sweep order, basis chip

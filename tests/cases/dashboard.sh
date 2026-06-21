@@ -2741,6 +2741,26 @@ assert(/hot/.test(prioFlagText), "priorities omitted the hot flag for a hot rank
 assert(/uncovered/.test(prioFlagText), "priorities omitted the uncovered flag");
 assert(/articulation/.test(prioFlagText), "priorities omitted the articulation flag");
 assert(/in cycle/.test(prioFlagText), "priorities omitted the in-cycle flag for a cyclic node");
+// Phase 2.2: priorities() renders the top-N in rankedCode order (a passthrough of the planner's
+// centrality ranking — no local sort). The flag/empty assertions above use a single-element
+// ranked_code, so ORDER is unpinned; a multi-surface, non-alphabetical fixture pins it so a
+// reorder/reverse of the rendered list fails.
+var orderGraph = JSON.stringify({
+  graph_built_at_sha: "deadbeef",
+  ranked_code: ["z/first.py", "a/second.py", "m/third.py"],
+  nodes: {
+    "z/first.py":  { pagerank: 0.9, branch_count: 3, lang: "python", loc: 30, covered_by_test: false, is_test: false, git_churn: 3, imports: [] },
+    "a/second.py": { pagerank: 0.5, branch_count: 2, lang: "python", loc: 20, covered_by_test: true,  is_test: false, git_churn: 2, imports: [] },
+    "m/third.py":  { pagerank: 0.1, branch_count: 1, lang: "python", loc: 10, covered_by_test: true,  is_test: false, git_churn: 1, imports: [] },
+  },
+  import_cycles: [],
+});
+var mOrder = win.PW_DERIVE.metrics(orderGraph);
+var orderRoot = new El("section");
+win.PW_VIEWS.insights(orderRoot, { counts: {} }, { graphText: orderGraph, metrics: mOrder, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var prioBasenames = findByClass(orderRoot, "pw-prio-name").map(textOf).map(function (s) { return s.trim().replace(/\s+/g, " "); });
+assert(prioBasenames.length === 3 && /first\.py$/.test(prioBasenames[0]) && /second\.py$/.test(prioBasenames[1]) && /third\.py$/.test(prioBasenames[2]),
+  "priorities did not render the top-N in rankedCode order (want first, second, third; got " + prioBasenames.join(" | ") + ")");
 
 // Phase 5.3: coldFrontier() renders the Invent-framing note when metrics.exploreFraming, the
 // framing/frontier-aware empty variant when no cold list, and the uncovered/test flags on cold rows.
