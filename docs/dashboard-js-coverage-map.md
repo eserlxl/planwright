@@ -73,6 +73,10 @@ necessary but never sufficient — it proves the file parses, not that it render
 - `priorities()` (Next up panel) — **behavior-asserted** (`DASH-INSIGHTS-RENDER`): the
   "No ranked surfaces recorded yet." empty-state, the hot/uncovered/articulation/in-cycle priority
   flags, and the top-N surfaces rendered in `rankedCode` (centrality) order.
+- `coldFrontier()` (Cold frontier panel) — **behavior-asserted** (`DASH-INSIGHTS-RENDER`): the
+  seeded `Invent framing: <vantage> (seed N)` chip and the `Backlog: N never-audited, M stale`
+  sub-line from `metrics.frontier`, the "No cold-frontier list recorded yet." empty branch, and the
+  uncovered/test flags on cold rows.
 
 ### [shards.js](../scripts/dashboard/views/shards.js) — codshard map
 - `render()` — **behavior-asserted**: shard cards from `state.repo` in sweep order, basis chip

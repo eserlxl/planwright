@@ -2776,6 +2776,11 @@ win.PW_VIEWS.insights(frEmptyRoot, { counts: {} }, { graphText: framingEmptyGrap
 var frEmptyText = textOf(frEmptyRoot);
 assert(/Invent framing: power-user/.test(frEmptyText), "cold frontier did not surface the explore-framing note");
 assert(/No cold-frontier list recorded yet/.test(frEmptyText), "cold frontier did not render the empty variant");
+// Phase 2.2: the framing chip carries the seed, and the frontier-backlog sub-line (the dryness
+// denominator the capped 8-row list hides) renders from metrics.frontier on the empty branch too.
+// (The framing note + empty text above were already pinned; these two branches were not.)
+assert(/Invent framing: power-user \(seed 3\)/.test(frEmptyText), "cold frontier framing chip dropped the (seed N) qualifier");
+assert(/Backlog: 2 never-audited, 1 stale/.test(frEmptyText), "cold frontier did not render the frontier-backlog sub-line from metrics.frontier");
 var coldGraph = JSON.stringify({
   graph_built_at_sha: "deadbeef", ranked_cold: ["src.py", "t_spec.py"],
   nodes: {
