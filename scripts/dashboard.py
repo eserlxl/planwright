@@ -111,6 +111,11 @@ HEARTBEAT_INTERVAL = _env_float("PW_DASH_HEARTBEAT", 15.0)
 MAX_SSE_CLIENTS = _env_int("PW_DASH_MAX_SSE_CLIENTS", 64)
 _sse_slots = threading.BoundedSemaphore(MAX_SSE_CLIENTS)
 
+# The reconnect cadence (milliseconds) advertised to the browser via a leading SSE `retry:`
+# directive, so a dropped /events stream reconnects on a deliberate, server-tuned interval
+# (bounded against MAX_SSE_CLIENTS open/close churn) instead of the browser's implicit ~3s default.
+SSE_RETRY_MS = 3000
+
 
 # The stable default port for the shared (multi-project) server, so a launched dashboard has a
 # bookmarkable URL and a second launch can detect and attach to the first. Overridable via
@@ -429,12 +434,19 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             last = None
             idle = 0.0
+            sent_retry = False
             while True:
                 sig = _mtime_signature(self.root)
                 if sig != last:
                     last = sig
                     idle = 0.0
                     self._sse_write(b"event: change\ndata: 1\n\n")
+                    if not sent_retry:
+                        # After the first change frame (so the stream's opening line stays
+                        # `event: change`, the documented open contract), advertise our reconnect
+                        # cadence so a dropped stream reconnects on the server-tuned interval.
+                        sent_retry = True
+                        self._sse_write(b"retry: %d\n\n" % SSE_RETRY_MS)
                 else:
                     idle += POLL_INTERVAL
                     if idle >= HEARTBEAT_INTERVAL:

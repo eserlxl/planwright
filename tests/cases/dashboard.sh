@@ -861,6 +861,56 @@ else
   bad "dashboard.py heartbeat ping not observed: $(cat "$TMP/dping.err" 2>/dev/null)"
 fi
 
+# --- Test DASH-SSE-RETRY: /events advertises a server-tuned reconnect cadence ------------
+# A leading SSE `retry: <ms>` directive gives a dropped stream a deliberate, bounded reconnect
+# interval instead of the browser's implicit default. It must appear in the first bytes (right after
+# the opening change frame, so the stream's first line stays `event: change`) and carry a positive ms.
+cat > "$TMP/dash_retry.py" <<'PY'
+import os, subprocess, sys, time, urllib.request
+root, dash = sys.argv[1], sys.argv[2]
+env = dict(os.environ, PW_DASH_POLL="0.05")
+proc = subprocess.Popen([sys.executable, dash, "--root", root, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+try:
+    port, deadline = None, time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            if proc.poll() is not None:
+                print("server exited early", file=sys.stderr); sys.exit(1)
+            continue
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    if not port:
+        print("no port banner", file=sys.stderr); sys.exit(1)
+    ev = urllib.request.urlopen("http://127.0.0.1:%d/events" % port, timeout=5)
+    assert ev.readline().startswith(b"event: change"), "no initial change event"
+    saw_retry = False
+    for _ in range(12):
+        ln = ev.readline()
+        if ln.startswith(b"retry:"):
+            ms = int(ln.split(b":", 1)[1].strip())
+            assert ms >= 1, "retry cadence must be a positive integer ms, got %d" % ms
+            saw_retry = True; break
+    ev.close()
+    assert saw_retry, "no `retry:` directive in the first bytes of /events"
+    print("SSE-RETRY-OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+DRDIR="$TMP/dash-retry"; mkdir -p "$DRDIR/.planwright"
+printf -- '- [ ] one\n      Mode: improve\n' > "$DRDIR/.planwright/plan.md"
+python3 "$TMP/dash_retry.py" "$DRDIR" "$DASH" >"$TMP/dretry.out" 2>"$TMP/dretry.err" || true
+if grep -q SSE-RETRY-OK "$TMP/dretry.out"; then
+  ok "dashboard.py /events advertises a positive retry: reconnect cadence in the first bytes"
+else
+  bad "dashboard.py /events retry: directive not observed: $(cat "$TMP/dretry.err" 2>/dev/null)"
+fi
+
 # --- Test DASH-SSE-CAP: the concurrent /events cap returns a retriable 503 and recovers ----
 # MAX_SSE_CLIENTS bounds live SSE handler threads so tab open/close churn during a long
 # unattended cycle run cannot pile them up: an over-cap client gets a retriable 503 (not a new
