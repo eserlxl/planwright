@@ -466,3 +466,30 @@ if m and re.search(r'\bexpand\b', m.group(0)):
 sys.exit(1 if bad else 0)
 PY
 then ok "no standalone \`expand\` flag is advertised in SKILL.md (expand stays an escalation tier; Open question 1 declined)"; else bad "SKILL.md advertises a standalone \`expand\` flag (Open question 1 declined — expand is tier-only)"; fi
+
+# --- Test RELEASE-ROSTER: RELEASE.md's gate roster binds to the real CI steps + scripts -----
+# The release runbook must name only real gates: the core CI gates (smoke, coverage, JS coverage,
+# link-check) are each referenced; every scripts/*.{py,sh} or tests/run.sh path it cites exists on
+# disk; and every backtick-quoted CI-step-shaped phrase corresponds to a real `- name:` in ci.yml.
+# So a runbook that omits a core gate, names a non-existent script, or cites a fictitious CI step fails.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import os, re, sys
+root = sys.argv[1]
+rel = open(os.path.join(root, "RELEASE.md"), encoding="utf-8").read()
+ci = open(os.path.join(root, ".github/workflows/ci.yml"), encoding="utf-8").read()
+ci_steps = {s.strip() for s in re.findall(r'-\s*name:\s*(.+)', ci)}
+# (1) the core CI gates are each referenced by the runbook
+core = {"smoke": r'\bsmoke\b', "coverage": r'\bcoverage\b',
+        "JS coverage": r'JS coverage', "link-check": r'link-check|check-links'}
+miss_core = [k for k, pat in core.items() if not re.search(pat, rel, re.I)]
+assert not miss_core, "RELEASE.md omits core gate(s): %r" % miss_core
+# (2) every scripts/ or tests/ path the runbook names exists on disk
+ghost = sorted(p for p in set(re.findall(r'(?:scripts|tests)/[A-Za-z0-9_./-]+\.(?:py|sh)', rel))
+               if not os.path.isfile(os.path.join(root, p)))
+assert not ghost, "RELEASE.md names non-existent script(s): %r" % ghost
+# (3) every backtick-quoted CI-step-shaped phrase is a real ci.yml step
+cited = set(re.findall(r'`([A-Z][A-Za-z0-9 ()/]+)`', rel))
+unreal = sorted(s for s in cited if s not in ci_steps)
+assert not unreal, "RELEASE.md cites CI step(s) absent from ci.yml: %r" % unreal
+PY
+then ok "RELEASE.md's gate roster binds to real CI steps + scripts (core gates referenced; no ghost script/step)"; else bad "RELEASE.md release-gate roster drifted (missing core gate, ghost script, or fictitious CI step)"; fi
