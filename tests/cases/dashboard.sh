@@ -3629,3 +3629,69 @@ JS
 else
   ok "views/runs.js render check skipped (node not installed)"
 fi
+
+# --- Test DASH-MOTION-TELEMETRY / DASH-MOTION-DEGRADE / DASH-MOTION-OUTCOMES ----------------
+# The Commands view's motion-telemetry panel (render.paintTelemetry, derived via aggregateMotions):
+# every motion in the ledger renders (incl. card-only codmaster/codshard); an empty/malformed ledger
+# degrades to the empty state without throwing; mixed outcomes show the per-motion converged/pending/
+# stale split. Drives the exposed pure paintTelemetry — no async fetch.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/motion_tele_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { makeDoc, makeWin, install, loadCommon, loadView, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc); install(win, doc);
+loadCommon(BASE);                 // derive.js -> PW_DERIVE.aggregateMotions
+loadView(BASE, "commands");
+const paint = win.PW_VIEWS.commands.paintTelemetry;
+assert(typeof paint === "function", "commands.js did not expose render.paintTelemetry");
+// (DASH-MOTION-TELEMETRY) every motion appears — including card-only codmaster/codshard
+const ledger = [
+  { command: "execute", started: "2026-06-21T00:00:00Z", ended: "2026-06-21T00:00:10Z", outcome: "converged" },
+  { command: "codmaster", started: "2026-06-21T01:00:00Z", ended: "2026-06-21T01:05:00Z", outcome: "pending" },
+  { command: "codshard", started: "2026-06-21T02:00:00Z", ended: "2026-06-21T02:10:00Z", outcome: "stale" },
+];
+let sec = new VM.El("section"); paint(sec, ledger);
+let txt = textOf(sec);
+["execute", "codmaster", "codshard"].forEach(function (m) {
+  assert(txt.indexOf(m) >= 0, "motion missing from telemetry: " + m);
+});
+assert(txt.indexOf("Motion telemetry") >= 0, "missing telemetry title");
+console.log("MOTION-TELE-OK");
+// (DASH-MOTION-DEGRADE) empty + malformed -> empty state, no throw
+sec = new VM.El("section"); paint(sec, []);
+assert(textOf(sec).indexOf("No runs recorded") >= 0, "empty ledger did not degrade");
+sec = new VM.El("section"); paint(sec, null); paint(sec, { not: "array" }); paint(sec, "bad");
+assert(textOf(sec).indexOf("No runs recorded") >= 0, "malformed ledger did not degrade");
+console.log("MOTION-DEGRADE-OK");
+// (DASH-MOTION-OUTCOMES) mixed outcomes -> the per-motion split renders
+const mixed = [
+  { command: "cycle", started: "2026-06-21T00:00:00Z", ended: "2026-06-21T00:00:05Z", outcome: "converged" },
+  { command: "cycle", started: "2026-06-21T00:01:00Z", ended: "2026-06-21T00:01:05Z", outcome: "pending" },
+  { command: "cycle", started: "2026-06-21T00:02:00Z", ended: "2026-06-21T00:02:05Z", outcome: "stale" },
+];
+sec = new VM.El("section"); paint(sec, mixed); txt = textOf(sec);
+assert(txt.indexOf("converged 1") >= 0 && txt.indexOf("pending 1") >= 0 && txt.indexOf("stale 1") >= 0,
+  "outcome distribution split missing: " + txt);
+console.log("MOTION-OUTCOMES-OK");
+JS
+  node "$TMP/motion_tele_test.js" "$ROOT/scripts/dashboard" >"$TMP/motion_tele.out" 2>"$TMP/motion_tele.err" || true
+  if grep -q MOTION-TELE-OK "$TMP/motion_tele.out"; then
+    ok "commands.js motion-telemetry renders every motion including card-only codmaster/codshard"
+  else
+    bad "commands.js motion-telemetry render failed: $(cat "$TMP/motion_tele.err" 2>/dev/null)"
+  fi
+  if grep -q MOTION-DEGRADE-OK "$TMP/motion_tele.out"; then
+    ok "commands.js motion-telemetry degrades to an empty state on empty/malformed ledgers without throwing"
+  else
+    bad "commands.js motion-telemetry degrade failed: $(cat "$TMP/motion_tele.err" 2>/dev/null)"
+  fi
+  if grep -q MOTION-OUTCOMES-OK "$TMP/motion_tele.out"; then
+    ok "commands.js motion-telemetry shows the per-motion converged/pending/stale outcome split"
+  else
+    bad "commands.js motion-telemetry outcome split failed: $(cat "$TMP/motion_tele.err" 2>/dev/null)"
+  fi
+else
+  ok "commands.js motion-telemetry checks skipped (node not installed)"
+fi

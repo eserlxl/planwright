@@ -216,6 +216,64 @@
     return wrap;
   }
 
+  // ---- motion telemetry panel (per-motion run stats from /runs.json) -------------------
+  function fmtDur(sec) {
+    if (sec == null) { return "—"; }
+    if (sec < 60) { return sec + "s"; }
+    var m = Math.floor(sec / 60), rs = sec % 60;
+    if (m < 60) { return m + "m " + rs + "s"; }
+    return Math.floor(m / 60) + "h " + (m % 60) + "m";
+  }
+
+  // Pure render-from-data: paint per-motion telemetry into the slot, derived via
+  // PW_DERIVE.aggregateMotions. Every motion present in the ledger renders — including the
+  // card-only codmaster / codshard, which the coach never auto-recommends but which DO complete
+  // runs. A non-array / empty / malformed ledger paints the empty state and never throws.
+  // Exposed (render.paintTelemetry) so the node-gated tests drive it without an async fetch.
+  function paintTelemetry(slot, runs) {
+    slot.textContent = "";
+    var agg = (window.PW_DERIVE && window.PW_DERIVE.aggregateMotions)
+      ? window.PW_DERIVE.aggregateMotions(runs) : {};
+    var motions = Object.keys(agg).sort();
+    slot.appendChild(elt("h3", "pw-panel-title", "Motion telemetry"));
+    if (motions.length === 0) {
+      slot.appendChild(elt("div", "pw-empty",
+        "No runs recorded yet — telemetry appears once a command flow completes."));
+      return;
+    }
+    slot.appendChild(elt("p", "pw-panel-sub",
+      "Per-motion run history from the ledger — every command flow that completed, including the " +
+      "card-only codmaster / codshard."));
+    var list = elt("div", "pw-tele");
+    motions.forEach(function (m) {
+      var a = agg[m];
+      var row = elt("div", "pw-tele-row");
+      row.appendChild(elt("span", "pw-tele-motion", m));
+      row.appendChild(elt("span", "pw-tele-count", a.count + (a.count === 1 ? " run" : " runs")));
+      row.appendChild(elt("span", "pw-tele-dur", "avg " + fmtDur(a.avgSeconds)));
+      // convergence-outcome distribution per motion (zero buckets omitted).
+      var oc = a.outcomes || {};
+      var dist = elt("span", "pw-tele-outcomes");
+      ["converged", "pending", "stale", "idle", "unknown"].forEach(function (k) {
+        if (oc[k]) { dist.appendChild(elt("span", "pw-tele-oc is-" + k, k + " " + oc[k])); }
+      });
+      row.appendChild(dist);
+      list.appendChild(row);
+    });
+    slot.appendChild(list);
+  }
+
+  var teleInflight = false;
+  function loadTelemetry(slot) {
+    paintTelemetry(slot, null);   // empty placeholder until the fetch lands
+    if (teleInflight || typeof fetch !== "function") { return; }
+    teleInflight = true;
+    fetch("/runs.json")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { teleInflight = false; paintTelemetry(slot, d); })
+      .catch(function () { teleInflight = false; paintTelemetry(slot, null); });
+  }
+
   function render(container, state, ctx) {
     container.textContent = "";
     ctx = ctx || {};
@@ -292,6 +350,12 @@
     // recent contributions (honest: unattributed run track record) — shared with the
     // Console home page via PW_UI.contribCard; the Commands panel keeps the final-point line.
     container.appendChild(window.PW_UI.contribCard(state, { compact: false }));
+
+    // motion telemetry: per-motion run stats from the /runs.json ledger (every completed motion,
+    // including the card-only codmaster/codshard). Fetched async; degrades to an empty state.
+    var teleSlot = elt("div", "pw-tele-slot");
+    container.appendChild(teleSlot);
+    loadTelemetry(teleSlot);
   }
 
   // recUsable + dispatchInvocation are pure shape/dispatch helpers; expose them on the view
@@ -299,5 +363,6 @@
   // the logic. This does not change render behavior.
   render.recUsable = recUsable;
   render.dispatchInvocation = dispatchInvocation;
+  render.paintTelemetry = paintTelemetry;
   window.PW_VIEWS.commands = render;
 })();
