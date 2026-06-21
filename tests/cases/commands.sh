@@ -150,6 +150,25 @@ PY
 done
 if [ "$sc_fam_ok" = 1 ]; then ok "each host example advertises exactly the cod* shortcut family (derived from commands/cod*.md; missing + extra/renamed both caught)"; else bad "a host example dropped a cod* family member or advertised a shortcut absent from commands/cod*.md"; fi
 
+# --- Test 13d3: each host example carries the canonical codmaster sense invocation ---------------
+# codmaster's read-only sense step dispatches `status.py --root . --recommend` (threading
+# `--scope path:<X>` under a scope), matching commands/codmaster.md. Test 13d only checks that the
+# bare word "status.py" appears; a host example that kept the word but dropped --recommend or the
+# --scope threading would misdirect a non-Claude agent into running the wrong command. Pin the full
+# sense form, whitespace-normalized so a legitimate rewrap neither breaks nor saves the assertion.
+sc_sense_ok=1
+for hf in AGENTS.example.md GEMINI.example.md GEMINI.example_context-mode.md; do
+  python3 - "$ROOT/$hf" <<'PY' 2>/dev/null || sc_sense_ok=0
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+need = []
+if "status.py --root . --recommend" not in t: need.append("sense-form")
+if "--recommend --scope path:" not in t: need.append("scope-threading")
+sys.exit(1 if need else 0)
+PY
+done
+if [ "$sc_sense_ok" = 1 ]; then ok "each host example carries the canonical codmaster sense invocation (status.py --root . --recommend + --scope threading)"; else bad "a host example drifted from the codmaster sense form (status.py --root . --recommend / --scope path:)"; fi
+
 # --- Test 14b: codvisor/codinventor pin their load-bearing cost banner (both cases) ---
 # The flagship banner exists "so the heavy run is never silent" (codvisor.md case 1), and the
 # closing "print nothing of your own except the cost banner in cases 1 and 2" line is what makes
