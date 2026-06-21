@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.65.0] - 2026-06-21
+
+### Changed
+- Add the `pr` PR-fixer subcommand and its `codpr` family member — convert unresolved GitHub review threads and failing CI checks into grounded plan items through a read-only local handoff; make the ledger FIFO cap (`PW_FIFO_CAP`) and the max-file scan limit (`PW_MAX_FILE_BYTES`) environment-configurable; add numeric `--select` thresholds (`branch>N`, `swallow>N`, `loc>N`); bar routing-only `.planwright/` paths from Evidence and widen the protected-path Surface denylist in lint-plan; plus hardening — option-injection guards on user-supplied git refs, strict integer parsing for `PW_DASH_PORT`, vacuous-Verification rejection, unborn-repo handling in build-graph, and marketplace.json kept in version lockstep.
+
 ## [1.64.2] - 2026-06-20
 
 ### Changed
