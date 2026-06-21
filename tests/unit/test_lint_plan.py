@@ -118,6 +118,18 @@ class TestEvidenceAnchorBelowOne(unittest.TestCase):
             self.assertEqual(issues, [],
                              f"a zero-padded valid line (:01 -> 1) must stay accepted, got {issues}")
 
+    def test_oversized_line_anchor_flagged_not_crashed(self):
+        # An implausibly long digit run would trip Python's integer-string conversion limit
+        # (ValueError on 3.11+) at int(); evidence_anchor_issues must flag it out-of-range,
+        # never crash — the same degrade-not-crash posture as pr.parse_failing_log.
+        with tempfile.TemporaryDirectory() as root:
+            with open(os.path.join(root, "real.py"), "w") as fh:
+                fh.write("a = 1\nb = 2\n")
+            issues = lp.evidence_anchor_issues("see real.py:" + "1" * 5000 + " here", root)
+            self.assertTrue(issues, "an oversized line anchor must produce an issue, got none")
+            self.assertEqual(issues[0][1], "out-of-range",
+                             f"expected an out-of-range issue for an oversized anchor, got {issues}")
+
 
 class TestUnsafeSurfaceContainment(unittest.TestCase):
     """unsafe_surface() is execute mode's edit-boundary guard; its rejection branches must

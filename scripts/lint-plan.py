@@ -671,6 +671,15 @@ def evidence_anchor_issues(ev, root):
                 n_lines = sum(1 for _ in fh)
         except OSError:
             continue
+        # An implausibly long digit run is not a real line number and would trip Python's
+        # integer-string conversion limit (ValueError on 3.11+) at the int() below; flag it
+        # out-of-range without the crashing conversion (Phase 1.5 conversion-site audit).
+        if len(line_s) > 9:
+            if (cand, "oversize") not in seen:
+                seen.add((cand, "oversize"))
+                issues.append((cand, "out-of-range",
+                               f"cites a {len(line_s)}-digit line number, which is not a real source location"))
+            continue
         cited = int(line_s)
         # Files are 1-indexed, so a cited line below 1 (e.g. `:0`) is as impossible as one past
         # the file's end — both are out-of-range and weaken the grounding gate if admitted.
