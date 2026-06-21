@@ -420,7 +420,11 @@ step 5 would loop back into this terminal and dispatch `/qb-plan auto` again). T
    reachable only for a WARN-on-**progress** lap, which relaps; a WARN-on-**dry** lap is fully dry and
    STOPs at the boundary, so for it the response is purely downgrade-and-disclose — there is no next
    lap, and the operator nudge is the only remaining path to an independent re-check.)
-4. **Run `execute`** on the merged seeds (implement + verify each). Merging pending items
+4. **Run `execute`** on the merged seeds (implement + verify each), and **record its verified-commit
+   count as this step's `commits_i`**, exactly as the main dispatch does (step 4 above, "record its
+   verified-commit count as `commits_i`") — so a lap whose only progress is qb's merged-and-executed
+   seeds is counted by the lap-boundary no-progress check (which already includes "the qb replan's
+   execute") rather than misread as a fully-dry lap and falsely terminated. Merging pending items
    un-converges the plan, so the next SENSE would route to `execute` anyway; making it an explicit
    step guarantees it rather than leaving it emergent.
 5. **Re-sense** and continue under the normal main loop.
