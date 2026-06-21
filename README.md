@@ -403,6 +403,8 @@ The full reference — request-seeded plans (`/planwright "add OAuth login"`), t
 
 ## Development & Releasing
 
+The full, gated release procedure lives in the [release runbook](RELEASE.md); the essentials:
+
 ```bash
 # Run the test suite (a bare run = everything)
 bash tests/run.sh

@@ -1,6 +1,8 @@
 # Development
 
-Helper scripts for developing `planwright` live in the `scripts/` directory.
+Helper scripts for developing `planwright` live in the `scripts/` directory. For the end-to-end
+release procedure (the pre-release gate sequence, the transactional version bump, tagging, and the
+marketplace update), see the [release runbook](../RELEASE.md).
 
 ## Typical Development Loop
 
