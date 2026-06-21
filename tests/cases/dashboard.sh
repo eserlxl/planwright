@@ -2993,6 +2993,14 @@ assert(badges.indexOf("develop") >= 0 && badges.indexOf("repair") >= 0,
   "accepted rows did not carry the mode pw-badge (got: " + badges.join(", ") + ")");
 assert(findByClass(root, "pw-reason-inline").length === 2,
   "rejected rows did not carry the pw-reason-inline reason");
+// Phase 2.4: the rejected-reason truncation predicate (reason.length > 80 -> slice(0,77)+"…").
+// The 120-char reason above must render truncated to 77 chars + the ellipsis (length 78); the
+// short "too small" reason must render whole. Flipping the threshold fails this.
+var reasons = findByClass(root, "pw-reason-inline").map(textOf);
+var truncated = reasons.filter(function (r) { return /…$/.test(r); });
+assert(truncated.length === 1, "rejected-reason truncation branch not exercised (want exactly 1 …-terminated reason)");
+assert(truncated[0].length === 78, "truncated reason is not 77 chars + the ellipsis (got length " + truncated[0].length + ")");
+assert(reasons.indexOf("too small") >= 0, "a short rejected reason (<=80 chars) was wrongly truncated");
 console.log("TIMELINE-ROWS-OK");
 JS
   if node "$TMP/timeline_rows_test.js" "$ROOT/scripts/dashboard" >"$TMP/timeline_rows.out" 2>"$TMP/timeline_rows.err" \
