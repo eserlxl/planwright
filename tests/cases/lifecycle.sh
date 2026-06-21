@@ -109,6 +109,37 @@ else
   bad "lifecycle.py deferred FIFO cap wrong (total=$total_hk json=$cap_json)"
 fi
 
+# --- Test L4c: PW_FIFO_CAP overrides the deferred housekeep cap ----------------------
+# The cap is the module-level FIFO_CAP, resolved from PW_FIFO_CAP at import (mirrors build-graph's
+# PW_COUPLING_MAX_FILES); a missing / non-integer / non-positive value falls back to 100. Seed 6
+# completed items: PW_FIFO_CAP=3 trims to the 3 newest (reports completed_capped=3); a non-integer
+# value falls back to 100 (no trim). Lets large/long-running repos keep a longer running ledger.
+LCE="$TMP/lc4c/.planwright"; mkdir -p "$LCE"
+{ for i in $(seq 1 6); do
+    printf -- '- [x] e%03d\n      Mode: improve\n      Verification: true\n\n' "$i"
+  done; } > "$LCE/completed.md"
+env_cap_json="$(PW_FIFO_CAP=3 python3 "$LC" housekeep --root "$LCE" --json)"
+env_total="$(grep -c '^- \[x\]' "$LCE/completed.md")"
+if [ "$env_total" = "3" ] \
+   && ! grep -q '^- \[x\] e003$' "$LCE/completed.md" \
+   && grep -q '^- \[x\] e004$' "$LCE/completed.md" \
+   && grep -q '^- \[x\] e006$' "$LCE/completed.md" \
+   && printf '%s' "$env_cap_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["completed_capped"]==3, d' 2>/dev/null; then
+  ok "PW_FIFO_CAP overrides the housekeep FIFO cap (=3 keeps the 3 newest, drops the 3 oldest)"
+else
+  bad "PW_FIFO_CAP override wrong (total=$env_total json=$env_cap_json)"
+fi
+LCEB="$TMP/lc4cb/.planwright"; mkdir -p "$LCEB"
+{ for i in $(seq 1 6); do
+    printf -- '- [x] e%03d\n      Mode: improve\n      Verification: true\n\n' "$i"
+  done; } > "$LCEB/completed.md"
+PW_FIFO_CAP=bogus python3 "$LC" housekeep --root "$LCEB" >/dev/null 2>&1
+if [ "$(grep -c '^- \[x\]' "$LCEB/completed.md")" = "6" ]; then
+  ok "PW_FIFO_CAP non-integer falls back to the 100 default (6 items untrimmed)"
+else
+  bad "PW_FIFO_CAP bad-value fallback wrong (expected 6 untrimmed)"
+fi
+
 # --- Test L4b: the FIFO cap applies SYMMETRICALLY to rejected.md ---------------------
 # L4 pins the completed.md cap; cap_log is wired to rejected.md too (housekeep:
 # rejected_capped = cap_log(rejected)), but only the under-cap rejected_capped==0 was

@@ -86,7 +86,24 @@ except ImportError:  # pragma: no cover - only reached on non-POSIX platforms
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from plan_parse import parse_items  # noqa: E402
 
-FIFO_CAP = 100
+# The FIFO retention cap on completed.md / rejected.md: housekeep keeps only the most-recent
+# FIFO_CAP blocks (the per-item append paths never truncate — see cap_log). Overridable via
+# PW_FIFO_CAP for large/long-running repos that want a longer running ledger; a missing,
+# non-integer, or non-positive value falls back to the 100-block default (mirrors
+# build-graph.py's PW_COUPLING_MAX_FILES / PW_GIT_TIMEOUT_SECONDS).
+def _resolve_fifo_cap():
+    raw = os.environ.get("PW_FIFO_CAP")
+    if raw is not None:
+        try:
+            v = int(raw)
+            if v > 0:
+                return v
+        except ValueError:
+            pass
+    return 100
+
+
+FIFO_CAP = _resolve_fifo_cap()
 LOCK_NAME = ".lifecycle.lock"
 # The plan modes lint-plan/SKILL.md recognise; reconcile records one onto a completed item.
 VALID_MODES = ("develop", "improve", "repair", "docs", "reorganize")

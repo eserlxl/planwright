@@ -533,8 +533,9 @@ as a fallback when the script cannot run.
 
 1. If `plan.md` exists, move every completed item (`- [x] ...` and its indented continuation lines)
    into `completed.md` (append). Then — **at Stage 0 only**, never during execute's per-item landing —
-   enforce the **FIFO cap of 100**: if `completed.md` holds more than 100 items, drop the oldest (top
-   of file) until 100 remain. Execute's `land`/`reject` never truncate, so a single run that records
+   enforce the **FIFO cap of 100** (the default; override with the `PW_FIFO_CAP` environment variable —
+   a positive integer, mirroring build-graph's `PW_COUPLING_MAX_FILES`): if `completed.md` holds more
+   than the cap, drop the oldest (top of file) until the cap remains. Execute's `land`/`reject` never truncate, so a single run that records
    more than 100 items keeps its **full** record (the dashboard's accepted/rejected counts reflect the
    whole current plan, not a mid-run-truncated 100) until **this stage runs on the next run** and trims
    it back.
