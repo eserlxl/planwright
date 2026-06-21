@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Eser KUBALI
+# SPDX-License-Identifier: GPL-3.0-or-later
+# shellcheck shell=bash
+#
+# hybrid-ai opt-in dossier-survey delegation — SKILL.md contract drift-guards.
+# Sourced by tests/run.sh after tests/lib.sh — NOT standalone (uses ROOT/TMP/ok/bad).
+#
+# planwright's planning path is run by the active LLM agent following SKILL.md, not by a runnable
+# binary, so there is no executable "planning path" to run twice and diff. hybrid-ai touches ZERO
+# scripts by design (the off-path is the baseline by construction). The off==skipped guarantee and
+# the ignore-context rule are therefore pinned here as fails-on-drift CONTRACT assertions over the
+# SKILL.md clauses: each fails if the load-bearing safety guarantee is removed or weakened.
+
+# --- Test HA1: SKILL.md Stages 3-7 pins the hybrid-ai off==skipped state identity ---
+# off==skipped: with the flag absent the run writes no new .planwright/ state and the dossier is
+# unchanged from the baseline. Removing or weakening that clause fails this guard.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+a = t.find("### Stages 3"); b = t.find("### Stage 8")
+if a < 0 or b < 0 or b <= a:
+    raise SystemExit(1)
+para = t[a:b]
+need = [tok for tok in (
+    "hybrid-ai",
+    "off==skipped",
+    "no new",
+    "from the baseline",
+) if tok not in para]
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md Stages 3-7 pins the hybrid-ai off==skipped state identity (off writes no new .planwright/ state, dossier unchanged from the baseline)"; else bad "SKILL.md lost the hybrid-ai off==skipped state-identity clause"; fi
