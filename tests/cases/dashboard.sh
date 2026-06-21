@@ -327,7 +327,7 @@ PY
 # --- Tests DSH1/DSH2/DSH3: endpoints + the static UI shell + the view modules -------
 # PW_TEST_VIEWS lists the view modules to assert are served+registered (grows as each
 # view lands), so every view ships with a runnable served+referenced check.
-PW_TEST_VIEWS="console commands plan timeline graph insights shards doctor" \
+PW_TEST_VIEWS="console commands plan timeline graph insights shards doctor fleet" \
   python3 "$TMP/dash_client.py" "$DFX" "$DASH" >"$TMP/dash.out" 2>"$TMP/dash.err" || true
 if grep -q DASH-OK "$TMP/dash.out"; then
   ok "dashboard.py serves /state.json (JSON) + /events (text/event-stream), refuses traversal + foreign Host"
@@ -462,6 +462,11 @@ if grep -q VIEW-shards-OK "$TMP/dash.out"; then
   ok "dashboard serves the Shards view (views/shards.js registers PW_VIEWS.shards)"
 else
   bad "dashboard Shards view check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
+fi
+if grep -q VIEW-fleet-OK "$TMP/dash.out"; then
+  ok "dashboard serves the Fleet view (views/fleet.js registers PW_VIEWS.fleet, referenced by the shell)"
+else
+  bad "dashboard Fleet view check failed: $(cat "$TMP/dash.err" 2>/dev/null)"
 fi
 # The Commands view's codmaster front-door panel must consume /recommend.json and gate the
 # paint on the recUsable shape guard (an error body / older server degrades to an absent
