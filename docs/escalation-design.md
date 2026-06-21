@@ -4,9 +4,13 @@ Status: **IMPLEMENTED (core).** The full `explore`/`invent` escalation ladder (t
 ② expand, ③ invent), the novelty dial, the budget-as-reach rule, the deep final point, and the
 `/codinventor` companion command are wired into `SKILL.md` + `commands/` (with a test in `tests/run.sh`).
 The **warnings-clean broad verify** described below is now also **SHIPPED** — it is the warnings-clean
-gate in `SKILL.md`'s Execute and Cycle broad-final-verification steps. Still **PROPOSED** — design only:
-the semantic-freeze taper, plus the optional standalone `expand` posture (Open question 1). This supersedes
-the earlier `innovate-escalation-design.md`.
+gate in `SKILL.md`'s Execute and Cycle broad-final-verification steps. The **semantic-freeze taper** is
+now **IMPLEMENTED** too — the bounded-run final-cycle freeze (positive-finite `N` admits only
+stabilization work, no net-new at any tier; floor/ceiling unchanged; unlimited `N < 0` is a no-op) is
+wired into `SKILL.md`'s Cycle per-cycle loop and pinned by a `skill-guards` drift-guard. Still
+**PROPOSED** — design only: the optional standalone `expand` posture (Open question 1), deliberately
+**declined** (its accidental-flag decline path is guarded by a test). This supersedes the earlier
+`innovate-escalation-design.md`.
 
 > **Addendum (2026-06-04) — invent semantics have since evolved (see `docs/invent-exploration-design.md`
 > and the changelog).** The Tier ③ description below ("records the deep final point / then stops") is the

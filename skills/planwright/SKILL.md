@@ -1484,6 +1484,13 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
    (`path <X>` / `lib <X>`) passed to `cycle` likewise applies to every round, and the ladder climbs
    **within Focus** — a scoped cycle matures just that component and stops at its scoped final point.
    Record the number of new items Stage 11 wrote.
+   - **Semantic-freeze taper (bounded runs).** When `N` is **positive and finite** and this is the
+     **final budgeted cycle** (cycle `N`), the planning round admits **only stabilization work** — bug
+     fixes, test fixes, and warning cleanup — and proposes **no new behavior**: no opportunity, vision,
+     expand, or invent net-new at any tier, so the bounded run terminates in a stable, tested state
+     (generalizing antigravity's "last iteration = no new features"). The **grounding floor and hard
+     ceiling are unchanged** — this narrows *what may be proposed*, never the verification bar. For an
+     **unlimited run (`N < 0`) this is an explicit no-op** (there is no final budgeted cycle to freeze).
 3. **Check for work** — Stage 11 writing **0 new items** with **0 pending items** is **not** by itself
    a stop: it only means the change-gated rungs are dry. The round must have surveyed the opportunity and
    vision rungs project-wide first (see **Maturity ladder & the final point**) before idling.
