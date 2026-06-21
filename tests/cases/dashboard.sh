@@ -3532,3 +3532,53 @@ JS
 else
   ok "app.js SSE reconnect state check skipped (node not installed)"
 fi
+
+# --- Test DASH-RUNS-JSON: /runs.json serves the run-history ledger (empty array when absent) -
+# The read-only endpoint backs the run-history view. An absent ledger is not an error — it serves an
+# empty array; once state.py has appended runs, it serves them verbatim. Same json + no-store as the
+# other dynamic snapshots.
+cat > "$TMP/dash_runs.py" <<'PY'
+import os, json, subprocess, sys, time, urllib.request
+root, dash = sys.argv[1], sys.argv[2]
+proc = subprocess.Popen([sys.executable, dash, "--root", root, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+try:
+    port, deadline = None, time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            if proc.poll() is not None:
+                print("server exited early", file=sys.stderr); sys.exit(1)
+            continue
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    if not port:
+        print("no port banner", file=sys.stderr); sys.exit(1)
+    base = "http://127.0.0.1:%d" % port
+    with urllib.request.urlopen(base + "/runs.json", timeout=5) as r:
+        assert r.headers.get_content_type() == "application/json", r.headers.get_content_type()
+        assert r.headers.get("Cache-Control") == "no-store", r.headers.get("Cache-Control")
+        empty = json.load(r)
+    assert empty == [], "absent ledger should serve [], got %r" % empty
+    with open(os.path.join(root, ".planwright", "runs.json"), "w") as fh:
+        json.dump([{"command": "plan", "started": "2026-06-21T00:00:00Z",
+                    "ended": "2026-06-21T00:01:00Z"}], fh)
+    with urllib.request.urlopen(base + "/runs.json", timeout=5) as r:
+        runs = json.load(r)
+    assert isinstance(runs, list) and len(runs) == 1 and runs[0]["command"] == "plan", runs
+    print("RUNS-JSON-OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+DRJDIR="$TMP/dash-runs"; mkdir -p "$DRJDIR/.planwright"
+printf -- '- [ ] one\n      Mode: improve\n' > "$DRJDIR/.planwright/plan.md"
+python3 "$TMP/dash_runs.py" "$DRJDIR" "$DASH" >"$TMP/druns.out" 2>"$TMP/druns.err" || true
+if grep -q RUNS-JSON-OK "$TMP/druns.out"; then
+  ok "dashboard.py /runs.json serves the run-history ledger (empty array when absent, runs when present)"
+else
+  bad "dashboard.py /runs.json failed: $(cat "$TMP/druns.err" 2>/dev/null)"
+fi

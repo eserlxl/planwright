@@ -286,6 +286,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_doctor()
         if path == "/recommend.json":
             return self._serve_recommend()
+        if path == "/runs.json":
+            return self._serve_runs()
         if path == "/projects.json":
             return self._serve_projects()
         if path == "/events":
@@ -340,6 +342,19 @@ class Handler(BaseHTTPRequestHandler):
         # on a dashboard refetch.
         try:
             body = json.dumps(status.recommend(self.root), indent=2)
+        except Exception as exc:
+            return self._send(500, "application/json; charset=utf-8",
+                              json.dumps({"error": str(exc)}), self._NO_STORE)
+        self._send(200, "application/json; charset=utf-8", body, self._NO_STORE)
+
+    def _serve_runs(self):
+        # The append-only run-history ledger state.py writes on activity stop (.planwright/runs.json),
+        # served read-only via state's canonical reader — an absent/unreadable/malformed ledger yields
+        # an empty array (no run has completed yet is not an error), never a 500. Same no-store
+        # discipline as the other dynamic snapshots.
+        try:
+            runs = state._read_run_history(state._run_history_path(self.root))
+            body = json.dumps(runs, indent=2)
         except Exception as exc:
             return self._send(500, "application/json; charset=utf-8",
                               json.dumps({"error": str(exc)}), self._NO_STORE)
