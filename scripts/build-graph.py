@@ -936,6 +936,12 @@ def imports_of(lang, text, from_path, fileset, go_module=None, ts_aliases=None):
     elif lang == "js":
         raw += re.findall(r"""import\s+.*?from\s+['"]([^'"]+)['"]""", text)
         raw += re.findall(r"""require\(\s*['"]([^'"]+)['"]\s*\)""", text)
+        # dynamic import: `import('./lazy')` / `await import("x")` — no `from` clause, so
+        # the static pattern above misses lazily-loaded modules. Match the call form.
+        raw += re.findall(r"""import\(\s*['"]([^'"]+)['"]""", text)
+        # re-exports (barrel files): `export * from './m'`, `export { x } from './m'` —
+        # they start with `export`, not `import`, so the static pattern misses them.
+        raw += re.findall(r"""export\s+.*?\bfrom\s+['"]([^'"]+)['"]""", text)
     elif lang == "c":
         raw += re.findall(r'(?m)^\s*#\s*include\s+"([^"]+)"', text)
         # Angle includes (`#include <project/foo.h>`) reach a header through an -I include
