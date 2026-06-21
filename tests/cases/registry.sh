@@ -98,4 +98,19 @@ else
   bad "registry.py remove did not drop the project"
 fi
 
+# --- Test RG7: an unsupported schema version fails closed to the empty registry ---------
+# load() must vouch for the schema before returning entries: a projects.json whose version
+# is not the supported 1 (a future format this build cannot read) reads empty, exactly like
+# the corrupt-file degrade — never returning entries from a format it cannot interpret.
+mkdir -p "$RGX/planwright"
+printf '{"version": 2, "projects": [{"id": "ghost", "path": "%s/alpha"}]}\n' "$RGP" > "$RGX/planwright/projects.json"
+if python3 "$REG" list | python3 -c '
+import json, sys
+assert json.load(sys.stdin)["projects"] == [], "unsupported version not failed closed"
+' 2>/dev/null; then
+  ok "registry.load fails closed on an unsupported schema version (reads empty, not the v2 entries)"
+else
+  bad "registry.load returned entries from an unsupported-version projects.json"
+fi
+
 unset XDG_CONFIG_HOME

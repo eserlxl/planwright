@@ -61,6 +61,11 @@ def load():
             data = json.load(fh)
     except (OSError, ValueError):
         return {}
+    if not isinstance(data, dict) or data.get("version") != VERSION:
+        # An unsupported or missing schema version (or a non-object top level) is
+        # unreadable: fail closed to the empty registry rather than returning entries
+        # from a format this version cannot vouch for.
+        return {}
     out = {}
     for entry in (data.get("projects") or []):
         try:
