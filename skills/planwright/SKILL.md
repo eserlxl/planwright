@@ -871,6 +871,14 @@ writes **no new `.planwright/` state** and the produced dossier is **unchanged**
 **ignored under `invent` and on `execute`** (the generative tier and the mutating path take no
 survey-delegation lever), exactly as Stage 1.6's `parallel` is. Full design: `docs/hybrid-ai-design.md`.
 
+When `hybrid-ai` is **on**, this dossier survey is **delegated** to the external-agent CLI backend —
+the **same** entirely-optional backend Stage 1.6's `parallel external` uses, resolved and preflighted
+identically (`run-agent.sh --check`) — via `run-agent.sh --agent all --read-only --target <T>`, where
+`<T>` is the **smallest directory enclosing the run's Focus** (the `path` scope when it is a directory,
+else the common-ancestor directory of the Focus paths; the repo root only for a whole-repo run). This
+is a distinct lever from Stage 1.6 recon — it delegates the Stages 3–7 survey, not the prefetch — and
+Stage 1.6 is not renamed.
+
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
    direction, source/header/test clusters, language-specific header-only/template constraints. Use the
    graph's `import_cycles` (strongly-connected import groups) as a concrete circular-dependency signal —
