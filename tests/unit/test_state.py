@@ -74,5 +74,48 @@ class TestDashboardStateContract(unittest.TestCase):
                               f"{view_rel} no longer references {ref}")
 
 
+class TestRunHistoryLedger(unittest.TestCase):
+    """Phase 7.2: activity_stop appends a bounded, length-capped run-history ledger
+    (.planwright/runs.json) the dashboard renders as a run timeline. Beacons are set up via
+    _write_activity (not activity_start) so the unit test never touches the real cross-repo registry."""
+
+    def _beacon(self, root, command):
+        state._write_activity(state._activity_path(root),
+                              {"command": command, "started": "2026-06-21T00:00:00Z",
+                               "updated": "2026-06-21T00:00:00Z"})
+
+    def test_run_appended_and_survives_restart(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._beacon(root, "plan")
+            state.activity_stop(root, "plan")
+            path = state._run_history_path(root)
+            self.assertTrue(os.path.exists(path), "activity_stop did not write the run-history ledger")
+            # "Simulated restart": re-read the ledger fresh from disk via the reader.
+            runs = state._read_run_history(path)
+            self.assertEqual(len(runs), 1, "expected exactly one run record")
+            rec = runs[0]
+            self.assertEqual(rec["command"], "plan")
+            self.assertEqual(rec.get("started"), "2026-06-21T00:00:00Z")
+            self.assertTrue(rec.get("ended"), "run record missing ended timestamp")
+
+    def test_kept_beacon_records_no_run(self):
+        # An inner flow stopping a beacon it does not own keeps it and records no run.
+        with tempfile.TemporaryDirectory() as root:
+            self._beacon(root, "codmaster")
+            state.activity_stop(root, "execute")   # not the owner -> kept, no run recorded
+            self.assertEqual(state._read_run_history(state._run_history_path(root)), [])
+
+    def test_ledger_length_capped(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, ".planwright"), exist_ok=True)
+            for i in range(5):
+                state._append_run_record(
+                    root, {"command": "c%d" % i, "started": "s", "ended": "e"}, cap=3)
+            runs = state._read_run_history(state._run_history_path(root))
+            self.assertEqual(len(runs), 3, "ledger not capped to the most recent 3")
+            self.assertEqual([r["command"] for r in runs], ["c2", "c3", "c4"],
+                             "the cap kept the wrong (not most-recent) records")
+
+
 if __name__ == "__main__":
     unittest.main()

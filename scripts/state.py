@@ -203,6 +203,40 @@ def _write_activity(path, record):
         raise
 
 
+# The append-only run-history ledger (.planwright/runs.json): a bounded, length-capped JSON array of
+# completed-run records the dashboard renders as a timeline. Capped to the most recent
+# RUN_HISTORY_CAP so an active repo's history never grows unbounded (mirrors the lifecycle FIFO caps).
+RUN_HISTORY_CAP = 100
+
+
+def _run_history_path(root):
+    return os.path.join(root, ".planwright", "runs.json")
+
+
+def _read_run_history(path):
+    """The run-history ledger as a list (empty on absent/malformed — best-effort, never raises)."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _append_run_record(root, record, cap=RUN_HISTORY_CAP):
+    """Append one run record to the ledger (atomic write, length-capped to the most recent `cap`).
+    Best-effort telemetry: any failure is swallowed so it never blocks activity_stop."""
+    try:
+        path = _run_history_path(root)
+        runs = _read_run_history(path)
+        runs.append(record)
+        if len(runs) > cap:
+            runs = runs[-cap:]
+        _write_activity(path, runs)   # reuse the atomic temp+os.replace writer
+    except Exception:
+        pass
+
+
 def _register_project(root):
     """Best-effort: enter this repo into the cross-repo dashboard registry (see registry.py)
     so a project that is *running* appears in the single-server switcher with zero user
@@ -269,6 +303,13 @@ def activity_stop(root, name=None):
         os.remove(path)
     except OSError:
         return "activity: none"
+    # The owning command's run actually ended (the beacon was removed) — append a bounded
+    # run-history record so the dashboard has a run timeline. Best-effort; never blocks the stop.
+    _append_run_record(root, {
+        "command": current,
+        "started": existing.get("started"),
+        "ended": _utc_now(),
+    })
     return "activity: stopped %s" % current
 
 
