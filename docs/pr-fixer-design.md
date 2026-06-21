@@ -15,9 +15,14 @@ which planwright only *prepares and instructs*.
   sweeps** (codvisor/codinventor/codcycle/codshard/codmaster, each with a cost banner + README
   host-parity rows) still holds even though the alias now exists.
   *Throughout this doc, `codpr` is shorthand for the `planwright pr` subcommand.*
-- **Tests consolidated in `tests/cases/pr.sh`** (self-contained, mirroring the `doctor.sh`
-  precedent — including the routing-gate security check), rather than scattered into
-  `skill-guards.sh`/`security.sh`/`commands.sh`.
+- **Functional subcommand tests consolidated in `tests/cases/pr.sh`** (self-contained, mirroring the
+  `doctor.sh` precedent — including the routing-gate security check), rather than scattering the
+  *functional* coverage into `skill-guards.sh`/`security.sh`/`commands.sh`. The repo-wide **safety,
+  security, and contract invariants** every command must satisfy still live as small pins in those
+  existing global suites (see **Test pins** below) — `security.sh` (PR-lead-never-Evidence),
+  `skill-guards.sh` (the routing-gate / never-writes-to-GitHub prose pins), and
+  `commands.sh`/`skill-contract.sh` (the subcommand content assertions). Consolidation means not
+  fragmenting the *functional* tests, not exempting `pr` from the cross-cutting guards.
 
 Files: new `scripts/pr.py` (`leads` + `handoff`), `skills/planwright/references/pr.md`,
 `tests/cases/pr.sh`; edits to `skills/planwright/SKILL.md` (dispatch pointer + Usage lines) and
