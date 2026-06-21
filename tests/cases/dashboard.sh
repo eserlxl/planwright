@@ -706,6 +706,55 @@ else
   ok "commands.js pulse-chip check skipped (node not installed)"
 fi
 
+# --- Test DASH-CMD-HERO: the base coach hero pick + evidence (browser coach, no /recommend.json) --
+# render()'s hero is computed from the BROWSER coach (PW_DERIVE.coach.signals -> recommend ->
+# evidence), independent of the optional server /recommend.json overlay. DASH-CMD-PULSE pins the
+# pulse chips but never the recommendation; this asserts the pw-coach-pick equals the independently
+# computed COACH.recommend(signals).key and that the pw-coach-evidence chips render, so a broken
+# signals->recommend->evidence wiring (e.g. picking the wrong command) fails.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/cmd_hero_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, makeFixture, findByClass, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+win.fetch = function () { return Promise.reject(new Error("no recommend endpoint")); };  // no overlay -> base hero is THE surface
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "commands");
+const fx = makeFixture();
+// A cyclic, uncovered graph -> the coach routes to debt (codvisor). Compute the expected
+// recommendation independently from the same browser coach the view uses, so the assertion
+// tracks the truth table rather than hardcoding a key.
+var g = JSON.stringify({ graph_built_at_sha: "deadbeef", import_cycles: [["a.py", "b.py"]],
+  nodes: {
+    "a.py": { imports: ["b.py"], branch_count: 1, pagerank: 0.9, covered_by_test: false, is_test: false, lang: "python", loc: 50, git_churn: 9, is_articulation: true },
+    "b.py": { imports: ["a.py"], branch_count: 1, pagerank: 0.8, covered_by_test: false, is_test: false, lang: "python", loc: 40, git_churn: 8, is_articulation: false },
+  } });
+var m = win.PW_DERIVE.metrics(g);
+var COACH = win.PW_DERIVE.coach;
+var rec = COACH.recommend(COACH.signals(fx.state, m));
+var heroRoot = new El("section");
+win.PW_VIEWS.commands(heroRoot, fx.state, { graphText: g, metrics: m, builtSha: "deadbeef", stale: false, head: "deadbeef" });
+var pick = findByClass(heroRoot, "pw-coach-pick").map(textOf).join("").trim();
+assert(pick.length > 0, "base coach hero rendered no pw-coach-pick");
+assert(new RegExp(rec.key).test(pick),
+  "pw-coach-pick '" + pick + "' does not match COACH.recommend(signals).key '" + rec.key + "'");
+var evChips = findByClass(heroRoot, "pw-coach-ev").map(textOf).map(function (x) { return x.trim(); }).filter(Boolean);
+assert(evChips.length >= 1, "base coach hero rendered no pw-coach-evidence chips");
+console.log("CMD-HERO-OK");
+JS
+  if node "$TMP/cmd_hero_test.js" "$ROOT/scripts/dashboard" >"$TMP/cmd_hero.out" 2>"$TMP/cmd_hero.err" \
+     && grep -q CMD-HERO-OK "$TMP/cmd_hero.out"; then
+    ok "commands.js base coach hero: pw-coach-pick matches COACH.recommend(signals).key and pw-coach-evidence chips render"
+  else
+    bad "commands.js base coach hero assertion failed: $(cat "$TMP/cmd_hero.err" 2>/dev/null)"
+  fi
+else
+  ok "commands.js base coach hero check skipped (node not installed)"
+fi
+
 # --- Test DASH-CMD-COPY: the copy button writes the invocation to the clipboard (and degrades) ----
 # invoke() renders a copy button whose click calls navigator.clipboard.writeText(cmd) with the exact
 # rendered invocation text; with no clipboard API the click must be a silent no-op (no throw). Patches

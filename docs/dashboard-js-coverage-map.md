@@ -57,6 +57,9 @@ necessary but never sufficient — it proves the file parses, not that it render
   `/recommend.json`, present on a usable record; beacon-aware kicker (next-dispatch vs
   run-in-progress vs stale); enforce-overlay disclosure on a converged invent-dry record;
   contributions list carries the `Commit` stamp and accepted/rejected sub-line.
+- base coach hero (`pw-coach-pick` / `pw-coach-evidence`) — **behavior-asserted** (`DASH-CMD-HERO`):
+  the browser-coach pick equals `PW_DERIVE.coach.recommend(signals).key` and the evidence chips
+  render, independent of the optional server `/recommend.json` overlay.
 - `recUsable()` — **behavior-asserted** indirectly (a wrong-shaped body is rejected, a usable
   one paints).
 - `dispatchInvocation()` — **behavior-asserted** indirectly (the panel maps `codshard`+`explore`
