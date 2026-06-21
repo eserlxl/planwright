@@ -1518,7 +1518,11 @@ For each cycle i (starting at 1, bounded by N when N > 0, unbounded when N < 0):
    report; per-item commits from this cycle stand but the batch is not clean — do not start the next
    cycle.
 6. **Cycle summary** — print: cycle number, items proposed / completed / rejected this cycle, broad
-   verify result (`PASS` or `FAIL`).
+   verify result (`PASS` or `FAIL`). When this was the **final budgeted cycle** (positive-finite `N`,
+   cycle `N`), also print the **semantic-freeze taper marker** — a one-line note that the run's last
+   cycle ran stabilization-only, e.g. `Cycle N/N: semantic-freeze taper — stabilization-only, no
+   net-new this cycle.` — so an operator can see the run ended on a stabilization cycle. This is a
+   no-op for an unlimited run (`N < 0`), which has no final budgeted cycle.
 
 ## After all cycles (or early stop)
 

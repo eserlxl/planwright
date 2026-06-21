@@ -439,3 +439,12 @@ need = [tok for tok in (
 sys.exit(1 if need else 0)
 PY
 then ok "docs/hybrid-ai-design.md locks the opt-in delegation contract (opt-in, never-Evidence, off==skipped, no-hard-dependency, public-repo egress)"; else bad "docs/hybrid-ai-design.md missing or lost a load-bearing clause"; fi
+
+# --- Test 10hb: SKILL.md surfaces the semantic-freeze taper marker in the cycle report ---
+# The final budgeted cycle's report announces it ran stabilization-only, so an operator sees the run
+# ended on a stabilization cycle. Pin the report-marker phrase so the disclosure cannot silently regress.
+if grep -qF "semantic-freeze taper marker" "$ROOT/skills/planwright/SKILL.md"; then
+  ok "SKILL.md surfaces the semantic-freeze taper marker in the cycle report"
+else
+  bad "SKILL.md lost the semantic-freeze taper marker in the cycle report"
+fi
