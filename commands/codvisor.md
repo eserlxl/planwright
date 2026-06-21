@@ -36,6 +36,12 @@ Resolve them in this order:
    third-party provider). A token after `parallel` that is neither `agent` nor `external` is not a
    qualifier — it stays in `<rest>` (so `parallel execute` still forwards `execute`).
 
+0b. **Peel `hybrid-ai`** from `<rest>` as `<hybrid-ai>`: an opt-in **dossier-survey delegation** for
+   this run. Delegation lives in the base skill — **append `<hybrid-ai>` (after `<scope>` and any
+   `<parallel>`) to the planwright invocation** built below, so the base skill's Stages 3–7 survey is
+   delegated to the optional external-agent CLI backend (never-Evidence, off==skipped); codvisor never
+   re-implements the delegation. Peel it out of `<rest>` before classifying the remainder.
+
 1. **`<rest>` empty**: the flagship "advisor" run. First print exactly one
    cost-banner line so the heavy run is never silent:
    `codvisor: max-intensity advisor run — up to 10 plan→execute rounds at depth 10 with the explore cold-frontier sweep.`

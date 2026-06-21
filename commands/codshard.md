@@ -61,6 +61,12 @@ Resolve them in this order:
    and `J` *before* classifying the remaining integers, so neither the qualifier nor `J` is ever
    mistaken for `M` or `D`.
 
+2b. **Peel `hybrid-ai`** from `<rest>`: an opt-in **dossier-survey delegation**, **forwarded to each
+   per-shard planwright run and the closing whole-repo round**, whose base-skill Stages 3–7 survey is
+   then delegated to the optional external-agent CLI backend (never-Evidence, off==skipped). Delegation
+   lives in the base skill — codshard only forwards `<hybrid-ai>`, never re-implements it. Peel it
+   before classifying the remaining integers.
+
 3. **Peel `explore`** from `<rest>`: opt-in escalation for the **closing round only**. When
    present, the closing whole-repo round runs `cycle <M> depth <D> explore` instead of the plain
    closing cycle; the shard loop is never escalated — every per-shard round stays an ordinary

@@ -52,6 +52,13 @@ Resolve them in this order:
    provider, so it is **never auto-engaged**). A token after `parallel` (and its optional qualifier
    and `J`) that is not one of these is not part of the flag — it stays in `<rest>`.
 
+0b. **Peel `hybrid-ai`** from `<rest>` as `<hybrid-ai>`: an opt-in **dossier-survey delegation**.
+   Delegation lives in the base skill — **append `<hybrid-ai>` to each `explore`-phase invocation**
+   (Phase A of every outer cycle, and the closing final explore — **never the `invent` phase**, where
+   the base skill ignores it), so the base skill delegates its Stages 3–7 survey to the optional
+   external-agent CLI backend (never-Evidence, off==skipped); codcycle never re-implements it. Peel it
+   out of `<rest>` before classifying the remainder.
+
 1. **`<rest>` empty**: run **10 outer cycles** (the default).
 2. **`<rest>` is a single integer `N`** (nothing else): run `N` outer cycles. `N` may be **negative**,
    which runs **forever** (until a stop condition fires or the user interrupts). `N` must be non-zero.
