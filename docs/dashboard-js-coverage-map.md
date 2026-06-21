@@ -34,7 +34,9 @@ necessary but never sufficient — it proves the file parses, not that it render
 
 ### [console.js](../scripts/dashboard/views/console.js) — Convergence Reactor + Health Vitals
 - `render()` — **behavior-asserted** (the deepest-covered view).
-  - Reactor verdict: IN PROGRESS / CONVERGED / STALE / IDLE — all four resting states asserted.
+  - Reactor verdict: IN PROGRESS / CONVERGED / STALE / IDLE — all four resting states asserted,
+    plus the explanatory `pw-reactor-note` sub-line copy for the stale, idle, and component-scoped
+    final-point branches.
   - Run-activity beacon: live / stale (`stale?`) / null branches asserted.
   - Satellites incl. the `counts.carried` satellite (present only when non-zero) asserted.
   - Health Vitals: files / articulation / tests counts and the cadence legend asserted; the

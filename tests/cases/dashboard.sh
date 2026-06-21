@@ -1436,6 +1436,18 @@ assert(/final point is stale — HEAD moved since/.test(textOf(staleC)),
   "stale reactor omitted the explanatory staleness sub-line copy");
 assert(findByClass(staleC, "is-stale").length > 0,
   "stale reactor omitted the is-stale decorator class");
+// Phase 2.3: like the stale sub-line above, pin the IDLE and component-scoped reactor sub-line copy.
+// Only the verdict WORD was asserted for IDLE, and the scoped branch (a whole noteText case) was
+// unexercised — so a swapped guidance line would pass. idleC is the drained/no-final-point fixture.
+assert(/no pending work and no final point recorded/.test(textOf(idleC)),
+  "idle reactor omitted the 'no pending work and no final point' sub-line copy");
+var scopedC = new El("section");
+win.PW_VIEWS.console(scopedC, Object.assign({}, state, {
+  pending: [], counts: Object.assign({}, state.counts, { pending: 0 }),
+  final_point: { sha: "deadbeef", date: "2026-01-01", deepest_tier: "expand", valid: true, stale: false, scope: "path:scripts" },
+}), fullCtx);
+assert(/only a component-scoped final point is recorded/.test(textOf(scopedC)),
+  "scoped reactor omitted the component-scoped final-point sub-line copy");
 var freshC = new El("section");
 win.PW_VIEWS.console(freshC, Object.assign({}, state, {
   pending: [], counts: Object.assign({}, state.counts, { pending: 0 }),
