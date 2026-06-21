@@ -66,7 +66,8 @@ necessary but never sufficient — it proves the file parses, not that it render
 ### [insights.js](../scripts/dashboard/views/insights.js) — Risk Ledger + Coverage
 - `render()` — **behavior-asserted** (`DASH-INSIGHTS-RENDER`): the uncovered articulation
   hotspot surfaces in the Risk Ledger, the by-language Coverage panel renders, the uncovered
-  flag shows; degraded bare ctx renders no-throw.
+  flag shows; the bare-ctx (null-metrics) branch renders the specific "No graph has been built
+  yet" empty-state (not a half-built grid).
 - `paint()` (interactive path-filter) — **behavior-asserted** (`DASH-INSIGHTS-RENDER`): the filter
   predicate narrows `metrics.hotspots` and the `(filtered)` affordance shows (`showing 1 of 2
   (filtered)`), with every row restored and the affordance dropped on an empty query.

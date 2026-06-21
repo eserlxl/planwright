@@ -2695,8 +2695,15 @@ fInput.value = "";
 fInput.dispatch("input");
 assert(/showing 2 of 2/.test(fCount.textContent) && !/\(filtered\)/.test(fCount.textContent),
   "Risk-Ledger did not restore all rows (and drop the filtered affordance) on an empty query (got '" + fCount.textContent + "')");
-// degraded snapshot (no metrics) must not throw
-win.PW_VIEWS.insights(new El("section"), { counts:{} }, { graphText:null, metrics:null, builtSha:"", stale:false, head:"deadbeef" });
+// Phase 2.2: degraded snapshot (no metrics) renders the specific "No graph has been built yet"
+// empty-state — not a half-built grid — upgrading the bare-ctx branch from no-throw smoke to
+// behavior-asserted.
+var bareRoot = new El("section");
+win.PW_VIEWS.insights(bareRoot, { counts:{} }, { graphText:null, metrics:null, builtSha:"", stale:false, head:"deadbeef" });
+assert(/No graph has been built yet\. Run a plan to build/.test(textOf(bareRoot)),
+  "insights bare-ctx did not render the 'no graph built yet' empty-state");
+assert(findByClass(bareRoot, "pw-insights-grid").length === 0,
+  "insights bare-ctx wrongly rendered the insights grid on null metrics");
 // Phase 5.3: the Risk-Ledger j/k/Arrow keyboard handler moves row focus; a non-navigation key
 // early-returns with no change. Wire the minimal DOM the handler reads (querySelectorAll-by-class
 // + focus()->document.activeElement), render a fresh ledger, focus row 0, then drive keydown. (Patches
