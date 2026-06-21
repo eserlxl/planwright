@@ -264,6 +264,18 @@ authoritatively. The whole-repo carried backlog is not counted under a scope, an
 `planwright advise` is the host-portable half of the same engine (Cursor/Codex/Gemini included):
 recommendation-only, never dispatching — see Maintenance below.
 
+## PR Fixer (`pr`)
+
+```bash
+planwright pr                   Ingest the current branch's open PR — unresolved review threads (human or bot) + failing CI checks become verification-ready plan items for the usual check → execute path
+planwright pr handoff           Print the local git/gh push-back recipe for landed PR fixes (you run it by hand)
+```
+
+`pr` is **read-only toward GitHub**: planwright *reads* PR data to plan from it, but never pushes,
+comments, resolves, merges, or closes — every outward-facing action stays in your hands (merging the
+PR is the close; there is no separate close step). The `/codpr` host alias is the shortcut
+(`/codpr`, `/codpr handoff`); the ingest needs the `gh` CLI authenticated against the repo's remote.
+
 ## Maintenance
 
 ```bash
