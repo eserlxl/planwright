@@ -191,6 +191,7 @@ PLAN (read-only)
 /planwright no-compact           Skip lifecycle housekeeping (no archive/drain this run)
 /planwright dry-run              Do all stages but print the plan instead of writing the file
 /planwright parallel [agent|external] [J]   Read-only recon prefetch before the audit (Stage 1.6); native by default, external = optional CLI backend
+/planwright hybrid-ai            Opt-in: delegate the Stages 3-7 dossier survey to the optional external-agent CLI backend (never-Evidence leads, off==skipped). See docs/hybrid-ai-design.md
 
 SCOPE (aim a run at one component; composes with plan / execute / cycle)
 /planwright path <X>             Restrict to a subtree/glob: plan items land in that Focus,
@@ -253,6 +254,7 @@ Plan options may be combined with an instruction, e.g.
 | `invent` | off | **cycle only**: superset of `explore` — additionally permits net-new, seam-bound capability (the **invent** tier, a bounded ≤3-cycle burst) after the expand tier is dry (see **Escalation ladder**) |
 | `seed <S>` | none (deterministic) | **`invent` only**: focus the invent generative survey through one seeded **framing** (a recorded vantage from a fixed catalog). *Scopes* which net-new ideas a single run surveys — comprehensiveness is recovered across the seed sequence (cross-run), so successive seeds explore different regions instead of re-deriving the same ideas. No effect without `invent`; an unseeded `invent` stays comprehensive and deterministic. Integer. Recorded in `final.md` as `invent_seed`/`invent_framing` (see **Escalation ladder**, Stage 5) |
 | `parallel [agent\|external] [J]` | off | **read-only recon prefetch** before the audit — warm attention with up to 8 routing-only leads over the run's Focus. Native subagent backend by default; `parallel external` is the explicit opt-in to the **entirely optional** external-agent CLI backend (never required, never auto-engaged). Ignored under `invent`/`execute`. See **Stage 1.6 — Parallel recon** |
+| `hybrid-ai` | off | **opt-in dossier-survey delegation**: delegate the Stages 3–7 dossier survey to the **entirely optional** external-agent CLI backend (the same one `parallel external` uses) to cut the host agent's token spend — **never-Evidence** (every delegated finding re-proven from a code re-read or dropped), **off==skipped** (the off-path is byte-identical, writes no new `.planwright/` state), **no-hard-dependency** (degrade-to-skip when no CLI is available), **public-repo egress** only (git-tracked-only, Focus-enclosing target). Ignored under `invent`/`execute`. See **docs/hybrid-ai-design.md** |
 | `help` | — | print Usage and stop |
 
 Precedence: **inline option > built-in default.** There is no settings file; options are per-run only.
