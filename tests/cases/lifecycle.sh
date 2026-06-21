@@ -139,6 +139,24 @@ if [ "$(grep -c '^- \[x\]' "$LCEB/completed.md")" = "6" ]; then
 else
   bad "PW_FIFO_CAP bad-value fallback wrong (expected 6 untrimmed)"
 fi
+# A parsed-but-non-positive integer is a DISTINCT branch from the non-integer one above: it
+# survives int() but fails the `if v > 0` guard (scripts/lifecycle.py), so it too must fall back
+# to 100 and never become a live cap. Pins both 0 and a negative value — a `>`->`>=` regression
+# would turn PW_FIFO_CAP=0 into a cap of 0 and silently truncate the ledger to nothing.
+lc_nonpos_ok=1
+for cap in 0 -5; do
+  LCEC="$TMP/lc4c-$cap/.planwright"; mkdir -p "$LCEC"
+  { for i in $(seq 1 6); do
+      printf -- '- [x] e%03d\n      Mode: improve\n      Verification: true\n\n' "$i"
+    done; } > "$LCEC/completed.md"
+  PW_FIFO_CAP="$cap" python3 "$LC" housekeep --root "$LCEC" >/dev/null 2>&1
+  [ "$(grep -c '^- \[x\]' "$LCEC/completed.md")" = "6" ] || lc_nonpos_ok=0
+done
+if [ "$lc_nonpos_ok" = "1" ]; then
+  ok "PW_FIFO_CAP non-positive (0 / negative) falls back to the 100 default (6 items untrimmed, never a cap of 0)"
+else
+  bad "PW_FIFO_CAP non-positive guard wrong (a zero/negative cap truncated the ledger)"
+fi
 
 # --- Test L4b: the FIFO cap applies SYMMETRICALLY to rejected.md ---------------------
 # L4 pins the completed.md cap; cap_log is wired to rejected.md too (housekeep:
