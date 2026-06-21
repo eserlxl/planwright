@@ -290,7 +290,7 @@ PR is the close; there is no separate close step). The `/codpr` host alias is th
 
 `doctor` is read-only **by default**: it reports which host tools (`python3`, `git`, `rg`, `fd`) and
 bundled scripts (`build-graph.py`, `lint-plan.py`, `lifecycle.py`, `status.py`, `check-links.py`,
-`plan_parse.py`, `state.py`, `lint-final.py`, `dashboard.py`) are available, what degrades when one is missing, and whether the target
+`plan_parse.py`, `state.py`, `registry.py`, `lint-final.py`, `pr.py`, `dashboard.py`) are available, what degrades when one is missing, and whether the target
 is a git work tree — a preflight so a run's fallbacks surface up front rather than mid-pipeline. It
 exits non-zero when a core capability (`git` or a bundled script) is unavailable. Two opt-in flags
 change that default: `--fix` is the one **writing** exception — it adds `.planwright/` to the target's

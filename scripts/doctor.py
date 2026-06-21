@@ -59,7 +59,8 @@ BUNDLED = [
     ("registry.py", "the cross-repo dashboard project registry (dashboard.py imports it at module load; state.py registers running repos through it)"),
     ("lint-final.py", "the Stage 11 final.md / final-point validator"),
     # Dispatched through the same <scripts> seam by their commands — a partial
-    # install missing either previously passed doctor clean and failed at launch.
+    # install missing any of these previously passed doctor clean and failed at launch.
+    ("pr.py", "the `pr` PR-fixer ingest (open-PR review threads + failing CI become plan items)"),
     ("dashboard.py", "the read-only live dashboard server (`planwright dashboard`)"),
     # The server resolves its whole UI from <scripts>/dashboard/; without the asset
     # tree it launches, prints a healthy URL, and serves 404s — a SILENT partial
