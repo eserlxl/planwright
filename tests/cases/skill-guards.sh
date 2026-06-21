@@ -371,3 +371,25 @@ if "instruction file" not in t: need.append("clause:doc-or-instruction-file")
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md pins the value-gate false-green clause (a doc/instruction string-existence test is not a named failure)"; else bad "SKILL.md value-gate false-green discriminator clause missing/regressed"; fi
+
+# --- Test 10s: SKILL.md pins the semantic-freeze taper (bounded-run final-cycle freeze) ----
+# A budgeted run's final cycle introduces no new behavior — only stabilization — so the run ends in
+# a stable, tested state. Pin every load-bearing clause so the taper cannot silently regress: the
+# rule phrase, its bounded-run scope (positive-finite N / final budgeted cycle), the stabilization-
+# only allow-list, the no-new-behavior clause, the floor/ceiling-hold, and the unlimited-run no-op.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1]).read().replace("**", "").split())
+need = [tok for tok in (
+    "Semantic-freeze taper",
+    "positive and finite",
+    "final budgeted cycle",
+    "only stabilization work",
+    "no new behavior",
+    "no opportunity, vision, expand, or invent net-new at any tier",
+    "grounding floor and hard ceiling are unchanged",
+    "explicit no-op",
+) if tok not in t]
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md pins the semantic-freeze taper (rule, bounded scope, stabilization-only, no-new-behavior, floor/ceiling-hold, unlimited no-op)"; else bad "SKILL.md dropped a load-bearing semantic-freeze taper clause"; fi
