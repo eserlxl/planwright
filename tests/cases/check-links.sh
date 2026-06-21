@@ -384,3 +384,19 @@ undoc = [p for p in bundled_py if p not in usage and p not in dev]
 assert not undoc, "bundled .py not documented in usage/development: %r" % undoc
 PY
 then ok "every bundled .py script (doctor.py BUNDLED) is documented in docs/usage.md or docs/development.md (fails-on-drift)"; else bad "a bundled .py script is undocumented in usage/development (or a fake BUNDLED entry was added)"; fi
+
+# --- Test ONBOARD: README onboarding references real, existing surfaces ----------------------
+# The README install/first-run flow must point only at surfaces that exist: the AGENTS.example.md
+# drop-in, the docs/usage.md entry point, and the RELEASE.md runbook. A reference to a removed/renamed
+# onboarding file (or a deleted README mention) fails. (check-links.py separately proves the links
+# resolve; this pins the named onboarding set + their existence.)
+ob_bad=""
+for f in AGENTS.example.md docs/usage.md RELEASE.md; do
+  grep -qF "$f" "$ROOT/README.md" || ob_bad="$ob_bad not-referenced:$f"
+  [ -f "$ROOT/$f" ] || ob_bad="$ob_bad missing-file:$f"
+done
+if [ -z "$ob_bad" ]; then
+  ok "README onboarding references real, existing surfaces (AGENTS.example.md, docs/usage.md, RELEASE.md)"
+else
+  bad "README onboarding references drifted:$ob_bad"
+fi
