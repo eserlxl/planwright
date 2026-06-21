@@ -49,6 +49,14 @@ so separate tabs can watch separate projects), and `/projects.json` feeds the sw
 project's live status. Selection is by **allow-listed id only, never a raw path** — the security
 boundary that keeps the read-only mirror from reading arbitrary directories.
 
+**Sandbox note.** The registry at `$XDG_CONFIG_HOME/planwright/projects.json` lives **outside the
+workspace**, so under the default sandbox (which forbids writes outside the workspace) the
+auto-populate and `--add`/`--discover` registry writes are **blocked** — the switcher then shows only
+the current repo. To register projects in the global switcher, run the registering command
+(`planwright dashboard --add <DIR>`, or a planwright run that auto-populates) **outside the sandbox**
+(e.g. a `!`-prefixed shell command, or a normal terminal). The read-only serve itself needs no such
+write and works sandboxed.
+
 ## 3 — Launch (do not block the turn)
 
 Start the server **in the background** so this turn does not hang, and ask it to open the
