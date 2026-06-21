@@ -58,8 +58,11 @@ browser:
 python3 <scripts>/dashboard.py --root <root> [--port <N>] --open
 ```
 
-Run it backgrounded (the harness background mode, or `nohup … >/tmp/pw-dashboard.log 2>&1 &`).
-Wait ~1 second, then read the banner line it prints —
+Run it backgrounded (the harness background mode, or
+`nohup … >.planwright/dashboard.log 2>&1 &` — a **workspace-relative** log path, since the default
+sandbox forbids writes outside the workspace such as `/tmp`). Wait ~1 second, then read the banner
+line **from that log file** (`.planwright/dashboard.log`) — not from command stdout, which the
+redirect captured into the file —
 `planwright dashboard: http://127.0.0.1:<port>/  (root: …)` — to learn the bound URL. The
 `--open` flag best-effort opens that URL in the user's default browser (a harmless no-op on a
 headless box). The server binds **loopback only** (`127.0.0.1`) and is read-only by
