@@ -284,8 +284,8 @@ def _branch(root):
 
 def _parse_final(path):
     """Parse the recorded final point (final.md). Returns a dict with sha/date/
-    deepest_tier/scope/invent_seed/invent_framing (each '' when absent) or None when
-    there is no final-point file. `scope` matters: a component-scoped final point
+    deepest_tier/scope/invent_seed/invent_framing/budget/fixpoint (each '' when absent)
+    or None when there is no final-point file. `scope` matters: a component-scoped final point
     asserts dryness only for that component (SKILL.md Stage 11), so consumers must
     see it to avoid certifying whole-repo convergence from it; the invent pair is
     the seeded-run replay record."""
@@ -295,7 +295,7 @@ def _parse_final(path):
     except (OSError, ValueError):  # also degrade (not crash) on a non-UTF-8/undecodable file
         return None
     fields = {"sha": "", "date": "", "deepest_tier": "", "scope": "",
-              "invent_seed": "", "invent_framing": ""}
+              "invent_seed": "", "invent_framing": "", "budget": "", "fixpoint": ""}
     head_alias = ""
     for line in text.splitlines():
         for key in fields:
@@ -602,6 +602,12 @@ def collect(root: str, scope=None, focus=None) -> dict:
             # not just the raw file. None when unseeded/non-invent.
             "invent_seed": final["invent_seed"] or None,
             "invent_framing": final["invent_framing"] or None,
+            # The additive fixpoint-strength fields (SKILL.md Stage 11; lint-final validates them):
+            # the cycle budget spent (`{ requested: N, used: i }`) and the one-line dryness reason,
+            # surfaced so the dashboard Commands/Plan views can read them. None when an older /
+            # pre-fixpoint final.md omits them (additive, backward-compatible).
+            "budget": final["budget"] or None,
+            "fixpoint": final["fixpoint"] or None,
             # A recorded final point that fails lint-final's contract (blank/typo'd/rungless)
             # is not a trustworthy terminal state — surface it so _converged can refuse to
             # certify it (the north star: a final-point claim must mean it).
