@@ -204,6 +204,27 @@ FAKE
 if pw_family_parity "$fake_copy"; then vac_ok=0; fi
 if [ "$vac_ok" = 1 ]; then ok "cod*-family parity gate is non-vacuous (a dropped member and a fake @codfoo each fail the check on a TMP copy)"; else bad "cod*-family parity gate is vacuous — a diverged host copy passed, or the real file failed"; fi
 
+# --- Test 13d4: each host example carries the codcycle/codshard recipe grammar ------------------
+# codcycle's explore→invent recipe (`cycle 3 depth 10 explore` then `cycle 3 depth 10 invent`) and
+# codshard's per-shard `cycle 3 depth 10` round + closing whole-repo round are the operational steps
+# a non-Claude agent follows, matching commands/codcycle.md and commands/codshard.md. Test 13d checks
+# only the codvisor/codinventor resolution examples (`cycle 10 depth 10 explore path`), not these
+# recipes; a drifted host recipe (wrong cycle count / depth / structure) would slip past it.
+# Whitespace-normalized so a rewrap neither breaks nor saves the assertion.
+sc_recipe_ok=1
+for hf in AGENTS.example.md GEMINI.example.md GEMINI.example_context-mode.md; do
+  python3 - "$ROOT/$hf" <<'PY' 2>/dev/null || sc_recipe_ok=0
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+need = [s for s in (
+    "cycle 3 depth 10 explore", "cycle 3 depth 10 invent",   # codcycle explore→invent recipe
+    "round per shard", "closing whole-repo round",            # codshard per-shard + closing structure
+) if s not in t]
+sys.exit(1 if need else 0)
+PY
+done
+if [ "$sc_recipe_ok" = 1 ]; then ok "each host example carries the codcycle (cycle 3 depth 10 explore/invent) and codshard (per-shard + closing whole-repo round) recipe grammar"; else bad "a host example drifted from the codcycle/codshard recipe grammar"; fi
+
 # --- Test 14b: codvisor/codinventor pin their load-bearing cost banner (both cases) ---
 # The flagship banner exists "so the heavy run is never silent" (codvisor.md case 1), and the
 # closing "print nothing of your own except the cost banner in cases 1 and 2" line is what makes
