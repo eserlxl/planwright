@@ -23,6 +23,27 @@
   window.PW_PROJECTS = window.PW_PROJECTS || [];
   window.PW_SWITCH_PROJECT = function (id) { setSelectedProject(id); };
 
+  // SSE connection-state logic, kept pure and exposed so the node-gated dashboard tests
+  // (DASH-SSE-RECONNECT / DASH-SSE-GAP) can drive it without a DOM or a live stream.
+  var SSE_MAX_RECONNECT = 6;
+  window.PW_SSE = window.PW_SSE || {
+    MAX_RECONNECT: SSE_MAX_RECONNECT,
+    // The connection-state label for a given consecutive-error count: `live` while connected
+    // (attempts 0), `reconnecting (n)` while the browser retries on the server's retry: cadence,
+    // and `offline` once attempts pass the cap (the client then stops retrying).
+    status: function (attempts, max) {
+      if (typeof max !== "number") { max = SSE_MAX_RECONNECT; }
+      if (attempts <= 0) { return { text: "live", cls: "ok" }; }
+      if (attempts > max) { return { text: "offline", cls: "err" }; }
+      return { text: "reconnecting (" + attempts + ")", cls: "warn" };
+    },
+    // True when a reconnect's first change id jumps past the next expected id (lastSeenId + 1) —
+    // changes occurred during the disconnect, so a "caught up after gap" signal is warranted.
+    gap: function (lastSeenId, receivedId) {
+      return (lastSeenId >= 0) && (receivedId > lastSeenId + 1);
+    },
+  };
+
   var VIEWS = [
     { key: "console", container: "view-console" },
     { key: "commands", container: "view-commands" },
@@ -511,19 +532,33 @@
     });
   }
 
+  var sseAttempts = 0;
   function connectEvents() {
     if (typeof EventSource === "undefined") { setStatus("no live updates", "warn"); return; }
     es = new EventSource(withProject("/events"));
     es.addEventListener("change", function () {
+      sseAttempts = 0;
       setStatus("live", "ok"); pulse(); fetchState(); fetchProjects();
     });
-    es.onopen = function () { setStatus("live", "ok"); };
-    es.onerror = function () { setStatus("reconnecting…", "warn"); };
+    es.onopen = function () { sseAttempts = 0; setStatus("live", "ok"); };
+    es.onerror = function () {
+      // Bounded reconnect with an honest connection state: count consecutive errors, surface
+      // live / reconnecting (n) / offline, and once attempts pass the cap stop the browser's
+      // implicit retry loop (close the stream) rather than spin "reconnecting" forever.
+      sseAttempts += 1;
+      var st = window.PW_SSE.status(sseAttempts, SSE_MAX_RECONNECT);
+      setStatus(st.text, st.cls);
+      if (sseAttempts > SSE_MAX_RECONNECT && es) {
+        try { es.close(); } catch (e) {}
+        es = null;
+      }
+    };
   }
 
   // A project switch re-points the SSE stream at the newly-selected project's .planwright/.
   function reconnectEvents() {
     if (es) { try { es.close(); } catch (e) {} es = null; }
+    sseAttempts = 0;
     connectEvents();
   }
 

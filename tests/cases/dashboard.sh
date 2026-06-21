@@ -3490,3 +3490,45 @@ if python3 "$TMP/dash_port_client.py" "$DASH" "$DPORT" 2>/dev/null | grep -q POR
 else
   bad "dashboard default-port reuse/fallback failed (or explicit busy --port no longer exit 2)"
 fi
+
+# --- Test DASH-SSE-RECONNECT: app.js surfaces honest live/reconnecting(n)/offline state -----
+# The bare onerror was replaced by a bounded reconnect: consecutive errors count up, the status
+# reads live (open) -> reconnecting (n) (under the cap) -> offline (past the cap, client stops
+# retrying), and a reopen resets to live. connectEvents is DOM/EventSource-bound, so the test drives
+# the exposed pure state machine (window.PW_SSE.status) the handler uses, over the open/error/reopen
+# sequence. Node-gated; server-side SSE tests above run without Node.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/sse_reconnect_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { makeDoc, makeWin, install, loadCommon, loadScript } = VM;
+const doc = makeDoc(); const win = makeWin(doc); install(win, doc);
+win.fetch = function () { return Promise.reject(new Error("no fetch in test")); };
+global.fetch = win.fetch;
+loadCommon(BASE);
+loadScript(BASE, "app.js");            // registers window.PW_SSE
+const SSE = win.PW_SSE;
+assert(SSE && typeof SSE.status === "function", "app.js did not expose PW_SSE.status");
+const MAX = SSE.MAX_RECONNECT;
+assert(typeof MAX === "number" && MAX >= 1, "PW_SSE.MAX_RECONNECT must be a positive int");
+// open / reopen -> live (ok)
+assert(SSE.status(0, MAX).text === "live" && SSE.status(0, MAX).cls === "ok", "open should be live/ok");
+// error under the cap -> reconnecting (n) (warn), strictly counting up
+const r1 = SSE.status(1, MAX);
+assert(r1.text === "reconnecting (1)" && r1.cls === "warn", "first error: " + JSON.stringify(r1));
+assert(SSE.status(MAX, MAX).text === "reconnecting (" + MAX + ")", "at the cap still reconnecting (max)");
+// past the cap -> offline (err): the client gives up rather than spin forever
+const off = SSE.status(MAX + 1, MAX);
+assert(off.text === "offline" && off.cls === "err", "past the cap: " + JSON.stringify(off));
+console.log("SSE-RECONNECT-OK");
+JS
+  if node "$TMP/sse_reconnect_test.js" "$ROOT/scripts/dashboard" >"$TMP/sse_reconnect.out" 2>"$TMP/sse_reconnect.err" \
+     && grep -q SSE-RECONNECT-OK "$TMP/sse_reconnect.out"; then
+    ok "app.js PW_SSE.status surfaces honest live/reconnecting(n)/offline state across open/error/reopen"
+  else
+    bad "app.js SSE reconnect state assertion failed: $(cat "$TMP/sse_reconnect.err" 2>/dev/null)"
+  fi
+else
+  ok "app.js SSE reconnect state check skipped (node not installed)"
+fi
