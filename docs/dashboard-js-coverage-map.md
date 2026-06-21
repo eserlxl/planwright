@@ -125,6 +125,15 @@ necessary but never sufficient — it proves the file parses, not that it render
 - `paint()` — **behavior-asserted**: once the stubbed `/doctor.json` promise flushes, the
   `Environment preflight` rows render.
 
+### [runs.js](../scripts/dashboard/views/runs.js) — run-history timeline
+- `paint()` — **behavior-asserted** (`DASH-RUNS-RENDER`): a populated ledger renders one row per run
+  (command · duration · outcome, newest first) with the panel title; an empty array and a malformed
+  (non-array) ledger both paint the `No runs recorded` empty state without throwing.
+- `duration()` — **behavior-asserted** (`DASH-RUNS-RENDER`): formats the started→ended span
+  (`5s`, `2m 30s`) and returns `?` for absent/unparseable timestamps.
+- `render()` — the fetch wrapper (paints a sync placeholder, then `fetch("/runs.json")` → `paint`);
+  the async fetch branch is not node-asserted (paint carries the rendering logic).
+
 ## Known gaps (as of this map)
 
 The gaps this map previously tracked are closed: fleet.js, graph.js, and insights.js paint() are now behavior-asserted (see the per-module map above). The click-handler bodies are now covered too:

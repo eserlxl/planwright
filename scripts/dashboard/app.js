@@ -48,6 +48,7 @@
     { key: "insights", container: "view-insights" },
     { key: "shards", container: "view-shards" },
     { key: "fleet", container: "view-fleet" },
+    { key: "runs", container: "view-runs" },
     { key: "doctor", container: "view-doctor" },
   ];
   var KEYS = VIEWS.map(function (v) { return v.key; });

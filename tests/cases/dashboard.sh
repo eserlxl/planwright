@@ -327,7 +327,7 @@ PY
 # --- Tests DSH1/DSH2/DSH3: endpoints + the static UI shell + the view modules -------
 # PW_TEST_VIEWS lists the view modules to assert are served+registered (grows as each
 # view lands), so every view ships with a runnable served+referenced check.
-PW_TEST_VIEWS="console commands plan timeline graph insights shards doctor fleet" \
+PW_TEST_VIEWS="console commands plan timeline graph insights shards doctor fleet runs" \
   python3 "$TMP/dash_client.py" "$DFX" "$DASH" >"$TMP/dash.out" 2>"$TMP/dash.err" || true
 if grep -q DASH-OK "$TMP/dash.out"; then
   ok "dashboard.py serves /state.json (JSON) + /events (text/event-stream), refuses traversal + foreign Host"
@@ -3581,4 +3581,51 @@ if grep -q RUNS-JSON-OK "$TMP/druns.out"; then
   ok "dashboard.py /runs.json serves the run-history ledger (empty array when absent, runs when present)"
 else
   bad "dashboard.py /runs.json failed: $(cat "$TMP/druns.err" 2>/dev/null)"
+fi
+
+# --- Test DASH-RUNS-RENDER: views/runs.js renders the ledger and degrades on empty/malformed -----
+# The runs view paints the /runs.json ledger as a chronological timeline (newest first) and must
+# degrade cleanly: an empty array and a malformed (non-array) ledger both paint the empty state
+# without throwing. Drives the exposed pure paint(container, runs) — no async fetch needed.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/runs_render_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { makeDoc, makeWin, install, loadView, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc); install(win, doc);
+loadView(BASE, "runs");
+const runs = win.PW_VIEWS.runs;
+assert(typeof runs === "function" && typeof runs.paint === "function",
+  "runs.js did not expose PW_VIEWS.runs with a pure paint()");
+// A populated ledger renders a row per run, newest first, with command + duration.
+const ledger = [
+  { command: "plan", started: "2026-06-21T00:00:00Z", ended: "2026-06-21T00:00:05Z" },
+  { command: "cycle", started: "2026-06-21T00:01:00Z", ended: "2026-06-21T00:03:30Z", outcome: "converged" },
+];
+let sec = new VM.El("section"); runs.paint(sec, ledger);
+let txt = textOf(sec);
+assert(txt.indexOf("plan") >= 0 && txt.indexOf("cycle") >= 0, "rows missing a command: " + txt);
+assert(txt.indexOf("Run history") >= 0, "missing the panel title: " + txt);
+assert(txt.indexOf("2m 30s") >= 0, "cycle duration not rendered: " + txt);
+assert(txt.indexOf("converged") >= 0, "outcome not rendered: " + txt);
+// duration() is pure and correct
+assert(runs.duration("2026-06-21T00:00:00Z", "2026-06-21T00:00:05Z") === "5s", "5s duration wrong");
+assert(runs.duration("bad", "also-bad") === "?", "unparseable duration should be ?");
+// Empty array -> empty state, no throw.
+sec = new VM.El("section"); runs.paint(sec, []);
+assert(textOf(sec).indexOf("No runs recorded") >= 0, "empty ledger did not paint the empty state");
+// Malformed (non-array) -> empty state, no throw.
+sec = new VM.El("section"); runs.paint(sec, null); runs.paint(sec, { not: "an array" });
+assert(textOf(sec).indexOf("No runs recorded") >= 0, "malformed ledger did not degrade to empty state");
+console.log("RUNS-RENDER-OK");
+JS
+  if node "$TMP/runs_render_test.js" "$ROOT/scripts/dashboard" >"$TMP/runs_render.out" 2>"$TMP/runs_render.err" \
+     && grep -q RUNS-RENDER-OK "$TMP/runs_render.out"; then
+    ok "views/runs.js renders the ledger as a timeline (newest first, command/duration/outcome) and degrades on empty/malformed input"
+  else
+    bad "views/runs.js render assertion failed: $(cat "$TMP/runs_render.err" 2>/dev/null)"
+  fi
+else
+  ok "views/runs.js render check skipped (node not installed)"
 fi
