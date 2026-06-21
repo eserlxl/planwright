@@ -22,7 +22,8 @@ percentage over `scripts/dashboard/`, excluding `scripts/dashboard/vendor/`. The
 
 ## The floor and its deliberate slack
 
-- **Measured baseline (post-Phase-1.2/1.3):** ~73.0% byte coverage over `scripts/dashboard/`.
+- **Measured baseline:** 73.0% byte coverage over `scripts/dashboard/` (74,163 / 101,635 measured
+  bytes; reproduced 2026-06-21 via the committed collector + reporter, `vendor/` excluded).
 - **Committed floor:** **71%** (`--fail-under 71` in CI, and pinned locally in the
   `DASH-JS-COV-PCT` block of [`tests/cases/dashboard.sh`](../tests/cases/dashboard.sh) so a drop also
   fails `bash tests/run.sh`, not only CI).
