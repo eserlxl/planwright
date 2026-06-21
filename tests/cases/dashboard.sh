@@ -911,6 +911,65 @@ else
   bad "dashboard.py /events retry: directive not observed: $(cat "$TMP/dretry.err" 2>/dev/null)"
 fi
 
+# --- Test DASH-SSE-ID: change events carry a strictly increasing id: --------------------
+# Each change frame stamps a monotonic `id:` (the frame's second line) so a reconnecting client
+# replaying Last-Event-ID can detect a gap. Two successive changes must carry strictly increasing ids.
+cat > "$TMP/dash_id.py" <<'PY'
+import os, subprocess, sys, time, urllib.request
+root, dash = sys.argv[1], sys.argv[2]
+env = dict(os.environ, PW_DASH_POLL="0.05")
+proc = subprocess.Popen([sys.executable, dash, "--root", root, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+def read_id(ev):
+    saw_change = False
+    for _ in range(40):
+        ln = ev.readline()
+        if not ln:
+            return None
+        if ln.startswith(b"event: change"):
+            saw_change = True
+        elif saw_change and ln.startswith(b"id:"):
+            return int(ln.split(b":", 1)[1].strip())
+    return None
+try:
+    port, deadline = None, time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            if proc.poll() is not None:
+                print("server exited early", file=sys.stderr); sys.exit(1)
+            continue
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    if not port:
+        print("no port banner", file=sys.stderr); sys.exit(1)
+    ev = urllib.request.urlopen("http://127.0.0.1:%d/events" % port, timeout=8)
+    id1 = read_id(ev)
+    assert id1 is not None, "no id on the first change event"
+    time.sleep(0.1)
+    with open(os.path.join(root, ".planwright", "plan.md"), "a") as fh:
+        fh.write("\n- [ ] two\n      Mode: improve\n")
+    id2 = read_id(ev)
+    assert id2 is not None, "no id on the second change event"
+    assert id2 > id1, "ids not strictly increasing (%r -> %r)" % (id1, id2)
+    ev.close()
+    print("SSE-ID-OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+DIDIR="$TMP/dash-id"; mkdir -p "$DIDIR/.planwright"
+printf -- '- [ ] one\n      Mode: improve\n' > "$DIDIR/.planwright/plan.md"
+python3 "$TMP/dash_id.py" "$DIDIR" "$DASH" >"$TMP/did.out" 2>"$TMP/did.err" || true
+if grep -q SSE-ID-OK "$TMP/did.out"; then
+  ok "dashboard.py /events stamps strictly increasing id: on successive change events"
+else
+  bad "dashboard.py /events monotonic id: not observed: $(cat "$TMP/did.err" 2>/dev/null)"
+fi
+
 # --- Test DASH-SSE-CAP: the concurrent /events cap returns a retriable 503 and recovers ----
 # MAX_SSE_CLIENTS bounds live SSE handler threads so tab open/close churn during a long
 # unattended cycle run cannot pile them up: an over-cap client gets a retriable 503 (not a new

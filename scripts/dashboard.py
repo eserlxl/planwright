@@ -435,12 +435,17 @@ class Handler(BaseHTTPRequestHandler):
             last = None
             idle = 0.0
             sent_retry = False
+            event_id = 0
             while True:
                 sig = _mtime_signature(self.root)
                 if sig != last:
                     last = sig
                     idle = 0.0
-                    self._sse_write(b"event: change\ndata: 1\n\n")
+                    # Stamp each change with a strictly increasing `id:` (the frame's second line,
+                    # so the opening line stays `event: change`). A reconnecting client replaying
+                    # Last-Event-ID can then tell whether changes occurred during the gap.
+                    event_id += 1
+                    self._sse_write(b"event: change\nid: %d\ndata: 1\n\n" % event_id)
                     if not sent_retry:
                         # After the first change frame (so the stream's opening line stays
                         # `event: change`, the documented open contract), advertise our reconnect
