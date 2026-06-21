@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Eser KUBALI
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Reproduce the CI static gates (.github/workflows/ci.yml) locally so you can
 # prove they pass before pushing, without hand-copying the workflow YAML.
 #

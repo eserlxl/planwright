@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Eser KUBALI
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Reproduce the CI "Coverage gate" step (.github/workflows/ci.yml) locally.
 #
 # Mirrors the gate ordering and the 90% floor exactly:

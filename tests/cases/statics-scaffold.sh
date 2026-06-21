@@ -583,3 +583,19 @@ assert all(len(ln) - len(ln.lstrip(" ")) == 2 for ln in block), block
 print("WSDESC-OK")
 PY
 then ok "make-plugin trims PLUGIN_DESC so the folded description block stays 2-space indented"; else bad "make-plugin emitted a misindented description block for a whitespace-padded PLUGIN_DESC"; fi
+
+# --- Test LICENSE-HDR: every tracked script + case file carries the SPDX license header -----
+# A new script shipped without the GPL SPDX identifier must fail the suite. Enumerate tracked
+# scripts/*.py, scripts/*.sh, and tests/cases/*.sh and assert each contains the literal
+# SPDX-License-Identifier: GPL-3.0-or-later. Non-vacuity: a temp fixture without the line is detected.
+lh_missing=""
+while IFS= read -r f; do
+  grep -q 'SPDX-License-Identifier: GPL-3.0-or-later' "$ROOT/$f" || lh_missing="$lh_missing $f"
+done < <(git -C "$ROOT" ls-files 'scripts/*.py' 'scripts/*.sh' 'tests/cases/*.sh')
+lh_fixture="$TMP/no_spdx.sh"; printf '#!/usr/bin/env bash\necho hi\n' > "$lh_fixture"
+lh_detects=1; grep -q 'SPDX-License-Identifier: GPL-3.0-or-later' "$lh_fixture" && lh_detects=0
+if [ -z "$lh_missing" ] && [ "$lh_detects" = 1 ]; then
+  ok "every tracked scripts/*.py, scripts/*.sh, tests/cases/*.sh carries the SPDX GPL-3.0-or-later header"
+else
+  bad "a tracked script/case file is missing the SPDX license header (or the check went vacuous):$lh_missing"
+fi
