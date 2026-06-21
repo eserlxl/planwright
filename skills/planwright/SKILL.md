@@ -443,8 +443,10 @@ ceiling) and plan capacity are never relaxed; the value bar / mission conservati
 only — see Stage 5's invent lens and Hard rules).
 
 **Deep final point.** The run stops at the deepest fixpoint its flag can reach, recorded in
-`.planwright/final.md` (marked with `deepest_tier:` and a one-line note), even if budget remains —
-nothing groundable is left:
+`.planwright/final.md` (marked with `deepest_tier:`, the machine-readable fixpoint-strength fields
+`budget: { requested: N, used: i }` and `fixpoint: <one-line why every reachable tier was dry>`, and a
+one-line note; report e.g. `Cycle i/N: deep final point — expand exhausted, budget spent; no
+seam-bound invention remains.`), even if budget remains — nothing groundable is left:
 - under `explore`, when the hot core, cold frontier, **and** expand are all dry → `deepest_tier: expand`,
   `confirmed deep — cold-frontier and expand tiers both dry`, with the graph's residual `frontier`
   counts appended to the note (e.g. `frontier: 0 never-audited, 15 stale`) so the convergence record
@@ -1161,6 +1163,8 @@ something to diff against:
    sha: 869d212
    date: 2026-06-14
    deepest_tier: expand
+   budget: { requested: 10, used: 4 }
+   fixpoint: cold-frontier and expand both dry — no groundable latent completion remains
    repair: dry — no provably-wrong path remains after the cold-frontier sweep
    coverage: dry — every confirmed gap has a focused test
    opportunity: dry — the documented latent completions are implemented
@@ -1175,6 +1179,12 @@ something to diff against:
    seam) — see Stage 5. Because `invent` **must generate** otherwise (see **Escalation
    ladder**), an ordinary `invent` run writes **no** `final.md` and instead runs to its cycle budget.
    This is the recorded **final point**; it is routing/status only and is **never** valid Evidence.
+   **Under `explore`/`invent`, also record the fixpoint-strength fields** — `budget: { requested: N,
+   used: i }` (the cycle budget requested vs. the cycle index the run stopped at) and `fixpoint:
+   <one-line why every reachable tier was dry>` — so the convergence strength is explicit and
+   machine-readable. They are **additive and backward-compatible**: older parsers ignore unknown keys,
+   and a final.md without them parses exactly as before. Like every final.md field they are
+   routing/status only, **never** Evidence.
    **Under a Scope**, also record `scope:` (`path:<X>` / `lib:<X>`) and `scope_focus_sha:` (the sha256
    hex digest of the newline-joined, lexicographically sorted Focus path list — canonical, so any host
    recomputes an identical value) so the Stage 1 short-circuit only fires for a matching scope; a whole-repo

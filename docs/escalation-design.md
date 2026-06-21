@@ -140,7 +140,9 @@ Two more portable rules make a *bounded* run end clean rather than mid-feature:
 
 ## `final.md` schema additions
 
-Extend the existing block so the fixpoint strength is explicit and machine-readable:
+**IMPLEMENTED** — the `deepest_tier` / `budget` / `fixpoint` fields are documented in `SKILL.md`'s
+Stage 11 final.md write and Deep-final-point sections (additive and backward-compatible). Extend the
+existing block so the fixpoint strength is explicit and machine-readable:
 
 ```
 deepest_tier: maturity | cold-frontier | expand | invent   # furthest the run reached before drying
