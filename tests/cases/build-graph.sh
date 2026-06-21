@@ -811,15 +811,23 @@ sel_sw0="$(python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'sw
 sel_loc5="$(python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'loc>5' 2>/dev/null | sort | tr '\n' ' ')"
 sel_loc99="$(python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'loc>99' 2>/dev/null)"
 sel_num_bad_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'branch>x' >/dev/null 2>"$TMP/sel_num_err" || sel_num_bad_rc=$?
+# A non-ASCII "digit" threshold (superscript-two passes str.isdigit() but raises on int()) must
+# also fall through to the clean unknown-predicate message — exit 2, no int() ValueError, no
+# Python traceback. `branch>x` above only exercises the isdigit()==False path; this exercises the
+# isdigit()==True-but-not-ASCII path the isascii() guard closes.
+sel_uni_bad_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'branch>²' >/dev/null 2>"$TMP/sel_uni_err" || sel_uni_bad_rc=$?
 if [ "$sel_br0" = "complex.py " ] \
    && [ -z "$sel_br9" ] \
    && [ "$sel_sw0" = "complex.py " ] \
    && [ "$sel_loc5" = "complex.py " ] \
    && [ -z "$sel_loc99" ] \
-   && [ "$sel_num_bad_rc" = 2 ] && grep -q "unknown --select predicate" "$TMP/sel_num_err"; then
-  ok "build-graph --select branch>N / swallow>N / loc>N threshold predicates filter by complexity + size (high threshold empties; non-numeric exits 2)"
+   && [ "$sel_num_bad_rc" = 2 ] && grep -q "unknown --select predicate" "$TMP/sel_num_err" \
+   && [ "$sel_uni_bad_rc" = 2 ] && grep -q "unknown --select predicate" "$TMP/sel_uni_err" \
+   && ! grep -q "invalid literal for int" "$TMP/sel_uni_err" \
+   && ! grep -q "Traceback" "$TMP/sel_uni_err"; then
+  ok "build-graph --select branch>N / swallow>N / loc>N threshold predicates filter by complexity + size (high threshold empties; non-numeric and non-ASCII-digit thresholds exit 2 cleanly)"
 else
-  bad "build-graph --select numeric predicate wrong (br0=[$sel_br0] br9=[$sel_br9] sw0=[$sel_sw0] loc5=[$sel_loc5] loc99=[$sel_loc99] badrc=$sel_num_bad_rc)"
+  bad "build-graph --select numeric predicate wrong (br0=[$sel_br0] br9=[$sel_br9] sw0=[$sel_sw0] loc5=[$sel_loc5] loc99=[$sel_loc99] badrc=$sel_num_bad_rc unirc=$sel_uni_bad_rc)"
 fi
 
 # --- Test 11c2j2: --select honors --scope (Context-restricted, like --dot) + lang= guard --

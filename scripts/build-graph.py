@@ -1844,7 +1844,10 @@ def _select_token_pred(e):
         # JSON. N is a non-negative integer; a bad field or threshold falls through to the error.
         field_short, _, thresh = e.partition(">")
         node_field = _SELECT_NUM_FIELDS.get(field_short)
-        if node_field is not None and thresh.isdigit():
+        # str.isdigit() is True for non-ASCII digits (e.g. the superscript "²") that int()
+        # cannot parse, so require a plain ASCII integer; anything else falls through to the
+        # unknown-predicate error rather than raising a cryptic "invalid literal for int()".
+        if node_field is not None and thresh.isascii() and thresh.isdigit():
             n_thresh = int(thresh)
             return lambda n: (n.get(node_field) or 0) > n_thresh
     if e.startswith("no-") and e[3:] in _SELECT_BOOL_FIELDS:
