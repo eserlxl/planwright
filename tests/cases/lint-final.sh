@@ -258,3 +258,49 @@ if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q '"present": true' \
 else
   bad "lint-final.py mishandled a present-but-blank final.md (blank rc=$rc ws rc=$rc2)"
 fi
+
+# --- Test LF-BUDGET: the fixpoint-strength fields validate WHEN PRESENT (additive) -------
+# budget/fixpoint are additive and backward-compatible — absence is valid (LF1's _wellformed has
+# neither). When present they are validated: a well-formed pair passes; used > a finite requested
+# fails; a non-integer budget fails; a present-but-empty fixpoint fails; an unlimited (-1) requested
+# budget allows any used.
+LFB="$TMP/lf-budget"; mkdir -p "$LFB/.planwright"
+{ _wellformed; printf 'budget: { requested: 10, used: 4 }\nfixpoint: cold-frontier and expand both dry\n'; } > "$LFB/.planwright/final.md"
+rc=0; out="$(python3 "$LF" --root "$LFB" --json)" || rc=$?
+if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q '"ok": true'; then
+  ok "lint-final.py accepts a well-formed final.md carrying budget/fixpoint"
+else
+  bad "lint-final.py rejected a well-formed budget/fixpoint final.md (rc=$rc): $out"
+fi
+# used > a finite requested budget FAILs (the acceptance mutation)
+{ _wellformed; printf 'budget: { requested: 4, used: 10 }\n'; } > "$LFB/.planwright/final.md"
+rc=0; out="$(python3 "$LF" --root "$LFB" 2>&1)" || rc=$?
+if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q 'exceeds the finite requested budget'; then
+  ok "lint-final.py fails a budget whose used exceeds a finite requested budget"
+else
+  bad "lint-final.py accepted used > requested (rc=$rc): $out"
+fi
+# a non-integer budget FAILs
+{ _wellformed; printf 'budget: { requested: ten, used: 4 }\n'; } > "$LFB/.planwright/final.md"
+rc=0; out="$(python3 "$LF" --root "$LFB" 2>&1)" || rc=$?
+if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q '`budget:`'; then
+  ok "lint-final.py fails a non-integer budget"
+else
+  bad "lint-final.py accepted a non-integer budget (rc=$rc): $out"
+fi
+# a present-but-empty fixpoint FAILs (a recorded field must be meaningful)
+{ _wellformed; printf 'fixpoint:\n'; } > "$LFB/.planwright/final.md"
+rc=0; out="$(python3 "$LF" --root "$LFB" 2>&1)" || rc=$?
+if [ "$rc" = 1 ] && printf '%s' "$out" | grep -q '`fixpoint:`'; then
+  ok "lint-final.py fails a present-but-empty fixpoint"
+else
+  bad "lint-final.py accepted an empty fixpoint (rc=$rc): $out"
+fi
+# an unlimited run (requested: -1) allows any used (no upper bound)
+{ _wellformed; printf 'budget: { requested: -1, used: 73 }\n'; } > "$LFB/.planwright/final.md"
+rc=0; out="$(python3 "$LF" --root "$LFB" --json)" || rc=$?
+if [ "$rc" = 0 ] && printf '%s' "$out" | grep -q '"ok": true'; then
+  ok "lint-final.py allows any used under an unlimited (requested: -1) budget"
+else
+  bad "lint-final.py rejected an unlimited-budget final.md (rc=$rc): $out"
+fi
