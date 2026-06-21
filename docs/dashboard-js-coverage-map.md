@@ -77,6 +77,9 @@ necessary but never sufficient — it proves the file parses, not that it render
   seeded `Invent framing: <vantage> (seed N)` chip and the `Backlog: N never-audited, M stale`
   sub-line from `metrics.frontier`, the "No cold-frontier list recorded yet." empty branch, and the
   uncovered/test flags on cold rows.
+- `cycles()` (Import cycles panel) — **behavior-asserted** (`DASH-INSIGHTS-RENDER`): one
+  `pw-cycle-card` per import cycle with a `pw-cycle-chip` per member file (paths pinned), and the
+  "No import cycles … acyclic" empty branch.
 
 ### [shards.js](../scripts/dashboard/views/shards.js) — codshard map
 - `render()` — **behavior-asserted**: shard cards from `state.repo` in sweep order, basis chip

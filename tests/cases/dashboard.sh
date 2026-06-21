@@ -2847,6 +2847,14 @@ var cycleRoot = new El("section");
 win.PW_VIEWS.insights(cycleRoot, { counts: {} }, { graphText: twoCycleGraph, metrics: mTwoCycle, builtSha: "deadbeef", stale: false, head: "deadbeef" });
 assert(findByClass(cycleRoot, "pw-cycle-card").length === 2,
   "cycles() did not render one cycle card per import cycle (want 2)");
+// Phase 2.2: each card lists its member files as chips (pw-cycle-chip); the card-count above never
+// inspects the members. Pin the chip count (one per cycle member) and a member's path so a dropped
+// or mislabeled member chip fails.
+var cycChips = findByClass(cycleRoot, "pw-cycle-chip").map(textOf).map(function (s) { return s.trim(); });
+assert(cycChips.length === 4,
+  "cycles() did not render one chip per cycle member (want 4 across two 2-node cycles, got " + cycChips.length + ")");
+assert(cycChips.some(function (s) { return /a\.py$/.test(s); }) && cycChips.some(function (s) { return /d\.py$/.test(s); }),
+  "cycles() member chips did not render the cycle's file paths (got " + cycChips.join(", ") + ")");
 console.log("INSIGHTS-RENDER-OK");
 JS
   if node "$TMP/insights_render_test.js" "$ROOT/scripts/dashboard" >"$TMP/insights_render.out" 2>"$TMP/insights_render.err" \
