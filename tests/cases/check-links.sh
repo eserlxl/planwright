@@ -365,3 +365,22 @@ if [ "$gi_rc" = "0" ] \
 else
   bad "check-links.py scanned or flagged a gitignored link target (rc=$gi_rc): $gi_out"
 fi
+
+# --- Test ROSTER: every bundled .py script (doctor.py BUNDLED) is documented ----------------
+# doctor.py's BUNDLED set is the install-completeness roster of verification-relevant scripts. A
+# fails-on-drift contract: every bundled .py must be named in docs/usage.md or docs/development.md,
+# so a renamed/added/removed bundled script (or a deleted doc mention) fails until the docs catch up.
+# This catches both acceptance cases: deleting a .py mention from the docs, AND adding a fake BUNDLED
+# entry (the fake would be undocumented).
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import os, re, sys
+root = sys.argv[1]
+doc = open(os.path.join(root, "scripts/doctor.py"), encoding="utf-8").read()
+bundled_py = sorted(set(re.findall(r'"([a-z_][a-z0-9_-]*\.py)"', doc)))
+assert bundled_py, "no bundled .py scripts parsed from doctor.py BUNDLED"
+usage = open(os.path.join(root, "docs/usage.md"), encoding="utf-8").read()
+dev = open(os.path.join(root, "docs/development.md"), encoding="utf-8").read()
+undoc = [p for p in bundled_py if p not in usage and p not in dev]
+assert not undoc, "bundled .py not documented in usage/development: %r" % undoc
+PY
+then ok "every bundled .py script (doctor.py BUNDLED) is documented in docs/usage.md or docs/development.md (fails-on-drift)"; else bad "a bundled .py script is undocumented in usage/development (or a fake BUNDLED entry was added)"; fi
