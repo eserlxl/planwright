@@ -110,6 +110,18 @@ simply runs the full dossier itself, exactly as on the off-path.
 - A **security** assertion (`tests/cases/security.sh`) that fails if the egress widens past
   read-only / git-tracked-only / Focus-enclosing, or if a secret could be written.
 
+## Security review
+
+Reviewed the on-path egress against the security posture; verdict: **no new attack surface beyond
+Stage 1.6's external backend.** hybrid-ai adds **no script** — it reuses the existing
+`run-agent.sh --read-only` invocation — so the SEC1–SEC3 planning write/read boundaries and SEC5's
+routing-only-never-Evidence rule are unchanged. The delegation is **read-only** (never write-capable),
+**git-tracked-only** (a gitignored secret is never egressed), **Focus-enclosing** (a scoped run never
+egresses more than its Focus's enclosing directory), **public-repo egress** only (never a tree holding
+private IP), and **never auto-engaged** (explicit opt-in). These properties are pinned by
+`tests/cases/security.sh` Test SEC6 (fails if any widens) and the egress drift-guard in
+`tests/cases/hybrid-ai.sh` (HA4).
+
 ## Open questions
 
 1. **Granularity** — delegate the whole Stages 3–7 sweep, or only the broadest lenses (5–6)? Start

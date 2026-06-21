@@ -148,6 +148,32 @@ else
   bad "the Stage 10 gate accepted routing-only Evidence (recon lead trusted as proof, rc=$sece_rc)"
 fi
 
+# --- Test SEC6: the hybrid-ai delegation egress stays read-only / git-tracked / opt-in ---
+# hybrid-ai (SKILL.md Stages 3-7) delegates the dossier survey to the external-agent CLI backend,
+# which ships the targeted tree to a third-party provider — the same egress class SEC5 governs for
+# Stage 1.6 recon. Its security-load-bearing properties: READ-ONLY (run-agent.sh --read-only, never
+# write-capable), git-tracked-only (never egress a gitignored secret), Focus-enclosing (never the
+# whole tree under a scope), public-repo only, and NEVER auto-engaged (explicit opt-in). Widening any
+# of these in the SKILL.md text removes a pinned phrase and fails this guard (so a secret can never be
+# egressed and the delegation can never silently turn write-capable or auto-engage).
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+a = t.find("### Stages 3"); b = t.find("### Stage 8")
+if a < 0 or b < 0 or b <= a:
+    raise SystemExit(1)
+para = t[a:b]
+need = [tok for tok in (
+    "--agent all --read-only",
+    "only git-tracked files",
+    "smallest directory enclosing the run's Focus",
+    "never auto-engaged",
+    "public-repo egress",
+) if tok not in para]
+sys.exit(1 if need else 0)
+PY
+then ok "the hybrid-ai delegation egress stays bounded (read-only, git-tracked-only, Focus-enclosing, never auto-engaged, public-repo only)"; else bad "the hybrid-ai delegation egress widened (read-only/git-tracked/Focus-enclosing/never-auto-engaged/public-repo guard breached)"; fi
+
 # --- Test SEC-NET: the security boundary suite is self-protecting --------------------
 # Silent non-execution is the worst failure mode for a gate (cf. run.sh's completeness
 # guard, which fails when a tests/cases/*.sh is unregistered). A safety-boundary assertion
@@ -157,14 +183,14 @@ fi
 # protect itself or guard the whole file's deletion — run.sh's completeness guard does that.)
 SEC_SRC="$ROOT/tests/cases/security.sh"
 sec_net_miss=""
-for marker in "Test SEC1:" "Test SEC2:" "Test SEC3:" "Test SEC4:" "Test SEC5:"; do
+for marker in "Test SEC1:" "Test SEC2:" "Test SEC3:" "Test SEC4:" "Test SEC5:" "Test SEC6:"; do
   grep -qF "$marker" "$SEC_SRC" || sec_net_miss="$sec_net_miss [$marker]"
 done
 # Also assert each boundary actually REPORTS a result (an ok/bad line per SECn region), so a
 # marker left as a dangling comment with its assertion gutted is caught too.
 sec_net_reports="$(grep -cE '^\s*(ok|bad) ' "$SEC_SRC")"
-if [ -z "$sec_net_miss" ] && [ "$sec_net_reports" -ge 6 ]; then
-  ok "the security boundary suite is self-protecting (SEC1-SEC5 markers present, >=6 reporting checks)"
+if [ -z "$sec_net_miss" ] && [ "$sec_net_reports" -ge 7 ]; then
+  ok "the security boundary suite is self-protecting (SEC1-SEC6 markers present, >=7 reporting checks)"
 else
   bad "a security boundary assertion was removed/renamed or stopped reporting:$sec_net_miss (reports=$sec_net_reports)"
 fi
