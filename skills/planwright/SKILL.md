@@ -885,6 +885,13 @@ item's `Evidence:`** — the identical never-Evidence ceiling Stage 1.6 enforces
 Stage 10 gate bars it). The pipeline stays single-agent; delegation buys token savings, never a
 second source of truth.
 
+The delegation ships **only git-tracked files** under that smallest Focus-enclosing directory —
+**never a gitignored path** (`node_modules/`, build output, vendored deps, `.env`); the prompt carries
+the git-tracked-only restriction (enumerate with `git ls-files`/`git grep`/`rg`/`fd` in default ignore
+mode, never `grep -r`/`find`/`--no-ignore`). Because it ships the targeted tree to a third-party
+provider it is **public-repo egress** only and never targets a tree holding private IP, and like the
+Stage 1.6 external backend it is **never auto-engaged** — `hybrid-ai` is the explicit opt-in.
+
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
    direction, source/header/test clusters, language-specific header-only/template constraints. Use the
    graph's `import_cycles` (strongly-connected import groups) as a concrete circular-dependency signal —

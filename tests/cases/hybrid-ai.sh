@@ -68,3 +68,25 @@ need = [tok for tok in (
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md Stages 3-7 pins the hybrid-ai never-Evidence ceiling (delegated findings re-proven from a code re-read or dropped, never Evidence)"; else bad "SKILL.md lost the hybrid-ai never-Evidence ceiling for delegated findings"; fi
+
+# --- Test HA4: SKILL.md Stages 3-7 bounds the hybrid-ai egress (read-only, git-tracked, Focus) ---
+# Delegation is read-only, ships only git-tracked files under the smallest Focus-enclosing dir, never
+# gitignored paths, public-repo egress only. Widening the target/egress removes a pinned phrase and
+# fails this guard (also covers the delegation clause's --read-only + Focus-enclosing --target).
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+a = t.find("### Stages 3"); b = t.find("### Stage 8")
+if a < 0 or b < 0 or b <= a:
+    raise SystemExit(1)
+para = t[a:b]
+need = [tok for tok in (
+    "--agent all --read-only",
+    "smallest directory enclosing the run's Focus",
+    "only git-tracked files",
+    "never a gitignored path",
+    "public-repo egress",
+) if tok not in para]
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md Stages 3-7 bounds the hybrid-ai egress (read-only, git-tracked-only, Focus-enclosing target, public-repo egress)"; else bad "SKILL.md lost or widened the hybrid-ai egress bound (read-only/git-tracked/Focus-enclosing/public-repo)"; fi
