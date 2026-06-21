@@ -490,10 +490,46 @@
     return label;
   }
 
+  // ---- runs: per-motion telemetry from the run-history ledger (/runs.json) --------------
+  // Aggregate the append-only run ledger into per-motion stats: run count, a duration summary
+  // (total + average seconds, from started→ended), and the convergence-outcome distribution
+  // (converged / stale / pending / idle / unknown). Pure and tolerant — a non-array, or a record
+  // missing fields, never throws; an unparseable duration is omitted from the average.
+  function aggregateMotions(runs) {
+    var out = {};
+    if (!Array.isArray(runs)) return out;
+    runs.forEach(function (r) {
+      r = r || {};
+      var m = String(r.command || "unknown");
+      var a = out[m] || (out[m] = {
+        motion: m, count: 0, totalSeconds: 0, timedRuns: 0, avgSeconds: null,
+        outcomes: { converged: 0, stale: 0, pending: 0, idle: 0, unknown: 0 },
+      });
+      a.count += 1;
+      var t0 = Date.parse(r.started), t1 = Date.parse(r.ended);
+      if (!isNaN(t0) && !isNaN(t1) && t1 >= t0) {
+        a.totalSeconds += Math.round((t1 - t0) / 1000);
+        a.timedRuns += 1;
+      }
+      var oc = r.outcome;
+      if (oc === "converged" || oc === "stale" || oc === "pending" || oc === "idle") {
+        a.outcomes[oc] += 1;
+      } else {
+        a.outcomes.unknown += 1;
+      }
+    });
+    Object.keys(out).forEach(function (m) {
+      var a = out[m];
+      a.avgSeconds = a.timedRuns ? Math.round(a.totalSeconds / a.timedRuns) : null;
+    });
+    return out;
+  }
+
   window.PW_DERIVE = {
     metrics: metrics, pctRank: pctRank, quantile: quantile, pendingModes: pendingModes,
     staleCast: staleCast, finalFlag: finalFlag, finalPointShown: finalPointShown,
     activityShown: activityShown, activityLabel: activityLabel,
+    aggregateMotions: aggregateMotions,
     coach: { signals: coachSignals, recommend: coachRecommend, evidence: coachEvidence, reset: coachReset },
     graph: { adapt: graphAdapt, cycleMembers: cycleMembers },
     shards: { map: shardMap },
