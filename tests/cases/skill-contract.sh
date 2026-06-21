@@ -417,3 +417,25 @@ assert num(r"never_audited=(\d+)") == j_na, "digest frontier never_audited drift
 assert num(r"stale=(\d+)") == j_stale, "digest frontier stale drifted from JSON"
 PY
 then ok "build-graph.py --debug digest counts are faithful to the JSON (cycles/coupling/articulation/frontier) on a non-vacuous fixture"; else bad "build-graph.py --debug digest counts drifted from the JSON or the fixture was vacuous"; fi
+
+# --- Test 10ha: docs/hybrid-ai-design.md locks the opt-in delegation contract ---
+# The hybrid-ai design doc is the load-bearing record for the opt-in dossier-survey delegation
+# (Phase 5). Pin its existence and its safety clauses verbatim so the contract cannot silently
+# regress or the doc be deleted: opt-in, never-Evidence, off==skipped, no-hard-dependency,
+# public-repo egress. (Mirrors how Test 10d pins the Stage 1.6 recon contract this clones.)
+if python3 - "$ROOT/docs/hybrid-ai-design.md" <<'PY' 2>/dev/null
+import os, sys
+p = sys.argv[1]
+if not os.path.exists(p):
+    raise SystemExit(1)
+t = " ".join(open(p, encoding="utf-8").read().split())
+need = [tok for tok in (
+    "opt-in",
+    "never-Evidence",
+    "off==skipped",
+    "no-hard-dependency",
+    "public-repo egress",
+) if tok not in t]
+sys.exit(1 if need else 0)
+PY
+then ok "docs/hybrid-ai-design.md locks the opt-in delegation contract (opt-in, never-Evidence, off==skipped, no-hard-dependency, public-repo egress)"; else bad "docs/hybrid-ai-design.md missing or lost a load-bearing clause"; fi
