@@ -109,3 +109,21 @@ need = [tok for tok in (
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md Stages 3-7 pins the hybrid-ai degrade-to-skip (no-hard-dependency: skip note + runs the dossier unchanged on the host agent)"; else bad "SKILL.md lost the hybrid-ai degrade-to-skip clause or skip message"; fi
+
+# --- Test HA6: the hybrid-ai vocabulary is consistent across every advertised surface ---
+# Host-parity / docs-contract: the flag must appear in SKILL.md, the forwarding commands, the host
+# example files, the user docs, and the design record. Dropping it from any one surface fails this
+# guard (so every advertised host stays in lockstep).
+ha6_miss=""
+for f in \
+  skills/planwright/SKILL.md \
+  commands/codvisor.md commands/codcycle.md commands/codshard.md \
+  AGENTS.example.md GEMINI.example.md GEMINI.example_context-mode.md \
+  docs/usage.md README.md docs/hybrid-ai-design.md; do
+  grep -qF "hybrid-ai" "$ROOT/$f" || ha6_miss="$ha6_miss [$f]"
+done
+if [ -z "$ha6_miss" ]; then
+  ok "the hybrid-ai vocabulary is consistent across SKILL, the forwarding commands, host examples, and user docs"
+else
+  bad "the hybrid-ai flag is missing from a parity surface:$ha6_miss"
+fi
