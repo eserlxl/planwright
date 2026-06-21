@@ -650,6 +650,46 @@ def _strip_jsonc(s):
     return "".join(out)
 
 
+def _strip_js_comments(s):
+    """Remove // and /* */ comments from JS/TS, skipping string and template literals so
+    comment delimiters that appear *inside* a string (a URL, a regex pattern, or a `/*`/`*/`
+    pair split across two separate string literals) are not mistaken for a comment. A blanket
+    `/\\*.*?\\*/` regex over-strips: it deletes everything between a `/*` in one string and a
+    `*/` in another — including the real import statements in between — dropping graph edges.
+    A string-aware char walker (a JS sibling of _strip_jsonc that additionally tracks ', ",
+    and ` quotes) cannot. Best-effort: a template literal's `${}` interpolation is treated as
+    opaque string content, which is sufficient for import extraction."""
+    out, i, n = [], 0, len(s)
+    quote = None  # the open quote char (' " or `) while inside a string, else None
+    while i < n:
+        c = s[i]
+        if quote is not None:
+            out.append(c)
+            if c == "\\" and i + 1 < n:   # escape: copy the escaped char verbatim
+                out.append(s[i + 1])
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            i += 1
+        elif c in ("'", '"', "`"):
+            quote = c
+            out.append(c)
+            i += 1
+        elif c == "/" and i + 1 < n and s[i + 1] == "/":
+            while i < n and s[i] != "\n":
+                i += 1
+        elif c == "/" and i + 1 < n and s[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (s[i] == "*" and s[i + 1] == "/"):
+                i += 1
+            i += 2
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
 def _strip_trailing_commas(s):
     """Drop trailing commas (a comma whose next non-whitespace char is `}` or `]`)
     from JSONC, skipping string literals so a comma inside a string value like
@@ -823,7 +863,12 @@ def strip_comments(lang, text):
     beats precision, and a missed strip only re-admits a false edge, which merely
     mis-routes and never produces a finding. Used only for import extraction; the original
     text still feeds branch_count and the metrics."""
-    if lang in ("c", "js", "rust", "go"):
+    if lang == "js":
+        # JS/TS string and template literals (', ", `) can themselves contain `/*`/`*/`/`//`;
+        # a blanket regex would over-strip the real code (imports) between two such
+        # string-embedded delimiters, dropping edges. Use a string-aware char walker instead.
+        text = _strip_js_comments(text)
+    elif lang in ("c", "rust", "go"):
         # C/C++ `#include` uses `#` for the preprocessor, not a comment, so only `/* */`
         # and `//` are stripped here (never `#`).
         text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
