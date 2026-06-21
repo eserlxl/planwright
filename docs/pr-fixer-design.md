@@ -6,12 +6,14 @@ codmaster rung and the dashboard view are deferred follow-ups); (3) planwright s
 it *reads* PR data but never writes to GitHub, so all push-back is the operator's own manual step,
 which planwright only *prepares and instructs*.
 
-**As built (two deviations from the original sketch, both forced by the codebase):**
-- **No `commands/*.md` host alias.** `pr` is a `planwright <sub>` subcommand exactly like
-  `check`/`status`/`advise` (invoked `planwright pr` / `planwright pr handoff`). A `commands/codpr.md`
-  would have joined the `cod*.md` family, which the suite hard-pins at **exactly 5 flagship sweeps**
-  (codvisor/codinventor/codcycle/codshard/codmaster, each with a cost banner + README host-parity
-  rows) — `pr` is a targeted subcommand, not a sweep, so it follows the subcommand precedent instead.
+**As built (deviations from the original sketch, both forced by the codebase):**
+- **`pr` is a `planwright <sub>` subcommand; the `commands/codpr.md` alias came afterward.** `pr` is
+  invoked `planwright pr` / `planwright pr handoff`, exactly like `check`/`status`/`advise`. The v1
+  subcommand shipped *without* a `commands/*.md` host alias; a thin `commands/codpr.md` alias
+  **was later added as the sixth command-family member** — a targeted `pr` shortcut, not a flagship
+  maturity sweep (it carries no sweep cost banner), so the `cod*.md` pin of **exactly 5 flagship
+  sweeps** (codvisor/codinventor/codcycle/codshard/codmaster, each with a cost banner + README
+  host-parity rows) still holds even though the alias now exists.
   *Throughout this doc, `codpr` is shorthand for the `planwright pr` subcommand.*
 - **Tests consolidated in `tests/cases/pr.sh`** (self-contained, mirroring the `doctor.sh`
   precedent — including the routing-gate security check), rather than scattered into
@@ -19,7 +21,7 @@ which planwright only *prepares and instructs*.
 
 Files: new `scripts/pr.py` (`leads` + `handoff`), `skills/planwright/references/pr.md`,
 `tests/cases/pr.sh`; edits to `skills/planwright/SKILL.md` (dispatch pointer + Usage lines) and
-`tests/run.sh` (case registration). Full suite **685/0**.
+`tests/run.sh` (case registration). Full suite **687/0**.
 
 planwright is **language-agnostic** and, until now, **100% local + read-only toward the network.**
 This feature adds the project's first `gh`/remote dependency — but **read-only**: planwright fetches
