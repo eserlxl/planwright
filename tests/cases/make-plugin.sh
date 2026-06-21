@@ -153,3 +153,28 @@ if [ -n "$mp8_cmd" ] && [ "$mp8_clean" = 0 ] && [ -z "$mp8_miss" ]; then
 else
   bad "generated ci.yml validate step missed a corrupt manifest:$mp8_miss (clean=$mp8_clean cmd='$mp8_cmd')"
 fi
+
+# --- Test MP9: the scaffold ships a working onboarding verification baseline -----------------
+# A freshly-scaffolded plugin must verify out of the box: its generated tests/run.sh exits 0 on the
+# clean scaffold (manifests parse + bundled scripts pass bash -n) and its generated ci.yml carries
+# the three intended steps (shellcheck, manifest-validate, smoke). Non-vacuity: corrupting a manifest
+# makes the generated smoke fail.
+MP9D="$TMP/mkplugin-baseline"; mkdir -p "$MP9D"
+if NO_GIT=1 AUTHOR_NAME="Test Dev" AUTHOR_EMAIL="t@example.com" PLUGIN_DESC="A test plugin." \
+   bash "$MP" baseline-plugin "$MP9D/baseline-plugin" >"$TMP/mp9.out" 2>"$TMP/mp9.err"; then
+  GEN="$MP9D/baseline-plugin"
+  mp9_clean=0; bash "$GEN/tests/run.sh" >"$TMP/mp9.run" 2>&1 || mp9_clean=$?
+  mp9_steps=1
+  for step in "Shellcheck" "Validate manifests" "Smoke tests"; do
+    grep -q "name: $step" "$GEN/.github/workflows/ci.yml" || mp9_steps=0
+  done
+  printf 'not json{' > "$GEN/.claude-plugin/plugin.json"   # corrupt a manifest
+  mp9_corrupt=0; bash "$GEN/tests/run.sh" >/dev/null 2>&1 || mp9_corrupt=$?
+  if [ "$mp9_clean" = 0 ] && [ "$mp9_steps" = 1 ] && [ "$mp9_corrupt" != 0 ]; then
+    ok "make-plugin scaffold ships a working onboarding baseline (generated smoke exits 0; ci.yml has shellcheck/manifest/smoke; corrupt manifest fails smoke)"
+  else
+    bad "make-plugin scaffold baseline broken (clean=$mp9_clean steps=$mp9_steps corrupt=$mp9_corrupt): $(cat "$TMP/mp9.run" 2>/dev/null)"
+  fi
+else
+  bad "make-plugin.sh failed to scaffold the baseline plugin: $(cat "$TMP/mp9.err" 2>/dev/null)"
+fi
