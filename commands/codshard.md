@@ -40,7 +40,10 @@ Resolve them in this order:
    `path`, `lib`, `seed`, `explore`, `invent`), is a malformed list — print the `Usage:` line and
    STOP (catching the `shards path` typo class upfront beats a mid-run scope no-match). An entry containing `/` or naming an
    existing directory is a `path` shard; any other entry is a `lib` shard (planwright resolves the
-   logical name). If a scope was also peeled in step 0, it joins the front of this list.
+   logical name). If a scope was also peeled in step 0, it joins the front of this list **keeping the
+   explicit type its keyword named** — `path <X>` is a path shard, `lib <X>` is a lib shard — so the
+   filesystem-presence reclassification above applies only to keyword-less `shards` entries and never
+   overrides an explicit `lib <X>` whose directory happens to exist on disk.
 
 2. **Peel `parallel`** (optionally a backend qualifier `agent` or `external`, then an integer
    `J >= 1`, which binds to it) from `<rest>`: it is **forwarded to each per-shard planwright run**,
