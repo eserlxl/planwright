@@ -37,11 +37,6 @@
       if (attempts > max) { return { text: "offline", cls: "err" }; }
       return { text: "reconnecting (" + attempts + ")", cls: "warn" };
     },
-    // True when a reconnect's first change id jumps past the next expected id (lastSeenId + 1) —
-    // changes occurred during the disconnect, so a "caught up after gap" signal is warranted.
-    gap: function (lastSeenId, receivedId) {
-      return (lastSeenId >= 0) && (receivedId > lastSeenId + 1);
-    },
   };
 
   var VIEWS = [
