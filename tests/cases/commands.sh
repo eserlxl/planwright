@@ -106,10 +106,9 @@ for tok in ["path <X>", "lib <X>", "peel", "append",
             # the CLI-habit flag aliases the command adapters tolerate must resolve
             # identically on AGENTS.md/Gemini hosts (commands/*.md step-0 parity)
             "--path <X>", "--lib <X>", "--scope <X>", "--opt=<X>",
-            # the orchestrators must stay discoverable on non-Claude hosts:
-            # each template names all three, the codcycle/codshard recipe files, and
-            # the codmaster sense engine (never a prose decision table)
-            "codcycle", "codshard", "codmaster",
+            # the orchestrators' recipe files and the codmaster sense engine (status.py,
+            # never a prose decision table) must stay discoverable on non-Claude hosts; the
+            # bare cod* family names are gated against commands/cod*.md by Test 13d2 below
             "commands/codcycle.md", "commands/codshard.md", "status.py",
             # host-neutral recon must be DISCOVERABLE off Claude Code: each adapter names the
             # opt-in parallel recon and its external-agents CLI backend (routing-only, never Evidence)
@@ -123,6 +122,25 @@ sys.exit(1 if need else 0)
 PY
 done
 if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates carry the six-helper family with scoped codvisor/codinventor resolution and host-neutral external-agents recon"; else bad "host instruction templates lost a helper (codcycle/codshard/codmaster), the scoped resolution rules, or the host-neutral parallel-recon rung"; fi
+
+# --- Test 13d2: each host example names the FULL cod* family (derived from commands/cod*.md) ----
+# Test 13d's static list named only codcycle/codshard/codmaster; a NEW cod* command (codpr was the
+# last) added to commands/ but forgotten in a host example would slip past it. Derive the canonical
+# family from glob(commands/cod*.md) — the same source Test 13g uses for the README — and assert
+# every host example names each member, so the family drives the gate, not a literal.
+sc_fam_ok=1
+for hf in AGENTS.example.md GEMINI.example.md GEMINI.example_context-mode.md; do
+  python3 - "$ROOT" "$ROOT/$hf" <<'PY' 2>/dev/null || sc_fam_ok=0
+import glob, os, sys
+root, hf = sys.argv[1], sys.argv[2]
+canon = sorted(os.path.basename(p)[:-3] for p in glob.glob(os.path.join(root, "commands", "cod*.md")))
+assert len(canon) == 6, canon
+t = open(hf, encoding="utf-8").read()
+missing = [n for n in canon if n not in t]
+sys.exit(1 if missing else 0)
+PY
+done
+if [ "$sc_fam_ok" = 1 ]; then ok "each host example names the full cod* shortcut family (derived from commands/cod*.md, not a literal)"; else bad "a host example dropped a cod* family member (derived from commands/cod*.md)"; fi
 
 # --- Test 14b: codvisor/codinventor pin their load-bearing cost banner (both cases) ---
 # The flagship banner exists "so the heavy run is never silent" (codvisor.md case 1), and the
