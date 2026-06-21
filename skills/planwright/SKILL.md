@@ -864,6 +864,13 @@ restrict to `dirty ∩ Focus`, and the maturity-gated lenses 5–6 survey **Focu
 component) rather than project-wide. Reading the wider Context keeps grounding and root cause intact;
 Stage 10 enforces that what lands stays in Focus (with the upstream-repair exception).
 
+**hybrid-ai (opt-in dossier-survey delegation).** When `hybrid-ai` is **absent** (the default), this
+dossier survey runs entirely on the host single agent exactly as today — **off==skipped**: the run
+writes **no new `.planwright/` state** and the produced dossier is **unchanged** from the baseline
+(the off-path is byte-identical, paralleling Stage 1.6's "writes no files of its own"). The flag is
+**ignored under `invent` and on `execute`** (the generative tier and the mutating path take no
+survey-delegation lever), exactly as Stage 1.6's `parallel` is. Full design: `docs/hybrid-ai-design.md`.
+
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
    direction, source/header/test clusters, language-specific header-only/template constraints. Use the
    graph's `import_cycles` (strongly-connected import groups) as a concrete circular-dependency signal —
