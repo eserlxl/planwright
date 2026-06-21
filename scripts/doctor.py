@@ -159,10 +159,11 @@ def check_scripts():
 def check_target(root):
     """Report whether --root is inside a git work tree (the graph build needs one).
     A work tree with no commits yet (an unborn HEAD — a fresh `git init`) is reported
-    as WARN, not ok: the Stage 1.5 graph build's first op is `git rev-parse HEAD`
-    (build-graph.py), which fatals on an unborn HEAD, so an otherwise-clean doctor would
-    green-light a first `planwright` run that then hard-crashes with an opaque
-    `fatal: ambiguous argument 'HEAD'`. One commit up front turns that into a hint."""
+    as WARN, not ok: the Stage 1.5 graph build (build-graph.py) degrades *gracefully* on
+    an unborn HEAD — it detects the empty `git rev-parse --verify --quiet HEAD` and builds
+    a minimal graph rather than crashing — but the history-derived signals (change-coupling,
+    git churn, the incremental dirty set) are absent until there is at least one commit.
+    One commit up front unlocks them, so the WARN is a quality hint, not a blocker."""
     is_repo = False
     born = False
     if shutil.which("git"):
@@ -173,8 +174,9 @@ def check_target(root):
             )
             is_repo = out.returncode == 0 and out.stdout.strip() == "true"
             if is_repo:
-                # An unborn HEAD rev-parses non-zero here but crashes the graph build's
-                # unconditional `git rev-parse HEAD`. --quiet --verify keeps it silent.
+                # An unborn HEAD rev-parses non-zero here; build-graph.py handles that
+                # gracefully (empty/minimal graph), but a first commit unlocks the
+                # history-derived signals. --quiet --verify keeps this probe silent.
                 head = subprocess.run(
                     ["git", "-C", root, "rev-parse", "--quiet", "--verify", "HEAD"],
                     capture_output=True, text=True, timeout=5,
@@ -187,9 +189,10 @@ def check_target(root):
             "name": "target is a git repo",
             "status": "warn",
             "detail": os.path.abspath(root) + " (git work tree, but no commits yet)",
-            "degrades": "the Stage 1.5 graph build runs `git rev-parse HEAD` and fails on "
-                        "an unborn HEAD; make at least one commit "
-                        "(`git add -A && git commit`) before planning",
+            "degrades": "the Stage 1.5 graph build degrades gracefully on an unborn HEAD "
+                        "(a minimal graph with no history-derived signals — change-coupling, "
+                        "churn, the dirty set); make at least one commit "
+                        "(`git add -A && git commit`) to unlock them",
         }]
     return [{
         "name": "target is a git repo",
