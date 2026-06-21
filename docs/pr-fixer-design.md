@@ -21,7 +21,7 @@ which planwright only *prepares and instructs*.
 
 Files: new `scripts/pr.py` (`leads` + `handoff`), `skills/planwright/references/pr.md`,
 `tests/cases/pr.sh`; edits to `skills/planwright/SKILL.md` (dispatch pointer + Usage lines) and
-`tests/run.sh` (case registration). Full suite **687/0**.
+`tests/run.sh` (case registration). Full suite **689/0**.
 
 planwright is **language-agnostic** and, until now, **100% local + read-only toward the network.**
 This feature adds the project's first `gh`/remote dependency — but **read-only**: planwright fetches

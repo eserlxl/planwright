@@ -1030,7 +1030,7 @@ PY
 then ok "every script-resolving adapter (codmaster/codshard/codcycle/dashboard) documents the env-var preference, the ../scripts/ sibling fallback, and the never-a-bare-scripts negative"; else bad "a script-resolving adapter dropped a bundled-scripts resolution clause (cwd-blindspot risk)"; fi
 
 # --- Test 13g: the README host-parity table names exactly the real cod* shortcut family -----------
-# README advertises the five cod* shortcuts; the authoritative set is the commands/cod*.md files (also
+# README advertises the six cod* shortcuts; the authoritative set is the commands/cod*.md files (also
 # what install-aliases installs). Drive the expected set from those filenames, not a literal, so adding
 # or removing a shortcut command without updating the README fails the case.
 if python3 - "$ROOT" <<'PY' 2>/dev/null

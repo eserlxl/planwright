@@ -140,8 +140,8 @@ else
 fi
 
 # --- Test IA1b: the installer writes EXACTLY the six canonical delegators (no more, no fewer) ----
-# IA1 checks the six named files EXIST (the no-fewer arm); a regression that added a SIXTH delegator
-# would slip past it. Pin the exact set: the installed .md count is 5 and equals the canonical cod* family.
+# IA1 checks the six named files EXIST (the no-fewer arm); a regression that added a SEVENTH delegator
+# would slip past it. Pin the exact set: the installed .md count is 6 and equals the canonical cod* family.
 IAX="$TMP/ia-exact"; mkdir -p "$IAX"
 if bash "$IA" --dir "$IAX" >/dev/null 2>&1; then
   ia_count="$(find "$IAX" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
