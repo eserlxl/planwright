@@ -225,6 +225,26 @@ PY
 done
 if [ "$sc_recipe_ok" = 1 ]; then ok "each host example carries the codcycle (cycle 3 depth 10 explore/invent) and codshard (per-shard + closing whole-repo round) recipe grammar"; else bad "a host example drifted from the codcycle/codshard recipe grammar"; fi
 
+# --- Test 13d5: each host example carries the codpr grammar + read-only-GitHub invariant ---------
+# codpr maps every form onto the planwright `pr` subcommand (`pr handoff` for the push-back recipe)
+# and is READ-ONLY toward GitHub — a load-bearing SAFETY invariant: a host example that dropped it
+# could let a non-Claude agent push/comment/merge. Test 13d gates the cod* family names (13d2) and
+# the codvisor/codinventor resolution, but never codpr's own grammar. Bind it to commands/codpr.md.
+# Case-normalized (one host file writes "Read-only", another "read-only").
+sc_codpr_ok=1
+for hf in AGENTS.example.md GEMINI.example.md GEMINI.example_context-mode.md; do
+  python3 - "$ROOT/$hf" <<'PY' 2>/dev/null || sc_codpr_ok=0
+import sys
+tl = open(sys.argv[1], encoding="utf-8").read().lower()
+need = []
+if "`pr`" not in tl: need.append("pr-subcommand-prefix")
+if "pr handoff" not in tl: need.append("pr-handoff-subform")
+if "read-only toward github" not in tl: need.append("read-only-github-invariant")
+sys.exit(1 if need else 0)
+PY
+done
+if [ "$sc_codpr_ok" = 1 ]; then ok "each host example carries the codpr grammar (planwright pr prefix, pr handoff, and the read-only-toward-GitHub safety invariant)"; else bad "a host example drifted from the codpr grammar (pr prefix / pr handoff / read-only-toward-GitHub invariant)"; fi
+
 # --- Test 14b: codvisor/codinventor pin their load-bearing cost banner (both cases) ---
 # The flagship banner exists "so the heavy run is never silent" (codvisor.md case 1), and the
 # closing "print nothing of your own except the cost banner in cases 1 and 2" line is what makes
