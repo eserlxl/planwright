@@ -29,6 +29,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 
 RUNGS = ("repair", "coverage", "opportunity", "vision")
@@ -125,6 +126,30 @@ def collect(root: str) -> dict:
                 viols.append("deepest_tier 'invent' requires `invent_seams_examined:` with a "
                              "per-seam reason (inline or an indented `- ` block — the "
                              "earned-by-rigor audit)")
+
+    # Fixpoint-strength fields (additive, backward-compatible — SKILL.md Stage 11 documents both as
+    # optional). Validate ONLY when present; absence is always valid — a pre-fixpoint final.md parses
+    # exactly as before, so the validator must NOT require `fixpoint:`/`budget:` even alongside a
+    # `deepest_tier:` (that would break the additive/backward-compatible contract and reject every
+    # final.md written before these fields existed).
+    fixpoint = _field(lines, "fixpoint")
+    if fixpoint is not None and not fixpoint:
+        viols.append("`fixpoint:` is present but empty — record a one-line reason every reachable "
+                     "tier was dry, or omit the field")
+    budget = _field(lines, "budget")
+    if budget is not None:
+        # `budget: { requested: N, used: i }` — requested/used must be integers, and a FINITE
+        # (non-negative) requested budget must be >= used. An unlimited run records `requested: -1`
+        # (negative), for which `used` has no upper bound.
+        m_req = re.search(r"requested:\s*(-?\d+)", budget)
+        m_used = re.search(r"used:\s*(-?\d+)", budget)
+        if not (m_req and m_used):
+            viols.append("`budget:` must read `{ requested: N, used: i }` with integer N and i")
+        else:
+            requested, used = int(m_req.group(1)), int(m_used.group(1))
+            if requested >= 0 and used > requested:
+                viols.append("`budget:` used (%d) exceeds the finite requested budget (%d)"
+                             % (used, requested))
 
     for a, b in PAIRED:
         av, bv = _field(lines, a), _field(lines, b)
