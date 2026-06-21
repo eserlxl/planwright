@@ -93,6 +93,21 @@ class TestEvidenceAnchorFormParity(unittest.TestCase):
                             f"expected an out-of-range issue, got {colon}")
 
 
+class TestEvidenceAnchorBelowOne(unittest.TestCase):
+    """Files are 1-indexed, so a cited line below 1 (e.g. `:0`) is as impossible as one past
+    the file's end and must be flagged out-of-range — not silently admitted, which would
+    weaken the grounding gate."""
+
+    def test_line_zero_anchor_flagged_out_of_range(self):
+        with tempfile.TemporaryDirectory() as root:
+            with open(os.path.join(root, "small.py"), "w") as fh:
+                fh.write("a = 1\nb = 2\n")
+            issues = lp.evidence_anchor_issues("see small.py:0", root)
+            self.assertTrue(issues, "a :0 anchor must produce an issue, got none")
+            self.assertEqual(issues[0][1], "out-of-range",
+                             f"expected an out-of-range issue for a :0 anchor, got {issues}")
+
+
 class TestUnsafeSurfaceContainment(unittest.TestCase):
     """unsafe_surface() is execute mode's edit-boundary guard; its rejection branches must
     each be pinned so a containment escape can never be silently accepted."""

@@ -672,10 +672,13 @@ def evidence_anchor_issues(ev, root):
         except OSError:
             continue
         cited = int(line_s)
-        if cited > n_lines and (cand, cited) not in seen:
+        # Files are 1-indexed, so a cited line below 1 (e.g. `:0`) is as impossible as one past
+        # the file's end — both are out-of-range and weaken the grounding gate if admitted.
+        if (cited < 1 or cited > n_lines) and (cand, cited) not in seen:
             seen.add((cand, cited))
-            issues.append((cand, "out-of-range",
-                           f"cites line {cited}, but the file has {n_lines} lines"))
+            detail = (f"cites line {cited}, but line numbers start at 1" if cited < 1
+                      else f"cites line {cited}, but the file has {n_lines} lines")
+            issues.append((cand, "out-of-range", detail))
     return issues
 
 
