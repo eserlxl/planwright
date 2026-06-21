@@ -99,7 +99,8 @@ necessary but never sufficient — it proves the file parses, not that it render
   single-shard `codshard` invocation via `navigator.clipboard.writeText` (no-op without a clipboard).
 
 ### [timeline.js](../scripts/dashboard/views/timeline.js) — Decision timeline / burn-up
-- `render()` — **behavior-asserted**: the decision-timeline header.
+- `render()` — **behavior-asserted**: the decision-timeline header, and the fully-empty
+  "No history yet." branch (no completed and no rejected — no graph, no rows) (`DASH-TIMELINE-ROWS`).
 - `timelineGraph()` — **behavior-asserted**: per-mode cumulative line count, accepted-rate text,
   per-mode legend, and the none-accepted empty branch.
 - `row()` (decision rows) — **behavior-asserted** (`DASH-TIMELINE-ROWS`): one accepted row per

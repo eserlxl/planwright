@@ -3001,6 +3001,12 @@ var truncated = reasons.filter(function (r) { return /…$/.test(r); });
 assert(truncated.length === 1, "rejected-reason truncation branch not exercised (want exactly 1 …-terminated reason)");
 assert(truncated[0].length === 78, "truncated reason is not 77 chars + the ellipsis (got length " + truncated[0].length + ")");
 assert(reasons.indexOf("too small") >= 0, "a short rejected reason (<=80 chars) was wrongly truncated");
+// Phase 2.4: the fully-empty branch — no completed AND no rejected -> "No history yet." with no
+// graph and no rows. The base fixtures always carry items, so this branch was unexercised.
+var emptyRoot = new El("section");
+win.PW_VIEWS.timeline(emptyRoot, { completed: [], rejected: [], final_point: null }, {});
+assert(/No history yet\./.test(textOf(emptyRoot)), "timeline did not render the fully-empty 'No history yet.' branch");
+assert(findByClass(emptyRoot, "pw-dot").length === 0, "fully-empty timeline wrongly rendered decision rows");
 console.log("TIMELINE-ROWS-OK");
 JS
   if node "$TMP/timeline_rows_test.js" "$ROOT/scripts/dashboard" >"$TMP/timeline_rows.out" 2>"$TMP/timeline_rows.err" \
