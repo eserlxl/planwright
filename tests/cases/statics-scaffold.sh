@@ -599,3 +599,43 @@ if [ -z "$lh_missing" ] && [ "$lh_detects" = 1 ]; then
 else
   bad "a tracked script/case file is missing the SPDX license header (or the check went vacuous):$lh_missing"
 fi
+
+# --- Test STDLIB-ONLY: scripts/*.py import only stdlib + known intra-repo modules -----------
+# The MISSION dependency-light non-negotiable: planwright's engine scripts take no third-party
+# dependency. Parse every scripts/*.py top-level import and assert each root resolves to a Python
+# stdlib module (sys.stdlib_module_names, 3.10+; curated fallback for 3.9) or a known intra-repo
+# module. A third-party import fails. Non-vacuity: a fixture importing `requests` is detected.
+if python3 - "$ROOT" <<'PY' 2>/dev/null
+import ast, glob, os, sys
+root = sys.argv[1]
+intra = {"doctor", "plan_parse", "registry", "state", "status"}
+stdlib = getattr(sys, "stdlib_module_names", None)
+fallback = {
+  "argparse","ast","collections","datetime","glob","hashlib","http","importlib","io","json",
+  "math","os","pathlib","re","shutil","socket","socketserver","subprocess","sys","tempfile",
+  "threading","time","traceback","types","typing","urllib","webbrowser","functools","itertools",
+}
+def ok_root(r):
+    if r in intra:
+        return True
+    return r in stdlib if stdlib is not None else r in fallback
+def imports_of(src, fn):
+    out = []
+    for node in ast.parse(src, fn).body:   # top-level only
+        if isinstance(node, ast.Import):
+            out += [a.name.split(".")[0] for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            out.append(node.module.split(".")[0])
+    return out
+files = sorted(glob.glob(os.path.join(root, "scripts/*.py")))
+assert files, "no scripts/*.py found"
+bad = []
+for f in files:
+    for r in imports_of(open(f, encoding="utf-8").read(), f):
+        if not ok_root(r):
+            bad.append((os.path.basename(f), r))
+assert not bad, "third-party top-level imports in scripts/*.py: %r" % bad
+caught = [r for r in imports_of("import requests\nimport os\n", "<fixture>") if not ok_root(r)]
+assert caught == ["requests"], "stdlib-only gate vacuous — failed to flag a third-party import: %r" % caught
+PY
+then ok "scripts/*.py import only stdlib + known intra-repo modules (MISSION dependency-light; a third-party import fails)"; else bad "a scripts/*.py has a third-party top-level import, or the stdlib-only gate went vacuous"; fi
