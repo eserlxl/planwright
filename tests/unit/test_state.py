@@ -150,6 +150,19 @@ class TestRunHistoryLedger(unittest.TestCase):
             rec = state._read_run_history(state._run_history_path(root))[-1]
             self.assertEqual(rec.get("outcome"), "converged")
 
+    def test_outcome_stale(self):
+        # A recorded final point whose sha no longer matches HEAD (nothing pending) -> 'stale'.
+        with tempfile.TemporaryDirectory() as root:
+            self._git_init(root)
+            pw = os.path.join(root, ".planwright"); os.makedirs(pw)
+            with open(os.path.join(pw, "final.md"), "w", encoding="utf-8") as fh:
+                fh.write("sha: 0000000\ndate: 2026-06-21\nrepair: dry\ncoverage: dry\n"
+                         "opportunity: dry\nvision: dry\n")   # sha != HEAD -> stale final point
+            self._beacon(root, "cycle")
+            state.activity_stop(root, "cycle")
+            rec = state._read_run_history(state._run_history_path(root))[-1]
+            self.assertEqual(rec.get("outcome"), "stale")
+
 
 if __name__ == "__main__":
     unittest.main()
