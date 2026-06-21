@@ -448,3 +448,21 @@ if grep -qF "semantic-freeze taper marker" "$ROOT/skills/planwright/SKILL.md"; t
 else
   bad "SKILL.md lost the semantic-freeze taper marker in the cycle report"
 fi
+
+# --- Test 10hc: no standalone `expand` flag is advertised (escalation Open question 1 declined) ---
+# expand stays an escalation TIER under explore, never a user-facing flag. The flag registry is the
+# Options table + the frontmatter Supports: line; a future accidental `expand` flag in either must trip
+# CI. (The explore usage/ladder prose legitimately names "the expand tier" — that is NOT a flag, so
+# this checks the registry surfaces only, not free prose.)
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1]).read()
+bad = []
+if re.search(r'(?m)^\|\s*`expand[`\s|]', t):            # Options-table flag-cell `expand`
+    bad.append("options-row")
+m = re.search(r'(?m)^.*Supports:.*$', t)                # frontmatter Supports: flag list
+if m and re.search(r'\bexpand\b', m.group(0)):
+    bad.append("supports-line")
+sys.exit(1 if bad else 0)
+PY
+then ok "no standalone \`expand\` flag is advertised in SKILL.md (expand stays an escalation tier; Open question 1 declined)"; else bad "SKILL.md advertises a standalone \`expand\` flag (Open question 1 declined — expand is tier-only)"; fi

@@ -192,7 +192,10 @@ alternative `codexpert` doesn't tie to the `invent` flag.)
 1. **`expand` as a standalone posture?** Besides being an escalation tier under `explore`, should
    `expand` also be its own flag that biases the *whole* run generative-first from cycle 1 (the
    antigravity "this is a feature-expansion run" posture)? Recommend: ship it as the escalation tier
-   first; add the standalone posture only if wanted.
+   first; add the standalone posture only if wanted. **Decided (declined):** `expand` stays an
+   escalation tier under `explore` only — it is **not** a standalone flag, and never appears in
+   SKILL.md's flag/Options surface. A negative drift-guard (`tests/cases/skill-contract.sh`) trips if a
+   standalone `expand` flag is ever advertised.
 2. **`invent` cap size.** How many cycles is "a few"? Recommend a small fixed cap (e.g. 3) independent
    of `N`, so even `-1` invents only in bounded bursts.
 3. **Validate before building.** This is still speculative until observed. Recommend dogfooding a real
