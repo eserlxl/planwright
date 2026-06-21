@@ -144,6 +144,13 @@ def parse_failing_log(log_text, check_name):
 
 _PROV_RE = re.compile(r"\((pr-thread|pr-check)\s+([^)]+)\)\s*$")
 
+# A GitHub GraphQL node ID is base64 / url-safe alphanumerics only. The handoff recipe
+# interpolates a thread ID into a `gh api graphql` command the operator pastes into a
+# shell, so an ID carrying shell metacharacters (quotes, `;`, backticks, `$()`, spaces)
+# could break out of the single-quoted query and inject commands. Anything outside this
+# alphabet is not a real node ID and is dropped from the recipe with a stderr warning.
+_GH_NODE_ID_RE = re.compile(r"^[A-Za-z0-9+/=_-]+$")
+
 
 def pr_provenance(title):
     """Extract a (kind, id) PR provenance tag from an item title, or None."""
@@ -320,7 +327,20 @@ def cmd_handoff(root):
               "`planwright pr`, then `execute`, then this handoff.")
         return 0
 
-    threads = [e for e in elig if e["kind"] == "pr-thread"]
+    threads = []
+    for e in elig:
+        if e["kind"] != "pr-thread":
+            continue
+        # Guard the injection sink: only a valid GraphQL node ID may be interpolated into
+        # the `gh api graphql` recipe below. A malformed/hostile id is dropped (warned), so
+        # it can never reach the operator's shell.
+        if not _GH_NODE_ID_RE.match(e["id"] or ""):
+            sys.stderr.write(
+                "pr: dropping a review thread from the resolve recipe — its id %r is not a "
+                "valid GitHub GraphQL node ID and could inject shell commands when pasted.\n"
+                % (e["id"],))
+            continue
+        threads.append(e)
     out = ["# planwright PR handoff — local push-back recipe",
            "# planwright runs NONE of this; you do. Review each step before running it.",
            f"# {len(elig)} verified, PR-sourced fix(es) recorded in completed.md:"]
