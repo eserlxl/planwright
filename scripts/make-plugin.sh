@@ -320,7 +320,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Shellcheck
-        run: shellcheck scripts/*.sh tests/*.sh
+        run: |
+          shopt -s nullglob
+          files=(scripts/*.sh tests/*.sh)
+          if [ ${#files[@]} -gt 0 ]; then shellcheck "${files[@]}"; else echo "no shell scripts to check"; fi
       - name: Validate manifests
         run: python3 -c "import json,glob;[json.load(open(f)) for d in ('.claude-plugin','.codex-plugin') for f in glob.glob(d+'/*.json')]"
       - name: Smoke tests
