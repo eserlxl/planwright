@@ -789,10 +789,11 @@ else
   bad "build-graph --select wrong (art=[$sel_art] py=[$sel_py] badrc=$sel_bad_rc)"
 fi
 
-# --- Test 11c2j4: --select branch>N / swallow>N threshold predicates (graded complexity) ---
-# The numeric `<field>>N` form thresholds the per-node complexity counters (branch_count,
-# swallow_count) — the graded analogues of the boolean `code`/`swallows` — so a maintainer can
-# triage by complexity (`branch>50` = branch-dense, untestable code) without post-processing the
+# --- Test 11c2j4: --select branch>N / swallow>N / loc>N threshold predicates (graded complexity + size) ---
+# The numeric `<field>>N` form thresholds the per-node counters (branch_count, swallow_count, loc)
+# — the graded analogues of the boolean `code`/`swallows`/`oversized` — so a maintainer can triage
+# by complexity (`branch>50` = branch-dense, untestable code) or file size (`loc>500` = the largest
+# files, the cutoff `oversized` hard-codes to 300) without post-processing the
 # JSON. A high threshold empties the slice (proving the threshold is real, not just >0); a
 # non-numeric threshold falls through to the unknown-predicate error (exit 2). Own fixture: one
 # branchy file with a swallow site, one trivial file.
@@ -804,14 +805,21 @@ git -C "$NUMREPO" add -A && git -C "$NUMREPO" -c user.name=t -c user.email=t@e.c
 sel_br0="$(python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'branch>0' 2>/dev/null | sort | tr '\n' ' ')"
 sel_br9="$(python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'branch>9' 2>/dev/null)"
 sel_sw0="$(python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'swallow>0' 2>/dev/null | sort | tr '\n' ' ')"
+# loc>N is the graded form of `oversized` (loc>300): the same `<field>>N` machinery thresholds the
+# per-node `loc` counter at any cutoff. complex.py (10 lines) clears loc>5, simple.py (2 lines) does
+# not; a very high threshold empties the slice — proving loc joined _SELECT_NUM_FIELDS, not just >0.
+sel_loc5="$(python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'loc>5' 2>/dev/null | sort | tr '\n' ' ')"
+sel_loc99="$(python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'loc>99' 2>/dev/null)"
 sel_num_bad_rc=0; python3 "$ROOT/scripts/build-graph.py" --root "$NUMREPO" --select 'branch>x' >/dev/null 2>"$TMP/sel_num_err" || sel_num_bad_rc=$?
 if [ "$sel_br0" = "complex.py " ] \
    && [ -z "$sel_br9" ] \
    && [ "$sel_sw0" = "complex.py " ] \
+   && [ "$sel_loc5" = "complex.py " ] \
+   && [ -z "$sel_loc99" ] \
    && [ "$sel_num_bad_rc" = 2 ] && grep -q "unknown --select predicate" "$TMP/sel_num_err"; then
-  ok "build-graph --select branch>N / swallow>N threshold predicates filter by complexity (high threshold empties; non-numeric exits 2)"
+  ok "build-graph --select branch>N / swallow>N / loc>N threshold predicates filter by complexity + size (high threshold empties; non-numeric exits 2)"
 else
-  bad "build-graph --select numeric predicate wrong (br0=[$sel_br0] br9=[$sel_br9] sw0=[$sel_sw0] badrc=$sel_num_bad_rc)"
+  bad "build-graph --select numeric predicate wrong (br0=[$sel_br0] br9=[$sel_br9] sw0=[$sel_sw0] loc5=[$sel_loc5] loc99=[$sel_loc99] badrc=$sel_num_bad_rc)"
 fi
 
 # --- Test 11c2j2: --select honors --scope (Context-restricted, like --dot) + lang= guard --

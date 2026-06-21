@@ -1748,8 +1748,9 @@ def to_dot(graph):
 # value selects a slice of the graph the audit already routes on.
 _SELECT_BOOL_FIELDS = ("is_articulation", "covered_by_test", "is_test")
 # Numeric per-node counters the `<field>>N` threshold predicate form selects on (short name ->
-# node key). The graded analogues of the boolean `code`/`swallows` predicates.
-_SELECT_NUM_FIELDS = {"branch": "branch_count", "swallow": "swallow_count"}
+# node key). The graded analogues of the boolean `code`/`swallows` predicates, plus `loc` — the
+# graded form of `oversized` (loc>300), so file size triages at any cutoff, not just 300.
+_SELECT_NUM_FIELDS = {"branch": "branch_count", "swallow": "swallow_count", "loc": "loc"}
 
 
 def _select_token_pred(e):
@@ -1784,10 +1785,11 @@ def _select_token_pred(e):
         # `stale-audited,code,no-is_test` to reproduce that count scriptably.
         return lambda n: n.get("audit_age_commits") not in (None, 0)
     if ">" in e:
-        # Numeric threshold predicates over the per-node complexity counters: `branch>N`
-        # selects branch_count>N, `swallow>N` selects swallow_count>N — the graded analogues
-        # of the boolean `code`/`swallows`, so a maintainer can scriptably triage by complexity
-        # (e.g. `branch>50` = the most branch-dense, untestable code) without post-processing the
+        # Numeric threshold predicates over the per-node counters: `branch>N` selects
+        # branch_count>N, `swallow>N` selects swallow_count>N (the graded analogues of the boolean
+        # `code`/`swallows`), and `loc>N` selects loc>N (the graded analogue of `oversized`), so a
+        # maintainer can scriptably triage by complexity or file size at any cutoff (e.g. `branch>50`
+        # = the most branch-dense code, `loc>500` = the largest files) without post-processing the
         # JSON. N is a non-negative integer; a bad field or threshold falls through to the error.
         field_short, _, thresh = e.partition(">")
         node_field = _SELECT_NUM_FIELDS.get(field_short)
@@ -1802,7 +1804,7 @@ def _select_token_pred(e):
     allowed = ", ".join(list(_SELECT_BOOL_FIELDS)
                         + ["no-" + b for b in _SELECT_BOOL_FIELDS]
                         + ["code", "oversized", "swallows", "never-audited", "stale-audited", "dirty",
-                           "branch>N", "swallow>N", "lang=NAME"])
+                           "branch>N", "swallow>N", "loc>N", "lang=NAME"])
     raise ValueError(f"unknown --select predicate '{e}'; allowed: {allowed}")
 
 
@@ -1814,8 +1816,8 @@ def to_select(graph, expr):
     a boolean field name (is_articulation | covered_by_test | is_test) selects nodes where
     it is true; a `no-` prefix on one selects where it is false; `code` selects
     branch_count>0; `oversized` selects loc>300 (the Stage 2a oversized-module threshold); a
-    `branch>N` / `swallow>N` token thresholds those same counters (the graded form of
-    `code`/`swallows`, e.g. `branch>50`); `never-audited` selects nodes with no reachable audit stamp
+    `branch>N` / `swallow>N` / `loc>N` token thresholds those same counters at any cutoff (the
+    graded form of `code`/`swallows`/`oversized`, e.g. `branch>50`, `loc>500`); `never-audited` selects nodes with no reachable audit stamp
     (audit_age_commits null); `lang=NAME` (NAME non-empty) selects nodes of that language; `dirty`
     selects the incremental-audit dirty set (graph["dirty"]["nodes"] — changed nodes + their 1-hop
     blast radius), meaningful only with `--prior` (a fresh build has no baseline to diff).
