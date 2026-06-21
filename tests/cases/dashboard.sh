@@ -2961,6 +2961,50 @@ else
   ok "dashboard Insights render-output check skipped (node not installed)"
 fi
 
+# --- Test DASH-TIMELINE-ROWS: the accepted/rejected decision rows (mode badge + reason inline) ------
+# timeline.render() lists one row per completed (pw-dot accepted + the mode pw-badge) and per rejected
+# (pw-dot rejected + pw-reason-inline). The Decision-timeline GRAPH is pinned by DASH-VIEWS-FN above;
+# the ROW list was smoke-only. Node-gated, clean skip without node.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/timeline_rows_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, findByClass, classOf, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "timeline");
+var longReason = "x".repeat(120);
+var state = {
+  completed: [{ title: "added widget", mode: "develop" }, { title: "fixed bug", mode: "repair" }],
+  rejected: [{ title: "dropped idea", reason: longReason }, { title: "short one", reason: "too small" }],
+  final_point: null,
+};
+var root = new El("section");
+win.PW_VIEWS.timeline(root, state, {});
+var dots = findByClass(root, "pw-dot");
+var accepted = dots.filter(function (d) { return /\baccepted\b/.test(classOf(d)); });
+var rejectedDots = dots.filter(function (d) { return /\brejected\b/.test(classOf(d)); });
+assert(accepted.length === 2, "timeline did not render one accepted row per completed item (want 2, got " + accepted.length + ")");
+assert(rejectedDots.length === 2, "timeline did not render one rejected row per rejected item (want 2, got " + rejectedDots.length + ")");
+var badges = findByClass(root, "pw-badge").map(textOf).map(function (s) { return s.trim(); });
+assert(badges.indexOf("develop") >= 0 && badges.indexOf("repair") >= 0,
+  "accepted rows did not carry the mode pw-badge (got: " + badges.join(", ") + ")");
+assert(findByClass(root, "pw-reason-inline").length === 2,
+  "rejected rows did not carry the pw-reason-inline reason");
+console.log("TIMELINE-ROWS-OK");
+JS
+  if node "$TMP/timeline_rows_test.js" "$ROOT/scripts/dashboard" >"$TMP/timeline_rows.out" 2>"$TMP/timeline_rows.err" \
+     && grep -q TIMELINE-ROWS-OK "$TMP/timeline_rows.out"; then
+    ok "timeline.js decision rows: accepted rows carry the mode pw-badge, rejected rows carry the pw-reason-inline"
+  else
+    bad "timeline.js decision-rows assertion failed: $(cat "$TMP/timeline_rows.err" 2>/dev/null)"
+  fi
+else
+  ok "timeline.js decision-rows check skipped (node not installed)"
+fi
+
 # --- Test DASH-ACT-SIG: the beacon's TTL crossing changes the /events signature ------
 # The activity beacon's stale flip happens by TTL, not by a file write — an interrupted
 # run leaves activity.json untouched, so without a derived bit in _mtime_signature the

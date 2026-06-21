@@ -102,6 +102,9 @@ necessary but never sufficient — it proves the file parses, not that it render
 - `render()` — **behavior-asserted**: the decision-timeline header.
 - `timelineGraph()` — **behavior-asserted**: per-mode cumulative line count, accepted-rate text,
   per-mode legend, and the none-accepted empty branch.
+- `row()` (decision rows) — **behavior-asserted** (`DASH-TIMELINE-ROWS`): one accepted row per
+  completed item carrying its mode `pw-badge`, and one rejected row per rejected item carrying the
+  `pw-reason-inline` reason.
 
 ### [graph.js](../scripts/dashboard/views/graph.js) — coupling graph
 - `render()` — **behavior-asserted** (`DASH-VIEWS-FN`): a graph-less ctx renders the `NO_GRAPH`
