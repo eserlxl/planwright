@@ -60,6 +60,9 @@ necessary but never sufficient — it proves the file parses, not that it render
 - base coach hero (`pw-coach-pick` / `pw-coach-evidence`) — **behavior-asserted** (`DASH-CMD-HERO`):
   the browser-coach pick equals `PW_DERIVE.coach.recommend(signals).key` and the evidence chips
   render, independent of the optional server `/recommend.json` overlay.
+- command grid (`pw-cmd-card` per `ORDER` entry) — **behavior-asserted** (`DASH-CMD-HERO`): one
+  card per ORDER key (codmaster/codvisor/codinventor/codcycle/codshard); the `pw-coach-pulse-chip`
+  warn-classing and the coverage-chip omission at null metrics are pinned by `DASH-CMD-PULSE`.
 - `recUsable()` — **behavior-asserted** indirectly (a wrong-shaped body is rejected, a usable
   one paints).
 - `dispatchInvocation()` — **behavior-asserted** indirectly (the panel maps `codshard`+`explore`

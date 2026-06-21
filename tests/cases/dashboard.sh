@@ -743,6 +743,14 @@ assert(new RegExp(rec.key).test(pick),
   "pw-coach-pick '" + pick + "' does not match COACH.recommend(signals).key '" + rec.key + "'");
 var evChips = findByClass(heroRoot, "pw-coach-ev").map(textOf).map(function (x) { return x.trim(); }).filter(Boolean);
 assert(evChips.length >= 1, "base coach hero rendered no pw-coach-evidence chips");
+// Phase 2.3: the command grid renders one card per ORDER entry; dropping an entry must fail the
+// count. (The pulse chips are pinned by DASH-CMD-PULSE and not re-asserted here.)
+var cardNames = findByClass(heroRoot, "pw-cmd-name").map(textOf).map(function (x) { return x.trim(); });
+assert(cardNames.length === 5,
+  "command grid did not render one card per ORDER entry (want 5, got " + cardNames.length + ": " + cardNames.join(", ") + ")");
+["codmaster", "codvisor", "codinventor", "codcycle", "codshard"].forEach(function (k) {
+  assert(cardNames.indexOf(k) >= 0, "command grid is missing the '" + k + "' card");
+});
 console.log("CMD-HERO-OK");
 JS
   if node "$TMP/cmd_hero_test.js" "$ROOT/scripts/dashboard" >"$TMP/cmd_hero.out" 2>"$TMP/cmd_hero.err" \
