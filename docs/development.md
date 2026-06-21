@@ -124,6 +124,19 @@ writable user-site dir and removes it on exit.
 bash scripts/coverage-gate.sh
 ```
 
+### `lint-gate.sh`
+
+Reproduces the CI **static gates** (`.github/workflows/ci.yml`) locally — `shellcheck` over the same
+script globs, `pyflakes scripts/*.py`, and `mypy --config-file mypy.ini scripts/` (CI pins
+`mypy==2.1.0`). It runs all three even when an earlier one fails, then exits non-zero if any did, so a
+single run surfaces every static problem at once. A non-fatal note flags a local `mypy` version that
+differs from the pinned one.
+
+```bash
+# Run shellcheck + pyflakes + mypy; exits 0 only when all three are clean
+bash scripts/lint-gate.sh
+```
+
 ## Shell-safety conventions
 
 The `scripts/*.sh` helpers run external tools with an argv list, never a shell string (the same
