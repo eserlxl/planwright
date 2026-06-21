@@ -40,19 +40,23 @@ Resolve them in this order:
    `<parallel>`: an opt-in read-only **recon prefetch**. Recon lives in the base skill — **append
    `<parallel>` to each `explore`-phase invocation** (Phase A of every outer cycle, and the closing
    final explore — **never the `invent` phase**), and planwright's **Stage 1.6** runs the prefetch
-   before that explore phase. Peel `parallel` and its qualifier out of `<rest>` before classifying
-   the remainder, so the integer below is always `N`, never a recon count (codcycle takes **no** `J`
-   — recon concurrency is host-capped). Bare `parallel`/`parallel agent` select the native subagent
+   before that explore phase. Peel `parallel`, its qualifier, **and an optional trailing integer
+   `J >= 1`** out of `<rest>` (in that order) before classifying the remainder, so neither the
+   qualifier nor `J` is ever misread as the cycle count `N` — this matches `codshard`'s peel order, so
+   `codcycle parallel 5` treats `5` as the recon fan-out `J`, **not** as `N`. When a `J` is present it
+   binds to `<parallel>` (`parallel [qualifier] J`) and is forwarded to each explore-phase invocation,
+   where planwright's **Stage 1.6** consumes it as the recon fan-out (host-capped, so an over-large
+   `J` is harmless). Bare `parallel`/`parallel agent` select the native subagent
    backend; `parallel external` is the explicit opt-in to the **entirely optional** external-agents
    CLI backend (which planwright never requires; only `parallel external` contacts a third-party
-   provider, so it is **never auto-engaged**). A token after `parallel` that is neither `agent` nor
-   `external` is not a qualifier — it stays in `<rest>`.
+   provider, so it is **never auto-engaged**). A token after `parallel` (and its optional qualifier
+   and `J`) that is not one of these is not part of the flag — it stays in `<rest>`.
 
 1. **`<rest>` empty**: run **10 outer cycles** (the default).
 2. **`<rest>` is a single integer `N`** (nothing else): run `N` outer cycles. `N` may be **negative**,
    which runs **forever** (until a stop condition fires or the user interrupts). `N` must be non-zero.
 3. **`<rest>` is `help` / `--help` / `-h` / `?`**: print
-   `Usage: /codcycle [N] [path <X> | lib <X>] [parallel [agent|external]]   (N != 0; negative = infinite; default 10; a path/lib scope aims every phase at one component; parallel runs a read-only recon prefetch before each explore phase — native subagent by default, the entirely optional external-agents CLI backend only on parallel external). Each outer cycle = explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed; the meta-final-point needs a full framing rotation to come up dry; one final explore closes the whole run.`
+   `Usage: /codcycle [N] [path <X> | lib <X>] [parallel [agent|external] [J]]   (N != 0; negative = infinite; default 10; a path/lib scope aims every phase at one component; parallel runs a read-only recon prefetch before each explore phase — native subagent by default, the entirely optional external-agents CLI backend only on parallel external). Each outer cycle = explore (cycle 3 depth 10) → invent (cycle 3 depth 10) under a rotating framing seed; the meta-final-point needs a full framing rotation to come up dry; one final explore closes the whole run.`
    and STOP — do not run anything.
 4. **Anything else** (including `N == 0` or a non-integer): print that same `Usage:` line and STOP.
 
