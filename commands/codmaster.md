@@ -242,13 +242,16 @@ safety cap; a bare run is a single lap, and in `loop` mode the counter restarts 
    normally even before qb; the deferral is only for the *converged* terminal that qb owns.** Once the
    qb intent-replan has run this lap (it came up dry, or its merged items were executed under the
    at-most-once flag), a subsequent no-progress match stops the bare drive normally; in `safe` (which
-   never runs qb) the guard stops as before. **In `loop` mode
+   never runs qb) the guard stops as before. **In a non-`safe` `loop` drive
    this guard does not stop the lap mid-flight** — a 0-commit harden must be allowed to advance to
    the guaranteed-to-generate growth burst rather than be misread as "done"; the 12-step cap is
    the mid-lap runaway backstop, and the no-progress verdict is instead evaluated once at the lap
    boundary (the terminal check above), where a lap that moved HEAD zero times across all its
    steps — through the post-growth codshard harden and the qb intent-replan's execute — is the
-   final convergence point.
+   final convergence point. **Under `safe loop`, where invention is disabled so no growth burst
+   follows a 0-commit harden, the mid-flight suppression does not apply** — the guard stays active
+   and stops a no-progress step normally (as outside `loop`), rather than spinning the same harden
+   up to the 12-step cap before the lap boundary can end it.
 
 **No discretionary stop — the stop set is closed.** codmaster has **no authority to end, pause, or
 abort the drive on its own judgment**, in any mode; the stop reasons named above are the *whole* set,
