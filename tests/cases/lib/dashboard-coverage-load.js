@@ -72,4 +72,14 @@ win.PW_VIEWS.shards(new El("section"),
   { repo: { tracked_files: 9, shardable_dirs: ["a", "b"], folded_dirs: [], large: false },
     final_point: { sha: "shard01", date: "2026-06-22", deepest_tier: "expand", valid: true, stale: false, scope: null } },
   { metrics: null });                                        // no-graph fallback + WHOLE-REPO final point
+// fleet.js: makeFixture carries no projects, so the per-view loop only reaches the empty early return.
+// Drive the populated grid (varied status, current-project highlight) so card() + the sort are MEASURED
+// (DASH-VIEWS-FLEET asserts this same DOM).
+win.PW_VIEWS.fleet(new El("section"), { root: "/x" }, { projects: [
+  { id: "p1", name: "alpha",   path: "/x", status: "active",    counts: { pending: 2, done: 5 } },
+  { id: "p2", name: "beta",    path: "/y", status: "converged", counts: { pending: 0, done: 9 } },
+  { id: "p3", name: "gamma",   path: "/z", status: "stale",     counts: { pending: 1, done: 3 } },
+  { id: "p4", name: "delta",   path: "/w", status: "idle" },
+  { id: "p5", name: "epsilon", path: "/v" },
+] });
 console.log("COV-LOAD-OK");

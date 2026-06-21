@@ -787,6 +787,56 @@ else
   ok "shards.js view-render check skipped (node not installed)"
 fi
 
+# --- Test DASH-VIEWS-FLEET: the Fleet view's populated project-grid render ---------------------------
+# The committed collector drives fleet.js only via makeFixture (no projects), so its grid/card() path
+# is unmeasured (the empty "No projects registered" early return is all that runs). Drive
+# win.PW_VIEWS.fleet with a populated projects list (varied status, a missing-status and a
+# missing-counts project, the current project highlighted) and assert the cards render; then assert the
+# empty list still paints the empty state.
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/fleet_view_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, findByClass, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "fleet");
+var projects = [
+  { id: "p1", name: "alpha",   path: "/x", status: "active",    counts: { pending: 2, done: 5 } },
+  { id: "p2", name: "beta",    path: "/y", status: "converged", counts: { pending: 0, done: 9 } },
+  { id: "p3", name: "gamma",   path: "/z", status: "stale",     counts: { pending: 1, done: 3 } },
+  { id: "p4", name: "delta",   path: "/w", status: "idle" },                 // no counts -> counts||{} default
+  { id: "p5", name: "epsilon", path: "/v" },                                 // no status -> label/hue/rank fallback
+];
+var c1 = new El("section");
+win.PW_VIEWS.fleet(c1, { root: "/x" }, { projects: projects });   // /x -> p1 is the current project (highlight)
+var t1 = textOf(c1);
+assert(findByClass(c1, "pw-fleet-card").length === 5, "one card per project expected");
+assert(findByClass(c1, "pw-fleet-card--active").length === 1, "active-status card class missing");
+assert(findByClass(c1, "pw-fleet-card--stale").length === 1, "stale-status card class missing");
+assert(findByClass(c1, "pw-fleet-dot").length === 5, "per-card status dot missing");
+assert(/5 projects . click a card/.test(t1), "project-count note missing");
+assert(/2 pending . 5 done/.test(t1), "per-card pending/done counts missing");
+assert(/0 pending . 0 done/.test(t1), "missing-counts project did not default to 0/0");
+assert(!/No projects registered yet/.test(t1), "empty state rendered with a populated list");
+// empty list -> the empty state (the path the per-view loop already covers, pinned here)
+var c2 = new El("section");
+win.PW_VIEWS.fleet(c2, {}, { projects: [] });
+assert(/No projects registered yet/.test(textOf(c2)), "empty projects list did not render the empty state");
+console.log("FLEET-VIEW-OK");
+JS
+  if node "$TMP/fleet_view_test.js" "$ROOT/scripts/dashboard" >"$TMP/fleet_view.out" 2>"$TMP/fleet_view.err" \
+     && grep -q FLEET-VIEW-OK "$TMP/fleet_view.out"; then
+    ok "fleet.js render() draws one card per project (status class/dot/label, pending+done counts, missing-status/counts fallbacks) and the empty-state on no projects"
+  else
+    bad "fleet.js view-render assertion failed: $(cat "$TMP/fleet_view.err" 2>/dev/null)"
+  fi
+else
+  ok "fleet.js view-render check skipped (node not installed)"
+fi
+
 # --- Test DASH-CMD-HERO: the base coach hero pick + evidence (browser coach, no /recommend.json) --
 # render()'s hero is computed from the BROWSER coach (PW_DERIVE.coach.signals -> recommend ->
 # evidence), independent of the optional server /recommend.json overlay. DASH-CMD-PULSE pins the
