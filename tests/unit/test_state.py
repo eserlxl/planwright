@@ -12,6 +12,7 @@
 
 import importlib.util
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -115,6 +116,39 @@ class TestRunHistoryLedger(unittest.TestCase):
             self.assertEqual(len(runs), 3, "ledger not capped to the most recent 3")
             self.assertEqual([r["command"] for r in runs], ["c2", "c3", "c4"],
                              "the cap kept the wrong (not most-recent) records")
+
+    def _git_init(self, root):
+        subprocess.run(["git", "init", "-q", root], check=True, capture_output=True)
+        subprocess.run(["git", "-C", root, "config", "user.email", "t@e.com"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", root, "config", "user.name", "t"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", root, "-c", "commit.gpgsign=false", "commit", "-q",
+                        "--allow-empty", "-m", "init"], check=True, capture_output=True)
+        return subprocess.run(["git", "-C", root, "rev-parse", "HEAD"],
+                              capture_output=True, text=True).stdout.strip()
+
+    def test_outcome_pending(self):
+        # Pending work at stop -> the run record's outcome is 'pending'.
+        with tempfile.TemporaryDirectory() as root:
+            pw = os.path.join(root, ".planwright"); os.makedirs(pw)
+            with open(os.path.join(pw, "plan.md"), "w", encoding="utf-8") as fh:
+                fh.write("# plan\n\n- [ ] do a thing\n      Mode: improve\n")
+            self._beacon(root, "execute")
+            state.activity_stop(root, "execute")
+            rec = state._read_run_history(state._run_history_path(root))[-1]
+            self.assertEqual(rec.get("outcome"), "pending")
+
+    def test_outcome_converged(self):
+        # A certified whole-repo final point matching HEAD with nothing pending -> 'converged'.
+        with tempfile.TemporaryDirectory() as root:
+            head = self._git_init(root)
+            pw = os.path.join(root, ".planwright"); os.makedirs(pw)
+            with open(os.path.join(pw, "final.md"), "w", encoding="utf-8") as fh:
+                fh.write("sha: %s\ndate: 2026-06-21\nrepair: dry\ncoverage: dry\n"
+                         "opportunity: dry\nvision: dry\n" % head)
+            self._beacon(root, "cycle")
+            state.activity_stop(root, "cycle")
+            rec = state._read_run_history(state._run_history_path(root))[-1]
+            self.assertEqual(rec.get("outcome"), "converged")
 
 
 if __name__ == "__main__":
