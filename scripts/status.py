@@ -822,8 +822,15 @@ def _dirty_paths(root):
         return []
     dirty = []
     for line in out.splitlines():
+        if not line.strip():
+            continue
         path = line[3:] if len(line) > 3 else ""
-        if path.startswith(".planwright/") or path == ".planwright" or not line.strip():
+        # Rename/copy porcelain lines carry `old -> new`; the *destination* is what now
+        # lives in the tree, so the .planwright/ exclusion must test the destination — not
+        # the stale source. A rename from .planwright/x to src/y must NOT be skipped.
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        if path.startswith(".planwright/") or path == ".planwright":
             continue
         dirty.append(line.strip())
     return dirty
