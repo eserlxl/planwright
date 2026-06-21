@@ -99,6 +99,13 @@ opens at. It is the `--since` anchor for the lap-close reconciliation in REPORT;
 re-record it at each new lap (the relap step below), and because the lap-opening `reset` moves
 nothing in git the ref is stable across it.
 
+Also **initialize the qb audit-independence flags here, at drive start, before the main loop**:
+`qb_audit_independent = true` (the per-lap flag, re-armed to `true` on each `loop` relap) and
+`qb_audit_independent_drive = true` (the sticky drive-level marker, cleared only by a fresh
+`/codmaster`). They default to **independent** so the REPORT block can always read them — including
+on a `safe` drive, or any drive that stops before the qb closing block where they would otherwise
+first be set — rather than referencing an uninitialized flag.
+
 Then repeat, for each step `i` (from 1, **never exceeding 12 steps** per lap — the runaway
 safety cap; a bare run is a single lap, and in `loop` mode the counter restarts each lap):
 
