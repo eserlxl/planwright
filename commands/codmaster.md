@@ -346,7 +346,11 @@ re-convergence from re-running qb within the same lap (without it, the OK→exec
 step 5 would loop back into this terminal and dispatch `/qb-plan auto` again). The step:
 1. **Availability guard.** Confirm qb is installed — i.e. the `/qb-plan auto` command is available
    to dispatch (its run-contract is to emit the single machine-detectable result line
-   `QB_PLAN_AUTO_OK:` / `QB_PLAN_AUTO_ERROR:`). Judge availability **before** running, by whether the
+   `QB_PLAN_AUTO_OK:` / `QB_PLAN_AUTO_ERROR:`, **matched by prefix** — a line *starting with*
+   `QB_PLAN_AUTO_OK` or `QB_PLAN_AUTO_ERROR`, the trailing colon and any following detail tolerated,
+   the same prefix rule as the `QB_PLAN_AUTO_WARN:` scan below — so the bare `QB_PLAN_AUTO_OK` /
+   `QB_PLAN_AUTO_ERROR` references in the steps below all match this identical token). Judge
+   availability **before** running, by whether the
    command exists — **not by whether a given run emits a line**. If qb is **absent** (the command is
    not installed at all), **skip qb** and fall through to today's terminal behavior (no qb step, no
    error). A qb that *is* installed, launches, but then produces no parseable line is **not** "absent":
