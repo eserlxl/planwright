@@ -30,3 +30,22 @@ need = [tok for tok in (
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md Stages 3-7 pins the hybrid-ai off==skipped state identity (off writes no new .planwright/ state, dossier unchanged from the baseline)"; else bad "SKILL.md lost the hybrid-ai off==skipped state-identity clause"; fi
+
+# --- Test HA2: SKILL.md Stages 3-7 pins the hybrid-ai ignore-context (invent/execute) ---
+# The flag is recognized but a no-op under the generative tier (invent) and the mutating path
+# (execute), mirroring Stage 1.6's parallel. A wrong ignore-context (e.g. "active under invent")
+# removes the pinned phrase and fails this guard.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+a = t.find("### Stages 3"); b = t.find("### Stage 8")
+if a < 0 or b < 0 or b <= a:
+    raise SystemExit(1)
+para = t[a:b]
+need = [tok for tok in (
+    "hybrid-ai",
+    "ignored under `invent` and on `execute`",
+) if tok not in para]
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md Stages 3-7 pins the hybrid-ai ignore-context (ignored under invent and on execute)"; else bad "SKILL.md lost the hybrid-ai ignore-context clause (invent/execute)"; fi
