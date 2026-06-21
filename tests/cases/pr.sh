@@ -139,6 +139,26 @@ else
   bad "pr handoff did not handle an empty/absent completed.md cleanly"
 fi
 
+# checks-only (eligible pr-check fixes but NO review threads) -> push + merge recipe,
+# but the optional resolve-thread section must be omitted (the `if threads:` false branch).
+HC="$TMP/pr-handoff-checks-only"; mkdir -p "$HC/.planwright"
+cat > "$HC/.planwright/completed.md" <<'EOF'
+# completed
+
+- [x] Make CI green (pr-check unit-tests)
+      Mode: repair
+      Commit: cafe123
+EOF
+hc_out="$(python3 "$PRPY" handoff --root "$HC")"
+if printf '%s' "$hc_out" | grep -q '^git push' \
+   && printf '%s' "$hc_out" | grep -q 'gh pr merge' \
+   && printf '%s' "$hc_out" | grep -q 'cafe123' \
+   && ! printf '%s' "$hc_out" | grep -q 'resolveReviewThread'; then
+  ok "pr handoff omits the review-thread resolve section when only failing-check fixes are eligible (checks-only branch)"
+else
+  bad "pr handoff checks-only branch wrong (emitted a resolve-thread section without threads, or dropped push/merge)"
+fi
+
 # --- Test PR7: extract_run_id pulls a workflow run id from a check link -------------------
 if python3 - "$ROOT/scripts" <<'PY'
 import sys; sys.path.insert(0, sys.argv[1]); import pr
