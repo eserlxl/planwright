@@ -245,6 +245,40 @@ PY
 done
 if [ "$sc_codpr_ok" = 1 ]; then ok "each host example carries the codpr grammar (planwright pr prefix, pr handoff, and the read-only-toward-GitHub safety invariant)"; else bad "a host example drifted from the codpr grammar (pr prefix / pr handoff / read-only-toward-GitHub invariant)"; fi
 
+# --- Test 13d35v: the grammar parity gates (13d3 sense, 13d5 codpr) are non-vacuous -------------
+# Prove the codmaster sense-form (13d3) and codpr (13d5) grammar gates actually reject a corrupted
+# host example, by running their EXACT checks against MUTATED $TMP copies: (a) the sense form with
+# --recommend deleted must fail the sense gate, and (b) the codpr block with the read-only-GitHub
+# invariant redacted must fail the codpr gate. $TMP copies only — the CODEX-MANIFEST precedent.
+pw_sense_parity() {  # exit 0 iff the file carries the codmaster sense form (mirror of Test 13d3)
+  python3 - "$1" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+sys.exit(0 if ("status.py --root . --recommend" in t and "--recommend --scope path:" in t) else 1)
+PY
+}
+pw_codpr_parity() {  # exit 0 iff the file carries codpr's read-only-GitHub invariant (mirror of 13d5)
+  python3 - "$1" <<'PY' 2>/dev/null
+import sys
+sys.exit(0 if "read-only toward github" in open(sys.argv[1], encoding="utf-8").read().lower() else 1)
+PY
+}
+gvac_ok=1
+pw_sense_parity "$ROOT/GEMINI.example.md" || gvac_ok=0   # the real file must pass both gates
+pw_codpr_parity "$ROOT/GEMINI.example.md" || gvac_ok=0
+# (a) delete --recommend from the sense form -> the sense gate must fail
+sense_bad="$TMP/sense_bad.md"
+sed 's/--root \. --recommend/--root ./g' "$ROOT/GEMINI.example.md" > "$sense_bad"
+if pw_sense_parity "$sense_bad"; then gvac_ok=0; fi
+# (b) redact the read-only-GitHub invariant -> the codpr gate must fail
+codpr_bad="$TMP/codpr_bad.md"
+python3 - "$ROOT/GEMINI.example.md" > "$codpr_bad" <<'PY'
+import re, sys
+sys.stdout.write(re.sub(r"(?i)read-only toward github", "REDACTED", open(sys.argv[1], encoding="utf-8").read()))
+PY
+if pw_codpr_parity "$codpr_bad"; then gvac_ok=0; fi
+if [ "$gvac_ok" = 1 ]; then ok "grammar parity gates are non-vacuous (a sense form without --recommend and a codpr block without the read-only-GitHub invariant each fail on a TMP copy)"; else bad "a grammar parity gate is vacuous — a corrupted host copy passed, or the real file failed"; fi
+
 # --- Test 14b: codvisor/codinventor pin their load-bearing cost banner (both cases) ---
 # The flagship banner exists "so the heavy run is never silent" (codvisor.md case 1), and the
 # closing "print nothing of your own except the cost banner in cases 1 and 2" line is what makes
