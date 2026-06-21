@@ -90,3 +90,22 @@ need = [tok for tok in (
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md Stages 3-7 bounds the hybrid-ai egress (read-only, git-tracked-only, Focus-enclosing target, public-repo egress)"; else bad "SKILL.md lost or widened the hybrid-ai egress bound (read-only/git-tracked/Focus-enclosing/public-repo)"; fi
+
+# --- Test HA5: SKILL.md Stages 3-7 pins the hybrid-ai degrade-to-skip (no-hard-dependency) ---
+# When no external CLI is available, planwright prints the skip note and runs the dossier unchanged
+# on the host agent (never errors, never blocks). Removing the clause/message fails this guard.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+a = t.find("### Stages 3"); b = t.find("### Stage 8")
+if a < 0 or b < 0 or b <= a:
+    raise SystemExit(1)
+para = t[a:b]
+need = [tok for tok in (
+    "no-hard-dependency",
+    "planwright: hybrid-ai delegation unavailable — running the dossier on the host agent.",
+    "runs the dossier unchanged",
+) if tok not in para]
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md Stages 3-7 pins the hybrid-ai degrade-to-skip (no-hard-dependency: skip note + runs the dossier unchanged on the host agent)"; else bad "SKILL.md lost the hybrid-ai degrade-to-skip clause or skip message"; fi

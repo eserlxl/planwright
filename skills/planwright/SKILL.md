@@ -892,6 +892,13 @@ mode, never `grep -r`/`find`/`--no-ignore`). Because it ships the targeted tree 
 provider it is **public-repo egress** only and never targets a tree holding private IP, and like the
 Stage 1.6 external backend it is **never auto-engaged** — `hybrid-ai` is the explicit opt-in.
 
+`hybrid-ai` is a **no-hard-dependency** lever: planwright never requires the external-agents plugin or
+any agy/codex/claude CLI. When the external CLI is **unavailable** (no `run-agent.sh` resolves,
+`run-agent.sh --check` shows none usable, a timeout, or empty output), planwright prints
+`planwright: hybrid-ai delegation unavailable — running the dossier on the host agent.` and **runs the
+dossier unchanged** on the host single agent — it never errors and never blocks, exactly as the
+Stage 1.6 recon backend degrades.
+
 3. **Architecture** — module boundaries, oversized units, public API surfaces, dependency
    direction, source/header/test clusters, language-specific header-only/template constraints. Use the
    graph's `import_cycles` (strongly-connected import groups) as a concrete circular-dependency signal —
