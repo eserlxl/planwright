@@ -118,7 +118,14 @@ def parse_failing_log(log_text, check_name):
         cand = m.group("path")
         if cand.startswith(("/", "http")) or ".." in cand:
             return None  # absolute/system/traversal paths are not repo-relative seeds
-        return (cand, int(m.group("line")))
+        line_s = m.group("line")
+        if len(line_s) > 9:
+            # A line number with more than 9 digits is not a real source location, and an
+            # oversized digit run would trip Python's integer-string conversion limit
+            # (ValueError on 3.11+). Skip the anchor (keep the parser's skip-when-unsure
+            # posture) rather than crash the PR-ingest parser on a poisoned log.
+            return None
+        return (cand, int(line_s))
 
     last_frame = None     # last repo-relative `File "...", line N` (innermost traceback frame)
     first_generic = None  # first repo-relative `path:line` (primary compiler/linter error)

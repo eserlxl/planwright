@@ -48,6 +48,10 @@ assert r2["path"] == "pkg/mod.py" and r2["line"] == 42, r2
 assert pr.parse_failing_log("just words, no anchor", "x")["path"] is None
 assert pr.parse_failing_log("/usr/lib/py/x.py:3: nope", "x")["path"] is None
 assert pr.parse_failing_log("../escape.py:9: nope", "x")["path"] is None
+# an oversized-digit "line number" (a poisoned log) is skipped, not crashed on: Python's
+# integer-string conversion limit raises ValueError on int() past its threshold, so the parser
+# must bound the line capture and degrade to no anchor rather than crash PR ingest.
+assert pr.parse_failing_log("evil.py:" + "1" * 5000 + ": boom", "x")["path"] is None
 PY
 then ok "pr.parse_failing_log extracts the first repo-relative file:line and skips absolute/traversal anchors"; else bad "pr.parse_failing_log anchor extraction wrong"; fi
 
