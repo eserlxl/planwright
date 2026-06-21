@@ -109,6 +109,21 @@ python3 scripts/check-links.py
 python3 scripts/check-links.py --quiet
 ```
 
+### `coverage-gate.sh`
+
+Reproduces the CI **Coverage gate** step (`.github/workflows/ci.yml`) locally so you can prove the
+90% engine-coverage floor before pushing, without hand-copying the workflow YAML. It mirrors the gate
+ordering and floor exactly — `coverage erase` → unit coverage → smoke suite → `coverage combine` →
+`coverage report --fail-under=90` — and installs the subprocess-coverage hook (`.coveragerc`) so the
+`python3` subprocesses the shell suite spawns are counted (otherwise the report reads misleadingly
+low). On a dev box where the interpreter's `purelib` is root-owned it installs the hook into the
+writable user-site dir and removes it on exit.
+
+```bash
+# Run the full coverage gate; exits 0 only when the report is at or above the 90% floor
+bash scripts/coverage-gate.sh
+```
+
 ## Shell-safety conventions
 
 The `scripts/*.sh` helpers run external tools with an argv list, never a shell string (the same
