@@ -123,24 +123,32 @@ PY
 done
 if [ "$sc_host_ok" = 1 ]; then ok "host instruction templates carry the six-helper family with scoped codvisor/codinventor resolution and host-neutral external-agents recon"; else bad "host instruction templates lost a helper (codcycle/codshard/codmaster), the scoped resolution rules, or the host-neutral parallel-recon rung"; fi
 
-# --- Test 13d2: each host example names the FULL cod* family (derived from commands/cod*.md) ----
+# --- Test 13d2: each host example advertises EXACTLY the cod* family (derived from commands/cod*.md) -
 # Test 13d's static list named only codcycle/codshard/codmaster; a NEW cod* command (codpr was the
-# last) added to commands/ but forgotten in a host example would slip past it. Derive the canonical
-# family from glob(commands/cod*.md) — the same source Test 13g uses for the README — and assert
-# every host example names each member, so the family drives the gate, not a literal.
+# last) added to commands/ but forgotten in a host example would slip past it, and a stale/renamed
+# advertised shortcut (one no longer backed by a commands/cod*.md file) would never be caught. Derive
+# the canonical family from glob(commands/cod*.md) — the same source Test 13g uses for the README —
+# and assert, bidirectionally: (a) every member is named somewhere in the host example, and (b) the
+# advertised shortcut list (each `- `@?codX`…` list item) is EXACTLY the canonical set, so the family
+# drives the gate, not a literal.
 sc_fam_ok=1
 for hf in AGENTS.example.md GEMINI.example.md GEMINI.example_context-mode.md; do
   python3 - "$ROOT" "$ROOT/$hf" <<'PY' 2>/dev/null || sc_fam_ok=0
-import glob, os, sys
+import glob, os, re, sys
 root, hf = sys.argv[1], sys.argv[2]
 canon = sorted(os.path.basename(p)[:-3] for p in glob.glob(os.path.join(root, "commands", "cod*.md")))
 assert len(canon) == 6, canon
 t = open(hf, encoding="utf-8").read()
+# (a) the missing direction: every canonical command appears somewhere in the host example
 missing = [n for n in canon if n not in t]
-sys.exit(1 if missing else 0)
+# (b) the extra/renamed direction: parse ONLY the list-item advertising lines (`- `@?codX`…`) so
+#     non-command cod* tokens (the `codex` CLI/agent, prose words) never pollute the set, then require
+#     the advertised set to equal canon — a shortcut not backed by a commands/cod*.md file fails.
+advertised = sorted(set(re.findall(r"(?m)^- `@?(cod[a-z]+)", t)))
+sys.exit(1 if (missing or advertised != canon) else 0)
 PY
 done
-if [ "$sc_fam_ok" = 1 ]; then ok "each host example names the full cod* shortcut family (derived from commands/cod*.md, not a literal)"; else bad "a host example dropped a cod* family member (derived from commands/cod*.md)"; fi
+if [ "$sc_fam_ok" = 1 ]; then ok "each host example advertises exactly the cod* shortcut family (derived from commands/cod*.md; missing + extra/renamed both caught)"; else bad "a host example dropped a cod* family member or advertised a shortcut absent from commands/cod*.md"; fi
 
 # --- Test 14b: codvisor/codinventor pin their load-bearing cost banner (both cases) ---
 # The flagship banner exists "so the heavy run is never silent" (codvisor.md case 1), and the
