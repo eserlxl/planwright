@@ -433,7 +433,7 @@ def _resolve_scope_paths(spec, files):
         return sorted(files)
     pref = spec + "/"
     focus = {f for f in files
-             if f == spec or f.startswith(pref) or fnmatch.fnmatch(f, spec)}
+             if f == spec or f.startswith(pref) or fnmatch.fnmatchcase(f, spec)}
     return sorted(focus)
 
 
