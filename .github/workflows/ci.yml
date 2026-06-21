@@ -42,6 +42,9 @@ jobs:
       - name: Smoke tests
         run: bash tests/run.sh
 
+      - name: Doc link integrity
+        run: python3 scripts/check-links.py --root . --quiet
+
       - name: Coverage gate
         run: |
           python3 -m pip install --quiet coverage
