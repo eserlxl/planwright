@@ -9,6 +9,10 @@
 
 REG="$ROOT/scripts/registry.py"
 RGX="$TMP/registry-xdg"; mkdir -p "$RGX"
+# Remember the suite-wide isolation (lib.sh points XDG at $TMP/xdg) so teardown can RESTORE it
+# rather than leave it unset — an unset would expose the developer's real ~/.config to every
+# later case's beacon stamp (state.py _register_project upserts the running root).
+REG_PREV_XDG="${XDG_CONFIG_HOME:-}"
 export XDG_CONFIG_HOME="$RGX"
 
 # Two fake projects: one with a .planwright/, one without (discover must skip the latter).
@@ -130,4 +134,50 @@ else
   bad "registry.load did not cleanly degrade a corrupt projects.json (rc=$reg_corrupt_rc out=[$reg_corrupt_out])"
 fi
 
-unset XDG_CONFIG_HOME
+# --- Test RG9: a .planwright state dir is never registered, listed, or selectable ---------
+# `<repo>/.planwright` is per-repo planning state, never a project root. When a tool runs with
+# that state dir as its cwd it can grow a nested `.planwright/.planwright`, which used to make
+# discover() (and the prune liveness check) mistake the state dir for a registerable repo —
+# surfacing a phantom `.planwright` row in the switcher and Fleet view. All three guards
+# (discover skip, upsert/add refusal, prune drop) must keep a `.planwright` path out.
+rm -f "$RGX/planwright/projects.json"
+# A poison layout: a project root whose `.planwright/` itself contains a nested `.planwright/`.
+RGPOISON="$TMP/registry-poison"; mkdir -p "$RGPOISON/.planwright/.planwright"
+# $ROOT/$RGPOISON are passed via argv (not string-interpolated) so the quoted heredoc body
+# needs no shell expansion — clean for shellcheck and free of fragile quote-breakout.
+if python3 - "$ROOT" "$RGPOISON" <<'PY'; then
+import os, sys
+root, poison = sys.argv[1], sys.argv[2]
+sys.path.insert(0, os.path.join(root, "scripts"))
+import registry
+state = os.path.join(poison, ".planwright")
+# is_registerable rejects a state-dir path (with or without a trailing slash) but accepts a repo.
+assert not registry.is_registerable(state), "state dir judged registerable"
+assert not registry.is_registerable(state + "/"), "trailing-slash state dir judged registerable"
+assert registry.is_registerable(poison), "repo root judged unregisterable"
+# upsert refuses the state dir (returns None) and writes nothing.
+assert registry.upsert(state) is None, "upsert registered a state dir"
+# discover over the poison root must register the repo itself, never its .planwright child.
+names = sorted(os.path.basename(p) for p in registry.discover(poison))
+assert ".planwright" not in names, names
+# Even a directly-injected .planwright entry is pruned out of list_projects (self-heal).
+registry.save({"poison": state})
+assert registry.list_projects() == [], registry.list_projects()
+PY
+  ok "registry keeps a .planwright state dir out (discover skip + upsert refusal + prune drop)"
+else
+  bad "registry registered/listed a .planwright state dir as a project"
+fi
+
+# --- Test RG10: `add` of a .planwright state dir is refused on the CLI, not registered -----
+rm -f "$RGX/planwright/projects.json"
+add_pw_out="$(python3 "$REG" add "$RGPOISON/.planwright")"
+if printf '%s' "$add_pw_out" | grep -q "refused" \
+   && python3 "$REG" list | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["projects"]==[] else 1)'; then
+  ok "registry.py add refuses a .planwright state dir (prints refused, registers nothing)"
+else
+  bad "registry.py add did not refuse a .planwright state dir (out=[$add_pw_out])"
+fi
+
+# Restore the suite-wide XDG isolation (do NOT leave it unset — see REG_PREV_XDG above).
+if [ -n "$REG_PREV_XDG" ]; then export XDG_CONFIG_HOME="$REG_PREV_XDG"; else unset XDG_CONFIG_HOME; fi

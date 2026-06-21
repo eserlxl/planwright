@@ -10,6 +10,18 @@
 # stays inside python (no shell `sleep`) and there is no curl dependency.
 
 DASH="$ROOT/scripts/dashboard.py"
+
+# --- Test DASH-XDG-ISO: the suite-wide registry isolation survives the prior case ----------
+# This case runs right after `registry`, which overrides XDG_CONFIG_HOME for its own assertions.
+# If that case tears down by *unsetting* XDG_CONFIG_HOME instead of restoring the suite default
+# (lib.sh points it at $TMP/xdg), every dashboard test that stamps a beacon — state.py's
+# _register_project upserts the running root — would leak a temp fixture path into the
+# developer's real ~/.config/planwright/projects.json. Pin the invariant at the seam.
+case "${XDG_CONFIG_HOME:-}" in
+  "$TMP"/*) ok "ambient XDG_CONFIG_HOME is still under TMP after the registry case (no real-registry leak)" ;;
+  *) bad "XDG_CONFIG_HOME ('${XDG_CONFIG_HOME:-}') escaped TMP before dashboard — a prior case leaked isolation" ;;
+esac
+
 DFX="$TMP/dash-fix"; mkdir -p "$DFX/.planwright"
 printf -- '- [ ] one\n      Mode: develop\n' > "$DFX/.planwright/plan.md"
 printf '{"nodes":{"a.py":{"pagerank":0.5,"is_articulation":true,"imports":["b.py"]},"b.py":{"pagerank":0.2,"is_articulation":false,"imports":[]}}}\n' \
@@ -3406,6 +3418,59 @@ if python3 "$TMP/dash_projects_client.py" "$DASH" "$DPJ/a" "$DPJX" 2>/dev/null |
   ok "dashboard /projects.json lists allow-listed projects with status + counts (no-store, no full collect)"
 else
   bad "dashboard /projects.json missing projects/status/counts (or not no-store)"
+fi
+
+# --- Test DPROJPW: a leaked .planwright state-dir entry never reaches the switcher/Fleet ---
+# A `.planwright` state dir that grew a nested `.planwright/` (a tool run with the state dir as
+# cwd) could be written into the registry by an older build or a stray `discover`. Its basename
+# is `.planwright`, so it used to render as a phantom project in the switcher dropdown and the
+# Fleet grid (both read /projects.json). The allow-list filter (registry.is_registerable) must
+# drop it at serve time even though the read-only path never rewrites the registry to self-heal.
+DPW="$TMP/dash-projects-pw"; mkdir -p "$DPW/real/.planwright" "$DPW/poison/.planwright/.planwright"
+DPWX="$TMP/dash-projects-pw-xdg"; mkdir -p "$DPWX"
+XDG_CONFIG_HOME="$DPWX" python3 "$DASH" --add "$DPW/real" >/dev/null
+# Inject the poison entry directly (upsert/add now refuse it) to mimic a registry from a build
+# that predates the guard — exactly the on-disk state a real user would have. $ROOT/$DPW go via
+# argv so the quoted heredoc body needs no shell expansion (clean for shellcheck).
+XDG_CONFIG_HOME="$DPWX" python3 - "$ROOT" "$DPW" <<'PY'
+import os, sys
+root, dpw = sys.argv[1], sys.argv[2]
+sys.path.insert(0, os.path.join(root, "scripts"))
+import registry
+e = registry.load(); e["poisonid"] = os.path.join(dpw, "poison", ".planwright"); registry.save(e)
+PY
+cat > "$TMP/dash_projects_pw_client.py" <<'PY'
+import json, os, subprocess, sys, time, urllib.request
+dash, rootA, xdg = sys.argv[1:4]
+env = dict(os.environ); env["XDG_CONFIG_HOME"] = xdg
+proc = subprocess.Popen([sys.executable, dash, "--root", rootA, "--port", "0"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+try:
+    port, deadline = None, time.time() + 10
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            break
+        if "http://127.0.0.1:" in line:
+            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
+    assert port, "no port banner"
+    with urllib.request.urlopen("http://127.0.0.1:%d/projects.json" % port, timeout=5) as r:
+        data = json.loads(r.read().decode())
+    names = sorted(p["name"] for p in data["projects"])
+    assert ".planwright" not in names, ("phantom .planwright row leaked into the switcher", names)
+    assert "real" in names, names
+    print("PROJPW_OK")
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+if python3 "$TMP/dash_projects_pw_client.py" "$DASH" "$DPW/real" "$DPWX" 2>/dev/null | grep -q PROJPW_OK; then
+  ok "dashboard /projects.json filters a leaked .planwright state-dir entry from the switcher/Fleet"
+else
+  bad "dashboard /projects.json surfaced a phantom .planwright project from a poisoned registry"
 fi
 
 # --- Test DSW: app.js wires the client-side project switcher ------------------------------

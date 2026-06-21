@@ -29,6 +29,11 @@ import tempfile
 
 VERSION = 1
 
+# The per-repo planning-state directory name. A path whose final component is this is a
+# state directory, never a project root, so it must never enter the registry (see
+# is_registerable).
+STATE_DIRNAME = ".planwright"
+
 
 def registry_path():
     """The absolute path to the user-level registry file. Honors XDG_CONFIG_HOME (so a test
@@ -49,7 +54,17 @@ def project_id(path):
 
 
 def _planwright_dir(path):
-    return os.path.join(path, ".planwright")
+    return os.path.join(path, STATE_DIRNAME)
+
+
+def is_registerable(path):
+    """True unless `path` is itself a planwright state directory. `<repo>/.planwright` holds a
+    repo's planning state and is never a project root; when a tool runs with that state dir as
+    its cwd it can grow a nested `.planwright/.planwright`, which used to let discover() and
+    the prune liveness check mistake the state dir for a project — surfacing a phantom
+    `.planwright` row in the switcher and Fleet view. Reject any path whose final component is
+    the reserved state-dir name so a state dir can never be registered, listed, or selected."""
+    return os.path.basename(os.path.normpath(path)) != STATE_DIRNAME
 
 
 def load():
@@ -101,9 +116,13 @@ def save(entries):
 
 
 def upsert(path):
-    """Register (or refresh) a repo by its canonical absolute path. Returns the project id.
-    Idempotent: re-registering the same path is a no-op beyond rewriting the file."""
+    """Register (or refresh) a repo by its canonical absolute path. Returns the project id, or
+    None if `path` is a planwright state directory (not a project — see is_registerable), which
+    is refused rather than registered. Idempotent: re-registering the same path is a no-op
+    beyond rewriting the file."""
     canon = os.path.abspath(path)
+    if not is_registerable(canon):
+        return None
     pid = project_id(canon)
     entries = load()
     entries[pid] = canon
@@ -132,9 +151,13 @@ def discover(parent):
     except OSError:
         return found
     for name in names:
+        if name == STATE_DIRNAME:
+            # A `.planwright` child is the parent's own state dir, never a project — skip it
+            # even if it has grown a nested `.planwright/` (which would otherwise look like a
+            # registerable repo root and surface a phantom `.planwright` switcher entry).
+            continue
         child = os.path.join(parent, name)
-        if os.path.isdir(_planwright_dir(child)):
-            upsert(child)
+        if os.path.isdir(_planwright_dir(child)) and upsert(child):
             found.append(os.path.abspath(child))
     return found
 
@@ -146,7 +169,7 @@ def list_projects(prune=True):
     entries = load()
     if prune:
         alive = {pid: p for pid, p in entries.items()
-                 if os.path.isdir(_planwright_dir(p))}
+                 if os.path.isdir(_planwright_dir(p)) and is_registerable(p)}
         if alive != entries:
             save(alive)
         entries = alive
@@ -169,7 +192,9 @@ def main(argv=None):
             return 2
         target = rest[0]
         if action == "add":
-            print("registry: added %s" % upsert(target))
+            pid = upsert(target)
+            print("registry: added %s" % pid if pid
+                  else "registry: refused %s (a .planwright state dir is not a project)" % target)
         elif action == "remove":
             print("registry: removed" if remove(target) else "registry: not found")
         else:

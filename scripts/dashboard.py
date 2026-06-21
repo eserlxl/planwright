@@ -246,8 +246,12 @@ class Handler(BaseHTTPRequestHandler):
         prune=False so a GET never writes — the serving path stays read-only even toward the
         registry. The browser may select a project ONLY by an id in this map; a
         client-supplied path is never honored, which is what keeps the dashboard from being an
-        arbitrary-directory read (state/recommend/doctor each run git in the chosen root)."""
-        allow = {e["id"]: e["path"] for e in registry.list_projects(prune=False)}
+        arbitrary-directory read (state/recommend/doctor each run git in the chosen root).
+        A `.planwright` state dir that leaked into the registry (registry.is_registerable) is
+        filtered here so it is neither listed in the switcher/Fleet view nor selectable by id,
+        even though the read-only serving path never rewrites the registry to self-heal it."""
+        allow = {e["id"]: e["path"] for e in registry.list_projects(prune=False)
+                 if registry.is_registerable(e["path"])}
         root = self.server.planwright_root
         allow.setdefault(registry.project_id(root), root)
         return allow
@@ -599,7 +603,10 @@ def main():
     # --list compose (add then show), so run the mutating ops first and list last.
     managed = False
     if args.add:
-        print("registry: added %s" % registry.upsert(args.add)); managed = True
+        _pid = registry.upsert(args.add)
+        print("registry: added %s" % _pid if _pid
+              else "registry: refused %s (a .planwright state dir is not a project)" % args.add)
+        managed = True
     if args.remove:
         print("registry: removed" if registry.remove(args.remove) else "registry: not found")
         managed = True
