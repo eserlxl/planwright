@@ -64,7 +64,7 @@ thereafter jump to the path you are running.
   [Stop conditions](#stop-conditions)
 - **Maintenance** (loaded on demand from `references/`) — [Doctor](references/doctor.md) ·
   [Status](references/status.md) · [Advise](references/advise.md) · [Check](references/check.md) ·
-  [Dashboard](references/dashboard.md) ·
+  [PR](references/pr.md) · [Dashboard](references/dashboard.md) ·
   [Reset](references/reset.md) · [Upgrade](references/upgrade.md) · [Version](references/version.md)
 
 ## Host command adapter
