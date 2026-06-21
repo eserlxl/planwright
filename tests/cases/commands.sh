@@ -169,6 +169,41 @@ PY
 done
 if [ "$sc_sense_ok" = 1 ]; then ok "each host example carries the canonical codmaster sense invocation (status.py --root . --recommend + --scope threading)"; else bad "a host example drifted from the codmaster sense form (status.py --root . --recommend / --scope path:)"; fi
 
+# --- Test 13d2v: the cod*-family parity gate (Test 13d2) is non-vacuous --------------------------
+# Prove Test 13d2 actually rejects a diverged host example by running its EXACT parity check against
+# a MUTATED $TMP copy: (a) a copy with one advertised shortcut removed must fail (a dropped family
+# member), and (b) a copy with a fake `@codfoo` advertised line must fail (an extra/renamed shortcut).
+# Operates only on $TMP copies, never the tracked files — the CODEX-MANIFEST corrupt-copy precedent.
+pw_family_parity() {  # $1 = host file path; exit 0 iff it advertises EXACTLY the canon cod* family
+  python3 - "$ROOT" "$1" <<'PY' 2>/dev/null
+import glob, os, re, sys
+root, hf = sys.argv[1], sys.argv[2]
+canon = sorted(os.path.basename(p)[:-3] for p in glob.glob(os.path.join(root, "commands", "cod*.md")))
+t = open(hf, encoding="utf-8").read()
+missing = [n for n in canon if n not in t]
+advertised = sorted(set(re.findall(r"(?m)^- `@?(cod[a-z]+)", t)))
+sys.exit(1 if (missing or advertised != canon) else 0)
+PY
+}
+vac_ok=1
+pw_family_parity "$ROOT/AGENTS.example.md" || vac_ok=0          # the real file must pass, else the proof is meaningless
+# (a) drop EVERY advertised codpr line (AGENTS carries two forms) -> the family loses a member
+drop_copy="$TMP/host_drop.md"
+python3 - "$ROOT/AGENTS.example.md" > "$drop_copy" <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+sys.stdout.write("\n".join(l for l in t.split("\n") if not re.match(r"^- `@?codpr", l)))
+PY
+if pw_family_parity "$drop_copy"; then vac_ok=0; fi            # passing on the mutated copy == vacuous
+# (b) inject a fake advertised shortcut -> an extra not backed by a commands/cod*.md file
+fake_copy="$TMP/host_fake.md"
+cp "$ROOT/AGENTS.example.md" "$fake_copy"
+cat >> "$fake_copy" <<'FAKE'
+- `@codfoo` / `codfoo` — not a real command
+FAKE
+if pw_family_parity "$fake_copy"; then vac_ok=0; fi
+if [ "$vac_ok" = 1 ]; then ok "cod*-family parity gate is non-vacuous (a dropped member and a fake @codfoo each fail the check on a TMP copy)"; else bad "cod*-family parity gate is vacuous — a diverged host copy passed, or the real file failed"; fi
+
 # --- Test 14b: codvisor/codinventor pin their load-bearing cost banner (both cases) ---
 # The flagship banner exists "so the heavy run is never silent" (codvisor.md case 1), and the
 # closing "print nothing of your own except the cost banner in cases 1 and 2" line is what makes
