@@ -706,6 +706,87 @@ else
   ok "commands.js pulse-chip check skipped (node not installed)"
 fi
 
+# --- Test DASH-VIEWS-SHARDS: the Shards view's render() draws shard cards + final-point flags --------
+# derive.sh DRV9/DRV10 pin PW_DERIVE.shards.map (the data brain); this drives win.PW_VIEWS.shards
+# (the VIEW render) so shardCard()/render() DOM output is verified, not just the map it consumes. Two
+# metrics drives plus a null-repo drive cover the branches that left shards.js the lowest-covered view:
+#   (1) metrics + large repo + a folded dir + a SCOPED final point -> shard cards with chips/heat, the
+#       maxAge chip, the is-frontier (never-audited) card, the residue note, the large + folded notes,
+#       and the "scoped to <X>" closing-card flag;
+#   (2) metrics:null (no-graph fallback) + a whole-repo final point -> the "no graph" shardCard path,
+#       the no-graph note (no heat bar), and the whole-repo closing-card flag;
+#   (3) repo:null -> the explicit empty state (older server / git unavailable).
+if command -v node >/dev/null 2>&1; then
+  cat > "$TMP/shards_view_test.js" <<'JS'
+const assert = require("assert");
+const BASE = process.argv[2];
+const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
+const { El, makeDoc, makeWin, install, loadCommon, loadView, findByClass, textOf } = VM;
+const doc = makeDoc(); const win = makeWin(doc);
+install(win, doc);
+loadCommon(BASE);
+loadView(BASE, "shards");
+// Metrics fixture mirrors derive.sh DRV9's gSh: a/ has a never-audited node (frontier) and an aged
+// stamp (stale, maxAge 4); b/ is clean; c/ sits outside every shard -> the residue bucket.
+var gSh = JSON.stringify({
+  graph_built_at_sha: "shard01",
+  dirty: { nodes: ["b/dirty.py"] },
+  nodes: {
+    "a/x.py":      { branch_count: 2, is_test: false, loc: 10, pagerank: 0.1, git_churn: 1 },
+    "a/y.py":      { branch_count: 1, is_test: false, loc: 5,  pagerank: 0.1, git_churn: 1, audit_age_commits: 4, last_audited_sha: "s1" },
+    "a/t_test.py": { branch_count: 3, is_test: true,  loc: 5,  pagerank: 0.1, git_churn: 1 },
+    "a/data.md":   { branch_count: 0, is_test: false, loc: 50, pagerank: 0.1, git_churn: 1 },
+    "b/z.py":      { branch_count: 2, is_test: false, loc: 8,  pagerank: 0.1, git_churn: 1, audit_age_commits: 0, last_audited_sha: "s2" },
+    "b/dirty.py":  { branch_count: 2, is_test: false, loc: 8,  pagerank: 0.1, git_churn: 1, audit_age_commits: 9, last_audited_sha: "s3" },
+    "c/q.py":      { branch_count: 2, is_test: false, loc: 4,  pagerank: 0.1, git_churn: 1 },
+  },
+});
+var m = win.PW_DERIVE.metrics(gSh);
+
+// (1) metrics-present: large repo, a folded dir, and a component-scoped final point.
+var s1 = { repo: { tracked_files: 9, shardable_dirs: ["a", "b"], folded_dirs: ["z"], large: true },
+           final_point: { sha: "shard01", date: "2026-06-22", deepest_tier: "expand", valid: true, stale: false, scope: "path:a" } };
+var c1 = new El("section");
+win.PW_VIEWS.shards(c1, s1, { metrics: m });
+var t1 = textOf(c1);
+assert(findByClass(c1, "pw-shard-card").length === 2, "two shard cards (a, b) expected");
+assert(findByClass(c1, "pw-shard-chip").length >= 2, "per-shard never-audited/stale chips missing");
+assert(findByClass(c1, "pw-shard-heat-fill").length >= 1, "frontier-heat bar fill missing");
+assert(findByClass(c1, "is-frontier").length >= 1, "never-audited shard not flagged is-frontier");
+assert(/oldest stamp 4 commits back/.test(t1), "maxAge chip (oldest stamp) missing for the aged shard");
+assert(/large repo/.test(t1), "large-repo pulse chip missing");
+assert(/folded into the closing round/.test(t1), "folded-dirs note missing");
+assert(/outside every shard/.test(t1), "residue (closing-round territory) note missing");
+assert(/scoped to path:a/.test(t1), "closing card did not flag the component-scoped final point");
+
+// (2) no metrics -> no-graph fallback path, and a whole-repo final point.
+var s2 = { repo: { tracked_files: 9, shardable_dirs: ["a", "b"], folded_dirs: [], large: false },
+           final_point: { sha: "shard01", date: "2026-06-22", deepest_tier: "expand", valid: true, stale: false, scope: null } };
+var c2 = new El("section");
+win.PW_VIEWS.shards(c2, s2, { metrics: null });
+var t2 = textOf(c2);
+assert(/no graph . staleness unknown/.test(t2), "no-metrics shardCard fallback path not rendered");
+assert(/No graph built yet/.test(t2), "no-graph order-fallback note missing");
+assert(findByClass(c2, "pw-shard-heat-fill").length === 0, "heat bar rendered without metrics");
+assert(/Last final point: expand.*whole-repo/.test(t2), "closing card did not flag the whole-repo final point");
+
+// (3) no repo block at all -> the explicit empty state (older server / git unavailable).
+var c3 = new El("section");
+win.PW_VIEWS.shards(c3, { repo: null, final_point: null }, {});
+assert(/No shard enumeration in this snapshot/.test(textOf(c3)), "null repo block did not render the empty state");
+
+console.log("SHARDS-VIEW-OK");
+JS
+  if node "$TMP/shards_view_test.js" "$ROOT/scripts/dashboard" >"$TMP/shards_view.out" 2>"$TMP/shards_view.err" \
+     && grep -q SHARDS-VIEW-OK "$TMP/shards_view.out"; then
+    ok "shards.js render() draws shard cards (chips/heat/maxAge/is-frontier), the large/folded/residue notes, the no-graph fallback, and the scoped vs whole-repo final-point flags"
+  else
+    bad "shards.js view-render assertion failed: $(cat "$TMP/shards_view.err" 2>/dev/null)"
+  fi
+else
+  ok "shards.js view-render check skipped (node not installed)"
+fi
+
 # --- Test DASH-CMD-HERO: the base coach hero pick + evidence (browser coach, no /recommend.json) --
 # render()'s hero is computed from the BROWSER coach (PW_DERIVE.coach.signals -> recommend ->
 # evidence), independent of the optional server /recommend.json overlay. DASH-CMD-PULSE pins the

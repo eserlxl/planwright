@@ -45,4 +45,31 @@ const sampleRuns = [
 win.PW_VIEWS.runs.paint(new El("section"), sampleRuns);
 win.PW_VIEWS.runs.paint(new El("section"), []);
 win.PW_VIEWS.commands.paintTelemetry(new El("section"), sampleRuns);
+// shards.js: makeFixture's state carries no `repo` block, so the per-view loop above only reaches the
+// empty-state early return (shards.map(undefined, ...) -> null). Drive the POPULATED map path so
+// shardCard()'s chips/heat/maxAge/frontier, the folded/large/residue notes, and the scoped vs
+// whole-repo final-point flags are MEASURED — the DASH-VIEWS-SHARDS block (dashboard.sh) asserts this
+// same DOM, so the coverage reflects behavior that is pinned, not coverage theater. Fixture mirrors
+// derive.sh DRV9's gSh: a/ is a frontier shard (never-audited + aged stamp), b/ clean, c/ -> residue.
+const shGraph = JSON.stringify({
+  graph_built_at_sha: "shard01", dirty: { nodes: ["b/dirty.py"] },
+  nodes: {
+    "a/x.py":      { branch_count: 2, is_test: false, loc: 10, pagerank: 0.1, git_churn: 1 },
+    "a/y.py":      { branch_count: 1, is_test: false, loc: 5,  pagerank: 0.1, git_churn: 1, audit_age_commits: 4, last_audited_sha: "s1" },
+    "a/t_test.py": { branch_count: 3, is_test: true,  loc: 5,  pagerank: 0.1, git_churn: 1 },
+    "a/data.md":   { branch_count: 0, is_test: false, loc: 50, pagerank: 0.1, git_churn: 1 },
+    "b/z.py":      { branch_count: 2, is_test: false, loc: 8,  pagerank: 0.1, git_churn: 1, audit_age_commits: 0, last_audited_sha: "s2" },
+    "b/dirty.py":  { branch_count: 2, is_test: false, loc: 8,  pagerank: 0.1, git_churn: 1, audit_age_commits: 9, last_audited_sha: "s3" },
+    "c/q.py":      { branch_count: 2, is_test: false, loc: 4,  pagerank: 0.1, git_churn: 1 },
+  },
+});
+const shMetrics = win.PW_DERIVE.metrics(shGraph);
+win.PW_VIEWS.shards(new El("section"),
+  { repo: { tracked_files: 9, shardable_dirs: ["a", "b"], folded_dirs: ["z"], large: true },
+    final_point: { sha: "shard01", date: "2026-06-22", deepest_tier: "expand", valid: true, stale: false, scope: "path:a" } },
+  { metrics: shMetrics });                                   // metrics + folded + large + SCOPED final point
+win.PW_VIEWS.shards(new El("section"),
+  { repo: { tracked_files: 9, shardable_dirs: ["a", "b"], folded_dirs: [], large: false },
+    final_point: { sha: "shard01", date: "2026-06-22", deepest_tier: "expand", valid: true, stale: false, scope: null } },
+  { metrics: null });                                        // no-graph fallback + WHOLE-REPO final point
 console.log("COV-LOAD-OK");
