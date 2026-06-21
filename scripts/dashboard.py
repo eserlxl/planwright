@@ -114,7 +114,10 @@ _sse_slots = threading.BoundedSemaphore(MAX_SSE_CLIENTS)
 # The reconnect cadence (milliseconds) advertised to the browser via a leading SSE `retry:`
 # directive, so a dropped /events stream reconnects on a deliberate, server-tuned interval
 # (bounded against MAX_SSE_CLIENTS open/close churn) instead of the browser's implicit ~3s default.
-SSE_RETRY_MS = 3000
+# Overridable via PW_DASH_SSE_RETRY_MS through the strict _env_int validator — a fractional,
+# sub-1, or non-numeric value is rejected back to the default, never silently floored to 0 (a
+# `retry: 0` would tell the browser to reconnect instantly, a tight reconnect loop).
+SSE_RETRY_MS = _env_int("PW_DASH_SSE_RETRY_MS", 3000)
 
 
 # The stable default port for the shared (multi-project) server, so a launched dashboard has a

@@ -1062,6 +1062,33 @@ else
   bad "dashboard.py SSE-cap validation failed: $(cat "$TMP/capval.err" 2>/dev/null)"
 fi
 
+# --- Test DASH-SSE-RETRY-VALIDATION: an invalid retry cadence falls back to 3000, never to 0 --
+# PW_DASH_SSE_RETRY_MS sets the advertised reconnect cadence. It must go through the same strict
+# _env_int validator as the SSE cap: a fractional/sub-1/negative/non-numeric value is rejected back
+# to the default 3000 (never 0 — a `retry: 0` would tell the browser to reconnect instantly, a tight
+# loop), while a valid integer >= 1 is honored. Asserted at import — no port bound.
+cat > "$TMP/dash_retryval.py" <<'PY'
+import os, sys, importlib
+sys.path.insert(0, os.path.dirname(os.path.abspath(sys.argv[1])))
+cases = {"0.5": 3000, "0": 3000, "-5": 3000, "abc": 3000, "5000": 5000, "1": 1}
+for raw, want in cases.items():
+    os.environ["PW_DASH_SSE_RETRY_MS"] = raw
+    sys.modules.pop("dashboard", None)
+    got = importlib.import_module("dashboard").SSE_RETRY_MS
+    assert got == want, "PW_DASH_SSE_RETRY_MS=%s -> %r, want %d" % (raw, got, want)
+os.environ.pop("PW_DASH_SSE_RETRY_MS", None)
+sys.modules.pop("dashboard", None)
+got = importlib.import_module("dashboard").SSE_RETRY_MS
+assert got == 3000, "unset default should be 3000, got %r" % got
+print("SSE-RETRY-VAL-OK")
+PY
+python3 "$TMP/dash_retryval.py" "$DASH" >"$TMP/retryval.out" 2>"$TMP/retryval.err" || true
+if grep -q SSE-RETRY-VAL-OK "$TMP/retryval.out"; then
+  ok "dashboard.py SSE_RETRY_MS rejects fractional/sub-1/non-numeric and falls back to 3000 (never 0)"
+else
+  bad "dashboard.py SSE-retry validation failed: $(cat "$TMP/retryval.err" 2>/dev/null)"
+fi
+
 # --- Test DASH-PORT-VALIDATION: a fractional PW_DASH_PORT is rejected, not floored ----------
 # A port is a whole number, so PW_DASH_PORT goes through _env_int (the strict integer path),
 # not _env_float + int() which silently floored a fractional value to a nearby port. The
