@@ -47,6 +47,29 @@ assert "cycle 10 depth 10 invent" in body, "no-arg inventor default not preserve
 PY
 then ok "commands/codinventor.md has valid frontmatter and forwards to planwright (inventor default intact)"; else bad "commands/codinventor.md malformed or lost its planwright delegation/inventor default"; fi
 
+# --- Test 14c: commands/codpr.md is a well-formed planwright `pr` alias ---
+# /codpr is the PR-ingest shortcut; guard its delegation contract so an edit can't drop the
+# planwright reference, the no-arg `pr` default, or the read-only-toward-GitHub posture.
+CMD="$ROOT/commands/codpr.md"
+if [ -f "$CMD" ]; then ok "commands/codpr.md exists"; else bad "commands/codpr.md missing"; fi
+if python3 - "$CMD" <<'PY' 2>/dev/null
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.match(r"^---\n(.*?)\n---\n", t, re.S)
+assert m, "no YAML frontmatter"
+fm = m.group(1)
+assert re.search(r"(?m)^description:\s*\S", fm), "missing description"
+assert re.search(r"(?m)^argument-hint:\s*\S", fm), "missing argument-hint"
+body = t[m.end():]
+assert "planwright:planwright" in body, "body does not invoke the planwright skill"
+assert "$ARGUMENTS" in body, "body does not forward $ARGUMENTS"
+# every form prefixes the `pr` subcommand; the handoff sub-form must survive
+assert "pr handoff" in body, "codpr lost the pr handoff sub-form"
+# the read-only-toward-GitHub posture must be stated so an edit can't quietly add a push
+assert "never writes to GitHub" in body, "codpr lost the never-writes-to-GitHub posture"
+PY
+then ok "commands/codpr.md has valid frontmatter, forwards to planwright (pr default + handoff), and pins never-writes-to-GitHub"; else bad "commands/codpr.md malformed or lost its planwright delegation / pr default / read-only posture"; fi
+
 # --- Test 13c: codvisor/codinventor fold a path/lib scope into every form -------
 # The helpers must peel a path/lib scope before classifying $ARGUMENTS and append it
 # AFTER the subcommand, so a scoped flagship run (/codvisor path src/auth/) is
@@ -1019,7 +1042,7 @@ missing = [n for n in canon if ("/" + n) not in readme]
 table_shortcuts = set(re.findall(r"`/(cod[a-z]+)`", readme))
 extra = sorted(s for s in table_shortcuts if s not in canon)
 assert not missing and not extra, (missing, extra)
-assert len(canon) == 5, canon
+assert len(canon) == 6, canon
 PY
 then ok "README advertises exactly the real cod* shortcut family (driven from commands/cod*.md, not a literal)"; else bad "README cod* shortcut list drifted from the real commands/cod*.md set"; fi
 
@@ -1120,7 +1143,7 @@ if python3 - "$ROOT" <<'PY' 2>/dev/null
 import glob, os, re, sys
 root = sys.argv[1]
 canon = set(os.path.basename(p)[:-3] for p in glob.glob(os.path.join(root, "commands", "cod*.md")))
-assert len(canon) == 5, "expected 5 canonical cod* commands, got " + repr(sorted(canon))
+assert len(canon) == 6, "expected 6 canonical cod* commands, got " + repr(sorted(canon))
 readme = open(os.path.join(root, "README.md"), encoding="utf-8").read()
 assert "Shortcut spelling" in readme, "host-parity table (Shortcut spelling column) missing"
 hosts_seen, problems = 0, []

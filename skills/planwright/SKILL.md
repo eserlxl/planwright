@@ -168,6 +168,9 @@ Before doing anything else, inspect the argument the skill was invoked with:
   per **Procedure → Bundled scripts**) and follow that read-only recommendation procedure instead of the planning Procedure.
 - If the first token is `check`, read `skills/planwright/references/check.md` (resolve `<scripts>`
   per **Procedure → Bundled scripts**) and follow that audit-and-prune procedure instead of the planning Procedure.
+- If the first token is `pr`, read `skills/planwright/references/pr.md` (resolve `<scripts>`
+  per **Procedure → Bundled scripts**) and follow that PR-ingest procedure instead of the planning Procedure
+  (the sub-form `pr handoff` prints the local push-back recipe; planwright stays read-only toward GitHub).
   The next token may be an item index `N` (`check N`); a `path`/`lib` scope composes.
 - If the first token is `dashboard`, read `skills/planwright/references/dashboard.md` (resolve `<scripts>`
   per **Procedure → Bundled scripts**) and follow that read-only server procedure instead of the planning Procedure.
@@ -221,6 +224,8 @@ MAINTENANCE
 /planwright advise               Read-only: recommend the next command (the coach as a CLI; never dispatches)
 /planwright check                Audit & prune .planwright/plan.md: run each Verification, drop gate-failing items (no source edits/commits)
 /planwright check N              Audit only pending item N (path/lib scope composes)
+/planwright pr                   Ingest an open PR's review threads + failing CI as plan items (read-only toward GitHub)
+/planwright pr handoff           Print the local push-back recipe for landed PR fixes (you run it; planwright never writes to GitHub)
 /planwright dashboard            Read-only: serve a live local web view of the planning state
 /planwright reset                Cold start: clear .planwright/ but keep rejected.md (fresh/clean aliases)
 /planwright version              Show the current and latest available version

@@ -51,7 +51,7 @@ On Claude Code:
 ```
 
 Plugin commands are namespaced: `/planwright:codvisor`, `/planwright:codmaster`, and so on
-(`/planwright` itself works as typed — the prefix applies to the five shortcuts). This README's
+(`/planwright` itself works as typed — the prefix applies to the six shortcuts). This README's
 examples use the short spellings (`/codvisor`, `/codmaster`) — install them as
 [local aliases](#local-shortcut-aliases-drop-the-planwright-prefix), or mentally prefix
 `planwright:`. For Codex, Cursor, Antigravity/Gemini, and AGENTS.md-aware agents, see
@@ -59,10 +59,11 @@ examples use the short spellings (`/codvisor`, `/codmaster`) — install them as
 
 ## Start here
 
-The five **main commands** each drive one motion — full autonomy, repair, invention, alternation, scale. Run any
-of them with no arguments and Planwright does the rest: it prints the estimated AI/session cost
-first, then works autonomously through plan→build→verify rounds until it runs out of worthwhile
-work.
+The six **main commands**: five drive one motion each — full autonomy, repair, invention, alternation,
+scale — and the sixth, `/codpr`, turns an open PR's review feedback and failing CI into grounded plan
+items. Run any of the five motion commands with no arguments and Planwright does the rest: it prints
+the estimated AI/session cost first, then works autonomously through plan→build→verify rounds until it
+runs out of worthwhile work. `/codpr` is read-only — it ingests, and you run the usual check→execute path.
 
 | Command&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | What it does                                                 | Best for                       |
 |--------------------|--------------------------------------------------------------|--------------------------------|
@@ -71,6 +72,7 @@ work.
 | `/codinventor`     | Discovers and adds grounded new capabilities.                | Feature discovery              |
 | `/codcycle`        | Alternates repair and invention rounds.                      | Autonomous improvement         |
 | `/codshard`        | Matures the repo shard by shard, then closes whole-repo.     | Large codebases                |
+| `/codpr`           | Turns an open PR's review threads + failing CI into plan items (read-only toward GitHub). | Acting on PR feedback          |
 
 **`/codmaster`** — the front door — folds all of the above into one autonomous drive. A tested,
 read-only decision engine senses the repo's planning state, and codmaster dispatches whatever it
@@ -87,9 +89,10 @@ hard-stopped, or a whole lap comes up dry — the final convergence point, decid
 boundary, never mid-lap). The full tour — what each mode prints, the growth-once-per-run rule, lap
 mechanics — lives in [Concepts → codmaster](docs/concepts.md#codmaster--the-front-door).
 
-All five are autonomous in workflow, not unchecked in permissions: planning never touches your
-source, and when Planwright does start editing — building items, committing — your host agent's
-normal edit, terminal, and commit approval prompts still apply.
+The five motion commands are autonomous in workflow, not unchecked in permissions: planning never
+touches your source, and when Planwright does start editing — building items, committing — your host
+agent's normal edit, terminal, and commit approval prompts still apply. `/codpr` is read-only toward
+GitHub: it only ingests a PR's signals into plan items; you run `check`/`execute` and push back by hand.
 
 > Under the hood:
 >
@@ -220,16 +223,16 @@ The workflow has one argument grammar: `planwright <args>`. Each host only chang
 
 | Host | Use this trigger | Shortcut spelling |
 |------|------------------|-------------------|
-| Claude Code | `/planwright <args>` | `/codvisor`, `/codinventor`, `/codcycle`, `/codshard`, `/codmaster` |
-| Codex | `planwright <args>` after installing/loading the skill | `codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster` |
-| Cursor | `@planwright <args>` or `planwright <args>` | `@codvisor`/`codvisor` — likewise `codinventor`, `codcycle`, `codshard`, `codmaster` |
-| Antigravity / Gemini | `planwright <args>` from the `GEMINI.md` project instruction | `codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster` |
+| Claude Code | `/planwright <args>` | `/codvisor`, `/codinventor`, `/codcycle`, `/codshard`, `/codmaster`, `/codpr` |
+| Codex | `planwright <args>` after installing/loading the skill | `codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`, `codpr` |
+| Cursor | `@planwright <args>` or `planwright <args>` | `@codvisor`/`codvisor` — likewise `codinventor`, `codcycle`, `codshard`, `codmaster`, `codpr` |
+| Antigravity / Gemini | `planwright <args>` from the `GEMINI.md` project instruction | `codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`, `codpr` |
 
 ### Why any agent can host it
 
 Planwright is not re-implemented per agent. The entire workflow lives in one agent-neutral file, `skills/planwright/SKILL.md`, backed by stdlib-only Python helpers in `scripts/`. Everything host-specific is a **thin adapter** — a plugin manifest or a pointer file whose only job is "read `SKILL.md`, resolve helper scripts from `../../scripts/`." The named hosts above just differ in how that adapter is delivered (a `.claude-plugin/`/`.codex-plugin/` manifest, a Cursor skill symlink, or a `GEMINI.md` instruction).
 
-Because of this, any agent that reliably reads a project `AGENTS.md` file can host Planwright without a dedicated adapter. Drop the block from [`AGENTS.example.md`](AGENTS.example.md) into the target repo's `AGENTS.md` and the agent will dispatch `planwright` and all five `cod*` shortcuts through the same shared skill. This covers AGENTS.md-aware agents such as Windsurf, Cline, Roo Code, Amp, and Zed in addition to the first-class hosts above. The only requirement for full fidelity is that the host can run the bundled Python helpers; agents that cannot execute scripts get the planning prose but not the graph-backed grounding.
+Because of this, any agent that reliably reads a project `AGENTS.md` file can host Planwright without a dedicated adapter. Drop the block from [`AGENTS.example.md`](AGENTS.example.md) into the target repo's `AGENTS.md` and the agent will dispatch `planwright` and all six `cod*` shortcuts through the same shared skill. This covers AGENTS.md-aware agents such as Windsurf, Cline, Roo Code, Amp, and Zed in addition to the first-class hosts above. The only requirement for full fidelity is that the host can run the bundled Python helpers; agents that cannot execute scripts get the planning prose but not the graph-backed grounding.
 
 ### Claude Code
 
@@ -267,7 +270,7 @@ mkdir -p ~/.cursor/skills
 ln -s <PLANWRIGHT_FOLDER>/skills/planwright ~/.cursor/skills/planwright
 ```
 
-For the `cod*` shortcuts (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`), use the `AGENTS.md` block in [`AGENTS.example.md`](AGENTS.example.md) or add thin dispatcher skills (see that file for details).
+For the `cod*` shortcuts (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`, `codpr`), use the `AGENTS.md` block in [`AGENTS.example.md`](AGENTS.example.md) or add thin dispatcher skills (see that file for details).
 
 **Lightweight alternative:** copy the `AGENTS.md` block from [`AGENTS.example.md`](AGENTS.example.md) into the root of each target project.
 
@@ -335,7 +338,7 @@ that layout intact or use the plugin path above.
 
 Invoke in chat with `planwright`, for example `planwright depth 8`, `planwright execute`, or
 `planwright cycle 3`. You can also explicitly mention the skill as `$planwright`. Use the `cod*`
-shortcuts (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`) as natural-language
+shortcuts (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`, `codpr`) as natural-language
 commands, or add a small dispatcher skill that reads the matching `commands/<name>.md` and then
 loads `skills/planwright/SKILL.md` with the resolved argument string.
 
@@ -349,7 +352,7 @@ loads `skills/planwright/SKILL.md` with the resolved argument string.
 
 Planwright can be run directly via Antigravity or Gemini project instructions. Copy the contents of [`GEMINI.example.md`](GEMINI.example.md) into a `GEMINI.md` file in the root of each target project, and update the absolute path to point to the Planwright clone.
 
-Then ask the assistant to run `planwright` or use the `cod*` shortcut commands (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`).
+Then ask the assistant to run `planwright` or use the `cod*` shortcut commands (`codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`, `codpr`).
 
 ## Optional: context-mode
 

@@ -7,21 +7,21 @@
 #
 # Every install here targets an explicit --dir under TMP, so the real ~/.claude commands
 # dir is never written or deleted. The script's uninstall path runs rm, so IA3 also pins
-# that it removes only the five aliases and leaves unrelated files alone.
+# that it removes only the six aliases and leaves unrelated files alone.
 #
 # shellcheck shell=bash
 
 IA="$ROOT/scripts/install-aliases.sh"
 IADIR="$TMP/ia-cmds"
 
-# --- Test IA1: --dir installs the five delegator aliases ------------------
+# --- Test IA1: --dir installs the six delegator aliases ------------------
 if bash "$IA" --dir "$IADIR" >"$TMP/ia.out" 2>"$TMP/ia.err"; then
   ia_missing=""
-  for n in codcycle codvisor codinventor codshard codmaster; do
+  for n in codcycle codvisor codinventor codshard codmaster codpr; do
     [ -f "$IADIR/$n.md" ] || ia_missing="$ia_missing $n"
   done
   if [ -z "$ia_missing" ]; then
-    ok "install-aliases --dir writes the five delegator alias files"
+    ok "install-aliases --dir writes the six delegator alias files"
   else
     bad "install-aliases --dir missing:$ia_missing"
   fi
@@ -31,7 +31,7 @@ fi
 
 # --- Test IA2: each alias carries frontmatter and forwards to the plugin cmd -
 ia_content=1
-for n in codcycle codvisor codinventor codshard codmaster; do
+for n in codcycle codvisor codinventor codshard codmaster codpr; do
   f="$IADIR/$n.md"
   grep -q '^description: ' "$f" 2>/dev/null || ia_content=0
   grep -q '^argument-hint: ' "$f" 2>/dev/null || ia_content=0
@@ -54,7 +54,7 @@ fi
 # what the installer writes (description is deliberately alias-flavored prose,
 # so only the argument-hint is a byte mirror).
 ia_mirror=""
-for n in codcycle codvisor codinventor codshard codmaster; do
+for n in codcycle codvisor codinventor codshard codmaster codpr; do
   src_hint="$(grep -m1 '^argument-hint: ' "$ROOT/commands/$n.md" 2>/dev/null)"
   ali_hint="$(grep -m1 '^argument-hint: ' "$IADIR/$n.md" 2>/dev/null)"
   if [ -z "$src_hint" ] || [ "$src_hint" != "$ali_hint" ]; then
@@ -67,15 +67,15 @@ else
   bad "install-aliases argument-hint drifted from commands/<name>.md for:$ia_mirror"
 fi
 
-# --- Test IA3: --uninstall removes only the five aliases, leaving other files -
+# --- Test IA3: --uninstall removes only the six aliases, leaving other files -
 printf 'keep me\n' > "$IADIR/other.md"
 if bash "$IA" --dir "$IADIR" --uninstall >"$TMP/ia.un" 2>&1; then
   ia_gone=1
-  for n in codcycle codvisor codinventor codshard codmaster; do
+  for n in codcycle codvisor codinventor codshard codmaster codpr; do
     [ -e "$IADIR/$n.md" ] && ia_gone=0
   done
   if [ "$ia_gone" -eq 1 ] && [ -f "$IADIR/other.md" ]; then
-    ok "install-aliases --uninstall removes the five aliases and leaves unrelated files"
+    ok "install-aliases --uninstall removes the six aliases and leaves unrelated files"
   else
     bad "install-aliases --uninstall left an alias or deleted an unrelated file"
   fi
@@ -139,16 +139,16 @@ else
   bad "install-aliases mis-handled --dir with no value (rc=$ia6_rc err='$(cat "$TMP/ia6.err" 2>/dev/null)')"
 fi
 
-# --- Test IA1b: the installer writes EXACTLY the five canonical delegators (no more, no fewer) ----
-# IA1 checks the five named files EXIST (the no-fewer arm); a regression that added a SIXTH delegator
+# --- Test IA1b: the installer writes EXACTLY the six canonical delegators (no more, no fewer) ----
+# IA1 checks the six named files EXIST (the no-fewer arm); a regression that added a SIXTH delegator
 # would slip past it. Pin the exact set: the installed .md count is 5 and equals the canonical cod* family.
 IAX="$TMP/ia-exact"; mkdir -p "$IAX"
 if bash "$IA" --dir "$IAX" >/dev/null 2>&1; then
   ia_count="$(find "$IAX" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
   ia_set="$(find "$IAX" -maxdepth 1 -name '*.md' | sed 's#.*/##; s/\.md$//' | sort | tr '\n' ' ')"
-  ia_want="$(printf '%s\n' codcycle codinventor codmaster codshard codvisor | sort | tr '\n' ' ')"
-  if [ "$ia_count" = "5" ] && [ "$ia_set" = "$ia_want" ]; then
-    ok "install-aliases --dir writes EXACTLY the five canonical delegators (no more, no fewer)"
+  ia_want="$(printf '%s\n' codcycle codinventor codmaster codshard codvisor codpr | sort | tr '\n' ' ')"
+  if [ "$ia_count" = "6" ] && [ "$ia_set" = "$ia_want" ]; then
+    ok "install-aliases --dir writes EXACTLY the six canonical delegators (no more, no fewer)"
   else
     bad "install-aliases wrote the wrong delegator set (count=$ia_count set='$ia_set')"
   fi

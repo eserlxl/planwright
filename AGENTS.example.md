@@ -99,6 +99,7 @@ is preferred here because Planwright resolves bundled scripts from `../../script
 - `@codcycle` / `codcycle` — explore→invent alternation: each outer cycle runs one `cycle 3 depth 10 explore` then a framing-rotated `cycle 3 depth 10 invent`, with one closing explore (recipe in `commands/codcycle.md`)
 - `@codshard` / `codshard` — sharded maturity sweep: one scoped `cycle 3 depth 10` round per shard in staleness order, then one closing whole-repo round (recipe in `commands/codshard.md`)
 - `@codmaster` / `codmaster` — the front door: sense the planning state via `scripts/status.py --recommend`, then run the required commands consecutively to the final point at depth 10 (`advise` = tell only; `safe` = no invention; `loop` = infinite; recipe in `commands/codmaster.md`)
+- `@codpr` / `codpr` — PR ingest: turn the current branch's open PR (unresolved review threads + failing CI) into grounded plan items; `codpr handoff` prints the local push-back recipe (recipe in `commands/codpr.md`). planwright stays read-only toward GitHub
 
 Run `planwright help` (or `@planwright help`) for the full option reference.
 
@@ -108,12 +109,12 @@ Run `planwright help` (or `@planwright help`) for the full option reference.
 
 ## Alternative: project `AGENTS.md` pointer
 
-If a machine-wide skill install is not desired, copy the block below into a file named `AGENTS.md` in the **root of the target project** (the repo being planned, not the planwright clone). This is also the supported path for **Windsurf, Cline, Roo Code, Amp, Zed**, and any other agent that reads a project `AGENTS.md` — they all dispatch `planwright`, `codvisor`, `codinventor`, `codcycle`, `codshard`, and `codmaster` through the same shared skill.
+If a machine-wide skill install is not desired, copy the block below into a file named `AGENTS.md` in the **root of the target project** (the repo being planned, not the planwright clone). This is also the supported path for **Windsurf, Cline, Roo Code, Amp, Zed**, and any other agent that reads a project `AGENTS.md` — they all dispatch `planwright`, `codvisor`, `codinventor`, `codcycle`, `codshard`, `codmaster`, and `codpr` through the same shared skill.
 
 ```markdown
 ## planwright
 
-When the user invokes **planwright**, **codvisor**, **codinventor**, **codcycle**, **codshard**, or **codmaster** (with or without a leading `@`), act as the planwright agent:
+When the user invokes **planwright**, **codvisor**, **codinventor**, **codcycle**, **codshard**, **codmaster**, or **codpr** (with or without a leading `@`), act as the planwright agent:
 
 1. Read `/absolute/path/to/planwright/skills/planwright/SKILL.md` and follow it exactly for the resolved arguments.
 2. Do not re-implement planwright logic inline — the skill owns all planning, execute, and cycle behaviour.
@@ -131,6 +132,7 @@ When the user invokes **planwright**, **codvisor**, **codinventor**, **codcycle*
 - `codcycle [N]` → follow the orchestration recipe in `commands/codcycle.md`: N outer cycles (default 10; negative = infinite), each an explore phase (`cycle 3 depth 10 explore`) then a framing-rotated invent phase (`cycle 3 depth 10 invent`), with one closing explore — each phase is an ordinary run of SKILL.md
 - `codshard [args]` → follow the orchestration recipe in `commands/codshard.md`: partition the repo into shards, run one scoped `cycle 3 depth 10` round per shard sequentially (staleness order), then one closing whole-repo round (`explore` escalates only that closing round; `shards <a,b,c>` lists shards explicitly) — each round is an ordinary run of SKILL.md. An opt-in `parallel` prefetches read-only recon leads per shard via the host's native subagent backend, routing-only and never Evidence (rounds stay sequential); an explicit `parallel external` opts into the **optional external-agents** CLIs (agy/codex) for host-neutral recon off Claude Code — planwright never requires them, and they ship the shard tree to external providers (opt-in, never private IP)
 - `codmaster [advise | [safe] [loop]] [path <X> | lib <X>]` → follow the orchestration recipe in `commands/codmaster.md`: sense via `scripts/status.py --root . --recommend`, dispatch the record's command as an ordinary SKILL.md run, re-sense, and repeat to the final point at depth 10 (never re-derive the recommendation in prose; if the engine cannot run, stop). With a peeled `path <X>` / `lib <X>` scope, thread it into the sense engine (`scripts/status.py --root . --recommend --scope path:<X>`) so pending/debt/convergence are Focus-restricted, and trail the bare scope after every dispatch (`execute path <X>`); a scoped drive never auto-routes `codshard` or `reset` (whole-repo moves), so the harden stays a scoped `codvisor`
+- `codpr [handoff | <N>]` → the planwright `pr` subcommand; every form prefixes `pr` (empty → `pr`, `handoff` → `pr handoff`, `123` → `pr 123`). Ingest the current branch's open PR (unresolved review threads + failing CI) as plan items, re-grounding every anchor against the live tree; `pr handoff` prints the local push-back recipe. Read-only toward GitHub — planwright never pushes, comments, resolves, or merges (the operator does that by hand)
 - `planwright <args>` → pass `<args>` to the skill dispatcher described in SKILL.md
 
 **Scripts:** resolve `build-graph.py` and `lint-plan.py` from `/absolute/path/to/planwright/scripts/` (not from the target repo's working directory).

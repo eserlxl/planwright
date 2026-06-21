@@ -9,7 +9,7 @@
 # cannot register an unprefixed top-level command — those only exist in the user
 # (~/.claude/commands/) or project (.claude/commands/) scopes, which a plugin
 # can't write into. This script drops thin delegator commands into one of those
-# scopes so you can type `/codcycle`, `/codvisor`, `/codinventor`, `/codshard`, `/codmaster`.
+# scopes so you can type `/codcycle`, `/codvisor`, `/codinventor`, `/codshard`, `/codmaster`, `/codpr`.
 #
 # Each alias only forwards its arguments to the real `/planwright:<name>` command
 # (it does NOT copy the logic), so the aliases never drift out of sync with the
@@ -28,7 +28,7 @@
 #   -h, --help       show this help
 set -euo pipefail
 
-ALIASES=(codcycle codvisor codinventor codshard codmaster)
+ALIASES=(codcycle codvisor codinventor codshard codmaster codpr)
 
 usage() {
   echo "Usage: $(basename "$0") [--project] [--dir <path>] [--uninstall]"
@@ -101,6 +101,7 @@ desc_for() {
     codinventor) echo "Personal alias for /planwright:codinventor — planwright inventor shorthand (invent) without the plugin prefix." ;;
     codshard)   echo "Personal alias for /planwright:codshard — planwright's sharded maturity sweep (per-shard scoped cycles, then one closing whole-repo round) without the plugin prefix." ;;
     codmaster)  echo "Personal alias for /planwright:codmaster — the front door: senses the planning state and runs the required commands consecutively to the final point (advise = tell only; safe = no invention; loop = infinite, reset-continued; parallel = forward codshard recon) without the plugin prefix." ;;
+    codpr)      echo "Personal alias for /planwright:codpr — planwright PR-ingest shorthand (pr): turn the current branch's open PR (review threads + failing CI) into plan items; handoff prints the local push-back recipe. Read-only toward GitHub, without the plugin prefix." ;;
   esac
 }
 arghint_for() {
@@ -110,6 +111,7 @@ arghint_for() {
     codinventor) echo "[planwright args] | <N> [D] | (empty = cycle 10 depth 10 invent)" ;;
     codshard)   echo "[M] [D] | shards <a,b,c> | parallel [J] | explore | (empty = auto-shards, cycle 3 depth 10 per shard)" ;;
     codmaster)  echo "advise | safe | loop | parallel [J] | (empty = sense → dispatch → re-sense, consecutively until the final point)" ;;
+    codpr)      echo "handoff | <N> | [planwright args] | (empty = pr ingest of current branch PR)" ;;
   esac
 }
 
@@ -132,4 +134,4 @@ done
 
 echo
 echo "Installed ${#ALIASES[@]} aliases into $TARGET_DIR"
-echo "Restart Claude Code (or /clear), then use: /codcycle  /codvisor  /codinventor  /codshard  /codmaster"
+echo "Restart Claude Code (or /clear), then use: /codcycle  /codvisor  /codinventor  /codshard  /codmaster  /codpr"
