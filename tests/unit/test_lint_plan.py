@@ -107,6 +107,17 @@ class TestEvidenceAnchorBelowOne(unittest.TestCase):
             self.assertEqual(issues[0][1], "out-of-range",
                              f"expected an out-of-range issue for a :0 anchor, got {issues}")
 
+    def test_zero_padded_valid_line_not_flagged(self):
+        # int("01") == 1, a valid 1-indexed citation: the below-1 narrowing must not
+        # over-reject a legitimately zero-padded line. This is the boundary the :0 fix
+        # must never cross.
+        with tempfile.TemporaryDirectory() as root:
+            with open(os.path.join(root, "small.py"), "w") as fh:
+                fh.write("a = 1\nb = 2\n")
+            issues = lp.evidence_anchor_issues("see small.py:01", root)
+            self.assertEqual(issues, [],
+                             f"a zero-padded valid line (:01 -> 1) must stay accepted, got {issues}")
+
 
 class TestUnsafeSurfaceContainment(unittest.TestCase):
     """unsafe_surface() is execute mode's edit-boundary guard; its rejection branches must
