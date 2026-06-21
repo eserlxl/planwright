@@ -49,3 +49,22 @@ need = [tok for tok in (
 sys.exit(1 if need else 0)
 PY
 then ok "SKILL.md Stages 3-7 pins the hybrid-ai ignore-context (ignored under invent and on execute)"; else bad "SKILL.md lost the hybrid-ai ignore-context clause (invent/execute)"; fi
+
+# --- Test HA3: SKILL.md Stages 3-7 pins the hybrid-ai never-Evidence ceiling ---
+# Every delegated dossier finding is routing-only: re-proven from a code re-read or dropped, and
+# never an item's Evidence (the identical Stage 1.6 ceiling). Removing it fails this guard.
+if python3 - "$ROOT/skills/planwright/SKILL.md" <<'PY' 2>/dev/null
+import sys
+t = " ".join(open(sys.argv[1], encoding="utf-8").read().split())
+a = t.find("### Stages 3"); b = t.find("### Stage 8")
+if a < 0 or b < 0 or b <= a:
+    raise SystemExit(1)
+para = t[a:b]
+need = [tok for tok in (
+    "delegated dossier finding",
+    "re-proven from a code re-read inside the host's single-agent dossier",
+    "never becomes an item's `Evidence:`",
+) if tok not in para]
+sys.exit(1 if need else 0)
+PY
+then ok "SKILL.md Stages 3-7 pins the hybrid-ai never-Evidence ceiling (delegated findings re-proven from a code re-read or dropped, never Evidence)"; else bad "SKILL.md lost the hybrid-ai never-Evidence ceiling for delegated findings"; fi
