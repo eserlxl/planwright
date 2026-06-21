@@ -138,10 +138,20 @@ def collect(root: str) -> dict:
             whole_repo_scope = True
         # A whole-repo sentinel needs no focus sha, so a scope_focus_sha alongside it is
         # the spurious field — name IT, not `scope:` (which is present and correct), or the
-        # generic branch below would misdirect the maintainer to the one good line.
-        if whole_repo_scope and bv:
-            viols.append("`%s:` must not accompany the whole-repo sentinel "
-                         "`scope: (whole-repo)`" % b)
+        # generic branch below would misdirect the maintainer to the one good line. This
+        # covers both a non-empty value AND a present-but-blank `scope_focus_sha:` (`bv == ''`),
+        # which would otherwise fall through to the generic pairing check and report the
+        # present, correct `scope:` sentinel as "missing or empty". An entirely absent
+        # scope_focus_sha (`bv is None`) is fine — the sentinel needs none — so skip the
+        # generic check unconditionally here.
+        if whole_repo_scope:
+            if bv:
+                viols.append("`%s:` must not accompany the whole-repo sentinel "
+                             "`scope: (whole-repo)`" % b)
+            elif bv is not None:
+                viols.append("`%s:` is present but empty alongside the whole-repo sentinel "
+                             "`scope: (whole-repo)` — the sentinel needs no focus sha; remove it"
+                             % b)
             continue
         # Symmetric: if either member appears at all, BOTH must be present and non-empty —
         # a half-recorded pair in EITHER direction is an unanchored/un-replayable point.
