@@ -203,60 +203,6 @@ def _write_activity(path, record):
         raise
 
 
-# The append-only run-history ledger (.planwright/runs.json): a bounded, length-capped JSON array of
-# completed-run records the dashboard renders as a timeline. Capped to the most recent
-# RUN_HISTORY_CAP so an active repo's history never grows unbounded (mirrors the lifecycle FIFO caps).
-RUN_HISTORY_CAP = 100
-
-
-def _run_history_path(root):
-    return os.path.join(root, ".planwright", "runs.json")
-
-
-def _read_run_history(path):
-    """The run-history ledger as a list (empty on absent/malformed — best-effort, never raises)."""
-    try:
-        with open(path, encoding="utf-8") as fh:
-            data = json.load(fh)
-        return data if isinstance(data, list) else []
-    except (OSError, ValueError):
-        return []
-
-
-def _append_run_record(root, record, cap=RUN_HISTORY_CAP):
-    """Append one run record to the ledger (atomic write, length-capped to the most recent `cap`).
-    Best-effort telemetry: any failure is swallowed so it never blocks activity_stop."""
-    try:
-        path = _run_history_path(root)
-        runs = _read_run_history(path)
-        runs.append(record)
-        if len(runs) > cap:
-            runs = runs[-cap:]
-        _write_activity(path, runs)   # reuse the atomic temp+os.replace writer
-    except Exception:
-        pass
-
-
-def _run_outcome(root):
-    """Best-effort convergence verdict for the just-ended run, reusing this module's own collect()
-    snapshot (the counts / converged / final_point shape the dashboard reads): 'converged' (a certified
-    whole-repo final point with nothing pending), 'pending' (work remains), 'stale' (a final point
-    recorded but no longer matching HEAD), else 'idle'. Returns None when it cannot be computed (a read
-    error) — the run record then simply omits the outcome."""
-    try:
-        rec = collect(root)
-        if rec.get("converged"):
-            return "converged"
-        if (rec.get("counts") or {}).get("pending", 0) > 0:
-            return "pending"
-        fp = rec.get("final_point")
-        if fp and fp.get("stale"):
-            return "stale"
-        return "idle"
-    except Exception:
-        return None
-
-
 def _register_project(root):
     """Best-effort: enter this repo into the cross-repo dashboard registry (see registry.py)
     so a project that is *running* appears in the single-server switcher with zero user
@@ -323,17 +269,6 @@ def activity_stop(root, name=None):
         os.remove(path)
     except OSError:
         return "activity: none"
-    # The owning command's run actually ended (the beacon was removed) — append a bounded
-    # run-history record so the dashboard has a run timeline. Best-effort; never blocks the stop.
-    record = {
-        "command": current,
-        "started": existing.get("started"),
-        "ended": _utc_now(),
-    }
-    outcome = _run_outcome(root)   # where the run left the repo (converged / pending / stale / idle)
-    if outcome:
-        record["outcome"] = outcome
-    _append_run_record(root, record)
     return "activity: stopped %s" % current
 
 

@@ -78,4 +78,4 @@ jobs:
         run: |
           export NODE_V8_COVERAGE="$PWD/.jscov"
           node tests/cases/lib/dashboard-coverage-load.js "$PWD/scripts/dashboard"
-          python3 scripts/js-coverage-report.py "$PWD/.jscov" --root . --fail-under 73
+          python3 scripts/js-coverage-report.py "$PWD/.jscov" --root . --fail-under 71

@@ -60,10 +60,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
           <span>Fleet</span>
         </button>
-        <button class="pw-tab" id="tab-runs" data-view="runs" role="tab" aria-selected="false" aria-controls="view-runs" tabindex="-1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
-          <span>Runs</span>
-        </button>
         <button class="pw-tab" id="tab-doctor" data-view="doctor" role="tab" aria-selected="false" aria-controls="view-doctor" tabindex="-1">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>
           <span>Doctor</span>
@@ -107,7 +103,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
         <section id="view-insights" class="pw-view" role="tabpanel" aria-labelledby="tab-insights" hidden></section>
         <section id="view-shards" class="pw-view" role="tabpanel" aria-labelledby="tab-shards" hidden></section>
         <section id="view-fleet" class="pw-view" role="tabpanel" aria-labelledby="tab-fleet" hidden></section>
-        <section id="view-runs" class="pw-view" role="tabpanel" aria-labelledby="tab-runs" hidden></section>
         <section id="view-doctor" class="pw-view" role="tabpanel" aria-labelledby="tab-doctor" hidden></section>
       </div>
     </main>
@@ -167,7 +162,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
   <script src="/views/insights.js"></script>
   <script src="/views/shards.js"></script>
   <script src="/views/fleet.js"></script>
-  <script src="/views/runs.js"></script>
   <script src="/views/doctor.js"></script>
   <!-- The shell: data fetch, SSE client, tab routing, palette, theme, keyboard. -->
   <script src="/app.js"></script>

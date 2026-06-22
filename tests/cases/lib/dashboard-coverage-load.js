@@ -27,22 +27,11 @@ win.fetch = function () {
 install(win, doc);
 loadCommon(BASE);
 
-const VIEWS = ["console", "plan", "commands", "insights", "shards", "timeline", "graph", "fleet", "runs"];
+const VIEWS = ["console", "plan", "commands", "insights", "shards", "timeline", "graph", "fleet"];
 loadViews(BASE, VIEWS);
 const { state, fullCtx, bareCtx } = makeFixture();
 VIEWS.forEach(function (v) {
   win.PW_VIEWS[v](new El("section"), state, fullCtx);
   win.PW_VIEWS[v](new El("section"), state, bareCtx);   // degraded path too
 });
-// Exercise the data-driven render paths the empty fetch stub above does not reach, so the Phase 7
-// client code (runs timeline + commands motion telemetry) is MEASURED, not merely loaded: a
-// populated ledger drives runs.paint()/duration() and commands.paintTelemetry()'s populated branch,
-// and an empty ledger drives the degrade path.
-const sampleRuns = [
-  { command: "cycle", started: "2026-06-21T00:00:00Z", ended: "2026-06-21T00:00:10Z", outcome: "converged" },
-  { command: "execute", started: "2026-06-21T01:00:00Z", ended: "2026-06-21T01:02:30Z", outcome: "pending" },
-];
-win.PW_VIEWS.runs.paint(new El("section"), sampleRuns);
-win.PW_VIEWS.runs.paint(new El("section"), []);
-win.PW_VIEWS.commands.paintTelemetry(new El("section"), sampleRuns);
 console.log("COV-LOAD-OK");

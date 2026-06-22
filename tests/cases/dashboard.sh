@@ -339,7 +339,7 @@ PY
 # --- Tests DSH1/DSH2/DSH3: endpoints + the static UI shell + the view modules -------
 # PW_TEST_VIEWS lists the view modules to assert are served+registered (grows as each
 # view lands), so every view ships with a runnable served+referenced check.
-PW_TEST_VIEWS="console commands plan timeline graph insights shards doctor fleet runs" \
+PW_TEST_VIEWS="console commands plan timeline graph insights shards doctor fleet" \
   python3 "$TMP/dash_client.py" "$DFX" "$DASH" >"$TMP/dash.out" 2>"$TMP/dash.err" || true
 if grep -q DASH-OK "$TMP/dash.out"; then
   ok "dashboard.py serves /state.json (JSON) + /events (text/event-stream), refuses traversal + foreign Host"
@@ -2816,14 +2816,14 @@ if command -v node >/dev/null 2>&1; then
     rep2="$(python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT")"
     rc_hi=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 100 >/dev/null 2>&1 || rc_hi=$?
     rc_lo=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 1 >/dev/null 2>&1 || rc_lo=$?
-    # Committed floor: the 73% floor (CI --fail-under 73, docs/js-coverage-floor.md) must
+    # Committed floor: the 71% floor (CI --fail-under 71, docs/js-coverage-floor.md) must
     # pass on the current tree, so a coverage drop below it fails the suite locally too, not only CI.
-    rc_floor=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 73 >/dev/null 2>&1 || rc_floor=$?
+    rc_floor=0; python3 "$ROOT/scripts/js-coverage-report.py" "$PCTDIR" --root "$ROOT" --fail-under 71 >/dev/null 2>&1 || rc_floor=$?
     if printf '%s' "$rep1" | grep -qE 'JS coverage \(scripts/dashboard\): [0-9]+\.[0-9]+%' \
        && [ "$rep1" = "$rep2" ] && [ "$rc_hi" = "2" ] && [ "$rc_lo" = "0" ] && [ "$rc_floor" = "0" ]; then
-      ok "js-coverage-report.py reduces V8 coverage to one deterministic % over the 73% floor (--fail-under gates correctly)"
+      ok "js-coverage-report.py reduces V8 coverage to one deterministic % over the 71% floor (--fail-under gates correctly)"
     else
-      bad "js-coverage-report.py % non-deterministic, below the 73% floor, or --fail-under mis-gated (hi=$rc_hi lo=$rc_lo floor=$rc_floor): '$rep1' vs '$rep2'"
+      bad "js-coverage-report.py % non-deterministic, below the 71% floor, or --fail-under mis-gated (hi=$rc_hi lo=$rc_lo floor=$rc_floor): '$rep1' vs '$rep2'"
     fi
   else
     bad "JS coverage collector failed: $(cat "$TMP/js_cov_pct.err" 2>/dev/null)"
@@ -3598,165 +3598,3 @@ else
   ok "app.js SSE reconnect state check skipped (node not installed)"
 fi
 
-# --- Test DASH-RUNS-JSON: /runs.json serves the run-history ledger (empty array when absent) -
-# The read-only endpoint backs the run-history view. An absent ledger is not an error — it serves an
-# empty array; once state.py has appended runs, it serves them verbatim. Same json + no-store as the
-# other dynamic snapshots.
-cat > "$TMP/dash_runs.py" <<'PY'
-import os, json, subprocess, sys, time, urllib.request
-root, dash = sys.argv[1], sys.argv[2]
-proc = subprocess.Popen([sys.executable, dash, "--root", root, "--port", "0"],
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-try:
-    port, deadline = None, time.time() + 10
-    while time.time() < deadline:
-        line = proc.stdout.readline()
-        if not line:
-            if proc.poll() is not None:
-                print("server exited early", file=sys.stderr); sys.exit(1)
-            continue
-        if "http://127.0.0.1:" in line:
-            port = int(line.split("http://127.0.0.1:")[1].split("/")[0]); break
-    if not port:
-        print("no port banner", file=sys.stderr); sys.exit(1)
-    base = "http://127.0.0.1:%d" % port
-    with urllib.request.urlopen(base + "/runs.json", timeout=5) as r:
-        assert r.headers.get_content_type() == "application/json", r.headers.get_content_type()
-        assert r.headers.get("Cache-Control") == "no-store", r.headers.get("Cache-Control")
-        empty = json.load(r)
-    assert empty == [], "absent ledger should serve [], got %r" % empty
-    with open(os.path.join(root, ".planwright", "runs.json"), "w") as fh:
-        json.dump([{"command": "plan", "started": "2026-06-21T00:00:00Z",
-                    "ended": "2026-06-21T00:01:00Z"}], fh)
-    with urllib.request.urlopen(base + "/runs.json", timeout=5) as r:
-        runs = json.load(r)
-    assert isinstance(runs, list) and len(runs) == 1 and runs[0]["command"] == "plan", runs
-    print("RUNS-JSON-OK")
-finally:
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except Exception:
-        proc.kill()
-PY
-DRJDIR="$TMP/dash-runs"; mkdir -p "$DRJDIR/.planwright"
-printf -- '- [ ] one\n      Mode: improve\n' > "$DRJDIR/.planwright/plan.md"
-python3 "$TMP/dash_runs.py" "$DRJDIR" "$DASH" >"$TMP/druns.out" 2>"$TMP/druns.err" || true
-if grep -q RUNS-JSON-OK "$TMP/druns.out"; then
-  ok "dashboard.py /runs.json serves the run-history ledger (empty array when absent, runs when present)"
-else
-  bad "dashboard.py /runs.json failed: $(cat "$TMP/druns.err" 2>/dev/null)"
-fi
-
-# --- Test DASH-RUNS-RENDER: views/runs.js renders the ledger and degrades on empty/malformed -----
-# The runs view paints the /runs.json ledger as a chronological timeline (newest first) and must
-# degrade cleanly: an empty array and a malformed (non-array) ledger both paint the empty state
-# without throwing. Drives the exposed pure paint(container, runs) — no async fetch needed.
-if command -v node >/dev/null 2>&1; then
-  cat > "$TMP/runs_render_test.js" <<'JS'
-const assert = require("assert");
-const BASE = process.argv[2];
-const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
-const { makeDoc, makeWin, install, loadView, textOf } = VM;
-const doc = makeDoc(); const win = makeWin(doc); install(win, doc);
-loadView(BASE, "runs");
-const runs = win.PW_VIEWS.runs;
-assert(typeof runs === "function" && typeof runs.paint === "function",
-  "runs.js did not expose PW_VIEWS.runs with a pure paint()");
-// A populated ledger renders a row per run, newest first, with command + duration.
-const ledger = [
-  { command: "plan", started: "2026-06-21T00:00:00Z", ended: "2026-06-21T00:00:05Z" },
-  { command: "cycle", started: "2026-06-21T00:01:00Z", ended: "2026-06-21T00:03:30Z", outcome: "converged" },
-];
-let sec = new VM.El("section"); runs.paint(sec, ledger);
-let txt = textOf(sec);
-assert(txt.indexOf("plan") >= 0 && txt.indexOf("cycle") >= 0, "rows missing a command: " + txt);
-assert(txt.indexOf("Run history") >= 0, "missing the panel title: " + txt);
-assert(txt.indexOf("2m 30s") >= 0, "cycle duration not rendered: " + txt);
-assert(txt.indexOf("converged") >= 0, "outcome not rendered: " + txt);
-// duration() is pure and correct
-assert(runs.duration("2026-06-21T00:00:00Z", "2026-06-21T00:00:05Z") === "5s", "5s duration wrong");
-assert(runs.duration("bad", "also-bad") === "?", "unparseable duration should be ?");
-// Empty array -> empty state, no throw.
-sec = new VM.El("section"); runs.paint(sec, []);
-assert(textOf(sec).indexOf("No runs recorded") >= 0, "empty ledger did not paint the empty state");
-// Malformed (non-array) -> empty state, no throw.
-sec = new VM.El("section"); runs.paint(sec, null); runs.paint(sec, { not: "an array" });
-assert(textOf(sec).indexOf("No runs recorded") >= 0, "malformed ledger did not degrade to empty state");
-console.log("RUNS-RENDER-OK");
-JS
-  if node "$TMP/runs_render_test.js" "$ROOT/scripts/dashboard" >"$TMP/runs_render.out" 2>"$TMP/runs_render.err" \
-     && grep -q RUNS-RENDER-OK "$TMP/runs_render.out"; then
-    ok "views/runs.js renders the ledger as a timeline (newest first, command/duration/outcome) and degrades on empty/malformed input"
-  else
-    bad "views/runs.js render assertion failed: $(cat "$TMP/runs_render.err" 2>/dev/null)"
-  fi
-else
-  ok "views/runs.js render check skipped (node not installed)"
-fi
-
-# --- Test DASH-MOTION-TELEMETRY / DASH-MOTION-DEGRADE / DASH-MOTION-OUTCOMES ----------------
-# The Commands view's motion-telemetry panel (render.paintTelemetry, derived via aggregateMotions):
-# every motion in the ledger renders (incl. card-only codmaster/codshard); an empty/malformed ledger
-# degrades to the empty state without throwing; mixed outcomes show the per-motion converged/pending/
-# stale split. Drives the exposed pure paintTelemetry — no async fetch.
-if command -v node >/dev/null 2>&1; then
-  cat > "$TMP/motion_tele_test.js" <<'JS'
-const assert = require("assert");
-const BASE = process.argv[2];
-const VM = require(BASE + "/../../tests/cases/lib/dashboard-vm.js");
-const { makeDoc, makeWin, install, loadCommon, loadView, textOf } = VM;
-const doc = makeDoc(); const win = makeWin(doc); install(win, doc);
-loadCommon(BASE);                 // derive.js -> PW_DERIVE.aggregateMotions
-loadView(BASE, "commands");
-const paint = win.PW_VIEWS.commands.paintTelemetry;
-assert(typeof paint === "function", "commands.js did not expose render.paintTelemetry");
-// (DASH-MOTION-TELEMETRY) every motion appears — including card-only codmaster/codshard
-const ledger = [
-  { command: "execute", started: "2026-06-21T00:00:00Z", ended: "2026-06-21T00:00:10Z", outcome: "converged" },
-  { command: "codmaster", started: "2026-06-21T01:00:00Z", ended: "2026-06-21T01:05:00Z", outcome: "pending" },
-  { command: "codshard", started: "2026-06-21T02:00:00Z", ended: "2026-06-21T02:10:00Z", outcome: "stale" },
-];
-let sec = new VM.El("section"); paint(sec, ledger);
-let txt = textOf(sec);
-["execute", "codmaster", "codshard"].forEach(function (m) {
-  assert(txt.indexOf(m) >= 0, "motion missing from telemetry: " + m);
-});
-assert(txt.indexOf("Motion telemetry") >= 0, "missing telemetry title");
-console.log("MOTION-TELE-OK");
-// (DASH-MOTION-DEGRADE) empty + malformed -> empty state, no throw
-sec = new VM.El("section"); paint(sec, []);
-assert(textOf(sec).indexOf("No runs recorded") >= 0, "empty ledger did not degrade");
-sec = new VM.El("section"); paint(sec, null); paint(sec, { not: "array" }); paint(sec, "bad");
-assert(textOf(sec).indexOf("No runs recorded") >= 0, "malformed ledger did not degrade");
-console.log("MOTION-DEGRADE-OK");
-// (DASH-MOTION-OUTCOMES) mixed outcomes -> the per-motion split renders
-const mixed = [
-  { command: "cycle", started: "2026-06-21T00:00:00Z", ended: "2026-06-21T00:00:05Z", outcome: "converged" },
-  { command: "cycle", started: "2026-06-21T00:01:00Z", ended: "2026-06-21T00:01:05Z", outcome: "pending" },
-  { command: "cycle", started: "2026-06-21T00:02:00Z", ended: "2026-06-21T00:02:05Z", outcome: "stale" },
-];
-sec = new VM.El("section"); paint(sec, mixed); txt = textOf(sec);
-assert(txt.indexOf("converged 1") >= 0 && txt.indexOf("pending 1") >= 0 && txt.indexOf("stale 1") >= 0,
-  "outcome distribution split missing: " + txt);
-console.log("MOTION-OUTCOMES-OK");
-JS
-  node "$TMP/motion_tele_test.js" "$ROOT/scripts/dashboard" >"$TMP/motion_tele.out" 2>"$TMP/motion_tele.err" || true
-  if grep -q MOTION-TELE-OK "$TMP/motion_tele.out"; then
-    ok "commands.js motion-telemetry renders every motion including card-only codmaster/codshard"
-  else
-    bad "commands.js motion-telemetry render failed: $(cat "$TMP/motion_tele.err" 2>/dev/null)"
-  fi
-  if grep -q MOTION-DEGRADE-OK "$TMP/motion_tele.out"; then
-    ok "commands.js motion-telemetry degrades to an empty state on empty/malformed ledgers without throwing"
-  else
-    bad "commands.js motion-telemetry degrade failed: $(cat "$TMP/motion_tele.err" 2>/dev/null)"
-  fi
-  if grep -q MOTION-OUTCOMES-OK "$TMP/motion_tele.out"; then
-    ok "commands.js motion-telemetry shows the per-motion converged/pending/stale outcome split"
-  else
-    bad "commands.js motion-telemetry outcome split failed: $(cat "$TMP/motion_tele.err" 2>/dev/null)"
-  fi
-else
-  ok "commands.js motion-telemetry checks skipped (node not installed)"
-fi

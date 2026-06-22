@@ -35,7 +35,7 @@ Stdlib only (no Flask/websocket libs, no build step). It exposes:
    liveness status (active/stale from the beacon TTL, converged from the final-point marker, else
    idle), and plan/completed counts. Cheap by design — no `state.collect` per project.
 7. **`/` and static assets** — the vanilla `scripts/dashboard/` UI shell (no npm/build toolchain): a
-   reactive console with ten views — **Console** (convergence reactor with a three-state resting
+   reactive console with nine views — **Console** (convergence reactor with a three-state resting
    verdict, the expanded health vitals row — coverage, hotspots, coupling, audit frontier, files,
    articulation, tests, cycles — cadence with a mode legend, session trend, dirty pulse, and a
    run-activity beacon under the reactor note naming the command flow executing right now — distinct
@@ -52,9 +52,7 @@ Stdlib only (no Flask/websocket libs, no build step). It exposes:
    **Shards** (codshard's live shard map: the shardable top-level directories, per-shard
    staleness, the order a sweep would walk, and copyable single-shard invocations),
    **Fleet** (a portfolio grid of every tracked project's reactor state — the multi-project
-   switcher's home: click a card to switch),
-   **Runs** (the run-history timeline — each completed command flow with its duration and convergence
-   outcome, newest first, from `/runs.json`), and
+   switcher's home: click a card to switch), and
    **Doctor** — plus a command palette, light/dark themes, and full keyboard navigation.
 
 **Multiple projects from one server.** The dashboard can mirror many repos at once, so you need not

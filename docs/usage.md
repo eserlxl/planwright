@@ -404,7 +404,7 @@ npm/build toolchain; everything works offline.
 The static UI (`scripts/dashboard/`) is a vanilla, dependency-free `index.html` + `app.js` shell
 (no build step), re-rendered from `/state.json` whenever the server's `/events` SSE stream reports a
 change (the active tab survives a reload via the URL hash). It has a command palette (`Ctrl/⌘-K`),
-light/dark themes, full keyboard navigation, and ten views:
+light/dark themes, full keyboard navigation, and nine views:
 
 - **Console** — the glance-once landing: a convergence reactor with a three-state resting verdict
   (CONVERGED / IN PROGRESS / STALE-or-IDLE), health vitals (coverage, hotspots, coupling, the audit
@@ -449,9 +449,6 @@ light/dark themes, full keyboard navigation, and ten views:
   (`/projects.json`): a grid of project cards with each repo's reactor state (active / converged /
   stale / idle) and pending/done counts, running projects first; clicking a card switches the whole
   dashboard to that project. This is what lets one server replace one-dashboard-per-repo.
-- **Runs** — the run-history timeline (`/runs.json`): each completed command flow (plan / execute /
-  cycle / codmaster …) as command · duration · convergence outcome, newest first, from the
-  append-only ledger `state.py` writes on every run's activity stop.
 - **Doctor** — the read-only environment preflight (`/doctor.json`).
 
 **Multiple projects.** One server can mirror many repos via a user-level registry
