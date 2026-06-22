@@ -20,6 +20,11 @@ milestones, read these:
 - **Agent-neutral host adapters** — one canonical argument grammar across Claude Code / Cursor / Codex /
   Antigravity, with the `codvisor` / `codinventor` helpers.
 
+## [1.66.0] - 2026-06-22
+
+### Changed
+- Exclude `.planwright/` state directories from the dashboard project registry, switcher, and Fleet view (the `is_registerable` guard closes the phantom-project leak); harden the dashboard SSE stream — bounded reconnection with an honest connection state, a configurable retry cadence (`PW_DASH_SSE_RETRY_MS`) advertised server-side, and a monotonic `id` field on `/events`; expose and validate `final.md` fixpoint-strength fields (`budget`/`fixpoint`) in `lint-final`; remove the short-lived Runs view and run-history ledger; plus a hardening pass — a release runbook (`RELEASE.md`), CI doc-link integrity, license-header and stdlib-only import checks, and the JS dashboard coverage floor raised to 73%.
+
 ## [1.65.0] - 2026-06-21
 
 ### Changed
