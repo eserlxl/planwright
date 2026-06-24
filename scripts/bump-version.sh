@@ -29,6 +29,7 @@ CODEX_PLUGIN_JSON="$ROOT/.codex-plugin/plugin.json"
 MARKETPLACE_JSON="$ROOT/.claude-plugin/marketplace.json"
 CHANGELOG="$ROOT/CHANGELOG.md"
 README_FILE="$ROOT/README.md"
+PLUGIN_YAML="$ROOT/plugin.yaml"
 
 # Portable repo-relative path. GNU realpath's relative mode is unavailable on
 # stock macOS without Homebrew; python3 is already required by this script.
@@ -130,6 +131,7 @@ if [ -z "$DRY_RUN" ]; then
   [ -f "$CODEX_PLUGIN_JSON" ] && _bump_targets+=("$CODEX_PLUGIN_JSON")
   [ -f "$MARKETPLACE_JSON" ] && _bump_targets+=("$MARKETPLACE_JSON")
   [ -f "$README_FILE" ] && _bump_targets+=("$README_FILE")
+  [ -f "$PLUGIN_YAML" ] && _bump_targets+=("$PLUGIN_YAML")
   for _skill in "$ROOT"/skills/*/SKILL.md; do
     [ -f "$_skill" ] && _bump_targets+=("$_skill")
   done
@@ -187,6 +189,34 @@ except FileNotFoundError:
 if codex_plugin is not None:
     codex_plugin["version"] = new
     atomic_write(codex_plugin_path, json.dumps(codex_plugin, indent=2) + "\n")
+PY
+fi
+
+# --- Update YAML manifest --------------------------------------------------
+if [ -z "$DRY_RUN" ] && [ -f "$PLUGIN_YAML" ]; then
+python3 - "$PLUGIN_YAML" "$NEW" <<'PY'
+import os, re, sys, tempfile
+path, new = sys.argv[1:3]
+
+def atomic_write(path, data):
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".bump-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+with open(path) as f:
+    text = f.read()
+text, n = re.subn(r'(?m)^version:\s*.*', f'version: {new}', text, count=1)
+if n:
+    atomic_write(path, text)
 PY
 fi
 
@@ -384,10 +414,12 @@ if [ -n "$DRY_RUN" ]; then
   if [ -n "$SKILLS_SYNCED" ]; then echo "  would sync$SKILLS_SYNCED"; fi
   # Same if/fi rule: a false `[ = ]` here as the branch's last statement would leak exit 1.
   if [ "$README_STATUS" = "would" ]; then echo "  would update $(relpath "$README_FILE") version badge -> $NEW"; fi
+  if [ -f "$PLUGIN_YAML" ]; then echo "  would update $(relpath "$PLUGIN_YAML") -> $NEW"; fi
 else
   echo "Bumped: $CURRENT -> $NEW"
   echo "  updated $(relpath "$PLUGIN_JSON")"
   [ -f "$CODEX_PLUGIN_JSON" ] && echo "  updated $(relpath "$CODEX_PLUGIN_JSON")"
+  [ -f "$PLUGIN_YAML" ] && echo "  updated $(relpath "$PLUGIN_YAML")"
   [ -n "$SKILLS_SYNCED" ] && echo "  updated$SKILLS_SYNCED"
   [ "$README_STATUS" = "changed" ] && echo "  updated $(relpath "$README_FILE") (version badge)"
   echo "  changelog entry added ($DATE)"
