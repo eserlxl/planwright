@@ -1,0 +1,7 @@
+name: planwright
+title: Planwright
+description: A free, local control loop for AI coding agents. Grounded planning, verification, execution, and repeatable codebase improvement.
+version: 1.66.0
+settings_sections: []
+per_project_config: false
+per_agent_config: false

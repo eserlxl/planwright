@@ -2,7 +2,7 @@
 
 `planwright` provides commands for planning your work (read-only) and executing it (mutating).
 It has one canonical argument grammar, `planwright <args>`; each host only changes the trigger token
-(`/planwright` on Claude Code, `@planwright` on Cursor, and usually `planwright` in Codex,
+(`/planwright` on Claude Code and Agent Zero, `@planwright` on Cursor, and usually `planwright` in Codex,
 Antigravity, or Gemini project instructions).
 
 ## Quick Start
@@ -74,7 +74,7 @@ The `execute` subcommand implements the pending items in the `.planwright/plan.m
 
 ### Execute Modes
 
-- **Auto Mode** (`planwright execute`, `/planwright execute` on Claude Code): Runs through all pending items in order, implements them, verifies them, and automatically commits the successful ones. Pauses only if there is a hard blocker or a failing final verification. The host agent's standard permission prompts for edits, shell commands, and commits still apply.
+- **Auto Mode** (`planwright execute`, `/planwright execute` on Claude Code and Agent Zero): Runs through all pending items in order, implements them, verifies them, and automatically commits the successful ones. Pauses only if there is a hard blocker or a failing final verification. The host agent's standard permission prompts for edits, shell commands, and commits still apply.
 - **Interactive Mode** (`--interactive`): Halts on every item to let you approve the implementation, show the diff, run the verification, and explicitly confirm the commit.
 - **Targeted Mode** (`N`): Executes only the `N`th pending item.
 - **Cycle Mode** (`cycle N`): Automates the workflow by running a planning phase followed by an execute phase, repeated `N` times, climbing a maturity ladder (repair → coverage → opportunity → vision) so a clean tree keeps producing valuable work. Positive N must be in the range 1–100; use a negative number (e.g., `-1`) to run unlimited rounds until it reaches a recorded final point (all rungs dry, recorded in `.planwright/final.md`). Append `depth D` to plan at depth `D` (1–10) on every round, e.g. `/planwright cycle 3 depth 8`.
@@ -121,7 +121,7 @@ new warning — fails this gate.
 ## Helper Commands
 
 Two thin shortcuts forward to the planwright skill; any planwright arguments pass through verbatim.
-Use slash spelling on Claude Code and the bare names (`codvisor`, `codinventor`) or host dispatcher
+Use slash spelling on Claude Code and Agent Zero, and the bare names (`codvisor`, `codinventor`) or host dispatcher
 skills/instructions elsewhere. All five scope-aware helpers (`codvisor`, `codinventor`, `codcycle`,
 `codshard`, `codmaster`) also peel a `path <X>` / `lib <X>` pair from anywhere in their arguments, so a
 scoped run is one flag away (see Component Scope above for what a scope does); the orchestrators trail
@@ -142,7 +142,7 @@ Every `/codvisor` and `/codinventor` form prints a one-line cost banner before d
 flagship *and* the always-depth-10 custom-N case-2 form — so a heavy run is never launched without
 disclosing its cost (it is never silent).
 
-`/codcycle` is a Claude Code orchestration command (not a single-invocation alias): per *outer cycle*
+`/codcycle` is an orchestration command (not a single-invocation alias): per *outer cycle*
 it drives the planwright skill through two phases back-to-back — `cycle 3 depth 10 explore`, then
 `cycle 3 depth 10 invent seed <i>` — a **harden → grow** rhythm, and closes the whole run with a
 single final `cycle 3 depth 10 explore` phase. Both phases run at a fixed cycle count; what changes

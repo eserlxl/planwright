@@ -6,7 +6,7 @@
 
 [![version](https://img.shields.io/badge/version-1.66.0-2563EB)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-GPL--3.0-16A34A)](LICENSE)
-[![platforms](https://img.shields.io/badge/platforms-claude--code%20%C2%B7%20codex%20%C2%B7%20cursor%20%C2%B7%20antigravity%20%C2%B7%20gemini-2563EB)](#why-any-agent-can-host-it)
+[![platforms](https://img.shields.io/badge/platforms-claude--code%20%C2%B7%20agent--zero%20%C2%B7%20codex%20%C2%B7%20cursor%20%C2%B7%20antigravity%20%C2%B7%20gemini-2563EB)](#why-any-agent-can-host-it)
 
 </div>
 
@@ -14,7 +14,7 @@
 > `/codcycle` to alternate both, `/codshard` to mature a large repo shard by shard — or
 > `/codmaster`, the front door that senses what the repo needs and drives it, command by command,
 > to a recorded final point. Planwright works through the AI coding agent you already use:
-> Claude Code, Codex, Cursor, Antigravity, Gemini, or any AGENTS.md-aware agent.
+> Claude Code, Agent Zero, Codex, Cursor, Antigravity, Gemini, or any AGENTS.md-aware agent.
 
 <p align="center">
   <img src="docs/images/dashboard-console.png" alt="Planwright dashboard — Console view" />
@@ -39,16 +39,21 @@ Modern AI coding tools are increasingly built with AI coding tools themselves. T
 
 Planwright brings the same pattern to ordinary repositories: your agent inspects the codebase, writes grounded and verifiable work items, implements them, runs the checks, commits what passes, and repeats.
 
-The difference is control. Planwright is local, free, agent-neutral, and file-based. You can inspect the plan, reject weak items, keep normal approval prompts, and move the same workflow between Claude Code, Codex, Cursor, Gemini, Antigravity, or any AGENTS.md-aware agent.
+The difference is control. Planwright is local, free, agent-neutral, and file-based. You can inspect the plan, reject weak items, keep normal approval prompts, and move the same workflow between Claude Code, Agent Zero, Codex, Cursor, Gemini, Antigravity, or any AGENTS.md-aware agent.
 
 ## Quick Install
 
-On Claude Code:
+On **Claude Code**:
 
 ```bash
 /plugin marketplace add eserlxl/claude-marketplace
 /plugin install planwright@eserlxl
 ```
+
+On **Agent Zero**:
+
+Install via the Plugin Hub (**Plugins** dialog > **Browse** tab > search "planwright"), or see [Install](#agent-zero) for local installation instructions.
+
 
 Plugin commands are namespaced: `/planwright:codvisor`, `/planwright:codmaster`, and so on
 (`/planwright` itself works as typed — the prefix applies to the six shortcuts). This README's
@@ -157,7 +162,7 @@ matters most and re-audits only what changed between runs. See
 preflight — so you can watch an unattended `cycle` evolve in a browser instead of re-running
 summaries. It is a mirror, never a remote control: it launches no agent and edits nothing. `dashboard` is an
 ordinary subcommand on every host — ask your agent to run `planwright dashboard` (Cursor:
-`@planwright dashboard`); on Claude Code, the **`/planwright:dashboard`** command opens it for
+`@planwright dashboard`); on Claude Code and Agent Zero, the **`/planwright:dashboard`** command opens it for
 you. See [Usage → Dashboard](docs/usage.md#dashboard-live-read-only-web-view).
 
 > **Note on safety:** Planning never edits your application source — only `execute` and `cycle` do,
@@ -258,6 +263,15 @@ scripts/install-aliases.sh --uninstall  # remove them again
 ```
 
 Each alias only forwards its arguments to `/planwright:<name>`, so they never duplicate or drift from the plugin's logic. Restart Claude Code (or `/clear`) after installing. These aliases are per-machine — they aren't (and can't be) shipped inside the plugin itself. Installed from the GitHub marketplace with no local clone? Clone the repo once just to run the installer — the generated aliases are self-contained, so the clone can be removed afterwards.
+
+### Agent Zero
+
+Install via the Plugin Hub (**Plugins** dialog > **Browse** tab > search "planwright"), or simply ask your agent to install it.
+
+Alternatively, any Agent Zero user can install it locally by placing the cloned repository into their plugins folder:
+
+Clone the planwright repo into `/a0/usr/plugins/planwright`.
+After restarting the Agent Zero backend, the framework will automatically discover the `plugin.yaml`, register it, and load `skills/planwright/SKILL.md`.
 
 ### Cursor
 
