@@ -29,121 +29,169 @@ Create a new Python file at `/a0/usr/extensions/python/startup_migration/registe
 
 ```python
 import re
+
 import helpers.integration_commands as ic
 from helpers.integration_commands import IntegrationCommandDef
-from helpers.subagents import UserMessage
+from agent import UserMessage
 
-# 1. Define the custom Planwright slash commands
+
+PLANWRIGHT_CATEGORY = "Planwright"
+
+
+def planwright_command(name, description, args_hint=""):
+    return IntegrationCommandDef(
+        name=name,
+        description=description,
+        category=PLANWRIGHT_CATEGORY,
+        args_hint=args_hint,
+    )
+
+
 PLANWRIGHT_COMMANDS = (
-    IntegrationCommandDef(
+    planwright_command(
         "planwright",
-        description="Run Planwright audit, preflight check, or execute a step",
-        args_hint="[subcommand]",
+        "Run Planwright audit, preflight check, or execute a step",
+        "[subcommand]",
     ),
-    IntegrationCommandDef(
+    planwright_command(
         "codmaster",
-        description="Autonomously drive the execution loop to completion",
+        "Autonomously drive the Planwright execution loop to completion",
     ),
-    IntegrationCommandDef(
+    planwright_command(
         "codvisor",
-        description="Check planning status and recommend the next task",
-        args_hint="[cycles] [depth]",
+        "Check planning status and recommend the next task",
+        "[cycles] [depth]",
     ),
-    IntegrationCommandDef(
+    planwright_command(
         "codinventor",
-        description="Endless invention loop twin of codvisor",
-        args_hint="[cycles] [depth]",
+        "Run the invention loop twin of codvisor",
+        "[cycles] [depth]",
     ),
-    IntegrationCommandDef(
+    planwright_command(
         "codcycle",
-        description="Run an endless codebase exploration and invention loop",
+        "Run a codebase exploration and development cycle",
     ),
-    IntegrationCommandDef(
+    planwright_command(
         "coddoctor",
-        description="Run codebase integrity and health diagnostic checks",
+        "Run codebase integrity and health diagnostics",
     ),
 )
 
-# 2. Inject them into the framework's global registry & lookup
-ic.COMMAND_REGISTRY = ic.COMMAND_REGISTRY + PLANWRIGHT_COMMANDS
-ic._COMMAND_LOOKUP.update({
-    f"/{name}": cmd
-    for cmd in PLANWRIGHT_COMMANDS
-    for name in (cmd.name, *cmd.aliases)
-})
 
-# 3. Intercept and handle the commands
-original_try_handle_command = ic.try_handle_command
+def _register_commands():
+    existing = set(getattr(ic, "_COMMAND_LOOKUP", {}).keys())
+    new_commands = tuple(
+        cmd for cmd in PLANWRIGHT_COMMANDS
+        if f"/{cmd.name}" not in existing
+    )
+
+    if not new_commands:
+        return
+
+    ic.COMMAND_REGISTRY = tuple(ic.COMMAND_REGISTRY) + new_commands
+
+    ic._COMMAND_LOOKUP.update({
+        f"/{name}": cmd
+        for cmd in new_commands
+        for name in (cmd.name, *cmd.aliases)
+    })
+
 
 def parse_codvisor_inventor(command, args):
-    """
-    Parses arguments for codvisor and codinventor.
-    Defaults to 10 cycles, 10 depth.
-    Peels 'path <X>' or 'lib <X>' and appends after.
-    """
     cycles = 10
     depth = 10
     scope = ""
-    
+
     if args:
-        # Check for path or lib
-        scope_match = re.search(r'(path|lib)\s+(\S+)', args)
+        scope_match = re.search(r"(path|lib)\s+(\S+)", args)
         if scope_match:
             scope = scope_match.group(0)
-            args = args.replace(scope, '').strip()
-        
+            args = args.replace(scope, "").strip()
+
         parts = args.split()
+
         if len(parts) >= 1:
-            try: cycles = int(parts[0])
-            except ValueError: pass
+            try:
+                cycles = int(parts[0])
+            except ValueError:
+                pass
+
         if len(parts) >= 2:
-            try: depth = int(parts[1])
-            except ValueError: pass
+            try:
+                depth = int(parts[1])
+            except ValueError:
+                pass
 
     action = "explore" if command == "/codvisor" else "invent"
     return f"cycle {cycles} depth {depth} {action} {scope}".strip()
 
+
+def _prompt_for_command(command, args):
+    args_str = args or ""
+
+    if command == "/planwright":
+        if args_str:
+            return f"Use planwright to process: {args_str}"
+        return "Load the planwright skill and run an audit."
+
+    if command == "/codmaster":
+        return (
+            "Load the planwright skill and run the codmaster loop to "
+            "autonomously solve pending checklist tasks."
+        )
+
+    if command in {"/codvisor", "/codinventor"}:
+        resolved_args = parse_codvisor_inventor(command, args_str)
+        return f"Load the planwright skill and run: planwright {resolved_args}"
+
+    if command == "/codcycle":
+        return "Load the planwright skill and start a codebase exploration and development cycle."
+
+    if command == "/coddoctor":
+        return "Load the planwright skill and run the codebase health diagnostics."
+
+    return ""
+
+
+_register_commands()
+
+original_try_handle_command = getattr(
+    ic,
+    "_planwright_original_try_handle_command",
+    ic.try_handle_command,
+)
+ic._planwright_original_try_handle_command = original_try_handle_command
+
+
 def custom_try_handle_command(context, text, **kwargs):
-    # First check if the original router handles it (e.g. /status, /clear, /settings)
     res = original_try_handle_command(context, text, **kwargs)
     if res is not None:
         return res
 
-    # Parse the command line
     parsed = ic.parse_command(text, integration=kwargs.get("integration"))
     if not parsed:
         return None
 
     command, args = parsed
 
-    # Handle custom Planwright slash commands
-    if command in {"/planwright", "/codmaster", "/codvisor", "/codinventor", "/codcycle", "/coddoctor"}:
-        args_str = args if args else ""
-        
-        # Map the slash command directly to the natural language agent instruction
-        if command == "/planwright":
-            prompt_instruction = f"Use planwright to process: {args_str}" if args_str else "Load the planwright skill and run an audit"
-        elif command == "/codmaster":
-            prompt_instruction = "Load the planwright skill and run the codmaster loop to autonomously solve pending checklist tasks."
-        elif command in {"/codvisor", "/codinventor"}:
-            resolved_args = parse_codvisor_inventor(command, args_str)
-            prompt_instruction = f"Load the planwright skill and run: planwright {resolved_args}"
-        elif command == "/codcycle":
-            prompt_instruction = "Load the planwright skill and start a codebase exploration and development cycle."
-        elif command == "/coddoctor":
-            prompt_instruction = "Load the planwright skill and run the codebase health diagnostics."
-        else:
-            prompt_instruction = ""
-            
-        if prompt_instruction:
-            # Dynamically inject this instruction directly into the agent's active session
-            # and trigger execution, providing a seamless chat flow!
-            context.communicate(UserMessage(prompt_instruction))
-            return f"🤖 **Planwright Command Intercepted:** Triggering *\"{command}\"* flow..."
+    if command not in {
+        "/planwright",
+        "/codmaster",
+        "/codvisor",
+        "/codinventor",
+        "/codcycle",
+        "/coddoctor",
+    }:
+        return None
 
-    return None
+    prompt_instruction = _prompt_for_command(command, args)
+    if not prompt_instruction:
+        return None
 
-# Bind the custom handler
+    context.communicate(UserMessage(message=prompt_instruction))
+    return f'Planwright command intercepted: triggering "{command}".'
+
+
 ic.try_handle_command = custom_try_handle_command
 ```
 
