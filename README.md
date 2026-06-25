@@ -273,6 +273,8 @@ Alternatively, any Agent Zero user can install it locally by placing the cloned 
 Clone the planwright repo into `/a0/usr/plugins/planwright`.
 After restarting the Agent Zero backend, the framework will automatically discover the `plugin.yaml`, register it, and load `skills/planwright/SKILL.md`.
 
+For detailed instructions on configuring native slash commands, see the [Agent Zero Command Integration Guide](docs/install/agent-zero.md).
+
 ### Cursor
 
 Planwright runs as a Cursor Agent Skill — the same agent-neutral `SKILL.md` workflow, without a plugin marketplace. See [`AGENTS.example.md`](AGENTS.example.md) for the full setup guide.
