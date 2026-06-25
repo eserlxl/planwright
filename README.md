@@ -273,7 +273,7 @@ Alternatively, any Agent Zero user can install it locally by placing the cloned 
 Clone the planwright repo into `/a0/usr/plugins/planwright`.
 After restarting the Agent Zero backend, the framework will automatically discover the `plugin.yaml`, register it, and load `skills/planwright/SKILL.md`.
 
-For detailed instructions on configuring native slash commands, see the [Agent Zero Command Integration Guide](docs/install/agent-zero.md).
+Use $planwright to load the skill, then you can use planwright commands as usual. Try codvsior for testing.
 
 ### Cursor
 
